@@ -459,3 +459,23 @@ describe("commissions API (adapted from #122)", () => {
     expect(await prisma.auditEvent.count({ where: { storeId: f.storeId } })).toBe(0);
   });
 });
+
+
+it('limits a monthly report to its calendar month and resolved store, rejects inverted months #451', async () => {
+  const f = await fixture();
+  await rule();
+  await sell(f.member.id);
+  await sell(f.member.id, { date: '01/02/2026', amount: 2000 });
+  const foreign = await seedStoreContext({ firebaseUid: 'foreign-report-owner', email: 'foreign-report@example.test' });
+  const foreignHeaders = buildAuthHeaders({ uid: 'foreign-report-owner', email: 'foreign-report@example.test' });
+  const foreignRule = await getApp().inject({ method: 'POST', url: '/api/commissions/rules', headers: foreignHeaders, payload: { rate: 10, basis: 'SALE_PERCENT', effectiveFrom: '2025-01-01T00:00:00Z' } });
+  expect(foreignRule.statusCode).toBe(201);
+  const foreignSale = await getApp().inject({ method: 'POST', url: '/api/operations/sales', headers: foreignHeaders, payload: { date: '15/01/2026', deviceLabel: 'Foreign sale', amount: 999999, currency: 'ARS', exchangeRate: 1000, sellerMemberId: foreign.membership!.id } });
+  expect(foreignSale.statusCode, foreignSale.body).toBe(201);
+  const response = await getApp().inject({ url: `/api/reports/commissions?from=${PERIOD}&to=${PERIOD}`, headers: ownerHeaders() });
+  expect(response.statusCode, response.body).toBe(200);
+  expect(response.json().rows.every((row: { period: string; memberId: string }) => row.period === PERIOD && row.memberId !== foreign.membership!.id)).toBe(true);
+  expect(response.json().rows.find((row: { memberId: string }) => row.memberId === f.member.id)).toMatchObject({ salesCount: 1, earned: { ARS: 100, USD: 0 } });
+  const inverted = await getApp().inject({ url: '/api/reports/commissions?from=2026-02&to=2026-01', headers: ownerHeaders() });
+  expect(inverted.statusCode).toBe(400);
+});

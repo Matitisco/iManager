@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CustomColumn } from '../types';
 import {
   buildClientReport,
+  averageLeadDays, breakdownCatalog,
   dimensionsFor,
   groupBreakdown,
   leadTimeLabel,
@@ -96,4 +97,21 @@ describe('report breakdown', () => {
     expect(leadTimeLabel(0)).toBe('tiempo medio: mismo día');
     expect(leadTimeLabel(2)).toBe('tiempo medio: 2 días');
   });
+});
+
+it('rejects missing or inverted delivery events and averages fractional durations once', () => {
+  expect(repairLeadDays({ status: 'ENTREGADO', receivedAt: '2026-10-01', events: [] })).toBeNull();
+  expect(repairLeadDays({ status: 'ENTREGADO', receivedAt: '2026-10-02', events: [{ status: 'ENTREGADO', createdAt: '2026-10-01' }] })).toBeNull();
+  expect(averageLeadDays([3.15, 3.25, null])).toBe(3.2);
+  expect(averageLeadDays([null])).toBeNull();
+  expect(leadTimeLabel(3.2)).toBe('tiempo medio: 3,2 días');
+});
+it('uses approved stock, payment and actual service status colors', () => {
+  expect(breakdownCatalog('Stock', 'status')).toContainEqual({ label: 'Disponible', color: '#25A66A' });
+  expect(breakdownCatalog('Ventas', 'payment')).toContainEqual({ label: 'Efectivo', color: '#16181D' });
+  expect(breakdownCatalog('Servicio', 'status')).toContainEqual({ label: 'Entregado', color: '#25A66A' });
+  expect(breakdownCatalog('Servicio', 'status')?.some(part => part.label === 'A cotizar')).toBe(false);
+});
+it('retains negative category values for signed presentation', () => {
+  expect(groupBreakdown([{ label: 'Ajuste', value: -10 }]).parts[0].value).toBe(-10);
 });

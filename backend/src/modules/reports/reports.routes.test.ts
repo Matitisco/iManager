@@ -28,6 +28,9 @@ vi.mock("./reports.service.js", async () => {
   };
 });
 
+const commissionReportMock = vi.hoisted(() => vi.fn());
+vi.mock('../commissions/commissions.service.js', () => ({ getCommissionReport: commissionReportMock }));
+
 import { registerApiErrorHandler } from "../../lib/api-error.js";
 import { reportsRoutes } from "./reports.routes.js";
 
@@ -179,6 +182,31 @@ describe("reportsRoutes", () => {
     });
     expect(getReportsOverviewMock).not.toHaveBeenCalled();
 
+    await app.close();
+  });
+});
+
+
+describe('monthly commission route contract #451', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    authenticateMock.mockImplementation(async () => undefined);
+    commissionReportMock.mockResolvedValue({ from: '2026-01', to: '2026-01', rows: [] });
+  });
+  it.each([{ sections: ['reports'] }, { sections: ['commissions'] }, { sections: [] }])('requires both permissions for staff %j', async ({ sections }) => {
+    resolveAppUserMock.mockImplementation(async request => { request.appUser = { storeId: 'authorized-store', role: 'STAFF', sections }; });
+    const app = buildApp(); await app.register(reportsRoutes);
+    expect((await app.inject({ url: '/commissions?from=2026-01&to=2026-01' })).statusCode).toBe(403);
+    expect(commissionReportMock).not.toHaveBeenCalled(); await app.close();
+  });
+  it('forwards exact calendar month and resolved store scope', async () => {
+    resolveAppUserMock.mockImplementation(async request => { request.appUser = { storeId: 'authorized-store', role: 'STAFF', sections: ['reports', 'commissions'] }; });
+    const app = buildApp(); await app.register(reportsRoutes);
+    const response = await app.inject({ url: '/commissions?from=2026-01&to=2026-01' });
+    expect(response.statusCode).toBe(200);
+    expect(commissionReportMock).toHaveBeenCalledWith('authorized-store', '2026-01', '2026-01');
+    expect((await app.inject({ url: '/commissions?from=2026-13&to=2026-13' })).statusCode).toBe(400);
+    expect((await app.inject({ url: '/commissions?from=2026-01&to=2026-01&storeId=foreign' })).statusCode).toBe(400);
     await app.close();
   });
 });
