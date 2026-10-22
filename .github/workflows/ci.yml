@@ -4,6 +4,7 @@ name: CI
 # tests (2 shards), PWA asset checks + PWA smoke and an E2E smoke (@smoke,
 # Chromium only). The full E2E suite (4 shards) and the full PWA suite
 # (iPhone WebKit + Android + desktop) run on every push to main and nightly.
+# Browser jobs use the lockfile-matched Playwright image: no apt or browser installs.
 on:
   push:
     branches: [main]
@@ -16,10 +17,16 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+defaults:
+  run:
+    shell: bash
+
 env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
   ENABLE_TEST_AUTH_BYPASS: "true"
   NODE_ENV: test
+  # Generate explicitly in backend jobs; postinstall schema lookup depends on INIT_CWD.
+  PRISMA_SKIP_POSTINSTALL_GENERATE: "true"
   FULL: ${{ github.event_name != 'pull_request' }}
 
 jobs:
@@ -28,6 +35,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.f.outputs.code }}
+      playwright-image: ${{ steps.pw.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,6 +48,10 @@ jobs:
           echo "$files"
           if echo "$files" | grep -qvE '^(docs/|openspec/|skills/)|\.md$'; then code=true; else code=false; fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+      - id: pw
+        name: Select Playwright image from lockfile
+        run: |
+          node -e 'const version = require("./package-lock.json").packages["node_modules/@playwright/test"].version; console.log(`image=mcr.microsoft.com/playwright:v${version}-noble`)' >> "$GITHUB_OUTPUT"
 
   lint:
     needs: changes
@@ -55,8 +67,14 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-      - run: npm ci --prefer-offline --no-audit --no-fund
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      - name: Install frontend and backend dependencies (once per project)
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund &
+          frontend_install=$!
+          npm --prefix backend ci --prefer-offline --no-audit --no-fund
+          wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
         working-directory: backend
       - name: Lint frontend
         run: npm run lint
@@ -89,10 +107,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
       - run: npm ci --prefer-offline --no-audit --no-fund
+        working-directory: backend
+      - name: Generate Prisma client
+        run: npm run prisma:generate
         working-directory: backend
       - name: Prepare test database
         run: npx prisma db push --skip-generate
@@ -108,6 +127,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --ipc=host
     timeout-minutes: 15
     strategy:
       fail-fast: false
@@ -122,21 +144,17 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-      - run: npm ci --prefer-offline --no-audit --no-fund
       # Frontend tests import backend modules (backend deps needed) but use no database.
-      - run: npm ci --prefer-offline --no-audit --no-fund
+      # jsdom is the default; layout/animation tests launch real Chromium directly.
+      - name: Install frontend and backend dependencies (once per project)
+        run: |
+          npm ci --prefer-offline --no-audit --no-fund &
+          frontend_install=$!
+          npm --prefix backend ci --prefer-offline --no-audit --no-fund
+          wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
         working-directory: backend
-      - id: pw
-        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        id: pwcache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-chromium
-      - if: steps.pwcache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-      - if: steps.pwcache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
       - name: Test frontend
         run: npx vitest run --shard=${{ matrix.shard }}/2
 
@@ -144,6 +162,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --ipc=host
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -151,23 +172,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci --prefer-offline --no-audit --no-fund
-      - id: pw
-        run: |
-          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
-          if [[ "$FULL" == "true" ]]; then echo "browsers=chromium webkit" >> "$GITHUB_OUTPUT"; else echo "browsers=chromium" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/cache@v4
-        id: pwcache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ steps.pw.outputs.browsers }}
-      - if: steps.pwcache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps ${{ steps.pw.outputs.browsers }}
-      - if: steps.pwcache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps ${{ steps.pw.outputs.browsers }}
       - name: Test PWA assets, worker and serving
         run: npm run test:pwa
       - name: PWA smoke (Android Chromium)
@@ -181,6 +187,12 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.changes.outputs.playwright-image }}
+      options: --ipc=host
+    env:
+      # Service containers are reached by service name from a job container.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/imanager_test
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -210,22 +222,15 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             backend/package-lock.json
-      - run: npm ci --prefer-offline --no-audit --no-fund
-      - run: npm ci --prefer-offline --no-audit --no-fund
-        working-directory: backend
-      - id: pw
+      - name: Install frontend and backend dependencies (once per project)
         run: |
-          echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
-          if [[ "$FULL" == "true" ]]; then echo "browsers=chromium webkit" >> "$GITHUB_OUTPUT"; else echo "browsers=chromium" >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/cache@v4
-        id: pwcache
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.pw.outputs.version }}-${{ steps.pw.outputs.browsers }}
-      - if: steps.pwcache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps ${{ steps.pw.outputs.browsers }}
-      - if: steps.pwcache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps ${{ steps.pw.outputs.browsers }}
+          npm ci --prefer-offline --no-audit --no-fund &
+          frontend_install=$!
+          npm --prefix backend ci --prefer-offline --no-audit --no-fund
+          wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        working-directory: backend
       # globalSetup prepares this runner's database before the run.
       - name: E2E smoke (@smoke, Chromium)
         if: env.FULL != 'true'

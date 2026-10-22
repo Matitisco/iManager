@@ -167,9 +167,8 @@ test.describe('post 395', () => {
         expect(bg).not.toBe('rgba(0, 0, 0, 0)');
         await page.goto('/#/inv');
         await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
-        const sub = page.locator('.dsub');
-        await expect(sub).toHaveText(/\d+ equipos? · \d+ disponibles?/);
-        expect(await sub.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(24);
+        await expect(page.locator('.dtop .dsub')).toHaveCount(0);
+        await expect(page.locator('.phone-row').first()).toBeVisible();
         const invCard = page.locator('.phone-row').first();
         const invBox = await invCard.boundingBox();
         expect(Math.abs((saleBox?.x ?? 0) - (invBox?.x ?? 0))).toBeLessThanOrEqual(2);
@@ -256,11 +255,8 @@ test.describe('post 395', () => {
       await expect(page.getByTestId('settings-screen')).toBeVisible();
 
       await page.goto('/#/cajas');
-      const cashSub = page.locator('.wsub');
-      if (mobile) {
-        await expect(cashSub).toHaveText('Ingresos, egresos y cierre');
-        expect(await cashSub.evaluate(el => el.getBoundingClientRect().height)).toBeLessThan(24);
-      }
+      await expect(page.getByRole('heading', { level: 1, name: 'Cajas', exact: true })).toBeVisible();
+      await expect(page.locator('.whead .wsub')).toHaveCount(0);
       await page.getByRole('button', { name: /Caja principal/ }).click();
       await expect(page.getByText(/18\/10\/2026 19:16/)).toBeVisible();
       await expect(page.getByText(/07:16/)).toHaveCount(0);

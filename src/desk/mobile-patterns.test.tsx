@@ -21,12 +21,13 @@ function usePhoneViewport() {
 describe('mobile sheet patterns', () => {
   it('keeps the actions in a footer and the fields in the scrolling body', () => {
     render(
-      <Sheet title="Registrar equipo" onClose={() => undefined}>
+      <Sheet title="Registrar equipo" subtitle="Datos del equipo" onClose={() => undefined}>
         <label className="fl"><span>Modelo</span><input aria-label="Modelo" /></label>
         <Actions primary="Guardar equipo" onPrimary={() => undefined} onSecondary={() => undefined} />
       </Sheet>,
     );
     const dialog = screen.getByRole('dialog', { name: 'Registrar equipo' });
+    expect(within(dialog).getByText('Datos del equipo')).toBeInTheDocument();
     expect(dialog.querySelector('.sheet-scroll')).toContainElement(screen.getByLabelText('Modelo'));
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Guardar equipo' }));
     expect(dialog.querySelector('.sheet-foot')).toContainElement(screen.getByRole('button', { name: 'Cancelar' }));
@@ -72,12 +73,15 @@ describe('mobile sheet patterns', () => {
     const onMenu = vi.fn();
     render(
       <>
-        <PageHead title="Servicio técnico" subtitle="8 abiertas" back={back} />
+        <PageHead title="Servicio técnico" back={back} action={<button type="button">Nueva orden</button>} />
         <PressTarget as="button" className="phone-row" onActivate={() => undefined} onMenu={onMenu}>
           <b>iPhone 13</b>
         </PressTarget>
       </>,
     );
+    expect(screen.getByRole('heading', { name: 'Servicio técnico' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Nueva orden' })).toBeInTheDocument();
+    expect(document.querySelector('.whead .wsub')).not.toBeInTheDocument();
     await user.click(screen.getByTestId('page-back'));
     expect(back).toHaveBeenCalledOnce();
     await user.click(screen.getByTestId('row-menu'));

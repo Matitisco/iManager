@@ -257,7 +257,7 @@ describe('Trade-ins on a phone', () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     render(<DeskProvider value={{ tab: 'tradeins', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false, back: vi.fn() }}><TradeInsScreen /></DeskProvider>);
     expect(screen.getByRole('heading', { name: 'Canjes' })).toBeInTheDocument();
-    expect(screen.getByText('2 canjes · 1 en curso')).toBeInTheDocument();
+    expect(screen.queryByText('2 canjes · 1 en curso')).not.toBeInTheDocument();
     expect(screen.getByTestId('page-back')).toBeInTheDocument();
     const timeline = screen.getByTestId('tradeins-timeline');
     expect(timeline).toHaveTextContent('#C-0001');
@@ -319,7 +319,7 @@ describe('Trade-ins on a phone', () => {
     renderScreen();
     expect(screen.getByTestId('tradeins-empty')).toHaveTextContent('No hay canjes');
     expect(screen.getByText('0 resultados')).toBeInTheDocument();
-    expect(screen.getByText('0 canjes · 0 en curso')).toBeInTheDocument();
+    expect(screen.queryByText('0 canjes · 0 en curso')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('tradeins-empty')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
   });

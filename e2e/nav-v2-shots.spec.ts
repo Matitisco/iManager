@@ -224,8 +224,7 @@ test.describe('navegación v2', () => {
     await shoot(page, 'nav-v2-m-03-tabbar');
 
     await page.getByTestId('sidebar-tab-more').click();
-    await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await expect(page.getByText('Todas las secciones, agrupadas')).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Más', exact: true })).toBeVisible();
     await expect(page.getByTestId('more-item-sales')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-expenses')).toBeVisible();

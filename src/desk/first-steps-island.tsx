@@ -38,7 +38,6 @@ function flagsFromProgress(steps: Partial<FirstStepFlags> | undefined, fallback:
 function useFirstSteps() {
   const {
     gettingStarted: state,
-    gettingStartedError,
     updateGettingStarted,
     refreshGettingStarted,
     inventory,
@@ -98,7 +97,6 @@ function useFirstSteps() {
 
   return {
     state,
-    gettingStartedError,
     error,
     role,
     steps,
@@ -109,7 +107,6 @@ function useFirstSteps() {
     markInstalled,
     run,
     completionKey: `imanager-first-steps-completed:${appSession?.user?.id ?? ""}:${appSession?.store?.id ?? ""}`,
-    refreshGettingStarted,
     updateGettingStarted,
   };
 }
@@ -223,16 +220,7 @@ function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstStep
   }, [open, visible, dismissed, complete]);
 
   if (!canSeeFirstSteps(model.role) || dismissed) return null;
-  if (!model.state) {
-    if (!model.gettingStartedError) return null;
-    return (
-      <section className="steps-panel steps-error" role="alert" data-testid="getting-started">
-        <h2>Primeros pasos</h2>
-        <p>{model.gettingStartedError}</p>
-        <button className="btn2 s" type="button" onClick={() => void model.refreshGettingStarted?.()}>Reintentar</button>
-      </section>
-    );
-  }
+  if (!model.state) return null;
   if (!visible || (complete && !celebrating)) return null;
 
   const node = (
@@ -264,7 +252,7 @@ function FirstStepsIslandView({ model }: { model: ReturnType<typeof useFirstStep
               model.run(id);
             }}
           />
-          {(model.error || model.gettingStartedError) ? <p className="ferr" role="alert">{model.error || model.gettingStartedError}</p> : null}
+          {model.error ? <p className="ferr" role="alert">{model.error}</p> : null}
         </section>
       ) : (
         <button className="steps-pill" type="button" data-testid="getting-started" aria-label={`Primeros pasos, ${done} de ${total}`} onClick={() => {
@@ -292,15 +280,7 @@ export function FirstStepsHelp() {
   const model = useFirstSteps();
   const [busy, setBusy] = useState(false);
   if (!canSeeFirstSteps(model.role)) return null;
-  if (!model.state) {
-    return model.gettingStartedError ? (
-      <section className="first-steps" role="alert" data-testid="getting-started">
-        <h2>Primeros pasos</h2>
-        <p>{model.gettingStartedError}</p>
-        <button className="btn2 s" type="button" onClick={() => void model.refreshGettingStarted?.()}>Reintentar</button>
-      </section>
-    ) : null;
-  }
+  if (!model.state) return null;
   const onDashboard = firstStepsOnDashboard(model.state, model.role);
   const { done, total } = model.progress;
   return (
@@ -326,7 +306,7 @@ export function FirstStepsHelp() {
         </button>
       ) : null}
       <StepRows steps={model.steps} nextId={model.next?.id} onRun={model.run} />
-      {(model.error || model.gettingStartedError) ? <p className="ferr" role="alert">{model.error || model.gettingStartedError}</p> : null}
+      {model.error ? <p className="ferr" role="alert">{model.error}</p> : null}
       <InstallGate open={model.installation} onClose={model.closeInstall} onInstalled={() => void model.markInstalled()} />
     </section>
   );

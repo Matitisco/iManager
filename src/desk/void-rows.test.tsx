@@ -146,11 +146,18 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
   });
 });
 
-it('shows archive load errors alongside active rows', async () => {
-  api.inventory.mockRejectedValue(new Error('No se pudieron cargar archivados'));
+it('keeps active rows visible and logs archive load failures without an alert', async () => {
+  const cause = new Error('No se pudieron cargar archivados');
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  api.inventory.mockRejectedValue(cause);
   show(<InventoryScreen />);
-  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar archivados');
+  await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los registros archivados o anulados.', cause));
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+  expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+  expect(document.querySelector('.ferr')).not.toBeInTheDocument();
   expect(screen.getByText('Equipo activo · 128 GB')).toBeInTheDocument();
+  warn.mockRestore();
 });
 
 it('refetches archive records when an active row is archived', async () => {

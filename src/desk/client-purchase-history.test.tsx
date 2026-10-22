@@ -11,15 +11,14 @@ const state = vi.hoisted(() => ({
   appSession: { store: { id: 'store' }, membership: { role: 'OWNER' }, onboardingRequired: false },
   commissionSellers: [{ id: 'lucia', name: 'Lucía', role: 'STAFF' }],
   loadCommissionSellers: vi.fn(async () => undefined),
+  loadClientDeposits: vi.fn(async () => []),
 }));
 const api = vi.hoisted(() => ({ sales: vi.fn(), trades: vi.fn(), inventory: vi.fn(), payments: vi.fn(async () => []) }));
-const deposits = vi.hoisted(() => ({ rows: [], loading: false, error: null, retry: vi.fn() }));
 vi.mock('../context/AppContext', () => ({ useAppContext: () => state }));
 vi.mock('../services/sales-api', () => ({ fetchVoidedSales: api.sales }));
 vi.mock('../services/trade-ins-api', () => ({ fetchVoidedTradeIns: api.trades }));
 vi.mock('../services/inventory-api', () => ({ fetchArchivedInventory: api.inventory }));
 vi.mock('../services/clients-api', () => ({ fetchClientPayments: api.payments }));
-vi.mock('./overlays/deposits', () => ({ useClientDeposits: () => deposits }));
 
 function mount() {
   return render(<DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ClientDetail id="c" /></DeskProvider>);
@@ -28,6 +27,8 @@ function mount() {
 describe('client purchase history sources', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    state.clients[0].creditBalance = 0;
+    state.loadClientDeposits.mockReset().mockResolvedValue([]);
     api.trades.mockResolvedValue([]);
     api.inventory.mockResolvedValue([{ id: 'p', imei: '356789104523871', model: 'iPhone 15 Pro', capacity: '256GB' }]);
     api.sales.mockResolvedValue([
@@ -49,9 +50,32 @@ describe('client purchase history sources', () => {
     expect(state.loadCommissionSellers).toHaveBeenCalledOnce();
   });
 
-  it('shows a visible error when the supplemental history cannot be loaded', async () => {
-    api.sales.mockRejectedValue(new Error('No se pudieron cargar las ventas anuladas'));
+  it('keeps purchases visible and logs failed supplemental history without an alert', async () => {
+    const cause = new Error('No se pudieron cargar las ventas anuladas');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    api.sales.mockRejectedValue(cause);
     mount();
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('No se pudieron cargar las ventas anuladas'));
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los registros archivados o anulados.', cause));
+    expect(screen.getByTestId('client-purchase-count')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+    warn.mockRestore();
   });
+  it('hides failed deposits and preserves the known client credit balance', async () => {
+    const cause = new Error('No se pudieron cargar las señas');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    state.loadClientDeposits.mockRejectedValueOnce(cause);
+    state.clients[0].creditBalance = 500;
+    mount();
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar las señas.', cause));
+    expect(document.querySelector('.tracking-summary .dhero')).toHaveTextContent('Saldo a favor$ 500');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(screen.queryByText('Todavía no tiene señas.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+    expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
 });

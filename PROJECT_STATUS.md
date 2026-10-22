@@ -15,6 +15,13 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Hallazgo del 398 %: cálculo local divergente del Dashboard, posible desborde de fecha anterior y fechas futuras actuales; no se atribuye el valor productivo sin sus datos. Backend ya comparaba ventanas contiguas de igual duración. Ahora excluye anuladas también en la base, omite bases menores a una unidad y agrupa por calendario argentino. Informe en `docs/dashv2-hallazgo-398.md`; copiar al destino solicitado en `/workspace` está impedido por el filesystem de sólo lectura.
 - Validación: 1.535 tests frontend, 569 unitarios backend, regresiones finales del área y TypeScript/lint de ambos paquetes. Cuatro E2E existentes de Dashboard/menús pasaron con PostgreSQL local exclusivo `imanager_dashboard_v2_test`; los 12 de detalle no pudieron iniciar por falta de WebKit y dependencias del sistema (el binario se descargó en `/tmp` sin instalar paquetes globales). Selectores existentes actualizados, sin casos E2E nuevos. Commit impedido por `.git` de sólo lectura (`index.lock`); cambios locales en `feat/dashboard-redisenio`, sin push. Capturas locales desktop 1440×1100, móvil 390 px y selector en `/tmp/dashboard-v2-shots`; sin errores de página ni desborde horizontal.
 
+- Integración de `origin/main` en `feat/dashboard-redisenio`: conflicto documental resuelto conservando ambas entradas completas; encabezados sin subtítulos y cargas secundarias compatibles con Dashboard v2. Typecheck frontend/backend, 1.560 tests frontend y 569 unitarios backend aprobados. Sin cambios de código, build, commit ni push; resolución en working tree, con índice pendiente por `.git` de sólo lectura.
+
+## CI — Objetivo de PR menor a cinco minutos — 2026-10-22
+
+- Frontend, E2E y PWA usan la imagen oficial de Playwright derivada del lockfile, sin apt ni descargas de navegadores durante el job. E2E conecta al servicio PostgreSQL por hostname; instalaciones npm de frontend/backend una vez por proyecto y en paralelo, con cachés ajustadas a los lockfiles necesarios. Mantiene pruebas, selección PR/full, dos shards frontend, integración backend serial y cancelación existentes.
+- YAML/shell, condiciones de tests, propagación de errores de instalación y typechecks frontend/backend validados. Vitest local: 1.485 pruebas y 183 archivos aprobados en 85,95 s; siete suites de navegador fallaron al iniciar Chromium por restricciones del sandbox, dejando 42 pruebas sin ejecutar. OpenSpec `ci-under-five-minutes`; sin build, commit ni push. Falta medir la duración total y validar los contenedores en el próximo PR de GitHub.
+
 ## Control de stock — Acceso por pestaña — 2026-10-22
 
 - Retirado el botón antiguo del encabezado de Inventario en escritorio y móvil, junto con el estado local, el montaje alternativo y el modo con flecha de regreso. La pestaña y su ruta conservan el flujo de conteo; Carga en serie mantiene sus estilos compartidos.
@@ -30,6 +37,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Rediseño aprobado en 1440/390: resultado reciente con estado Por revisar, cuatro grupos con IMEI completo y controles anteriores. Inicio mínimo en Sheet (hoja inferior móvil); registro únicamente mediante RECORD, sin selección ni acciones de archivar/cargar/ajustar inventario. Continúa el conteo abierto y conserva lector, ingreso manual, cámara y permisos.
 - Base y exclusiones limitadas a DISPONIBLE, sin cambios de Prisma ni reescritura de fotos históricas. Sin escaneos usa lenguaje de observación; historial con Sin escanear / Sin cargar. Espacio inferior y scroll con reserva para navegación y safe area.
 - Tests de componentes cubren inicio, ciegas, cámara/manual/lector, grupos, errores, permisos, históricos y RECORD sin mutación; unitarios e integración PostgreSQL cubren el filtro de estados, exclusiones, aislamiento y registro. Evidencia de revisión visual sintética y comandos en `docs/stock-count-redesign-318.md`. Sin build ni E2E; commit en la rama actual, sin push.
+
+## Cargas secundarias discretas — 2026-10-22
+
+- Resumen periódico, catálogo y selectores de vendedores muestran vacíos neutrales ante fallos de consulta. Se ocultan avisos y reintentos de señas secundarias, Primeros pasos, vista previa de catálogo, contador de comisiones y datos archivados complementarios. Los filtros de archivados conservan sus vacíos existentes y las listas activas permanecen disponibles.
+- Las consultas fallidas registran la causa original con `console.warn`; estados e imports de error/reintento retirados. Guardados, pagos, aplicación/cancelación de señas y eliminación conservan sus errores visibles. Una consulta de vendedores tardía no sobrescribe un error de guardado, y una consulta de señas fallida conserva el crédito conocido del cliente.
+- TypeScript frontend/backend y 263 pruebas afectadas aprobados. Suite completa: 1.515/1.516 aprobadas; un timeout en la prueba existente de Chromium `sheet-compatibility` pasó al repetir el archivo aislado (7/7). Cambio OpenSpec `quiet-load-failures`. Sin build ni nuevos E2E; commit en `fix/ocultar-errores-secundarios`, sin push, según el pedido.
 
 ## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
 

@@ -13,18 +13,21 @@ import { PAYMENTS } from './shared';
 const EMPTY_DEPOSITS: ClientDeposit[] = [];
 export function useClientDeposits(clientId: string) {
   const { clientDeposits = {}, loadClientDeposits, appSession } = useAppContext();
-  const [error, setError] = useState('');
+  const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [retry, setRetry] = useState(0);
   useEffect(() => {
     if (!clientId || !loadClientDeposits) return;
     let active = true;
     setLoading(true);
-    setError('');
-    loadClientDeposits(clientId).catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar las señas')); }).finally(() => { if (active) setLoading(false); });
+    setUnavailable(false);
+    loadClientDeposits(clientId).catch(cause => {
+      if (!active) return;
+      console.warn('No se pudieron cargar las señas.', cause);
+      setUnavailable(true);
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [clientId, appSession?.store?.id, retry]);
-  return { rows: clientDeposits[clientId] ?? EMPTY_DEPOSITS, error, loading, retry: () => setRetry(old => old + 1) };
+  }, [clientId, appSession?.store?.id]);
+  return { rows: clientDeposits[clientId] ?? EMPTY_DEPOSITS, unavailable, loading };
 }
 export function receiptMoney(amount: number, currency: string) {
   return `${currency === 'USD' ? 'US$' : '$'} ${amount.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
@@ -118,12 +121,11 @@ export function CancelDeposit({ row, onClose }: { row: ClientDeposit; onClose: (
   </Sheet>;
 }
 export function DepositChoices({ receipts, clientId, productId, selected, onChange, currency, rate, maximum, busy }: { receipts: ReturnType<typeof useClientDeposits>; clientId: string; productId: string; selected: string[]; onChange: (ids: string[]) => void; currency: string; rate: number | null; maximum: number; busy: boolean }) {
-  const { rows, error, loading, retry } = receipts;
+  const { rows, loading } = receipts;
   const active = rows.filter(depositAvailable);
-  if (!clientId) return null;
+  if (!clientId || (!loading && !active.length)) return null;
   return <section className="deposit-list" aria-label="Señas disponibles">
     {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
-    {error ? <div className="ferr" role="alert">{error}<button type="button" className="wlink" onClick={retry}>Reintentar señas</button></div> : null}
     {active.length ? <h4>Señas disponibles</h4> : null}
     {active.map(row => {
       const value = depositAmount(row, currency, rate);
@@ -142,7 +144,7 @@ export function DepositChoices({ receipts, clientId, productId, selected, onChan
 export function RepairDepositSheet({ repairId }: { repairId: string }) {
   const { repairOrders, applyClientDepositToRepair } = useAppContext();
   const order = repairOrders.find(item => item.id === repairId);
-  const { rows, loading, error: loadError, retry } = useClientDeposits(order?.clientId ?? '');
+  const { rows, loading } = useClientDeposits(order?.clientId ?? '');
   const money = useMoney();
   const { open, toast } = useDesk();
   const [selected, setSelected] = useState('');
@@ -162,9 +164,9 @@ export function RepairDepositSheet({ repairId }: { repairId: string }) {
   };
   const active = rows.filter(depositAvailable);
   return <Sheet title="Aplicar seña a reparación" subtitle={`${order.code} · ${order.clientName}`} className="deposit-sheet" onClose={back}>
-    {error || loadError ? <div className="ferr" role="alert">{error || loadError}{loadError ? <button type="button" className="wlink" onClick={retry}>Reintentar</button> : null}</div> : null}
+    {error ? <div className="ferr" role="alert">{error}</div> : null}
     {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
-    {!loading && !active.length ? <p className="eqs-note">El cliente no tiene señas disponibles. Podés agregar una desde su ficha.</p> : null}
+    {!loading && !active.length ? <p className="eqs-note">Sin señas para mostrar.</p> : null}
     <p className="eqs-note">Se agrega al anticipo existente de la orden sin registrar otro cobro. Pendiente: {formatMoney(maximum, currency === 'USD' ? 'USD' : 'ARS')} {currency}.</p>
     {active.map(row => {
       const value = depositAmount(row, currency, money.rate);
