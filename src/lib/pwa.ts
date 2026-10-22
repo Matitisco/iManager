@@ -4,6 +4,14 @@ export const INSTALL_DISMISSED_KEYS = {
   android: 'imanager:install-dismissed:android',
 } as const;
 export const INSTALL_DELAY_MS = 30_000;
+export const INSTALL_PREFERENCE_KEY = 'imanager:install-preference:v2';
+export const INSTALL_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+export interface InstallPreference {
+  version: 2;
+  dismissedForever: boolean;
+  snoozedUntil: number | null;
+}
+const emptyPreference = (): InstallPreference => ({ version: 2, dismissedForever: false, snoozedUntil: null });
 
 export interface InstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -29,57 +37,105 @@ export function isIOSSafari() {
     && !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo/.test(navigator.userAgent);
 }
 
-const dismissed = new Set<'ios' | 'android'>();
+let memoryPreference = emptyPreference();
+let memoryOnly = false;
 let pendingPrompt: InstallPromptEvent | null = null;
 let initialized = false;
 let installed = false;
 let prompting = false;
+let accepted = false;
+let expiryTimer: number | undefined;
 const listeners = new Set<() => void>();
-const changed = () => listeners.forEach((listener) => listener());
+const legacyKeys = [INSTALL_DISMISSED_KEY, ...Object.values(INSTALL_DISMISSED_KEYS)];
 
-const installPlatform = () => isIOS() ? 'ios' : 'android';
-
-export function installDismissed() {
-  const platform = installPlatform();
+export function getInstallPreference(): InstallPreference {
+  if (memoryOnly) return memoryPreference;
   try {
-    // The legacy guide flag belongs to iOS. Never suppress Android's native action.
-    if (localStorage.getItem(INSTALL_DISMISSED_KEY) === 'yes') {
-      localStorage.setItem(INSTALL_DISMISSED_KEYS.ios, 'yes');
-      localStorage.removeItem(INSTALL_DISMISSED_KEY);
+    const raw = localStorage.getItem(INSTALL_PREFERENCE_KEY);
+    if (raw) {
+      try {
+        const value = JSON.parse(raw) as Partial<InstallPreference>;
+        if (value?.version === 2 && typeof value.dismissedForever === 'boolean'
+          && (value.snoozedUntil === null || typeof value.snoozedUntil === 'number' && Number.isFinite(value.snoozedUntil) && value.snoozedUntil >= 0)) {
+          memoryPreference = value as InstallPreference;
+          return memoryPreference;
+        }
+      } catch { /* Recover a corrupt preference from historical flags, if present. */ }
     }
-    return dismissed.has(platform) || localStorage.getItem(INSTALL_DISMISSED_KEYS[platform]) === 'yes';
-  } catch { return dismissed.has(platform); }
+    if (legacyKeys.some((key) => localStorage.getItem(key) === 'yes')) {
+      memoryPreference = { version: 2, dismissedForever: true, snoozedUntil: null };
+      // Do not remove historical choices unless their replacement is durable.
+      try { localStorage.setItem(INSTALL_PREFERENCE_KEY, JSON.stringify(memoryPreference)); }
+      catch { memoryOnly = true; return memoryPreference; }
+      for (const key of legacyKeys) {
+        try { localStorage.removeItem(key); } catch { /* The v2 choice is already durable. */ }
+      }
+      return memoryPreference;
+    }
+    memoryPreference = emptyPreference();
+  } catch { /* Use the last known preference when storage cannot be read. */ }
+  return memoryPreference;
 }
 
-export function dismissInstall() {
-  const platform = installPlatform();
-  dismissed.add(platform);
-  try { localStorage.setItem(INSTALL_DISMISSED_KEYS[platform], 'yes'); } catch { /* Private storage may be unavailable. */ }
+export function installDismissedForever() { return getInstallPreference().dismissedForever; }
+export function installRequestAccepted() { return accepted; }
+export function installDismissed() {
+  const preference = getInstallPreference();
+  return preference.dismissedForever || (preference.snoozedUntil ?? 0) > Date.now();
+}
+
+function scheduleExpiry() {
+  window.clearTimeout(expiryTimer);
+  expiryTimer = undefined;
+  if (!listeners.size) return;
+  const remaining = (getInstallPreference().snoozedUntil ?? 0) - Date.now();
+  if (remaining > 0) expiryTimer = window.setTimeout(changed, Math.min(remaining, 2_147_483_647));
+}
+function changed() {
+  scheduleExpiry();
+  listeners.forEach((listener) => listener());
+}
+function savePreference(preference: InstallPreference) {
+  memoryPreference = preference;
+  try {
+    localStorage.setItem(INSTALL_PREFERENCE_KEY, JSON.stringify(preference));
+    memoryOnly = false;
+  } catch { memoryOnly = true; }
   changed();
 }
+export function dismissInstall() {
+  savePreference({ version: 2, dismissedForever: true, snoozedUntil: null });
+}
+export function snoozeInstall() {
+  if (installDismissedForever()) return;
+  savePreference({ version: 2, dismissedForever: false, snoozedUntil: Date.now() + INSTALL_SNOOZE_MS });
+}
 
-/** Consume the browser's single-use event from either installation entry. */
-export async function requestInstall() {
-  if (!pendingPrompt || prompting) return false;
+/** Browser events are single-use; acceptance alone does not prove installation. */
+export async function requestInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
+  if (!pendingPrompt || prompting) return 'unavailable';
   const event = pendingPrompt;
+  pendingPrompt = null;
   prompting = true;
   try {
-    await event.prompt();
-    await event.userChoice;
-    clearInstallPrompt();
-    dismissInstall();
-    return true;
-  } catch (error) {
-    clearInstallPrompt();
-    throw error;
-  } finally { prompting = false; }
+    // Keep this call in the user's gesture, before notifying React subscribers.
+    const opening = event.prompt();
+    changed();
+    await opening;
+    const { outcome } = await event.userChoice;
+    if (outcome === 'dismissed') snoozeInstall();
+    else { accepted = true; changed(); }
+    return outcome;
+  } finally { prompting = false; changed(); }
 }
 
 export function getInstallPrompt() { return pendingPrompt; }
 export function clearInstallPrompt() { pendingPrompt = null; changed(); }
 export function subscribeInstall(listener: () => void) {
+  initializeInstallEvents();
   listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  scheduleExpiry();
+  return () => { listeners.delete(listener); scheduleExpiry(); };
 }
 
 export function initializeInstallEvents() {
@@ -93,11 +149,15 @@ export function initializeInstallEvents() {
   window.addEventListener('appinstalled', () => {
     installed = true;
     pendingPrompt = null;
-    dismissInstall();
+    changed();
   });
   window.matchMedia('(display-mode: standalone)').addEventListener('change', changed);
+  document.addEventListener('visibilitychange', changed);
   window.addEventListener('storage', (event) => {
-    if (event.key === null || event.key === INSTALL_DISMISSED_KEY || Object.values(INSTALL_DISMISSED_KEYS).some((key) => key === event.key)) changed();
+    if (event.key === null || event.key === INSTALL_PREFERENCE_KEY || legacyKeys.some((key) => key === event.key)) {
+      memoryOnly = false;
+      changed();
+    }
   });
 }
 

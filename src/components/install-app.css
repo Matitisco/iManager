@@ -1,74 +1,33 @@
 .pwa-install {
-  position: fixed;
-  z-index: 60;
-  left: max(12px, env(safe-area-inset-left, 0px));
-  right: max(12px, env(safe-area-inset-right, 0px));
-  bottom: calc(84px + env(safe-area-inset-bottom, 0px));
-  max-height: calc(100dvh - 110px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
-  padding: 18px;
-  border: 1px solid #E6E8EC;
-  border-radius: 22px;
+  position: relative;
+  flex: none;
+  padding: 12px 14px;
+  margin: 0;
+  border-radius: 0 0 18px 18px;
   background: #fff;
   color: #16181D;
-  box-shadow: 0 8px 28px rgb(22 24 29 / 12%);
+  box-shadow: 0 12px 24px rgb(22 24 29 / 9%);
   font-family: 'DM Sans', system-ui, sans-serif;
   font-size: 14px;
 }
-.pwa-heading { display: flex; align-items: center; gap: 12px; padding-right: 20px; }
+.pwa-heading { display: flex; align-items: center; gap: 12px; }
 .pwa-heading img { flex: none; border-radius: 12px; }
 .pwa-heading h2 { font-size: 16px; font-weight: 800; margin: 0 0 3px; }
-.pwa-heading p { color: #737984; font-size: 12px; margin: 0; }
-.desk-app .pwa-close { position: absolute; top: 8px; right: 8px; padding: 10px; border-radius: 12px; }
+.pwa-heading p { color: #737984; font-size: 13px; margin: 0; line-height: 1.4; }
 .pwa-steps { display: flex; flex-direction: column; gap: 12px; list-style: none; padding: 0; margin: 18px 0 8px; }
 .pwa-steps li { display: flex; gap: 12px; align-items: center; }
 .pwa-step-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; background: #FFF4C2; border-radius: 12px; }
-.pwa-steps small { display: block; color: #737984; font-size: 12px; margin-top: 2px; }
-.desk-app .pwa-action { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 16px; padding: 12px; width: 100%; border-radius: 12px; background: #16181D; color: #fff; font-weight: 700; }
-.pwa-action:disabled { opacity: .6; }
-.desk-app .pwa-dismiss { padding: 12px 4px 0; width: 100%; color: #737984; font-size: 12px; text-align: center; }
-@media (min-width: 761px) { .pwa-install { display: none; } }
-
-.pwa-install.compact { left: auto; padding: 0; border-radius: 14px; }
-.desk-app .pwa-install.compact .pwa-action { margin: 0; width: auto; min-height: 44px; padding: 12px 18px; }
-/* Android installation stays in the page flow, above the content heading. */
-.pwa-install.banner {
-  position: relative;
-  top: auto;
-  right: auto;
-  bottom: auto;
-  left: auto;
-  z-index: 5;
-  flex: none;
-  width: auto;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  border-radius: 0 0 18px 18px;
-  border-left: 0;
-  border-right: 0;
-  border-top: 0;
-  padding: 10px 12px 12px;
-}
-.pwa-install.banner.compact {
-  left: auto;
-  right: auto;
-  width: auto;
-  border-radius: 0;
-  padding: 8px 12px;
-}
-.desk-app .pwa-install.banner .pwa-action { margin-top: 12px; }
-.desk-app .pwa-install.banner.compact .pwa-action { margin: 0; width: 100%; }
-
-/* Manual Android invitation belongs to the Dashboard content, before its heading. */
-.pwa-install.manual {
-  margin: 12px 16px 4px; padding: 16px 46px 16px 12px;
-  border: 0; border-radius: 20px; background: #16181D; color: #fff;
-  box-shadow: 0 10px 24px rgb(22 24 29 / 16%);
-}
-.pwa-install.manual .pwa-heading { padding: 0; }
-.pwa-install.manual .pwa-heading h2 { font-size: 16px; }
-.pwa-install.manual .pwa-heading p { font-size: 14px; color: #D1D4D9; line-height: 1.4; }
-.pwa-install.manual .pwa-heading b { color: #FFD000; }
-.pwa-install.manual .pwa-close { color: #9CA2AD; top: 4px; right: 4px; min-width: 44px; min-height: 44px; }
-.pwa-menu { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 22px; border-radius: 7px; background: #FFD000; color: #16181D; font-size: 22px; font-weight: 800; vertical-align: middle; }
+.pwa-steps small { display: block; color: #737984; font-size: 12px; margin-top: 2px; line-height: 1.4; }
+.desk-app .pwa-action { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; min-height: 44px; padding: 10px; width: 100%; border-radius: 12px; background: #16181D; color: #fff; font-weight: 700; }
+.pwa-install button:disabled { opacity: .6; }
+.pwa-dismiss-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.desk-app .pwa-dismiss-actions button { min-height: 44px; border-radius: 12px; padding: 8px 4px; font-size: 13px; font-weight: 700; line-height: 1.3; }
+.desk-app .pwa-later { background: #F0F1F3; color: #4B5059; }
+.desk-app .pwa-never { color: #737984; }
+.pwa-install button:focus-visible { outline: 3px solid #B28C00; outline-offset: 2px; }
+.pwa-error { font-size: 12px; color: #B42318; margin: 10px 0; }
+.pwa-notice { position: fixed; z-index: 90; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 16px; background: #16181D; color: #fff; box-shadow: 0 12px 24px rgb(22 24 29 / 18%); font: 13px/1.4 'DM Sans', system-ui, sans-serif; }
+.pwa-notice-check { display: flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: #22A86E; }
+.pwa-notice b { display: block; font-weight: 800; }
+.pwa-notice p { margin: 1px 0 0; }
+@media (min-width: 761px) { .pwa-install, .pwa-notice { display: none; } }
