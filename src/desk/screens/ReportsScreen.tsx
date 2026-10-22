@@ -5,7 +5,7 @@ import { fetchCommissionReport } from '../../services/commissions-api';
 import type { CommissionReport } from '../../types/commissions';
 import { commissionTotal, monthKey, saleCount } from '../commissions';
 import { downloadCsv } from '../csv';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
@@ -67,6 +67,8 @@ import { canManageCommissions, canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { DatePicker } from '../date-picker';
 import { DeskSelect } from '../select';
+import { pageTabs } from '../nav';
+import { PeriodicSummary } from './PeriodicSummary';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
 const PERIOD_LABEL: Record<PeriodKey, string> = {
@@ -77,6 +79,24 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 };
 
 export function ReportsScreen() {
+  const { appSession } = useAppContext();
+  const { go } = useDesk();
+  const [summary, setSummary] = useState(false);
+  const summaryTab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (summary) summaryTab.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [summary]);
+  const sections = appSession?.membership?.sections;
+  const role = appSession?.membership?.role;
+  const links = pageTabs('reports', sections, role);
+  const navigation = <div className="wchips nav-tabs periodic-report-tabs" role="tablist" aria-label="Secciones del grupo">
+    {(links.length ? links : [{ id: 'reports' as const, label: 'Reportes' }]).map(item => <button key={item.id} type="button" role="tab" aria-selected={!summary && item.id === 'reports'} className={`sg${!summary && item.id === 'reports' ? ' on' : ''}`} data-testid={`group-tab-${item.id}`} onClick={() => item.id === 'reports' ? setSummary(false) : go(item.id)}>{item.label}</button>)}
+    <button ref={summaryTab} type="button" role="tab" aria-selected={summary} className={`sg${summary ? ' on' : ''}`} onClick={() => setSummary(true)}>Resumen periódico</button>
+  </div>;
+  return summary ? <PeriodicSummary navigation={navigation} /> : <StandardReports navigation={navigation} />;
+}
+
+function StandardReports({ navigation }: { navigation: ReactNode }) {
   const {
     sales,
     inventory,
@@ -273,11 +293,11 @@ export function ReportsScreen() {
     setCat(null);
   };
 
-  if (!tabs.length) return <div className="dscreen"><ScreenTitle title="Reportes" back={back} desktop={null} /><div className="card team-empty"><h2>No hay secciones habilitadas para tus reportes</h2><p>Cuando tengas acceso a una sección, vas a poder consultar sus reportes acá.</p></div></div>;
+  if (!tabs.length) return <div className="dscreen"><ScreenTitle title="Reportes" back={back} desktop={null} navigation={navigation} /><div className="card team-empty"><h2>No hay secciones habilitadas para tus reportes</h2><p>Cuando tengas acceso a una sección, vas a poder consultar sus reportes acá.</p></div></div>;
 
   return (
     <div className={`dscreen reports-screen${activeTab === 'Comisiones' ? ' commission-report' : ''}`}>
-      <ScreenTitle title="Reportes" back={back} tools={exportButton} desktop={exportButton} />
+      <ScreenTitle title="Reportes" back={back} tools={exportButton} desktop={exportButton} navigation={navigation} />
       <div className="gfilters">
         <div role="group" aria-label="Tipo de reporte">{tabs.map((item) => <button key={item} className={`gchip${activeTab === item ? ' on' : ''}`} aria-pressed={activeTab === item} type="button" onClick={() => chooseTab(item)}>{item}</button>)}</div>
         <div className="gperiods" role="group" aria-label="Período">

@@ -1,0 +1,38 @@
+.periodic-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 16px; }
+.periodic-picker .gchip.sm { min-height: 38px; height: auto; white-space: nowrap; background: #fff; border: 1px solid var(--border); }
+.periodic-picker .gchip.sm.on { background: var(--lime-soft); border-color: #F0D56B; color: var(--primary); }
+.periodic-previous { min-width: 0; max-width: 100%; }
+.periodic-previous .ds-select-trigger { min-height: 38px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; gap: 8px; }
+.periodic-previous.selected .ds-select-trigger { background: var(--lime-soft); border-color: #F0D56B; }
+.periodic-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.periodic-card { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 20px; min-width: 0; }
+.periodic-card h2 { margin: 0 0 8px; color: var(--secondary); font-size: 13px; font-weight: 500; }
+.periodic-total { font-size: 27px; line-height: 1.2; letter-spacing: -.03em; font-weight: 750; overflow-wrap: anywhere; }
+.periodic-total + .periodic-note { margin-top: 12px; }
+.periodic-note { color: var(--secondary); font-size: 12px; line-height: 1.5; margin: 0; }
+.periodic-list { margin: 0; padding: 0; list-style: none; }
+.periodic-card .periodic-list { margin-top: 8px; }
+.periodic-row { min-width: 0; padding: 10px 0; border-top: 1px solid var(--border); }
+.periodic-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 13px; line-height: 1.4; }
+.periodic-line b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.periodic-value { flex-shrink: 0; font-weight: 600; white-space: nowrap; }
+.periodic-row small { display: block; font-size: 11px; line-height: 1.5; color: var(--secondary); overflow-wrap: anywhere; }
+.periodic-void { background: #fdf3f4; padding-left: 8px; padding-right: 8px; border-radius: 7px; }
+.periodic-void b { color: var(--secondary); }
+.periodic-void small, .periodic-void .periodic-value { color: #C92F3F; }
+.periodic-badge { flex-shrink: 0; border-radius: 999px; background: var(--row); color: #5B616B; padding: 2px 6px; font-size: 10px; white-space: nowrap; }
+.periodic-badge.missing { background: #FFE3E6; color: #C92F3F; }
+.periodic-badge.pending { background: var(--lime-soft); color: #856100; }
+.periodic-more { padding: 6px 0 0; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; min-height: 32px; }
+.periodic-breakdown .periodic-row { padding-top: 14px; padding-bottom: 14px; }
+.periodic-summary .ferr .dbtn { margin: 8px 0 0; display: block; }
+@media (max-width: 1050px) { .periodic-grid { grid-template-columns: 1fr; gap: 14px; } }
+@media (max-width: 760px) {
+  .periodic-picker { gap: 6px; }
+  .periodic-picker .gchip.sm, .periodic-previous .ds-select-trigger { min-height: 44px; padding-left: 10px; padding-right: 10px; }
+  .periodic-card { padding: 18px; }
+  .periodic-total { font-size: 27px; }
+  .periodic-more { min-height: 44px; padding-top: 8px; text-align: left; }
+  .periodic-report-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
+  .periodic-report-tabs button { flex-shrink: 0; }
+}

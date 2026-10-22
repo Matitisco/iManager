@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
+
+- Pestaña «Resumen periódico», quincenas/meses calendario cerrados según zona de la tienda, selector histórico y tres bentos v3b sin textos secundarios innecesarios. Cada «Ver todas» abre su lista completa en el modal Sheet compartido, sin navegación, con cierre y foco accesibles. Estados vacío, skeleton y error/reintento; móvil 390 px y desktop 1440 px, permisos y moneda compartidos con la aplicación.
+- Endpoint de solo lectura por tenant. Ventas anuladas visibles y excluidas del total; reintegros/notas ubicados por resolución comercial, aun durante RMA pendiente. Diferencias desde snapshots de conteos cerrados, deduplicadas por IMEI; conserva autorización de resultados de conteos.
+- Validación v3b aprobada: 1.469 pruebas frontend (incluidas 16 del componente), suite unitaria backend, 396 integraciones PostgreSQL locales, typecheck/lint frontend/backend y un E2E de los tres modales en ambos tamaños. Detalles en `docs/issue-374/README.md`; OpenSpec `periodic-summary-374`. Wireframes de pantalla y modal regenerados antes de cambiar código en `/workspace/imanager-local/shots/374/`.
+- Sin cambios de Prisma ni scheduler SMTP, build, escrituras productivas, commits, push, ramas o PR. Cambios en working tree.
+
 ## Issue #483 punto 13 — Modal de proveedor — 2026-10-22
 
 - Ficha con contacto adaptable, notas separadas y compras con padding, divisores, IMEI completo y estado por equipo. Pie fijo con Registrar equipo y menú compartido para Subir stock, Editar y Archivar; restauración conservada para archivados. Alta/edición en una columna con separación entre campos y sin texto secundario redundante. Guardado bloquea controles, cierre y envíos repetidos; fallos visibles conservan el borrador y la ficha permite reintentar su consulta.
