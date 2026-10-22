@@ -111,6 +111,13 @@ export function registerBillingTests(device: string) {
     const email = buildTestEmail(info, 'billing-expired');
     await bootstrapStoreViaApi(page, request, email, 'Tienda Norte');
     const session = await fetchSession(request, email); const storeId = session.store!.id;
+    // A synthetic provider ID cannot be refreshed against Mercado Pago. Keep the
+    // real local billing response while simulating the provider refresh boundary.
+    await page.route('**/api/billing/refresh', async route => {
+      const response = await request.get(`${api}/api/billing`, { headers: authHeaders(email) });
+      expect(response.ok(), await response.text()).toBeTruthy();
+      await route.fulfill({ response });
+    });
     await prisma.store.update({ where: { id: storeId }, data: { trialEndsAt: new Date(0), onboardingStartedAt: new Date(), onboardingStage: 'invite' } });
     await page.reload(); await expect(page.getByTestId('billing-access-banner')).toContainText('Modo solo lectura');
     const response = await request.post(`${api}/api/clients`, { headers: authHeaders(email), data: { name: 'No guardar' } });

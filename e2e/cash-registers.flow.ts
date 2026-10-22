@@ -1,5 +1,6 @@
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test';
 import { isSectionHidden } from '../src/config/hiddenSections';
+import { enableHiddenSections } from './hidden-sections';
 import { acceptInvitationViaApi, authHeaders, bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, fetchSession, loginViaUi, selectDeskOption } from './utils';
 
 const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
@@ -46,7 +47,7 @@ export function registerCashTests(device: string) {
     });
   }
   test.describe('pantalla Caja disponible', () => {
-    test.skip(isSectionHidden('cash'), 'Caja temporalmente oculta en el producto (#489).');
+    test.beforeEach(async ({ page }) => { await enableHiddenSections(page, ['caja']); });
     registerCashScreenTests(device);
   });
 }

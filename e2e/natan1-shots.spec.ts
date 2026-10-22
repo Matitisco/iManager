@@ -38,7 +38,7 @@ test('captures archive, history and void screens', async ({ page, request }, tes
   await page.getByRole('row').filter({ hasText: 'iPhone 13' }).click({ button: 'right' });
   await page.locator('.ctx').getByRole('button', { name: 'Archivar', exact: true }).click();
   await page.getByRole('dialog', { name: 'Archivar equipo' }).getByRole('button', { name: 'Archivar', exact: true }).click();
-  await expect(page.getByText('iPhone 13')).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: 'iPhone 13' })).toHaveClass(/is-void/);
   await expect(page.locator('.toast.show')).toBeHidden();
 
   await openDeskSection(page, 'history');

@@ -1,3 +1,4 @@
+import { enableHiddenSections } from './hidden-sections';
 import { expect, test, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi } from './utils';
 
@@ -14,6 +15,7 @@ async function openClients(page: Page) {
 export function registerAccountTests(device: { name: string }) {
   test(`shows the debtor, collects, and follows up on ${device.name}`, async ({ page, request }, info) => {
     test.setTimeout(120_000);
+    await enableHiddenSections(page, ['cuenta-corriente', 'seguimientos']);
     const email = buildTestEmail(info, `cuenta-${device.name}`);
     const headers = authHeaders(email);
     await bootstrapStoreViaApi(page, request, email, 'iManager · Cuenta');

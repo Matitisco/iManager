@@ -1,4 +1,3 @@
-import { openDeskSection } from './navigation';
 import { devices, expect, test } from '@playwright/test';
 import { bootStore, registerScanQa } from './qa-scan-1910';
 
@@ -22,15 +21,15 @@ test('barra, Más y redirecciones en el iPhone', async ({ page, request }, testI
   await expect(page.getByTestId('sidebar-tab-more')).toBeVisible();
   await page.getByTestId('sidebar-tab-more').click();
   await expect(page.getByRole('heading', { name: 'Más', level: 1 })).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-followups')).toBeVisible();
+  await expect(page.getByTestId('sidebar-tab-followups')).toHaveCount(0);
   await expect(page.getByTestId('sidebar-tab-returns')).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-stockCount')).toBeVisible();
-  await openDeskSection(page, 'followups');
-  await expect(page.getByRole('heading', { name: 'Seguimientos', level: 1 })).toBeVisible();
-  await expect(page.getByTestId('group-tab-clients')).toBeVisible();
+  await page.goto('/#/seguimientos');
+  await expect(page).toHaveURL(/#\/atencion\/clientes$/);
+  await expect(page.getByRole('heading', { name: 'Clientes', level: 1 })).toBeVisible();
   await page.goto('/#/gastos');
-  await expect(page).toHaveURL(/#\/finanzas\/gastos$/);
-  await expect(page.getByRole('heading', { name: 'Gastos', level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/#\/dashboard$/);
+  await expect(page.getByRole('heading', { name: '¿Qué hay para hoy?', level: 1 })).toBeVisible();
   await page.goto('/#/devoluciones');
   await expect(page).toHaveURL(/#\/comercial\/devoluciones$/);
   await expect(page.getByRole('heading', { name: 'Devoluciones', level: 1 })).toBeVisible();

@@ -1,3 +1,4 @@
+import { enableHiddenSections } from './hidden-sections';
 import { mkdirSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { data, me } from './pwa/fixtures.mjs';
@@ -15,6 +16,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 1536, height: 640
     test.use({ viewport });
 
     test('keeps a pending expense open, contains focus and preserves the failed draft', async ({ page }) => {
+      await enableHiddenSections(page, ["gastos"]);
       let release: () => void = () => undefined;
       let received: () => void = () => undefined;
       const held = new Promise<void>(resolve => { release = resolve; });

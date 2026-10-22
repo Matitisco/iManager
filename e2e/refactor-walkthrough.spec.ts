@@ -126,13 +126,7 @@ for (const viewport of viewports) {
       }
       await expect(page.getByText('Importar equipos').first()).toBeVisible();
       await shot(page, `${prefix}-06-inventario-importar.png`);
-      if (phone) {
-        await closeDialog(page);
-      } else {
-        const overlay = page.locator('.fixed.inset-0').filter({ hasText: 'Importar equipos' });
-        await overlay.click({ position: { x: 8, y: 8 } });
-        await expect(overlay).toBeHidden();
-      }
+      await closeDialog(page);
 
       await openSection(page, 'sales');
       await expect(page.getByRole('heading', { level: 1, name: 'Ventas' })).toBeVisible();

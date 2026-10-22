@@ -83,12 +83,12 @@ test.describe('phone navigation', () => {
     await expect(page).toHaveURL(/#\/mas/);
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
     await expect(page.getByText('Todas las secciones, agrupadas')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('en curso');
+    await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('Equipos dados y recibidos');
     await expect(page.getByTestId('more-item-clients')).toContainText('Agenda y saldos');
     await expect(page.getByTestId('more-item-dashboard')).toBeVisible();
     await expect(page.getByTestId('more-item-sales')).toBeVisible();
     await expect(page.getByTestId('more-item-inventory')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-service')).toContainText('abierta');
+    await expect(page.getByTestId('sidebar-tab-service')).toContainText('Órdenes de reparación');
     await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('sin leer');
     await expect(page.getByTestId('sidebar-tab-settings')).toContainText('Configuración');
     await expect(page.getByTestId('more-profile')).toContainText('Propietario');

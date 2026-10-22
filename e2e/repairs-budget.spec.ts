@@ -116,11 +116,11 @@ test('the owner edits the budget and deletes the order, and an employee without 
   await page.getByRole('button', { name: 'Archivar' }).click();
   await page.getByRole('dialog', { name: 'Archivar orden' }).getByRole('button', { name: 'Archivar' }).click();
   await expect(page.getByText('Archivado')).toBeVisible();
-  await expect(page.locator('[data-testid^="repair-card-"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="repair-card-"]')).toHaveClass(/is-void/);
 
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
-  await expect(page.locator('[data-testid^="repair-card-"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid^="repair-card-"]')).toHaveClass(/is-void/);
 });
 
 test.describe('phone', () => {
