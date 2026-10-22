@@ -25,7 +25,7 @@ import { PendingDrafts } from '../pending-drafts';
 import { TablePager, usePagedRows } from '../pager';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, MobileListOptions, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, ChipRow, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Client } from '../../types';
 import { fetchArchivedClients } from '../../services/clients-api';
 import { rememberArchivedClients } from '../archive-cache';
@@ -119,11 +119,6 @@ export function ClientsScreen() {
     setFiltersOpen(true);
   };
 
-  const listOptions = <>
-    <ChipRow options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]} value={filter} onChange={setFilter} />
-    <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode(current => !current)}>Archivados</button>
-  </>;
-
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
       {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
@@ -159,16 +154,27 @@ export function ClientsScreen() {
             onChange={setView}
           />
         </div>
-        {view === 'lista' ? phone ? <MobileListOptions active={[filter !== 'Todos' ? 'Con saldo pendiente' : '', archivedMode ? 'Archivados' : '', sort !== 'Deudores' ? sort : ''].filter(Boolean).join(' · ')}>
-          {listOptions}
-          <MenuButton testId="clients-sort" label={sort === 'Deudores' ? 'Ordenar' : sort} options={SORTS} value={sort} active={sort !== 'Deudores'} onChange={setSort} />
-          <button className="dbtn s" type="button" disabled={ordered.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
-        </MobileListOptions> : listOptions : null}
+        {view === 'lista' ? <ChipRow
+          options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
+          value={filter}
+          onChange={setFilter}
+        /> : null}
+        {view === 'lista' ? <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button> : null}
+        {phone && view === 'lista' ? (
+          <MenuButton
+            testId="clients-sort"
+            label={sort === 'Deudores' ? 'Ordenar' : sort}
+            options={SORTS}
+            value={sort}
+            active={sort !== 'Deudores'}
+            onChange={setSort}
+          />
+        ) : null}
       </div>
       {view === 'cuenta' ? <AccountCurrent query={query} /> : null}
       {view === 'seguimientos' ? <FollowUps query={query} /> : null}
       {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
-      {view === 'lista' ? <BulkActions hideStart key={scope} selection={selection} total={ordered.length}
+      {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
         action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client, reason) => deleteClient(client.id, reason), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
