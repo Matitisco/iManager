@@ -115,12 +115,27 @@ describe('Historial #372', () => {
     const pending = deferred(); fetch.mockReturnValueOnce(pending.promise);
     mount(); expect(screen.getByTestId('history-loading')).not.toHaveTextContent('Cargando');
     await act(async () => pending.resolve({ events: [], nextCursor: null }));
-    expect(await screen.findByTestId('history-empty')).toHaveTextContent('Todavía no hay movimientos');
+    const empty = await screen.findByTestId('history-empty');
+    expect(empty).toHaveTextContent('Todavía no hay movimientos');
+    expect(empty).toHaveClass('inv-empty-box');
     fetch.mockRejectedValueOnce(new Error('Error del servidor'));
     await userEvent.selectOptions(screen.getByLabelText('Período'), '7');
     expect(await screen.findByRole('alert')).toHaveTextContent('Error del servidor');
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ })).toBeInTheDocument();
+  });
+
+  it('uses the standard empty state for no filter matches and clears the filters', async () => {
+    mount(); await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
+    fetch.mockResolvedValueOnce({ events: [], nextCursor: null });
+    await userEvent.selectOptions(screen.getByLabelText('Período'), '7');
+    const empty = await screen.findByTestId('history-empty');
+    expect(empty).toHaveClass('inv-empty-box');
+    expect(empty).toHaveTextContent('Nada con esos filtros');
+    await userEvent.click(within(empty).getByRole('button', { name: 'Limpiar filtros' }));
+    await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
+    expect(screen.queryByTestId('history-empty')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Período')).toHaveValue('30');
   });
 
   it('loads an archived claim before navigating to its record', async () => {

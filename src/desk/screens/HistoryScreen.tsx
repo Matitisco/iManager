@@ -157,7 +157,7 @@ export function HistoryScreen() {
     </div>
     {loading ? <ListSkeleton variant={phone ? "cards" : "rows"} testId="history-loading" /> : null}
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
-    {!loading && !error && events.length === 0 ? <div className="card empty" data-testid="history-empty">
+    {!loading && !error && events.length === 0 ? <div className="inv-empty-box" data-testid="history-empty">
       <b>{filtered ? 'Nada con esos filtros' : 'Todavía no hay movimientos'}</b>
       <p>{filtered ? 'Probá con otra persona, período o sección.' : 'Cuando el equipo registre, edite o archive, va a aparecer acá.'}</p>
       {filtered ? <button className="dbtn s" type="button" onClick={() => { setQuery(''); setActorId(''); setPeriod('30'); setGroup(''); setSection(''); }}>Limpiar filtros</button> : null}
