@@ -25,6 +25,8 @@ env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
   ENABLE_TEST_AUTH_BYPASS: "true"
   NODE_ENV: test
+  # Generate explicitly in backend jobs; postinstall schema lookup depends on INIT_CWD.
+  PRISMA_SKIP_POSTINSTALL_GENERATE: "true"
   FULL: ${{ github.event_name != 'pull_request' }}
 
 jobs:
@@ -71,6 +73,9 @@ jobs:
           frontend_install=$!
           npm --prefix backend ci --prefer-offline --no-audit --no-fund
           wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        working-directory: backend
       - name: Lint frontend
         run: npm run lint
       - name: Lint backend
@@ -104,6 +109,9 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --prefer-offline --no-audit --no-fund
+        working-directory: backend
+      - name: Generate Prisma client
+        run: npm run prisma:generate
         working-directory: backend
       - name: Prepare test database
         run: npx prisma db push --skip-generate
@@ -144,6 +152,9 @@ jobs:
           frontend_install=$!
           npm --prefix backend ci --prefer-offline --no-audit --no-fund
           wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        working-directory: backend
       - name: Test frontend
         run: npx vitest run --shard=${{ matrix.shard }}/2
 
@@ -217,6 +228,9 @@ jobs:
           frontend_install=$!
           npm --prefix backend ci --prefer-offline --no-audit --no-fund
           wait "$frontend_install"
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+        working-directory: backend
       # globalSetup prepares this runner's database before the run.
       - name: E2E smoke (@smoke, Chromium)
         if: env.FULL != 'true'
