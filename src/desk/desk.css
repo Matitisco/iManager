@@ -2482,3 +2482,19 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .desk-app .cash-box.is-void:hover {
   background: color-mix(in srgb, var(--err) 12%, #fff);
 }
+
+/* Section visit marks: retain existing cancelled states and avoid extra copy. */
+.novedad-dot { display: inline-block; width: 6px; height: 6px; margin-inline-start: 7px; border-radius: 50%; background: var(--lime); vertical-align: middle; flex: none; }
+/* On cards the background is the visual mark; retain its accessible name without adding a line. */
+.phone-row > .novedad-dot { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+.dtable tbody tr.novedad, .dtable tbody tr.novedad:hover,
+.phone-row.novedad, .sales-screen .sale-node .phone-row.novedad {
+  background: color-mix(in srgb, var(--lime) 6%, white);
+  box-shadow: none;
+  border-color: var(--border);
+}
+.dtable tbody tr.is-void.novedad, .dtable tbody tr.is-void.novedad:hover,
+.phone-row.is-void.novedad, .sales-screen .sale-node .phone-row.is-void.novedad {
+  background: color-mix(in srgb, var(--err) 7%, white);
+  box-shadow: none;
+}

@@ -21,6 +21,7 @@ model User {
   twoFactorExpiry   DateTime?
   memberships       StoreMember[]
   notificationReads NotificationRead[]
+  sectionRecordViews SectionRecordView[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 }
@@ -74,6 +75,7 @@ model Store {
   clientPayments      ClientPayment[]
   clientDeposits      ClientDeposit[]
   notifications       StoreNotification[]
+  sectionRecordViews  SectionRecordView[]
   auditEvents         AuditEvent[]
   storeCounter        StoreCounter?
   commissionRules     CommissionRule[]
@@ -1166,4 +1168,19 @@ model StockCountScan {
   @@index([stockCountId, scannedById, createdAt])
   @@index([stockCountId, imei])
   @@index([storeId, stockCountId])
+}
+
+// Read receipts track exact row versions; acknowledging a visit never consumes a later edit.
+model SectionRecordView {
+  storeId       String
+  userId        String
+  section       String   @db.VarChar(30)
+  recordId      String
+  seenUpdatedAt DateTime
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, userId, section, recordId])
+  @@index([storeId])
+  @@index([userId])
 }

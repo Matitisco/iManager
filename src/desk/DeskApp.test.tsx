@@ -1,3 +1,4 @@
+import type { SectionChanges, ViewSection, RecordVersion } from '../services/section-views-api';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
@@ -14,6 +15,8 @@ const context = vi.hoisted(() => ({
   },
   user: null as { uid: string } | null,
   backendStatus: 'checking',
+  sectionChanges: {} as SectionChanges,
+  viewSection: undefined as undefined | ((section: ViewSection, versions: RecordVersion[]) => Promise<void>),
   publicCatalog: null,
   loadPublicCatalog: vi.fn(async () => null),
   loadCommissions: undefined as undefined | ReturnType<typeof vi.fn>,
@@ -31,10 +34,13 @@ vi.mock('../services/catalogs-api', () => ({ fetchCatalogs: vi.fn(async () => nu
 describe('sidebar unread counts', () => {
   const originalMatchMedia = window.matchMedia;
   beforeEach(() => {
+    context.sectionChanges = { tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
     window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
   });
 
   afterEach(() => {
+    context.sectionChanges = {};
+    context.viewSection = undefined;
     window.matchMedia = originalMatchMedia;
     context.appSession.membership.role = 'OWNER';
     context.appSession.membership.sections = null;
@@ -160,10 +166,11 @@ describe('sidebar unread counts', () => {
       { id: '3', storeId: 's', section: 'sales', title: 'Venta registrada', message: 'iPhone 13 · Juan Pérez · $ 50.000', recordId: 's1', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
       { id: '4', storeId: 's', section: 'clients', title: 'Saldo pendiente', message: 'Juan Pérez debe $ 50.000', recordId: 'c', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: '2026-10-08T13:00:00.000Z' },
     ];
+    context.sectionChanges = { inventory: [{ id: 'p', updatedAt: '2026-10-08T12:00:00.000Z' }, { id: 'p2', updatedAt: '2026-10-08T12:00:00.000Z' }], sales: [{ id: 's1', updatedAt: '2026-10-08T12:00:00.000Z' }], tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
     render(<DeskApp />);
     expect(screen.getByLabelText('3 notificaciones sin leer')).toHaveTextContent('3');
     expect(screen.getByLabelText('2 avisos sin leer en Equipos')).toHaveTextContent('2');
-    expect(screen.getByLabelText('1 aviso sin leer en Ventas; 1 canje en curso')).toHaveTextContent('2');
+    expect(screen.getByLabelText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes')).toHaveTextContent('2');
     const sidebar = within(document.querySelector('aside.side')! as HTMLElement);
     expect(sidebar.queryByText('Equipos')).not.toBeInTheDocument();
     expect(sidebar.queryByText('Canjes')).not.toBeInTheDocument();
@@ -175,7 +182,7 @@ describe('sidebar unread counts', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Canjes · 1' }));
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Canjes · 1' })).toHaveAttribute('aria-selected', 'true'));
     expect(sidebar.getByRole('button', { name: /Comercial/ })).toHaveAttribute('aria-current', 'page');
-    expect(sidebar.getByLabelText('1 aviso sin leer en Ventas; 1 canje en curso')).toHaveTextContent('2');
+    expect(sidebar.getByLabelText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes')).toHaveTextContent('2');
 
     fireEvent.click(sidebar.getByRole('button', { name: /Stock/ }));
     expect(await screen.findByRole('tab', { name: 'Equipos · 2' })).toHaveAttribute('aria-selected', 'true');
@@ -186,6 +193,30 @@ describe('sidebar unread counts', () => {
     expect(screen.queryByText('★')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
+  });
+
+  it.each([390, 1440])('clears only the visited section badge, retains marks during the visit and clears them on return at %spx', async width => {
+    if (width === 390) usePhone();
+    window.location.hash = '#/dashboard';
+    const versions = Array.from({ length: 12 }, (_, i) => ({ id: `t${i + 1}`, updatedAt: '2026-10-08T12:00:00.000Z' }));
+    context.sectionChanges = { tradeins: versions, sales: [{ id: 's1', updatedAt: versions[0].updatedAt }] };
+    context.viewSection = vi.fn(async (section: ViewSection) => { context.sectionChanges = { ...context.sectionChanges, [section]: [] }; });
+    const view = render(<DeskApp />);
+    const container = width === 390 ? screen.getByTestId('mobile-tab-bar') : document.querySelector('aside.side')! as HTMLElement;
+    const badge = () => width === 390 ? within(container).getByRole('button', { name: 'Ventas' }).querySelector('.dcount') : within(container).getByLabelText(/aviso.*en Ventas/);
+    expect(badge()).toHaveTextContent('13');
+    if (width === 390) expect(within(container).getByRole('button', { name: 'Ventas' })).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 12 avisos sin leer en Canjes');
+    goHash('#/comercial/canjes');
+    await waitFor(() => expect(context.viewSection).toHaveBeenCalledWith('tradeins', versions));
+    view.rerender(<DeskApp />);
+    expect(screen.getByRole('tab', { name: 'Canjes' })).toHaveAttribute('aria-selected', 'true');
+    expect(badge()).toHaveTextContent('1');
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(1);
+    goHash('#/dashboard');
+    goHash('#/comercial/canjes');
+    await screen.findByRole('tab', { name: 'Canjes' });
+    expect(screen.queryByTestId('notice-dot')).not.toBeInTheDocument();
+    expect(context.viewSection).toHaveBeenCalledTimes(1);
   });
 
   it('lists the overflow sections on Más with commissions and without a tentative label', () => {
@@ -200,7 +231,7 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Ana');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Propietario');
-    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1 en curso');
+    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1 aviso sin leer en Canjes');
     expect(screen.getByTestId('more-item-clients')).toHaveTextContent('Agenda y saldos');
     expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('0 abiertas');
     expect(screen.getByTestId('sidebar-tab-notifications')).toHaveTextContent('1 sin leer');
@@ -438,12 +469,13 @@ describe('sidebar unread counts', () => {
     context.operationNotifications = [
       { id: 'explain', storeId: 's', section: 'sales', title: 'Venta', message: 'Aviso de prueba', recordId: 'missing', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
     ];
+    context.sectionChanges = { sales: [{ id: 'missing', updatedAt: '2026-10-08T12:00:00.000Z' }], tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
     render(<DeskApp />);
     const sales = within(screen.getByTestId('mobile-tab-bar')).getByRole('button', { name: 'Ventas' });
-    expect(sales).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 1 canje en curso');
+    expect(sales).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes');
     expect(sales.querySelector('.dcount')).toHaveTextContent('2');
     expect(sales).toHaveAttribute('aria-current', 'page');
-    const explanation = screen.getByText('1 aviso sin leer en Ventas; 1 canje en curso.');
+    const explanation = screen.getByText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes.');
     expect(explanation).not.toBeVisible();
     fireEvent.click(screen.getByText('Qué cuenta cada indicador'));
     expect(explanation).toBeVisible();

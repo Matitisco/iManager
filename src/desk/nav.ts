@@ -165,7 +165,7 @@ export function sectionPending(id: DeskTab, input: PendingInput) {
   if (id === 'inventory') return input.unread.inventory;
   if (id === 'sales') return input.unread.sales;
   if (id === 'clients') return input.unread.clients;
-  if (id === 'tradeins') return input.openTrades;
+  if (id === 'tradeins') return input.unread.tradeins;
   if (id === 'service') return input.openRepairs;
   if (id === 'followups') return input.followUps;
   if (id === 'notifications') return input.notifications;
@@ -235,7 +235,6 @@ export function pendingDescription(ids: DeskTab[], input: PendingInput) {
   return ids.flatMap(id => {
     const count = Math.max(0, sectionPending(id, input));
     if (!count) return [];
-    if (id === 'tradeins') return [`${count} ${count === 1 ? 'canje en curso' : 'canjes en curso'}`];
     if (id === 'service') return [`${count} ${count === 1 ? 'orden de servicio abierta' : 'órdenes de servicio abiertas'}`];
     if (id === 'followups') return [`${count} ${count === 1 ? 'seguimiento para hoy' : 'seguimientos para hoy'}`];
     if (id === 'commissions') return [`${count} ${count === 1 ? 'persona con comisiones pendientes' : 'personas con comisiones pendientes'}`];

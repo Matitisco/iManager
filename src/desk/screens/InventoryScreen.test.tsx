@@ -1,3 +1,4 @@
+import type { SectionChanges } from '../../services/section-views-api';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -10,6 +11,8 @@ import { InventoryScreen } from './InventoryScreen';
 
 const toast = vi.fn();
 const context = vi.hoisted(() => ({
+  sectionChanges: {} as SectionChanges,
+  viewSection: vi.fn(async () => undefined),
   inventory: [] as Product[],
   appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string } } | null,
   operationNotifications: [] as OperationNotification[],
@@ -256,6 +259,8 @@ describe('Inventory novedades', () => {
 
   beforeEach(() => {
     context.markNotificationRead.mockClear();
+    context.sectionChanges = { inventory: [{ id: '1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
+    context.viewSection.mockClear();
     context.appSession = { store: { name: 'Tienda Centro' } };
     context.inventory = [
       item('1', { model: 'iPhone 13', status: 'VENDIDO' }),
@@ -275,22 +280,20 @@ describe('Inventory novedades', () => {
   });
 
   afterEach(() => {
+    context.sectionChanges = {};
     window.matchMedia = originalMatchMedia;
   });
 
-  it('highlights the affected row, filters to novedades, and marks the note read once the row is shown', async () => {
-    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+  it('prioritizes and marks changed rows without adding reason text or a banner', async () => {
     renderScreen();
     const row = screen.getByText('iPhone 13 · 128 GB').closest('tr') as HTMLElement;
     expect(row).toHaveClass('novedad');
-    expect(within(row).getByTestId('notice-reason')).toHaveTextContent('Vendido');
-    expect(screen.getByTestId('section-notices')).toHaveTextContent('1 novedad');
-    await waitFor(() => expect(context.markNotificationRead).toHaveBeenCalledWith('n1'));
-
-    await user.click(screen.getByTestId('section-notices'));
-    expect(screen.getByTestId('section-notices')).toHaveTextContent('Ver todas');
-    expect(screen.queryByText('Pixel · 128 GB')).not.toBeInTheDocument();
-    expect(screen.getByText('iPhone 13 · 128 GB')).toBeInTheDocument();
+    expect(within(row).getByTestId('notice-dot')).toBeEmptyDOMElement();
+    expect(screen.queryByTestId('section-notices')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('notice-reason')).not.toBeInTheDocument();
+    await waitFor(() => expect(context.viewSection).toHaveBeenCalledWith('inventory', context.sectionChanges.inventory));
+    expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
+    expect(context.markNotificationRead).not.toHaveBeenCalled();
   });
 
   it('shows the same reason on the phone list', () => {
@@ -307,7 +310,7 @@ describe('Inventory novedades', () => {
     renderScreen();
     const list = screen.getByTestId('phone-rows');
     expect(within(list).getByText('iPhone 13 · 128 GB')).toBeInTheDocument();
-    expect(within(list).getByTestId('notice-reason')).toHaveTextContent('Vendido');
+    expect(within(list).getByTestId('notice-dot')).toHaveAccessibleName('Novedad');
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
   });
 });

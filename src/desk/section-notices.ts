@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { formatMoney } from './format';
 import type { OperationNotification } from '../services/operations-api';
 import type { NoticeSection } from './unread-count';
+import type { RecordVersion } from '../services/section-views-api';
 
 const PHONE_QUERY = '(max-width: 760px)';
 
@@ -18,39 +19,49 @@ export function usePhoneLayout() {
   return phone;
 }
 
+/** Keep the observed versions pinned for this visit even after the backend acknowledges them. */
 export function useSectionNotices(section: NoticeSection) {
-  const { operationNotifications, markNotificationRead } = useAppContext();
-  const notes = operationNotifications ?? [];
-  const [pinned, setPinned] = useState<PinnedNotice[]>([]);
-  const pinnedIds = useRef(new Set<string>());
-  const marked = useRef(new Set<string>());
-  const unreadKey = notes.filter((note) => note.section === section && !note.readAt).map((note) => note.id).join('|');
-
+  const { sectionChanges = {}, viewSection, user, appSession } = useAppContext();
+  const scope = `${user?.uid}:${appSession?.store?.id}:${appSession?.membership?.role}:${JSON.stringify(appSession?.membership?.sections)}:${section}`;
+  const [snapshot, setSnapshot] = useState<{ scope: string; ids: Set<string> }>({ scope, ids: new Set() });
+  const pending = useRef(new Set<string>());
+  const observed = useRef<RecordVersion[] | null>(null);
+  const currentScope = useRef(scope);
+  if (currentScope.current !== scope) {
+    currentScope.current = scope;
+    pending.current = new Set();
+    observed.current = null;
+  }
+  const available = sectionChanges[section];
   useEffect(() => {
-    const incoming = notes.filter((note) => note.section === section && !note.readAt && !pinnedIds.current.has(note.id));
-    if (!incoming.length) return;
-    for (const note of incoming) pinnedIds.current.add(note.id);
-    setPinned((current) => mergePinned(current, incoming));
-  }, [unreadKey, notes, section]);
-
-  const markVisible = useCallback((recordIds: string[]) => {
-    if (typeof markNotificationRead !== 'function') return;
-    const visible = new Set(recordIds);
-    const ids = [...new Set(pinned.flatMap((row) => (visible.has(row.recordId) ? row.notificationIds : [])))]
-      .filter((id) => !marked.current.has(id));
-    if (!ids.length) return;
-    for (const id of ids) marked.current.add(id);
-    for (const id of ids) {
-      void markNotificationRead(id).catch(() => { marked.current.delete(id); });
+    if (!available || typeof viewSection !== 'function') return;
+    // Freeze this visit's versions. Polls can discover later changes while the
+    // business list is still showing older data; leave those for the next visit.
+    if (observed.current === null) {
+      observed.current = available;
+      setSnapshot({ scope, ids: new Set(available.map(row => row.id)) });
     }
-  }, [markNotificationRead, pinned]);
-
-  const byRecord = useMemo(() => new Map(pinned.map((row) => [row.recordId, row.reason])), [pinned]);
+    const versions = observed.current;
+    const unseen = versions.filter(row => !pending.current.has(`${row.id}:${row.updatedAt}`));
+    if (!unseen.length) return;
+    const requested = pending.current;
+    for (const row of unseen) requested.add(`${row.id}:${row.updatedAt}`);
+    void viewSection(section, unseen).catch(() => {
+      // Error is shown by the shell; retry via refresh or the next section visit.
+      for (const row of unseen) requested.delete(`${row.id}:${row.updatedAt}`);
+    });
+  }, [available, scope, section, viewSection]);
+  const ids = snapshot.scope === scope ? snapshot.ids : new Set<string>();
   return {
-    count: pinnedCount(pinned),
-    reasonFor: (id: string) => byRecord.get(id) ?? '',
-    markVisible,
+    count: ids.size,
+    key: [...ids].join('|'),
+    reasonFor: (id: string) => ids.has(id) ? 'Actualizado' : '',
+    prioritize: <T extends { id: string }>(rows: T[]) => prioritizeNovelties(rows, ids),
   };
+}
+
+export function prioritizeNovelties<T extends { id: string }>(rows: T[], changed: ReadonlySet<string>): T[] {
+  return [...rows.filter(row => changed.has(row.id)), ...rows.filter(row => !changed.has(row.id))];
 }
 
 export type PinnedNotice = {

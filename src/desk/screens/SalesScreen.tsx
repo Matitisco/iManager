@@ -11,7 +11,7 @@ import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
-import { NoticeTag, NoticesBar, PhoneRecord } from '../section-notice-view';
+import { NoticeTag, PhoneRecord } from '../section-notice-view';
 import { ColumnFilter, DateRange, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { approxActive, approxUsd, useDisplayQuote, useMoney } from '../exchange';
 import {
@@ -79,7 +79,6 @@ export function SalesScreen() {
   const [sellerDraft, setSellerDraft] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useNavigationState('Sales.searchOpen', false);
   const notices = useSectionNotices('sales');
-  const [onlyNotices, setOnlyNotices] = useNavigationState('Sales.onlyNotices', false);
   const [query, setQuery] = useNavigationState('Sales.query', '');
   const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
   const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
@@ -138,17 +137,15 @@ export function SalesScreen() {
   const narrowed = statusOn ? rows.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : rows;
   const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
-  const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : narrowed;
-  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
+  const shown = notices.prioritize(narrowed);
+  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
-  const visibleKey = page.visible.map((sale) => sale.id).join('|');
-  useEffect(() => { notices.markVisible(page.visible.map((sale) => sale.id)); }, [visibleKey, notices.markVisible]);
   const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => isVoidRow(sale) ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'ANULADA'])].filter(Boolean);
 
   const subtitle = onlyUnassigned && unassignedMonth ? monthLabel(unassignedMonth) : period === 'Semana' ? 'Esta semana' : period === 'Mes' ? 'Este mes' : 'Este año';
-  const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || onlyNotices || statusOn || onlyUnassigned;
+  const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || statusOn || onlyUnassigned;
   const filteredTotal = money.sum(shown.filter(sale => !isVoidRow(sale)).map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const summaryText = filtersOn
     ? `${shown.length} de ${listed.length} ${listed.length === 1 ? 'venta' : 'ventas'} · ${filteredTotal == null ? '—' : money.showActive(filteredTotal)}`
@@ -157,10 +154,9 @@ export function SalesScreen() {
     setColumns(EMPTY_SALE_FILTERS);
     setStatusPill('Todos');
     setQuery('');
-    setOnlyNotices(false);
     setOnlyUnassigned(false);
   };
-  const quiet = !query.trim() && !saleFiltersActive(columns) && !onlyNotices && !statusOn;
+  const quiet = !query.trim() && !saleFiltersActive(columns) && !statusOn;
   const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
@@ -233,7 +229,6 @@ export function SalesScreen() {
         </div>
       </div>
       )}
-      <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} />
       <BulkActions key={scope} selection={selection} total={shown.length}
         label={saleCode}
         action={{
@@ -262,7 +257,7 @@ export function SalesScreen() {
                       selection={selection.row(sale.id, saleCode(sale))}
                       className={isVoidRow(sale) ? 'is-void' : undefined}
                       reason={reason}
-                      onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
+                      onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
                       <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
@@ -350,7 +345,7 @@ export function SalesScreen() {
                     key={sale.id}
                     as="tr"
                     className={[notices.reasonFor(sale.id) ? 'novedad' : '', isVoidRow(sale) ? 'is-void' : ''].filter(Boolean).join(' ') || undefined}
-                    onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
+                    onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                   >
                     <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
@@ -366,7 +361,7 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) && !onlyNotices ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}

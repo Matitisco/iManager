@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 punto 3 — Novedades vistas por sección — 2026-10-22
+
+- Equipos, Ventas, Canjes y Clientes guardan en PostgreSQL las versiones vistas por usuario y tienda. Abrir la sección limpia sus badges desktop/móvil; la instantánea de entrada queda primero antes de paginar, con punto/fondo sutil y el tratamiento de anuladas intacto. Los cambios posteriores quedan pendientes para la próxima visita; fallos visibles con reintento, sin modificar las lecturas de la bandeja de notificaciones.
+- Prisma exclusivamente aditivo: `SectionRecordView` y relaciones. Validación: 1.393 pruebas frontend, 522 unitarias backend, 3 integraciones PostgreSQL locales, lint/typecheck de ambos paquetes y OpenSpec estricto aprobados. Playwright local en 1440×900 y 390×844 (iPhone 13): cuatro secciones, limpieza/persistencia del badge, prioridad, anuladas y edición concurrente verificados, sin overflow ni errores de página.
+- Evidencia externa al repo en `/workspace/imanager-local/shots/483-f/`; sin capturas ni prompts versionados, build, operaciones productivas o cambios a los puntos 6, 8 y 14. OpenSpec `section-novelties-483-f`; rama `feat/483-medios`, un commit para este punto y PR #495 a main sin merge.
+
 ## Issue #483 punto 5 — Capacidad duplicada al registrar equipo — 2026-10-22
 
 - El selector compartido de alta/edición agrupa capacidades GB/TB equivalentes de base, catálogo e inventario, ignorando espacios y mayúsculas de unidad. Conserva etiquetas/orden del catálogo y el valor histórico al editar; capacidades personalizadas distintas siguen disponibles. Se retiraron los subtítulos redundantes del formulario.
