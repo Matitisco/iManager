@@ -82,6 +82,7 @@ for (const device of [
       await expect(dialog).toBeHidden();
       await expect(page.getByText('Anulado', { exact: true })).toBeVisible();
       await expect(record).toHaveClass(/is-void/);
+      await expect(record).toContainText('C-0003');
       expect((await fetchTradeIns(request, email)).tradeIns).toHaveLength(2);
       expect(await snapshot()).toEqual(before);
       await openTradeIns(page);
@@ -98,6 +99,10 @@ for (const device of [
       await page.reload();
       await openTradeIns(page);
       await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(3);
+      for (let index = 0; index < 3; index++) {
+        const row = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: `Recibido ${index}` });
+        await expect(row).toContainText(`C-${String(index + 1).padStart(4, '0')}`);
+      }
       expect(await snapshot()).toEqual(before);
       if (shots) await page.screenshot({ path: `${shots}/issue-335-${device.name}-deleted.png`, animations: 'disabled' });
     });

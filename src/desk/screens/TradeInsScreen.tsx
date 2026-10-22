@@ -77,7 +77,7 @@ export function TradeInsScreen() {
     const direction = sort === 'Recientes' ? -1 : 1;
     return tradeSource.filter((item) => {
       const name = tradeClientLabel(item, clients);
-      const code = tradeCode(tradeIns, item.id);
+      const code = tradeCode(tradeSource, item.id);
       const haystack = `${name} ${item.clientName ?? ''} ${item.deviceReceived} ${item.deviceReceivedImei} ${item.deviceGiven} ${code}`.toLowerCase();
       if (filter === 'ANULADA' ? !isVoidRow(item) : filter !== 'Todos' && (isVoidRow(item) || item.status !== filter)) return false;
       if (q && !haystack.includes(q)) return false;
@@ -146,7 +146,7 @@ export function TradeInsScreen() {
         <MenuButton label={sort} options={['Recientes', 'Antiguos']} value={sort} onChange={setSort} />
       </div>
       <BulkActions key={scope} selection={selection} total={listed.length}
-        label={(item) => tradeCode(tradeIns, item.id)}
+        label={(item) => tradeCode(tradeSource, item.id)}
         action={{
           label: 'Anular',
           explanation: 'Se anulan los canjes seleccionados y sus ventas asociadas. Se restauran stock y saldos; el equipo recibido se archiva. Si el equipo recibido ya se vendió, la operación no se puede anular.',
@@ -176,12 +176,12 @@ export function TradeInsScreen() {
                     <div key={item.id} className={`sale-node${tone}`}>
                       <PhoneRecord
                         className={isVoidRow(item) ? 'is-void' : undefined}
-                        selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
+                        selection={selection.row(item.id, tradeCode(tradeSource, item.id))}
                         reason={reason}
                         onActivate={() => { open({ type: 'cj', id: item.id }); }}
-                        onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
+                        onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeSource, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                       >
-                        <TradeCard item={item} code={tradeCode(tradeIns, item.id)} client={tradeClientLabel(item, clients)} take={money.show(item.takeValue, item.currency)} difference={money.show(item.differencePaid, item.currency)} />
+                        <TradeCard item={item} code={tradeCode(tradeSource, item.id)} client={tradeClientLabel(item, clients)} take={money.show(item.takeValue, item.currency)} difference={money.show(item.differencePaid, item.currency)} />
                       </PhoneRecord>
                     </div>
                   );
@@ -244,14 +244,14 @@ export function TradeInsScreen() {
             <tbody>
               {page.visible.map((item) => (
                 <PressTarget
-                  selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
+                  selection={selection.row(item.id, tradeCode(tradeSource, item.id))}
                   key={item.id}
                   as="tr"
                   className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
                   onActivate={() => { open({ type: 'cj', id: item.id }); }}
-                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
+                  onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeSource, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                 >
-                  <td className="trade-nowrap"><b>#{tradeCode(tradeIns, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
+                  <td className="trade-nowrap"><b>#{tradeCode(tradeSource, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
                   <td className="trade-nowrap">{formatShortDate(item.date)}</td>
                   <td>{tradeClientLabel(item, clients)}</td>
                   <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
