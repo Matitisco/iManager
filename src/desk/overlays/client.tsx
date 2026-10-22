@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { CancelDeposit, DepositReceipt, useClientDeposits } from './deposits';
@@ -170,11 +171,11 @@ export function ClientDetail({ id }: { id: string }) {
         <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency)}</b></div>
       ))}
       {voidedSales.error || voidedTrades.error || archivedInventory.error ? <div className="ferr" role="alert">{voidedSales.error || voidedTrades.error || archivedInventory.error}</div> : null}
-      {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <p className="eqs-note" role="status">Cargando historial de compras…</p> : null}
+      {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <ListSkeleton variant="lines" rows={3} /> : null}
       <ClientPurchases key={client.id} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
-        {deposits.loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}
+        {deposits.loading ? <ListSkeleton variant="lines" rows={2} /> : null}
         {deposits.error ? <div className="ferr" role="alert">{deposits.error}<button type="button" className="wlink" onClick={deposits.retry}>Reintentar señas</button></div> : null}
         {!deposits.loading && !deposits.error && !deposits.rows.length ? <p className="eqs-note">Todavía no tiene señas.</p> : null}
         {deposits.rows.map(row => <div className="deposit-card" key={row.id}><DepositReceipt row={row} />{canManageSensitive && depositAvailable(row) ? <button className="btn2 s" type="button" onClick={() => setCancelTarget(row)}>{row.status === 'CREDIT' ? 'Devolver saldo a favor' : 'Cancelar seña'}</button> : null}</div>)}

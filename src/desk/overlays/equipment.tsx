@@ -1,3 +1,4 @@
+import { FieldSkeleton } from '../../components/Skeleton';
 import { formatShortDate } from '../format';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -215,7 +216,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         {current ? null : <ScanReady />}
       </div>
       <Field label="Proveedor">
-        {suppliers === null ? <input disabled value="Cargando proveedores…" /> : (
+        {suppliers === null ? <FieldSkeleton /> : (
           <select aria-label="Proveedor" value={supplier} onChange={(event) => setSupplier(event.target.value)}>
             <option value="">Sin proveedor</option>
             {(suppliers ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}

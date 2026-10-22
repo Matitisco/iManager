@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ManagedCatalog } from '../../types/public-catalog';
@@ -48,6 +48,28 @@ describe('catalog section', () => {
     context.appSession.store.phone = '123123';
     context.loadPublicCatalog.mockReset();
     context.loadPublicCatalog.mockImplementation(async () => context.publicCatalog);
+  });
+
+  it('uses content placeholders until the first request settles, then shows the empty result', async () => {
+    context.publicCatalog = null;
+    let finish!: (value: null) => void;
+    context.loadPublicCatalog.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+    renderScreen();
+    expect(screen.getByTestId('catalog-loading')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('button', { name: 'Crear catálogo' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('catalog-screen').textContent).not.toMatch(/cargando|loading/i);
+    await act(async () => { finish(null); });
+    expect(screen.queryByTestId('catalog-loading')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Crear catálogo' })).toBeInTheDocument();
+    expect(screen.getByTestId('catalog-screen')).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('keeps the existing catalog visible when returning while its refresh is pending', () => {
+    context.loadPublicCatalog.mockImplementation(() => new Promise(() => {}));
+    renderScreen();
+    expect(screen.queryByTestId('catalog-loading')).not.toBeInTheDocument();
+    expect(screen.getByText('1 disponible')).toBeInTheDocument();
+    expect(screen.getByTestId('catalog-screen')).toHaveAttribute('aria-busy', 'true');
   });
 
   it('counts available devices and links an invalid WhatsApp to store settings', async () => {

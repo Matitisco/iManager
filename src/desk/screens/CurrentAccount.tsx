@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
@@ -77,7 +78,7 @@ export function AccountCurrent({ query }: { query: string }) {
     <section className="acct-screen" aria-label="Cuenta corriente" data-testid="account-current">
       <p className="eqs-note">Ventas abiertas, reparaciones con saldo y deudas manuales. El semáforo mira la deuda más antigua: verde menos de 7 días, amarillo de 7 a 30, rojo después.</p>
       {error ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
-      {loading ? <p className="eqs-note" role="status">Cargando cuenta corriente…</p> : null}
+      {loading ? <ListSkeleton variant="rows" testId="current-account-loading" /> : null}
       {!loading && !visible.length ? <div className="wempty">Nadie tiene saldo pendiente.</div> : null}
       <div className="acct-list">
         {visible.map((row) => {

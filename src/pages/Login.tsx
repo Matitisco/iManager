@@ -1,3 +1,4 @@
+import { FieldSkeleton } from '../components/Skeleton';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight, Info } from 'lucide-react';
@@ -332,16 +333,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
                     )}
                     <div className="min-w-0">
                   {inviteState.isLoading ? (
-                    <>
-                      <p className="text-sm font-semibold">
-                        {inviteState.isRetrying ? 'Reintentando verificación de invitación…' : 'Verificando invitación…'}
-                      </p>
-                      <p className="mt-1 text-sm text-blue-800 max-[760px]:text-[#4B5160] max-[760px]:break-words">
-                        {inviteState.isRetrying
-                          ? 'La tienda está tardando en responder. Seguimos intentando cargar los datos.'
-                          : 'Estamos cargando los datos de la tienda antes de que inicies sesión.'}
-                      </p>
-                    </>
+                    <FieldSkeleton />
                   ) : inviteState.preview ? (
                     <>
                       <p className="text-sm font-semibold">Sumate a {inviteState.preview.storeName}</p>

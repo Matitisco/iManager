@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { parseDeviceCode } from '../../lib/device-scan';
@@ -145,7 +146,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   useEffect(() => {
     setTechnicalStatus(trade?.status || 'PENDIENTE');
   }, [trade?.id, trade?.status]);
-  if (!trade && !detailError) return <Sheet title="Cargando registro" onClose={close} className="cj-sheet"><div className="wempty">Cargando detalle...</div></Sheet>;
+  if (!trade && !detailError) return <Sheet title="Canje" onClose={close} className="cj-sheet"><ListSkeleton variant="lines" rows={6} /></Sheet>;
   if (!trade) return <Sheet title="Registro no disponible" onClose={close} className="cj-sheet"><div className="ferr">{detailError}</div></Sheet>;
   const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
   if (archivedReceivedLink) {
@@ -160,7 +161,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           <div className="kv"><span>Estado técnico</span><b><Pill status={archivedReceived.status} kind="TRADE_IN_STATUS" /></b></div>
           <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
           <div className="kv"><span>Fecha</span><b>{formatShortDate(trade.date)}</b></div>
-        </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <div className="wempty">Cargando equipo recibido...</div>}
+        </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <ListSkeleton variant="lines" rows={3} />}
       </Sheet>
     );
   }

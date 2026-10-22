@@ -1,3 +1,4 @@
+import { FieldSkeleton } from '../components/Skeleton';
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Eye, EyeOff } from 'lucide-react';
@@ -150,10 +151,7 @@ export const AuthActionPage: React.FC<AuthActionPageProps> = ({ link, onDone }) 
         <h1>{titleFor(link.mode)}</h1>
 
         {phase === 'loading' && (
-          <p className="wait" data-testid="auth-action-loading" role="status">
-            <i />
-            Estamos comprobando el enlace…
-          </p>
+          <div data-testid="auth-action-loading"><FieldSkeleton /></div>
         )}
 
         {error && (

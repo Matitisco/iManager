@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { isSectionHidden } from '../../config/hiddenSections';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -141,7 +142,7 @@ export function HistoryScreen() {
       <FilterChip label="Tipo" value={group} onChange={setGroup} options={GROUPS.filter(Boolean).map((item) => ({ id: item, label: item }))} />
       <FilterChip label="Sección" value={section} onChange={setSection} options={SECTIONS.filter((item) => item.id && !isSectionHidden(item.id)).map((item) => ({ id: item.id, label: item.label }))} />
     </div>
-    {loading ? <div className="card history-skeleton" data-testid="history-loading">Cargando historial…</div> : null}
+    {loading ? <ListSkeleton variant="rows" testId="history-loading" /> : null}
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setPeriod((current) => current)}>Reintentar</button></div> : null}
     {!loading && !error && events.length === 0 ? <div className="card empty" data-testid="history-empty">
       <b>{filtered ? 'Nada con esos filtros' : 'Todavía no hay movimientos'}</b>

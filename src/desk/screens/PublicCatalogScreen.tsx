@@ -13,6 +13,8 @@ import { usePhoneLayout } from '../section-notices';
 import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
 import { Actions, Dialog, PageHead, Sheet, useDesk } from '../ui';
 import { TablePager, usePagedRows } from '../pager';
+import { ListSkeleton } from '../list-skeleton';
+import { Skeleton } from '../../components/Skeleton';
 import '../../catalog/catalog.css';
 import './public-catalog.css';
 
@@ -79,11 +81,11 @@ export function PublicCatalogScreen() {
     rows.forEach(item => { if (allFilteredSelected) next.delete(item.id); else next.add(item.id); });
     return next;
   });
-  return <div className="dscreen catalog-screen" data-testid="catalog-screen">
-    <PageHead title="Catálogo" subtitle={`Tu lista de precios pública · ${catalog?.counts.visible ?? 0} ${(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}`} back={back} action={catalog && !phone ? <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div> : undefined} />
+  return <div className="dscreen catalog-screen" data-testid="catalog-screen" aria-busy={loading}>
+    <PageHead title="Catálogo" subtitle={loading && !catalog ? 'Tu lista de precios pública' : `Tu lista de precios pública · ${catalog?.counts.visible ?? 0} ${(catalog?.counts.visible ?? 0) === 1 ? 'equipo visible' : 'equipos visibles'}`} back={back} action={catalog && !phone ? <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div> : undefined} />
     {error && !suppressLocalNetworkBanner(error, offlineOwned) ? <div className="ferr" role="alert" data-testid={error === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{error}<button className="cat-button" onClick={() => void load()}>Reintentar</button></div> : null}
     {!storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
-    {loading ? <p role="status">Cargando catálogo…</p> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
+    {loading && !catalog ? <CatalogSkeleton /> : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
@@ -187,6 +189,16 @@ function CatalogPreview({ catalog, storePhone }: { catalog: ManagedCatalog; stor
   const phone = preview?.store.phone?.trim() || null;
   const line = [preview?.store.address, preview?.store.hours, phone].filter(Boolean).join(' · ');
   return <div className="cat-preview public-price-page">
-    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1>{line ? <small data-testid="catalog-store-phone">{line}</small> : null}</div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : <p className="cat-empty" role={error ? 'alert' : 'status'}>{error || 'Cargando vista previa…'}</p>}
+    {preview ? <><header className="price-header"><div className="price-store">{preview.store.logoUrl ? <img className="price-logo" src={preview.store.logoUrl} alt="" /> : <div className="price-logo">{preview.store.name.split(' ').map(word => word[0]).slice(0, 2).join('')}</div>}<div><h1>{preview.store.name}</h1>{line ? <small data-testid="catalog-store-phone">{line}</small> : null}</div></div><div className="price-header-meta"><b>LISTA DE PRECIOS</b></div></header>{preview.active ? preview.items.length ? <PriceList items={preview.items.slice(0, 6)} /> : <p className="cat-empty">Estamos actualizando la lista</p> : <p className="cat-empty">Esta lista de precios no está disponible</p>}</> : error ? <p className="cat-empty" role="alert">{error}</p> : <ListSkeleton variant="lines" rows={6} testId="catalog-preview-loading" />}
+  </div>;
+}
+
+function CatalogSkeleton() {
+  return <div className="cat-loading" role="status" aria-label="Cargando catálogo" aria-busy="true" data-testid="catalog-loading">
+    <div className="cat-counts" aria-hidden="true">{[0, 1, 2].map(index => <div key={index}><Skeleton style={{ width: '65%' }} /><Skeleton style={{ width: 32, height: 20 }} /></div>)}</div>
+    <div className="cat-layout" aria-hidden="true">
+      <div className="cat-card"><Skeleton style={{ width: '40%' }} /><ListSkeleton variant="rows" rows={4} /></div>
+      <div className="cat-card"><Skeleton style={{ height: 90, borderRadius: 12 }} /><ListSkeleton variant="lines" rows={3} /><Skeleton className="skeleton-field" /></div>
+    </div>
   </div>;
 }

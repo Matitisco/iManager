@@ -1,3 +1,4 @@
+import { FieldSkeleton } from '../components/Skeleton';
 import { track } from '../lib/analytics';
 import { useKeyboardInset, usePhoneLayout } from "../lib/phone-layout";
 import { useEffect, useState, type FormEvent, type CSSProperties } from "react";
@@ -247,9 +248,7 @@ export function Onboarding({
           <section>
             <h1>
               {invite.isLoading
-                ? invite.isRetrying
-                  ? "Reintentando verificación…"
-                  : "Verificando invitación…"
+                ? <FieldSkeleton />
                 : invite.error
                   ? "No pudimos verificar la invitación todavía"
                   : "Te invitaron a una tienda"}

@@ -1,0 +1,4 @@
+- [x] Capture main at desktop/iPhone sizes and generate a reference mockup outside the repository.
+- [x] Replace visible loading copy with shared placeholders while preserving content and errors.
+- [x] Add source guard and component coverage; run tests and typechecks (1,354 frontend tests; both TypeScript checks).
+- [ ] Push task branch, verify locally, capture final screens and open the labeled PR.

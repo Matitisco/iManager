@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { fetchCommissionReport } from '../../services/commissions-api';
@@ -316,7 +317,7 @@ export function ReportsScreen() {
         />
       ) : null}
       {activeTab === 'Comisiones' && commissionReportError ? <p className="ferr" role="alert">{commissionReportError}</p> : null}
-      {activeTab === 'Comisiones' && commissionReportLoading ? <p role="status">Cargando reporte…</p> : null}
+      {activeTab === 'Comisiones' && commissionReportLoading ? <ListSkeleton variant="rows" rows={3} testId="commission-report-loading" /> : null}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
         <div className="gamount">{model.unavailable ? '—' : model.barMoney ? money.showActive(model.headline) : model.total}</div>

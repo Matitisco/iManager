@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { ReasonSheet } from '../ReasonSheet';
@@ -80,7 +81,7 @@ export function CashScreen() {
     <div className="cash-content" hidden={mode?.type === 'count'}>
     <PageHead title={box?.name ?? 'Cajas'} subtitle={box ? `${box.currency} · ${box.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}` : (phone ? 'Ingresos, egresos y cierre' : 'Ingresos, egresos y cierre diario por moneda y medio')} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
-    {loading && !cashData ? <p role="status">Cargando cajas…</p> : null}
+    {loading && !cashData ? <ListSkeleton variant="cards" rows={2} testId="cash-loading" /> : null}
     {!selected && cashData ? <>
       <Segs options={[{ id: 'all', label: 'Todos' }, { id: 'active', label: 'Activas' }, { id: 'archived', label: 'Archivadas' }]} value={listFilter} onChange={setListFilter} />
       {!rows.length ? <div className="card cash-empty"><h3>{archived ? 'No hay cajas archivadas' : 'Creá tu primera caja'}</h3><p>Pesos y dólares llevan saldos y cierres separados. La primera caja de cada moneda y medio recibe los cobros automáticamente.</p>{owner && !archived ? <button className="dbtn" onClick={() => setMode({ type: 'create' })}>Crear caja</button> : null}</div> : <div className="cash-grid">{rows.map(row => <button className={`card cash-box${isVoidRow(row) ? ' is-void' : ''}`} key={row.id} onClick={() => { setSelected(row.id); setFilters({ offset: 0 }); setDraftFilters({}); }}>
@@ -114,7 +115,7 @@ export function CashScreen() {
           <button className="dbtn s" type="submit">Filtrar</button>
         </form>
         {historyError ? <div className="ferr" role="alert">{historyError}<button className="dbtn s" onClick={() => setRevision(n => n + 1)}>Reintentar historial</button></div> : null}
-        {historyLoading ? <p role="status">Cargando movimientos…</p> : history ? <div className="card cash-history">{history.movements.length ? history.movements.map(movement => <div className={`cash-movement${isVoidRow(movement) ? ' is-void' : ''}`} key={movement.id}>
+        {historyLoading ? <ListSkeleton variant="rows" testId="cash-history-loading" /> : history ? <div className="card cash-history">{history.movements.length ? history.movements.map(movement => <div className={`cash-movement${isVoidRow(movement) ? ' is-void' : ''}`} key={movement.id}>
           <div><b>{kind[movement.kind] ?? movement.kind}{movement.voidedAt ? ' · Anulado' : ''}</b><small>{formatArDateTime(movement.createdAt)} · {movement.category || 'Sin categoría'}</small>{movement.note ? <p>{movement.note}</p> : null}{movement.exchangeRate ? <small>Cotización guardada: ARS {movement.exchangeRate} por USD</small> : null}</div>
           <strong className={movement.amount < 0 ? 'cash-negative' : ''}>{cashMoney(movement.amount, box.currency)}</strong>
           {owner && !movement.voidedAt && !movement.reversalOf && ['INGRESO','EGRESO','AJUSTE','COBRO','DEVOLUCION','TRANSFERENCIA'].includes(movement.kind) ? <div className="cash-row-actions"><button className="dbtn s" aria-label={`Cambiar categoría de ${kind[movement.kind]}`} onClick={() => setMode({ type: 'category', movement, box })}>Categoría</button>{!movement.sourceType ? <button className="dbtn s" aria-label={`Anular ${kind[movement.kind]}`} onClick={() => setMode({ type: 'void', movement, box })}>Anular</button> : <small>Corregir desde el origen</small>}</div> : null}

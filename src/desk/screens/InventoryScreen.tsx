@@ -222,7 +222,7 @@ export function InventoryScreen() {
       {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Inventario"
-        subtitle={loadingLists ? 'Cargando equipos…' : phone
+        subtitle={loadingLists ? '' : phone
           ? `${source.length === 1 ? '1 equipo' : `${source.length} equipos`} · ${available === 1 ? '1 disponible' : `${available} disponibles`}`
           : `${source.length} ${source.length === 1 ? 'equipo' : 'equipos'} · ${available} ${available === 1 ? 'disponible' : 'disponibles'} · ${inventory.filter(item => item.catalogIncluded).length} en catálogo`}
         back={back}

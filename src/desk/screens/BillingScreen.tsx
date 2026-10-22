@@ -1,3 +1,4 @@
+import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, CreditCard, Lock, X } from 'lucide-react';
@@ -262,7 +263,7 @@ export function BillingScreen() {
         {confirming ? <p className="billing-return" role="status" data-testid="billing-return-confirming">Confirmando tu pago…</p> : null}
         {error ? <div className="billing-error" role="alert">{error}<button className="billing-link" type="button" disabled={busy} onClick={() => void run(async () => { await loadBilling(true, true); setLoading(false); })}>Reintentar</button></div> : null}
         {notice ? <p className="billing-notice" role="status">{notice}</p> : null}
-        {loading && !confirming ? <p role="status">Cargando planes…</p> : null}
+        {loading && !confirming ? <ListSkeleton variant="cards" rows={3} testId="billing-loading" /> : null}
         {!internal && !active && !scheduled && !incomplete ? <>
           <h2 className="billing-choose">{expired ? 'Elegí un plan para seguir' : 'Elegí tu plan'}</h2>
           <div className="billing-period" role="group" aria-label="Frecuencia de facturación">
