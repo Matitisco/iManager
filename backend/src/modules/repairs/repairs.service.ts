@@ -236,17 +236,16 @@ export async function createRepair(storeId: string, input: RepairOrderInput, act
       },
       include,
     });
-    if (actor) {
-      await writeAudit(tx, {
-        storeId,
-        actor,
-        action: "repair.created",
-        entityType: "repair",
-        entityId: order.id,
-        entityLabel: `#${String(order.orderNumber).padStart(4, "0")} · ${order.device}`.slice(0, 160),
-        detail: order.device,
-      });
-    }
+    await writeAudit(tx, {
+      storeId,
+      actor,
+      action: "repair.created",
+      entityType: "repair",
+      entityId: order.id,
+      entityLabel: `#${String(order.orderNumber).padStart(4, "0")} · ${order.device}`.slice(0, 160),
+      detail: order.device,
+      changes: [{ field: "status", label: "Estado", before: null, after: status }],
+    });
     await recordCash(tx, { storeId, amount: Number(order.deposit), currency: currency ?? 'ARS', method: 'EFECTIVO', sourceType: 'repair', sourceId: order.id, note: 'Anticipo de reparación · efectivo' });
     return order;
   });

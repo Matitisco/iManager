@@ -23,6 +23,19 @@ beforeEach(() => {
 });
 
 describe('section view state', () => {
+  it('logs a warning when loading section changes fails', async () => {
+    const error = new Error('No se pudieron cargar las novedades.');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(fetchSectionChanges).mockRejectedValueOnce(error);
+    try {
+      const { result } = renderHook(() => useSectionViewsState(user, session, 'ready', []));
+      await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar las novedades.', error));
+      expect(result.current.sectionChangesError).toBeTruthy();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('acknowledges only observed versions, preserving other sections and later edits', async () => {
     const { result } = renderHook(() => useSectionViewsState(user, session, 'ready', []));
     await waitFor(() => expect(result.current.sectionChanges.clients).toHaveLength(2));

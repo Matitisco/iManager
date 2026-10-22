@@ -3,6 +3,11 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #308 / #483 punto 13 — Confirmaciones de archivo — 2026-10-22
+
+- Proveedor y gasto reemplazan su Sheet por ReasonSheet al archivar: un solo diálogo montado. Cancelar o cerrar recupera el detalle sin refetch ni skeleton y conserva las ediciones del gasto. Los fallos mantienen motivo y error; el éxito cierra todo.
+- Validación: 74 pruebas de overlays y TypeScript frontend/backend aprobados. Sin cambios de layout, textos, backend ni Prisma; sin build. Entrega en un único commit local con el mensaje solicitado, sin push.
+
 ## Issue #318 — Control de stock — 2026-10-22
 
 - Rediseño aprobado en 1440/390: resultado reciente con estado Por revisar, cuatro grupos con IMEI completo y controles anteriores. Inicio mínimo en Sheet (hoja inferior móvil); registro únicamente mediante RECORD, sin selección ni acciones de archivar/cargar/ajustar inventario. Continúa el conteo abierto y conserva lector, ingreso manual, cámara y permisos.

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepairOrder } from '../../types';
+import { fetchHistory, type HistoryEvent } from '../../services/history-api';
 import { ExchangeProvider, type StoreExchange } from '../exchange';
 import { FX_WARNING } from '../money';
 import { DeskProvider } from '../ui';
@@ -20,12 +21,14 @@ const updateRepairOrder = vi.fn();
 const deleteRepairOrder = vi.fn();
 
 const state = vi.hoisted(() => ({
+  user: { uid: 'owner' },
   repairOrders: [] as RepairOrder[],
   clients: [] as { id: string; name: string; phone: string; dni: string; email: string; lastPurchaseDate: string; totalSpent: number; pendingBalance: number }[],
 }));
 
 vi.mock('../../context/AppContext', () => ({
   useAppContext: () => ({
+    user: state.user,
     repairOrders: state.repairOrders,
     repairOrdersError: null,
     clients: state.clients,
@@ -35,6 +38,7 @@ vi.mock('../../context/AppContext', () => ({
     deleteRepairOrder,
   }),
 }));
+vi.mock('../../services/history-api', () => ({ fetchHistory: vi.fn() }));
 
 function order(id: string, status: string, overrides: Partial<RepairOrder> = {}): RepairOrder {
   return {
@@ -100,6 +104,7 @@ describe('servicio técnico', () => {
     changeRepairStatus.mockReset();
     updateRepairOrder.mockReset();
     deleteRepairOrder.mockReset();
+    vi.mocked(fetchHistory).mockReset();
     state.repairOrders = [
       order('101', 'RECIBIDO'),
       order('95', 'EN_REPARACION', { device: 'iPhone 14', clientName: 'Ejemplo C', fault: 'Cámara trasera borrosa', estimate: 120000 }),
@@ -215,7 +220,7 @@ describe('servicio técnico', () => {
     expect(screen.getByTestId('repair-column-RECIBIDO')).toHaveTextContent('#OT-0101');
   });
 
-  it('keeps the previous status names in the history after they leave the board', () => {
+  it('keeps the previous status names in the second history modal after they leave the board', async () => {
     state.repairOrders = [order('95', 'RECIBIDO', {
       events: [
         { id: 'a', status: 'RECIBIDO', createdAt: '01/10/2026' },
@@ -225,11 +230,22 @@ describe('servicio técnico', () => {
         { id: 'e', status: 'RECIBIDO', createdAt: '05/10/2026' },
       ],
     })];
+    vi.mocked(fetchHistory).mockResolvedValue({ events: state.repairOrders[0].events.map(event => ({
+      id: event.id, createdAt: '2026-10-01T12:00:00.000Z', action: 'repair.status',
+      changes: [{ field: 'status', label: 'Estado', before: null, after: event.status }],
+      actorName: 'Sin autor registrado',
+    } as HistoryEvent)), nextCursor: null });
     desk(<RepairOrderDetail id="95" busy={false} />);
-    expect(screen.getByText('En diagnóstico')).toBeInTheDocument();
-    expect(screen.getByText('Esperando repuesto')).toBeInTheDocument();
-    expect(screen.getByText('Esperando respuesta')).toBeInTheDocument();
+    expect(screen.queryByText('En diagnóstico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando repuesto')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esperando respuesta')).not.toBeInTheDocument();
     expect(screen.getByText('Sigue: En reparación')).toBeInTheDocument();
+    expect(fetchHistory).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    const history = screen.getByRole('dialog', { name: 'Historial' });
+    expect(await within(history).findByText('Pasó a En diagnóstico')).toBeInTheDocument();
+    expect(within(history).getByText('Pasó a Esperando repuesto')).toBeInTheDocument();
+    expect(within(history).getByText('Pasó a Esperando respuesta')).toBeInTheDocument();
   });
 
   it('shows the device as the card title and the client only when the order has one', () => {

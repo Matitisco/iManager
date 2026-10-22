@@ -806,12 +806,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .svc-steps i.on { background: var(--lime); }
 .svc-now { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
 .svc-now span { color: var(--secondary); font-size: 13px; font-weight: 700; }
-.svc-log { margin: 8px 0 4px; }
-.svc-log > span { display: block; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); margin-bottom: 4px; }
-.svc-log ol { list-style: none; margin: 0; padding: 0; }
-.svc-log li { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--border); font-size: 13px; }
-.svc-log i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.svc-log small { margin-left: auto; color: var(--secondary); font-weight: 600; }
 .svc-wa { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 10px 0 2px; padding: 12px 14px; border-radius: 14px; background: var(--lime-soft); font-size: 13px; font-weight: 700; }
 .svc-wa a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .svc-sensitive { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
@@ -868,28 +862,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .btn2 { height: auto; min-height: 48px; white-space: normal; padding: 10px 14px; }
   .sheet.svc-sheet .svc-wa,
   .sheet.svc-sheet .svc-now { flex-wrap: wrap; }
-  .sheet.svc-sheet .svc-log li {
-    display: grid;
-    grid-template-columns: 16px minmax(0, 1fr);
-    align-items: start;
-    gap: 2px 10px;
-    border-top: 0;
-    padding: 0 0 14px;
-    position: relative;
-  }
-  .sheet.svc-sheet .svc-log li i { grid-row: 1 / span 2; width: 12px; height: 12px; margin-top: 3px; }
-  .sheet.svc-sheet .svc-log li i.now { background: var(--lime); box-shadow: 0 0 0 4px var(--lime-soft); }
-  .sheet.svc-sheet .svc-log li b, .sheet.svc-sheet .svc-log small { min-width: 0; overflow-wrap: anywhere; }
-  .sheet.svc-sheet .svc-log small { margin-left: 0; grid-column: 2; }
-  .sheet.svc-sheet .svc-log li:not(:last-child)::before {
-    content: "";
-    position: absolute;
-    left: 5px;
-    top: 16px;
-    bottom: 0;
-    width: 2px;
-    background: #E4E6EA;
-  }
   .dialog.stx { width: 100%; max-width: calc(100vw - 20px); padding: 18px 14px 16px; }
   .dialog.stx h3, .stx-sub, .stx-cnt, .stx-re { overflow-wrap: anywhere; }
   .stx-cnt { min-width: 0; white-space: normal; }
@@ -1291,12 +1263,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sheet.svc-sheet .svc-lead-imei { grid-row: 3; }
   .sheet.svc-sheet .sgs, .sheet.svc-sheet .svc-faults, .sheet.svc-sheet .svc-pair { max-width: 100%; }
   .sheet.svc-sheet .sg { max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
-  .sheet.svc-sheet .svc-log li { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 2px 10px; border-top: 0; padding: 0 0 14px; position: relative; }
-  .sheet.svc-sheet .svc-log li i { grid-row: 1 / span 2; width: 12px; height: 12px; margin-top: 3px; }
-  .sheet.svc-sheet .svc-log li i.now { background: var(--lime); box-shadow: 0 0 0 4px var(--lime-soft); }
-  .sheet.svc-sheet .svc-log li b, .sheet.svc-sheet .svc-log small { min-width: 0; overflow-wrap: anywhere; }
-  .sheet.svc-sheet .svc-log small { margin-left: 0; grid-column: 2; }
-  .sheet.svc-sheet .svc-log li:not(:last-child)::before { content: ""; position: absolute; left: 5px; top: 16px; bottom: 0; width: 2px; background: #E4E6EA; }
   .dialog.stx { width: 100%; max-width: calc(100vw - 20px); }
   .stx-cnt { min-width: 0; white-space: normal; }
   .stx-row, .stx-sub, .stx-re { min-width: 0; max-width: 100%; }

@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { historyAction, historyDetailRows, historyRecordNote, historySentence } from './history-copy';
+import { historyAction, historyDetailRows, historyRecordAction, historyRecordNote, historySentence } from './history-copy';
 
 describe('history copy', () => {
+  it.each([
+    ['RECIBIDO', 'Recibido'], ['EN_REPARACION', 'En reparación'],
+    ['LISTO_PARA_RETIRAR', 'Listo para retirar'], ['ENTREGADO', 'Entregado'],
+    ['EN_DIAGNOSTICO', 'En diagnóstico'], ['Garantía especial', 'Garantía especial'],
+  ])('names repair status %s in Spanish and preserves custom labels', (status, label) => {
+    const event = { action: 'repair.status', changes: [{ label: 'Estado', before: 'RECIBIDO', after: status }] };
+    expect(historyRecordAction(event)).toBe(`Pasó a ${label}`);
+    expect(historyDetailRows(event)).toEqual([{ label: 'Estado', before: 'Recibido', after: label }]);
+    expect(historyDetailRows({ ...event, action: 'repair.created', changes: [{ label: 'Estado', before: null, after: status }] }))
+      .toEqual([{ label: 'Estado', before: null, after: label }]);
+  });
+
+  it('preserves status wording for other entities and handles older audits without a status', () => {
+    expect(historyRecordAction({ action: 'repair.status', verb: 'cambió el estado de', target: 'OT-0001' })).toBe('cambió el estado de OT-0001');
+    expect(historyDetailRows({ action: 'repair.archived', changes: [{ label: 'Estado', before: 'Activa', after: 'Archivada' }] }))
+      .toEqual([{ label: 'Estado', before: 'Activa', after: 'Archivada' }]);
+  });
   it('writes a complete seller sentence and only relies on layout for overflow', () => {
     const event = { actorName: 'Matias Tiscornia', verb: 'cambió el vendedor de', target: 'V-0190', suffix: '' };
     expect(historyAction(event)).toBe('cambió el vendedor de V-0190');
