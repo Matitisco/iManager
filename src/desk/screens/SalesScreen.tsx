@@ -324,7 +324,7 @@ export function SalesScreen() {
                   <ColumnFilter label="pago" {...menu('pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
                     <div className="opts">
                       {payments.map((label) => (
-                        <label key={label} className="chk"><input type="checkbox" checked={columns.payments.includes(label)} onChange={() => toggleList('payments', label)} />{label}</label>
+                        <label key={label} className="chk"><input type="checkbox" checked={columns.payments.includes(label)} onChange={() => toggleList('payments', label)} /><span>{label}</span></label>
                       ))}
                     </div>
                   </ColumnFilter>
@@ -338,7 +338,7 @@ export function SalesScreen() {
                   <ColumnFilter label="estado" align="right" {...menu('estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                     <div className="opts">
                       {statuses.map((status) => (
-                        <label key={status} className="chk"><input type="checkbox" checked={columns.statuses.includes(status)} onChange={() => toggleList('statuses', status)} />{statusLabel(status)}</label>
+                        <label key={status} className="chk"><input type="checkbox" checked={columns.statuses.includes(status)} onChange={() => toggleList('statuses', status)} /><span>{statusLabel(status)}</span></label>
                       ))}
                     </div>
                   </ColumnFilter>

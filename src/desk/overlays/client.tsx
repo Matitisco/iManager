@@ -17,6 +17,11 @@ import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } f
 import { clearBad, PAYMENTS, BASE_TAGS, stampedCurrency, type FormProps } from './shared';
 import { clientCredit, creditTotal } from '../client-balance';
 import { ClientPurchases } from '../ClientPurchases';
+import { useArchivedRows } from '../use-archived-rows';
+import { fetchVoidedSales } from '../../services/sales-api';
+import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
+import { fetchArchivedInventory } from '../../services/inventory-api';
+import { mergeRecordRows } from '../format';
 import { archivedClient } from '../archive-cache';
 import { RecordHistory } from '../screens/HistoryScreen';
 
@@ -34,7 +39,10 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], reloadClients, creditNotes = [] } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], loadCommissionSellers, appSession, reloadClients, creditNotes = [] } = useAppContext();
+  const voidedSales = useArchivedRows(sales, fetchVoidedSales);
+  const voidedTrades = useArchivedRows(tradeIns, fetchVoidedTradeIns);
+  const archivedInventory = useArchivedRows(inventory, fetchArchivedInventory);
   const money = useMoney();
   const { close, open, toast, canManageSensitive } = useDesk();
   const phone = usePhoneLayout();
@@ -48,6 +56,15 @@ export function ClientDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState(false);
   const amountDirty = useRef(false);
+
+  useEffect(() => {
+    if (!user || !loadCommissionSellers) return;
+    let current = true;
+    void loadCommissionSellers().catch((cause: unknown) => {
+      if (current) setError(getFriendlyErrorMessage(cause, 'No se pudieron cargar los vendedores'));
+    });
+    return () => { current = false; };
+  }, [user, appSession?.store?.id]);
 
   const quoteRate = money.rate;
   const activeCurrency = money.active;
@@ -150,7 +167,9 @@ export function ClientDetail({ id }: { id: string }) {
       {(creditNotes ?? []).filter((note) => note.clientId === client.id && note.remaining > 0 && !note.deletedAt).map((note) => (
         <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency)}</b></div>
       ))}
-      <ClientPurchases clientId={client.id} sales={sales} tradeIns={tradeIns} repairs={repairOrders} inventory={inventory} sellers={commissionSellers} />
+      {voidedSales.error || voidedTrades.error || archivedInventory.error ? <div className="ferr" role="alert">{voidedSales.error || voidedTrades.error || archivedInventory.error}</div> : null}
+      {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <p className="eqs-note" role="status">Cargando historial de compras…</p> : null}
+      <ClientPurchases key={client.id} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <p className="eqs-note" role="status">Cargando señas…</p> : null}

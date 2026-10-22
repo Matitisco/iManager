@@ -215,7 +215,7 @@ export function ClientsScreen() {
                   <ColumnFilter label="cliente" {...menu('cliente')} active={clientColumnActive(columns, 'name')} onClear={() => setColumn({ name: '', tags: [] })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.name} onChange={(event) => setColumn({ name: event.target.value })} />
                     {tags.length > 0 ? <div className="opts">{tags.map((tag) => (
-                      <label key={tag} className="chk"><input type="checkbox" checked={columns.tags.includes(tag)} onChange={(event) => setColumn({ tags: event.target.checked ? [...columns.tags, tag] : columns.tags.filter((item) => item !== tag) })} />{tag}</label>
+                      <label key={tag} className="chk"><input type="checkbox" checked={columns.tags.includes(tag)} onChange={(event) => setColumn({ tags: event.target.checked ? [...columns.tags, tag] : columns.tags.filter((item) => item !== tag) })} /><span>{tag}</span></label>
                     ))}</div> : null}
                   </ColumnFilter>
                 </span></th>

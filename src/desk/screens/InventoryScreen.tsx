@@ -330,7 +330,7 @@ export function InventoryScreen() {
                               checked={columns.colors.includes(label)}
                               onChange={(event) => setColumn({ colors: withStatus(columns.colors, label, event.target.checked) })}
                             />
-                            {label}
+                            <span>{label}</span>
                           </label>
                         ))}
                       </div>
@@ -350,7 +350,7 @@ export function InventoryScreen() {
                                 conditions: withStatus(columns.conditions, option.id, event.target.checked),
                               })}
                             />
-                            {option.label}
+                            <span>{option.label}</span>
                           </label>
                         ))}
                       </div>
@@ -375,7 +375,7 @@ export function InventoryScreen() {
                                   : columns.qualities.filter((grade) => grade !== item.value),
                               })}
                             />
-                            {item.value}
+                            <span>{item.value}</span>
                           </label>
                         ))}
                       </div>
@@ -411,12 +411,12 @@ export function InventoryScreen() {
                               checked={columns.statuses.includes(option.id)}
                               onChange={(event) => setColumn({ statuses: withStatus(columns.statuses, option.id, event.target.checked) })}
                             />
-                            {option.label}
+                            <span>{option.label}</span>
                           </label>
                         ))}
                         <label className="chk">
                           <input type="checkbox" checked={columns.needsCompletion} onChange={(event) => setColumn({ needsCompletion: event.target.checked })} />
-                          Para completar
+                          <span>Para completar</span>
                         </label>
                       </div>
                     </ColumnFilter>

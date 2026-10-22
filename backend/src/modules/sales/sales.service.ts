@@ -157,7 +157,7 @@ async function recomputeClientStats(
   clientId: string
 ) {
   const aggregate = await tx.sale.aggregate({
-    where: { storeId, clientId, voidedAt: null },
+    where: { storeId, clientId, voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } },
     _sum: { amount: true },
     _max: { soldAt: true },
   });
@@ -292,7 +292,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
       });
     }
 
-    if (client) {
+    if (client && !["CANCELADA", "ANULADA"].includes(input.status)) {
       await tx.client.update({
         where: { id: client.id },
         data: {
@@ -448,7 +448,8 @@ export async function updateSale(
     if (
       input.amount !== undefined ||
       input.date !== undefined ||
-      input.clientId !== undefined
+      input.clientId !== undefined ||
+      input.status !== undefined
     ) {
       const affectedClientIds = new Set<string>();
       if (existing.clientId) affectedClientIds.add(existing.clientId);
@@ -492,6 +493,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
           clientId: existing.clientId,
           id: { not: id },
           voidedAt: null,
+          status: { notIn: ["CANCELADA", "ANULADA"] },
         },
         _sum: { amount: true },
         _max: { soldAt: true },

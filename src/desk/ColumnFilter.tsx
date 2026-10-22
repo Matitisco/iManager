@@ -61,10 +61,9 @@ export function ColumnFilter({ label, open, onToggle, active, align = 'left', on
     const place = () => {
       const rect = anchor.current?.getBoundingClientRect();
       if (!rect) return;
-      const width = 248;
-      const left = align === 'right'
-        ? Math.max(8, rect.right - width)
-        : Math.min(rect.left, window.innerWidth - width - 8);
+      const width = Math.min(248, window.innerWidth - 16);
+      const desiredLeft = align === 'right' ? rect.right - width : rect.left;
+      const left = Math.max(8, Math.min(desiredLeft, window.innerWidth - width - 8));
       setPoint({ top: rect.bottom + 8, left });
     };
     const down = (event: MouseEvent) => {
