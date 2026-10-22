@@ -140,7 +140,7 @@ export function installHelpTests(production = false, platforms: readonly ('andro
           await page.clock.fastForward(29_000); await expect(page.getByTestId('install-app')).toHaveCount(0);
           await page.clock.fastForward(1_000); await page.clock.runFor(400);
           const banner = page.getByTestId('install-app'); await expect(banner).toContainText('Agregar a pantalla principal');
-          await expect(banner).toContainText('Instalá iManager'); await expect(banner.getByRole('button', { name: 'Instalar app' })).toHaveCount(0);
+          await expect(banner).toContainText('iManager en tu inicio'); await expect(banner.getByRole('button', { name: 'Instalar app' })).toHaveCount(0);
           expect(await banner.evaluate((node) => node.closest('main.stage') !== null)).toBe(true);
           await fits(page); await shot(page, 'android-banner');
           await page.getByTestId('sidebar-tab-inventory').click();
@@ -153,7 +153,7 @@ export function installHelpTests(production = false, platforms: readonly ('andro
             await expect(banner).toHaveCount(0);
           }
           await page.getByTestId('sidebar-tab-dashboard').click(); await page.clock.fastForward(30_000); await page.clock.runFor(400);
-          await banner.getByRole('button', { name: 'No volver a mostrar la instalación' }).click();
+          await banner.getByRole('button', { name: 'Ahora no', exact: true }).click();
           await page.reload(); await expect(page.locator('.desk-app')).toBeVisible(); await page.clock.fastForward(31_000);
           await expect(banner).toHaveCount(0);
           await page.getByTestId('sidebar-tab-more').click(); await page.getByTestId('install-card').getByRole('button', { name: 'Instalar' }).click();

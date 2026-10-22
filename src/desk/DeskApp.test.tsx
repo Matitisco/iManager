@@ -262,7 +262,10 @@ describe('sidebar unread counts', () => {
       expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
       expect(navigator.onLine).not.toBe(false);
       expect(await screen.findByTestId('offline-banner', {}, { timeout: 4000 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
-      expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true);
+      // Other failed requests can show the banner before the periodic health probe.
+      await waitFor(() => {
+        expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true);
+      }, { timeout: 4000 });
       expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { readBootSession, readStoreLists, writeBootSession, writeStoreLists } from './lib/boot-cache';
@@ -105,6 +105,10 @@ beforeEach(() => {
   sessionFetch.mockReset();
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('apertura de sesión', () => {
   it('abre el shell con la caché y sin la pantalla de sesión segura', async () => {
     signedIn();
@@ -143,13 +147,14 @@ describe('apertura de sesión', () => {
       message: null,
     });
     render(<App />);
-    await waitFor(() => expect(screen.getByText('Hola, Sofía')).toBeInTheDocument());
-    await waitFor(() => expect(mine).toHaveBeenCalled());
+    // Confirming the cached role can remount the dashboard. Query and assert
+    // together so a detached greeting is retried during that transition.
+    await waitFor(() => {
+      expect(screen.getByText('Hola, Sofía')).toBeInTheDocument();
+      expect(mine).toHaveBeenCalled();
+    }, { timeout: 3000 });
     expect(summary).not.toHaveBeenCalled();
     expect(rules).not.toHaveBeenCalled();
-    summary.mockRestore();
-    rules.mockRestore();
-    mine.mockRestore();
   });
 
   it('borra la caché al cerrar sesión', async () => {
