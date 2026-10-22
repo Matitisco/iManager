@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../config/hiddenSections';
 import type { DeskTab } from './types';
 import { canManageCommissions, canOpenHistory, canOpenSection } from './sections';
 
@@ -61,6 +62,7 @@ export const NAV_SECTIONS: NavSection[] = [
 ];
 
 export function sectionAllowed(id: DeskTab, stored: string[] | null | undefined, role?: string | null) {
+  if (isSectionHidden(id)) return false;
   if (id === 'billing') return role === 'OWNER';
   if (id === 'expenses') return role === 'OWNER';
   if (id === 'suppliers' || id === 'stockCount') return canOpenSection('inventory', stored, role);
@@ -159,6 +161,7 @@ export const EMPTY_PENDING: PendingInput = {
 };
 
 export function sectionPending(id: DeskTab, input: PendingInput) {
+  if (isSectionHidden(id)) return 0;
   if (id === 'inventory') return input.unread.inventory;
   if (id === 'sales') return input.unread.sales;
   if (id === 'clients') return input.unread.clients;

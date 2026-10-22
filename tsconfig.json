@@ -21,10 +21,17 @@
   "exclude": [
     "node_modules",
     "dist",
-    "backend/dist",
+    "backend",
     ".pwa-test-dist",
     "coverage",
     "playwright-report",
-    "test-results"
+    "test-results",
+    // This backend parity test runs in Vitest, outside the frontend typecheck.
+    "src/utils/parse-workbook.test.ts"
+  ],
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts"
   ]
 }

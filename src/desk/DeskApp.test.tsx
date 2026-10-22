@@ -77,6 +77,50 @@ describe('sidebar unread counts', () => {
     });
   }
 
+  it.each([390, 1440])('hides temporary sections across navigation at %spx', async width => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    if (width === 390) usePhone();
+    window.location.hash = width === 390 ? '#/mas' : '#/dashboard';
+    render(<DeskApp />);
+    const expectHidden = () => {
+      for (const id of ['cash', 'expenses', 'followups']) {
+        expect(screen.queryByTestId(`sidebar-tab-${id}`)).not.toBeInTheDocument();
+      }
+      expect(screen.queryByRole('tab', { name: /Gastos|Cajas|Seguimientos|Cuenta corriente/ })).not.toBeInTheDocument();
+    };
+    expectHidden();
+    if (width === 390) {
+      expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('sidebar-tab-suppliers'));
+    } else {
+      fireEvent.click(screen.getByRole('button', { name: /Finanzas/ }));
+    }
+    await waitFor(() => expect(location.hash).toBe('#/finanzas/proveedores'));
+    expectHidden();
+    goHash('#/atencion/clientes');
+    await screen.findByRole('button', { name: 'Todos' });
+    expectHidden();
+    expect(document.querySelector('.acct-views')).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Servicio técnico' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['#/finanzas/gastos', '#/dashboard'], ['#/expenses', '#/dashboard'],
+    ['#/finanzas/cajas/123', '#/dashboard'], ['#cash', '#/dashboard'],
+    ['#/atencion/seguimientos', '#/atencion/clientes'],
+    ['#/atencion/clientes/cuenta', '#/atencion/clientes'],
+    ['#/clientes?view=seguimientos', '#/atencion/clientes'],
+  ])('redirects hidden deep link %s on entry and hash changes', async (hash, fallback) => {
+    window.location.hash = hash;
+    render(<DeskApp />);
+    await waitFor(() => expect(location.hash).toBe(fallback));
+    goHash('#/stock/equipos');
+    await waitFor(() => expect(location.hash).toBe('#/stock/equipos'));
+    goHash(hash);
+    await waitFor(() => expect(location.hash).toBe(fallback));
+    expect(screen.queryByText('No tenés acceso a esta sección.')).not.toBeInTheDocument();
+  });
+
   it.each([false, true])('gates catalog menu and direct hashes for employees (granted=%s)', async granted => {
     context.appSession.membership.role = 'STAFF';
     context.appSession.membership.sections = granted ? ['publicCatalog'] : [];
@@ -262,7 +306,7 @@ describe('sidebar unread counts', () => {
       expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
       expect(navigator.onLine).not.toBe(false);
       expect(await screen.findByTestId('offline-banner', {}, { timeout: 4000 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
-      expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true);
+      await waitFor(() => expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true), { timeout: 4000 });
       expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 

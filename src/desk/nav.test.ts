@@ -4,6 +4,7 @@ import {
   desktopNav,
   groupPending,
   pendingDescription,
+  pageTabs,
   mobileBar,
   sectionAllowed,
   sectionPending,
@@ -26,6 +27,10 @@ function group(role: string | null | undefined, stored: string[] | null | undefi
 }
 
 describe('navegación por rol', () => {
+  it('omits the section row when only Clientes remains and leaves no hidden-only group', () => {
+    expect(pageTabs('clients', ['clients'], 'STAFF')).toEqual([]);
+    expect(group('STAFF', ['cash'], 'finanzas')).toBeNull();
+  });
   it('arma los grupos del propietario sin repetir el nombre de una sección', () => {
     const nav = desktopNav(null, 'OWNER');
     expect(nav.main.map((block) => block.kind === 'group' ? block.label : block.item.label)).toEqual([
@@ -33,8 +38,8 @@ describe('navegación por rol', () => {
     ]);
     expect(group(null, null, 'comercial')).toEqual(['sales', 'tradeins', 'returns']);
     expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'stockCount', 'publicCatalog']);
-    expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'followups', 'service']);
-    expect(group('OWNER', null, 'finanzas')).toEqual(['cash', 'expenses', 'suppliers']);
+    expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
+    expect(group('OWNER', null, 'finanzas')).toEqual(['suppliers']);
     expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'commissions', 'history']);
     expect(nav.cuenta.map((item) => item.label)).toEqual(['Notificaciones', 'Ayuda', 'Configuración']);
     const labels = nav.main.flatMap((block) => block.kind === 'group' ? [block.label, ...block.items.map((item) => item.label)] : [block.item.label]);
@@ -96,7 +101,7 @@ describe('pendientes de un grupo', () => {
     expect(sectionPending('tradeins', input)).toBe(2);
     expect(sectionPending('sales', input)).toBe(1);
     expect(sectionPending('inventory', input)).toBe(2);
-    expect(groupPending(['followups', 'service', 'clients'], input)).toBe(7);
+    expect(groupPending(['followups', 'service', 'clients'], input)).toBe(4);
     expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(3);
     expect(groupPending(['reports', 'commissions', 'history'], input)).toBe(1);
     expect(sectionPending('notifications', input)).toBe(5);
@@ -110,7 +115,7 @@ describe('barra del celular', () => {
     expect(owner.map((slot) => slot.label)).toEqual(['Dashboard', 'Ventas', 'Equipos', 'Clientes']);
     expect(owner.find((slot) => slot.id === 'sales')?.activeIds).toEqual(['sales', 'tradeins', 'returns']);
     expect(owner.find((slot) => slot.id === 'inventory')?.activeIds).toEqual(['inventory', 'stockCount', 'publicCatalog']);
-    expect(owner.find((slot) => slot.id === 'clients')?.activeIds).toEqual(['clients', 'followups', 'service']);
+    expect(owner.find((slot) => slot.id === 'clients')?.activeIds).toEqual(['clients', 'service']);
   });
 
   it('abre la primera sección permitida si el ancla no está', () => {
@@ -130,7 +135,7 @@ describe('explicación de indicadores', () => {
     const input = pending({ unread: { inventory: 2, sales: 1, tradeins: 99, clients: 3 }, openTrades: 4, openRepairs: 2, followUps: 5 });
     expect(pendingDescription(['sales', 'tradeins', 'returns'], input)).toBe('1 aviso sin leer en Ventas; 4 canjes en curso');
     expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(5);
-    expect(pendingDescription(['clients', 'followups', 'service'], input)).toBe('3 avisos sin leer en Clientes; 5 seguimientos para hoy; 2 órdenes de servicio abiertas');
+    expect(pendingDescription(['clients', 'followups', 'service'], input)).toBe('3 avisos sin leer en Clientes; 2 órdenes de servicio abiertas');
     expect(pendingDescription(['inventory'], input)).toBe('2 avisos sin leer en Equipos');
   });
 

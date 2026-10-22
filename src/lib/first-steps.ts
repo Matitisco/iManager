@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../config/hiddenSections';
 export const FIRST_STEPS = [
   { id: "store", title: "Datos de tu tienda", detail: "Nombre, logo y moneda" },
   { id: "stock", title: "Cargá tu stock", detail: "Pegá tu lista o subí un Excel" },
@@ -68,7 +69,7 @@ export const INVITE_ROLE_SECTIONS: Record<"STAFF" | "MANAGER", string[]> = {
 };
 
 export function permissionSummary(sections: string[]) {
-  const labels = PERMISSION_ORDER.filter((id) => sections.includes(id)).map((id) => PERMISSION_LABELS[id]);
+  const labels = PERMISSION_ORDER.filter((id) => sections.includes(id) && !isSectionHidden(id)).map((id) => PERMISSION_LABELS[id]);
   if (labels.length === 0) return "Sin secciones";
   if (labels.length === 1) return labels[0];
   return `${labels.slice(0, -1).join(", ")} y ${labels[labels.length - 1]}`;

@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../config/hiddenSections';
 import type { TeamMember } from '../services/members-api';
 import { DESK_SECTIONS, grantedSections } from './sections';
 
@@ -18,8 +19,8 @@ export function canEditMember(actorRole: string | undefined, actorUserId: string
 
 export function memberSectionSummary(member: TeamMember) {
   if (member.role === 'OWNER') return 'Todas las secciones';
-  const sections = grantedSections(member.sections, member.role);
-  const all = DESK_SECTIONS;
+  const sections = grantedSections(member.sections, member.role).filter(id => !isSectionHidden(id));
+  const all = DESK_SECTIONS.filter(section => !isSectionHidden(section.id));
   if (sections.length === all.length) return 'Todas las secciones';
   if (sections.length === all.length - 1 && !sections.includes('commissions')) return 'Todo menos Comisiones';
   const labels = all.filter(s => sections.includes(s.id)).map(s => s.label);

@@ -17,6 +17,8 @@ describe('catalog team permissions', () => {
     expect(memberSectionSummary(member(DESK_SECTION_IDS.filter(id => id !== 'commissions')))).toBe('Todo menos Comisiones');
     expect(memberSectionSummary(member(DESK_SECTION_IDS.filter(id => id !== 'publicCatalog')))).not.toBe('Todas las secciones');
     expect(memberSectionSummary(member(['publicCatalog']))).toBe('Catálogo');
+    expect(memberSectionSummary(member(['cash']))).toBe('Sin secciones');
+    expect(memberSectionSummary(member(['clients', 'cash']))).toBe('Clientes');
     expect(memberSectionSummary(member(null, 'MANAGER'))).not.toBe('Todas las secciones');
     expect(memberSectionSummary(member([], 'OWNER'))).toBe('Todas las secciones');
   });

@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../../config/hiddenSections';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { ApiError } from '../../services/api-client';
@@ -138,7 +139,7 @@ export function HistoryScreen() {
       <FilterChip label="Persona" value={actorId} onChange={setActorId} options={actors.map((actor) => ({ id: actor.userId, label: `${actor.name}${actor.removed ? ' (salió)' : ''}` }))} />
       <FilterChip label="Período" value={period} onChange={setPeriod} options={PERIODS.filter((item) => item.id).map((item) => ({ id: item.id, label: item.label }))} />
       <FilterChip label="Tipo" value={group} onChange={setGroup} options={GROUPS.filter(Boolean).map((item) => ({ id: item, label: item }))} />
-      <FilterChip label="Sección" value={section} onChange={setSection} options={SECTIONS.filter((item) => item.id).map((item) => ({ id: item.id, label: item.label }))} />
+      <FilterChip label="Sección" value={section} onChange={setSection} options={SECTIONS.filter((item) => item.id && !isSectionHidden(item.id)).map((item) => ({ id: item.id, label: item.label }))} />
     </div>
     {loading ? <div className="card history-skeleton" data-testid="history-loading">Cargando historial…</div> : null}
     {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setPeriod((current) => current)}>Reintentar</button></div> : null}
@@ -178,7 +179,7 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   const note = historyRecordNote(event);
   const openRecord = () => {
     const tab = event.section === 'tradeins' ? 'tradeins' : event.section === 'service' ? 'service' : event.section === 'sales' ? 'sales' : event.section === 'clients' ? 'clients' : event.section === 'inventory' ? 'inventory' : event.section === 'suppliers' ? 'suppliers' : event.section === 'expenses' ? 'expenses' : event.section === 'returns' ? 'returns' : null;
-    if (!tab || !user || event.recordState === 'gone' || event.legacy) return;
+    if (!tab || isSectionHidden(tab) || !user || event.recordState === 'gone' || event.legacy) return;
     const open = () => {
       desk.go(tab);
       const kind = event.entityType === 'inventory' ? 'eq' : event.entityType === 'sale' ? 'sale' : event.entityType === 'trade' ? 'cj' : event.entityType === 'client' ? 'cl' : event.entityType === 'repair' ? 'ot' : event.entityType === 'supplier' ? 'supplier' : event.entityType === 'expense' ? 'edit-expense' : event.entityType === 'return' ? 'return' : null;
