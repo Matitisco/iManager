@@ -25,9 +25,20 @@ describe("stock count classification", () => {
     expect(normalizeImei("MLPF3LE/A F2LXK9POQ1 351204883022116")).toBe("351204883022116");
     expect(normalizeImei("35 209811 774452 2")).toBe("352098117744522");
     expect(normalizeImei("123")).toBe("");
-    expect(isCountableStatus("En revisión")).toBe(true);
-    expect(isCountableStatus("RESERVADO")).toBe(true);
+    expect(isCountableStatus("En revisión")).toBe(false);
+    expect(isCountableStatus("EN_REVISION")).toBe(false);
+    expect(isCountableStatus("disponible")).toBe(true);
+    expect(isCountableStatus("DISPONIBLE")).toBe(true);
+    expect(isCountableStatus("RESERVADO")).toBe(false);
     expect(isCountableStatus("VENDIDO")).toBe(false);
+  });
+
+  it.each(["RESERVADO", "EN_REVISION", "En revisión"])("does not match a scanned %s outside the snapshot", (status) => {
+    expect(classifyScan({
+      alreadyCounted: false,
+      snapshot: null,
+      live: { id: "out-of-scope", status, model: "iPhone 14", capacity: "128GB", color: "Negro", archivedAt: null },
+    })).toMatchObject({ result: "NOT_LOADED", counts: true });
   });
 
   it("marks a repeated IMEI without adding it, and a device sold during the count is not missing", () => {
@@ -70,7 +81,7 @@ describe("stock count classification", () => {
     expect(clockIn(at, zone)).toBe("11:10");
     expect(openedClause(at, zone)).toBe("abrió un control de stock a las 11:10.");
     expect(closedClause({ at, timeZone: zone, counters: ["Lucía Rey", "Tomás"], matched: 36, missing: 3, surplus: 2, sold: 1 }))
-      .toBe("cerró el control de stock a las 11:10. Contaron Lucía y Tomás. 36 coinciden · 3 faltan · 2 sobran · 1 figura vendido.");
+      .toBe("cerró el control de stock a las 11:10. Contaron Lucía y Tomás. 36 coinciden · 3 sin escanear · 2 sin cargar · 1 figura vendido.");
     expect(adjustedClause({ at, timeZone: zone, archived: 3, loaded: 2 }))
       .toBe("ajustó el control de stock a las 11:10: archivó 3 faltantes con el motivo Faltante y cargó 2 sobrantes.");
     expect(recordedClause(at, zone)).toBe("dejó registrado el control de stock a las 11:10, sin cambiar el inventario.");

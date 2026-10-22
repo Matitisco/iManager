@@ -52,7 +52,7 @@ export type CloseResult = {
   counters: string[];
 };
 
-const COUNTABLE = new Set(["DISPONIBLE", "RESERVADO", "EN_REVISION"]);
+const COUNTABLE = new Set(["DISPONIBLE"]);
 
 export function statusKey(status: string) {
   return status

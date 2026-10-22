@@ -37,6 +37,10 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('../../services/stock-counts-api', () => api);
+vi.mock('../scan/use-camera', () => ({ useCameraAvailable: () => true }));
+vi.mock('../scan/CameraScanner', () => ({ CameraScanner: ({ onUse, onManual }: { onUse: (value: { imei: string }) => void; onManual: () => void }) => (
+  <div role="dialog" aria-label="Cámara"><button onClick={() => onUse({ imei: '352098117744521' })}>Usar IMEI</button><button onClick={onManual}>Ingreso manual</button></div>
+) }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -101,7 +105,7 @@ const closed: ClosedStockCount = {
   status: 'CLOSED',
   resolution: null,
   subtitle: 'Cerrado hoy 11:05 · contaron Lucía y Tomás · 49 escaneos',
-  summary: '1 coinciden · 1 faltan · 1 sobran · 1 figura vendido',
+  summary: '1 coinciden · 1 sin escanear · 1 sin cargar · 1 figura vendido',
   startedAt: '2026-10-19T12:10:00.000Z',
   closedAt: '2026-10-19T14:05:00.000Z',
   excludedNoImei: 3,
@@ -125,6 +129,7 @@ const listed: StockCountListItem = {
 };
 
 beforeEach(() => {
+  Object.values(api).forEach((mock) => mock.mockReset());
   desktop();
   context.user = user;
   context.appSession = { store: { name: 'Tienda Ejemplo' }, membership: { role: 'OWNER', sections: null } };
@@ -133,7 +138,7 @@ beforeEach(() => {
   toast.mockClear();
   api.fetchStockCounts.mockResolvedValue([]);
   api.fetchCurrentStockCount.mockResolvedValue(null);
-  api.fetchStockCountPreview.mockResolvedValue({ excludedNoImei: 3, scope: 'Disponibles, reservados y en revisión', counters: 'Todo el equipo con Inventario' } satisfies StockCountPreview);
+  api.fetchStockCountPreview.mockResolvedValue({ excludedNoImei: 3, scope: 'Disponible', counters: 'Todo el equipo con Inventario' } satisfies StockCountPreview);
   api.fetchStockCount.mockResolvedValue(closed);
   api.startStockCount.mockResolvedValue(blind);
   api.scanStockCount.mockResolvedValue({
@@ -157,289 +162,210 @@ beforeEach(() => {
   }));
 });
 
-describe('control de stock', () => {
+describe('control de stock #318', () => {
+  const actor = () => userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+  const result = async () => {
+    api.fetchStockCounts.mockResolvedValue([listed]);
+    desk(<StockCountScreen onBack={vi.fn()} standalone />);
+    return screen.findByRole('region', { name: 'Resultado del conteo' });
+  };
+
   it('espera con un esqueleto y después muestra el vacío', async () => {
     const list = deferred<StockCountListItem[]>();
-    const current = deferred<BlindCount | null>();
     api.fetchStockCounts.mockReturnValue(list.promise);
-    api.fetchCurrentStockCount.mockReturnValue(current.promise);
     desk(<StockCountScreen onBack={vi.fn()} />);
     expect(screen.getByTestId('stock-loading')).toBeInTheDocument();
     expect(screen.queryByText('Todavía no hiciste controles de stock')).not.toBeInTheDocument();
     list.resolve([]);
-    current.resolve(null);
-    expect(await screen.findByTestId('stock-empty')).toHaveTextContent('Todavía no hiciste controles de stock');
-    expect(screen.getByRole('button', { name: 'Iniciar control' })).toBeInTheDocument();
+    expect(await screen.findByTestId('stock-empty')).toBeInTheDocument();
   });
 
-  it('abre el inicio sin la cantidad esperada y con accesorios desactivados', async () => {
+  it.each([false, true])('inicia con el modal mínimo sin mostrar cantidades esperadas (móvil: %s)', async (mobile) => {
+    if (mobile) phone();
     const preview = deferred<StockCountPreview>();
     api.fetchStockCountPreview.mockReturnValue(preview.promise);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const act = actor();
     desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: 'Iniciar control' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Iniciar control de stock' });
-    expect(within(dialog).getByRole('button', { name: 'Accesorios · más adelante' })).toBeDisabled();
-    expect(within(dialog).getByText('Disponibles, reservados y en revisión')).toBeInTheDocument();
-    expect(dialog.querySelector('.stock-sk')).toBeTruthy();
-    expect(dialog).not.toHaveTextContent(/\d+ equipos/);
-    expect(dialog).not.toHaveTextContent('Faltan');
-    expect(dialog).not.toHaveTextContent('iPhone');
-    preview.resolve({ excludedNoImei: 3, scope: 'Disponibles, reservados y en revisión', counters: 'Todo el equipo con Inventario' });
-    expect(await within(dialog).findByText('3 equipos')).toBeInTheDocument();
-    expect(dialog).not.toHaveTextContent('Faltan');
+    await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
+    const dialog = screen.getByRole('dialog', { name: 'Iniciar control' });
+    expect(dialog).toHaveClass('stock-start-sheet');
+    expect(within(dialog).getByText('Disponible')).toBeInTheDocument();
+    expect(within(dialog).getByText('Conteo a ciegas')).toBeInTheDocument();
+    expect(within(dialog).getByTestId('stock-preview-loading')).toBeInTheDocument();
+    expect(dialog).not.toHaveTextContent(/Accesorios|Quiénes cuentan|reservados|en revisión|Faltan|iPhone|Cargando…/);
+    preview.resolve({ excludedNoImei: 3, scope: 'Disponible', counters: 'Todo el equipo con Inventario' });
+    expect(await within(dialog).findByText('3 equipos sin IMEI quedan fuera.')).toBeInTheDocument();
+    await act.click(within(dialog).getByRole('button', { name: 'Iniciar conteo' }));
+    expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
+    expect(api.startStockCount).toHaveBeenCalledWith(user);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('48')).not.toBeInTheDocument();
+    expect(screen.queryByText('iPhone secreto')).not.toBeInTheDocument();
   });
 
-  it('deja escanear al empleado y le oculta iniciar, cerrar y ajustar', async () => {
-    context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };
+  it('conserva el modal y muestra el error si no se puede iniciar', async () => {
+    api.startStockCount.mockRejectedValue(new Error('No se pudo iniciar (503)'));
+    const act = actor();
+    desk(<StockCountScreen onBack={vi.fn()} />);
+    await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
+    const dialog = screen.getByRole('dialog');
+    await act.click(within(dialog).getByRole('button', { name: 'Iniciar conteo' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('503');
+    expect(dialog).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('continúa el abierto y mantiene el conteo a ciegas (móvil: %s)', async (mobile) => {
+    if (mobile) phone();
     api.fetchCurrentStockCount.mockResolvedValue(blind);
+    api.fetchStockCounts.mockResolvedValue([listed]);
+    context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };
     desk(<StockCountScreen onBack={vi.fn()} />);
     expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Iniciar control' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Cerrar control' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Ajustar al conteo' })).not.toBeInTheDocument();
     expect(screen.getByText('1 tuyo · 1 en total')).toBeInTheDocument();
-    expect(screen.queryByText('Faltan')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('stock-close')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Iniciar control' })).not.toBeInTheDocument();
     expect(screen.queryByText('iPhone secreto')).not.toBeInTheDocument();
     expect(screen.queryByText('48')).not.toBeInTheDocument();
+    expect(api.fetchStockCount).not.toHaveBeenCalled();
   });
 
-  it('suma el IMEI con Enter y deja el foco en el campo', async () => {
+  it.each(['352098117744521', 'MLPF3LE/A F2LXK9POQ1 351204883022116'])('suma con Enter desde lector o ingreso manual: %s', async (raw) => {
     api.fetchCurrentStockCount.mockResolvedValue(blind);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const act = actor();
     desk(<StockCountScreen onBack={vi.fn()} />);
     const input = await screen.findByTestId('stock-scan-input');
-    await actor.type(input, '352098117744521');
-    await actor.keyboard('{Enter}');
-    await waitFor(() => expect(api.scanStockCount).toHaveBeenCalledWith(user, 'count-1', '352098117744521'));
+    await act.type(input, raw);
+    await act.keyboard('{Enter}');
+    await waitFor(() => expect(api.scanStockCount).toHaveBeenCalledWith(user, 'count-1', raw.includes('MLPF') ? '351204883022116' : raw));
     await waitFor(() => expect(input).toHaveValue(''));
     expect(input).toHaveFocus();
     expect(screen.getByText('Repetido')).toBeInTheDocument();
-    expect(screen.getByText('2 tuyos · 2 en total')).toBeInTheDocument();
-    expect(screen.queryByText('Faltan')).not.toBeInTheDocument();
   });
 
-  it('extrae el IMEI de una etiqueta de caja', async () => {
+  it('mantiene cámara y regreso al ingreso manual', async () => {
     api.fetchCurrentStockCount.mockResolvedValue(blind);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const act = actor();
     desk(<StockCountScreen onBack={vi.fn()} />);
     const input = await screen.findByTestId('stock-scan-input');
-    await actor.type(input, 'MLPF3LE/A F2LXK9POQ1 351204883022116');
-    await actor.keyboard('{Enter}');
-    await waitFor(() => expect(api.scanStockCount).toHaveBeenCalledWith(user, 'count-1', '351204883022116'));
-  });
-
-  it('en el teléfono el empleado tampoco ve cerrar', async () => {
-    phone();
-    context.appSession = { membership: { role: 'STAFF', sections: ['inventory'] } };
-    api.fetchCurrentStockCount.mockResolvedValue(blind);
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
-    expect(screen.queryByTestId('stock-close')).not.toBeInTheDocument();
-  });
-
-  it('abre sin selección y permite registrar sin cambiar inventario incluso con selección', async () => {
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    expect(await screen.findByText('Coinciden')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Faltan 1' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('checkbox', { name: /iPhone 13 mini 128GB/ })).not.toBeChecked();
-    expect(screen.getByTestId('stock-adjust')).toBeDisabled();
-    await actor.click(screen.getByRole('checkbox', { name: /iPhone 13 mini 128GB/ }));
-    expect(screen.getByTestId('stock-adjust')).toHaveTextContent('Archivar 1 equipo seleccionado');
-    await actor.click(screen.getByRole('button', { name: 'Figuran vendidos 1' }));
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.getByText(/Se vendió durante el conteo/)).toBeInTheDocument();
-    await actor.click(screen.getByRole('button', { name: 'Faltan 1' }));
-    await actor.click(screen.getByRole('checkbox', { name: /iPhone 13 mini 128GB/ }));
-    await actor.click(screen.getByTestId('stock-record'));
-    await waitFor(() => expect(api.resolveStockCount).toHaveBeenCalledWith(user, 'count-1', {
-      mode: 'RECORD',
-      missingIds: [],
-      surplusImeis: [],
-    }));
-    expect(reloadInventory).not.toHaveBeenCalled();
-    expect(toast).toHaveBeenCalledWith('Quedó registrado, sin cambiar el inventario.');
-  });
-
-  it.each([false, true])('confirma solo los faltantes explícitos, permite cancelar y bloquea doble envío (móvil: %s)', async (mobile) => {
-    if (mobile) phone();
-    const pending = deferred<ClosedStockCount>();
-    api.resolveStockCount.mockReturnValue(pending.promise);
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    await actor.click(await screen.findByRole('checkbox', { name: /iPhone 13 mini 128GB/ }));
-    await actor.click(screen.getByTestId('stock-adjust'));
-    let dialog = await screen.findByRole('dialog', { name: 'Archivar 1 equipo seleccionado' });
-    expect(dialog).toHaveTextContent('Motivo de archivo');
-    expect(dialog).toHaveTextContent('Faltante');
-    expect(dialog).toHaveTextContent('352098117741188');
-    expect(dialog).toHaveTextContent('Los demás equipos no se modificarán');
-    expect(api.resolveStockCount).not.toHaveBeenCalled();
-    await actor.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await act.click(screen.getByRole('button', { name: 'Escanear con la cámara' }));
+    await act.click(screen.getByRole('button', { name: 'Ingreso manual' }));
+    expect(input).toHaveFocus();
+    await act.click(screen.getByRole('button', { name: 'Escanear con la cámara' }));
+    await act.click(screen.getByRole('button', { name: 'Usar IMEI' }));
+    await waitFor(() => expect(api.scanStockCount).toHaveBeenCalledWith(user, 'count-1', '352098117744521'));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(api.resolveStockCount).not.toHaveBeenCalled();
-    expect(reloadInventory).not.toHaveBeenCalled();
-    expect(screen.getByRole('checkbox', { name: /iPhone 13 mini/ })).toBeChecked();
-    await actor.click(screen.getByTestId('stock-adjust'));
-    dialog = await screen.findByRole('dialog');
-    await actor.dblClick(within(dialog).getByRole('button', { name: 'Archivar 1 equipo seleccionado' }));
-    await waitFor(() => expect(api.resolveStockCount).toHaveBeenCalledWith(user, 'count-1', {
-      mode: 'ADJUST',
-      missingIds: ['miss-1'],
-      surplusImeis: [],
-    }));
-    expect(api.resolveStockCount).toHaveBeenCalledTimes(1);
-    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeDisabled();
-    expect(within(dialog).getByRole('button', { name: 'Cerrar' })).toBeDisabled();
-    await actor.keyboard('{Escape}');
-    expect(dialog).toBeInTheDocument();
-    pending.resolve({ ...closed, resolution: 'ADJUSTED' });
-    await waitFor(() => expect(reloadInventory).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('reinicia selección al cambiar de grupo, reabrir o cambiar de conteo', async () => {
-    api.fetchStockCounts.mockResolvedValue([listed, { ...listed, id: 'count-2', subtitle: 'Otro control cerrado' }]);
-    api.fetchStockCount.mockImplementation(async (_user, id: string) => ({ ...closed, id }));
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    const check = () => screen.getByRole('checkbox', { name: /iPhone 13 mini/ });
-    await actor.click(check());
-    await actor.click(screen.getByRole('button', { name: 'Faltan 1' }));
-    expect(check()).toBeChecked();
-    await actor.click(screen.getByRole('button', { name: 'Sobran 1' }));
-    expect(screen.getByRole('checkbox')).not.toBeChecked();
-    expect(screen.getByTestId('stock-adjust')).toBeDisabled();
-    await actor.click(screen.getByRole('checkbox'));
-    await actor.click(screen.getByRole('button', { name: 'Faltan 1' }));
-    expect(check()).not.toBeChecked();
-    await actor.click(check());
-    await actor.click(screen.getByRole('button', { name: 'Volver' }));
-    await actor.click(screen.getByRole('button', { name: /Cerrado hoy 11:05/ }));
-    expect(await screen.findByRole('checkbox')).not.toBeChecked();
-    await actor.click(check());
-    await actor.click(screen.getByRole('button', { name: 'Volver' }));
-    await actor.click(screen.getByRole('button', { name: /Otro control cerrado/ }));
-    expect(await screen.findByRole('checkbox')).not.toBeChecked();
-    expect(screen.getByTestId('stock-adjust')).toBeDisabled();
-    expect(api.resolveStockCount).not.toHaveBeenCalled();
-  });
-
-  it('conserva confirmación y selección ante fallo y carga solo los sobrantes elegidos al reintentar', async () => {
-    context.appSession = { membership: { role: 'MANAGER', sections: ['inventory'] } };
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    api.resolveStockCount.mockRejectedValueOnce(new Error('No se pudo guardar el control (503)'));
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    await actor.click(await screen.findByRole('checkbox', { name: /iPhone 13 mini/ }));
-    await actor.click(screen.getByRole('button', { name: 'Sobran 1' }));
-    await actor.click(screen.getByRole('checkbox'));
-    await actor.click(screen.getByTestId('stock-adjust'));
-    const dialog = await screen.findByRole('dialog', { name: 'Cargar 1 equipo seleccionado' });
-    expect(dialog).toHaveTextContent('pendientes de completar sus datos');
-    expect(dialog).not.toHaveTextContent('Motivo de archivo');
-    await actor.click(within(dialog).getByRole('button', { name: 'Cargar 1 equipo seleccionado' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('503');
-    expect(reloadInventory).not.toHaveBeenCalled();
-    expect(toast).not.toHaveBeenCalled();
-    expect(screen.getByRole('checkbox', { hidden: true })).toBeChecked();
-    await actor.click(within(dialog).getByRole('button', { name: 'Cargar 1 equipo seleccionado' }));
-    await waitFor(() => expect(api.resolveStockCount).toHaveBeenLastCalledWith(user, 'count-1', {
-      mode: 'ADJUST', missingIds: [], surplusImeis: ['352098117747702'],
-    }));
-    await waitFor(() => expect(reloadInventory).toHaveBeenCalledTimes(1));
-  });
-
-  it.each(['STAFF', 'MANAGER'])('no ofrece selección ni resolución a %s sin permiso', async (role) => {
-    context.appSession = { membership: { role, sections: role === 'STAFF' ? ['inventory'] : ['sales'] } };
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    await screen.findByText('Coinciden');
-    for (const group of ['Faltan 1', 'Sobran 1', 'Figuran vendidos 1', 'Coinciden 1']) {
-      await actor.click(screen.getByRole('button', { name: group }));
+  it('abre el resultado reciente por revisar con grupos e IMEI completo, sin ajustes', async () => {
+    const act = actor();
+    const summary = await result();
+    expect(summary).toHaveTextContent('Conteo del 19 de octubre');
+    expect(summary).toHaveTextContent('Por revisar');
+    expect(summary).toHaveTextContent('Comparación con Disponibles.');
+    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('3 equipos sin IMEI, fuera del conteo.');
+    expect(screen.getByRole('button', { name: 'Sin escanear 1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('iPhone 13 mini · 128GB')).toBeInTheDocument();
+    expect(screen.getByText('IMEI 352098117741188')).toBeInTheDocument();
+    for (const [name, imei] of [['Sin cargar 1', '352098117747702'], ['Figuran vendidos 1', '352098117746612'], ['Coinciden 1', '352098117744521']]) {
+      await act.click(screen.getByRole('button', { name }));
+      expect(screen.getByText(`IMEI ${imei}`)).toBeInTheDocument();
       expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
       expect(screen.queryByTestId('stock-adjust')).not.toBeInTheDocument();
     }
-    expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
+    expect(screen.getByTestId('stock-record')).toHaveTextContent('Registrar conteo');
+    expect(screen.queryByText(/Archivar|Cargar equipo|Solo dejar registrado|Faltan|Sobran/)).not.toBeInTheDocument();
   });
 
-  it.each(['ADJUSTED', 'RECORDED'] as const)('mantiene resultados %s en solo lectura', async (resolution) => {
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    api.fetchStockCount.mockResolvedValue({ ...closed, resolution });
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    await screen.findByText('Coinciden');
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('stock-adjust')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
+  it.each([false, true])('registra con RECORD y evita doble envío sin mutar inventario (móvil: %s)', async (mobile) => {
+    if (mobile) phone();
+    const pending = deferred<ClosedStockCount>();
+    api.resolveStockCount.mockReturnValue(pending.promise);
+    const act = actor();
+    await result();
+    await act.dblClick(screen.getByTestId('stock-record'));
+    expect(api.resolveStockCount).toHaveBeenCalledTimes(1);
+    expect(api.resolveStockCount).toHaveBeenCalledWith(user, 'count-1', { mode: 'RECORD', missingIds: [], surplusImeis: [] });
+    expect(screen.getByTestId('stock-record')).toBeDisabled();
+    pending.resolve({ ...closed, resolution: 'RECORDED' });
+    await waitFor(() => expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument());
+    expect(screen.getByText('Registrado')).toBeInTheDocument();
+    expect(reloadInventory).not.toHaveBeenCalled();
+    expect(toast).toHaveBeenCalledWith('Quedó registrado, sin cambiar el inventario.');
+    expect(screen.getByText('El inventario no cambia.')).toBeInTheDocument();
+    if (mobile) expect(screen.getByTestId('stock-count-page')).toHaveClass('has-dock');
   });
 
-  it.each([
-    { scanCount: 0, missing: closed.buckets.missing, title: 'Sin escaneos', copy: 'no confirman pérdidas' },
-    { scanCount: 49, missing: closed.buckets.missing, title: 'Conteo con equipos sin escanear', copy: '1 equipo esperado no se escaneó' },
-    { scanCount: 2, missing: [], title: 'Sin faltantes en la comparación', copy: 'Esto no confirma que se haya revisado todo el local' },
-  ])('distingue cobertura $title sin reclasificar excluidos', async ({ scanCount, missing, title, copy }) => {
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    api.fetchStockCount.mockResolvedValue({ ...closed, scanCount, buckets: { ...closed.buckets, missing } });
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    const coverage = await screen.findByTestId('stock-coverage');
-    expect(coverage).toHaveTextContent(title);
-    expect(coverage).toHaveTextContent(copy);
-    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('3 equipos excluidos sin IMEI');
-    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('no se consideran faltantes');
-    expect(screen.getByRole('button', { name: `Faltan ${missing.length}` })).toBeInTheDocument();
-    expect(screen.getByTestId('stock-adjust')).toBeDisabled();
+  it('muestra el fallo al registrar y permite reintentar', async () => {
+    api.resolveStockCount.mockRejectedValueOnce(new Error('No se pudo guardar (503)'));
+    const act = actor();
+    await result();
+    await act.click(screen.getByTestId('stock-record'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('503');
+    expect(screen.getByText('Por revisar')).toBeInTheDocument();
+    expect(toast).not.toHaveBeenCalled();
+    await act.click(screen.getByTestId('stock-record'));
+    await waitFor(() => expect(screen.getByText('Registrado')).toBeInTheDocument());
+    expect(reloadInventory).not.toHaveBeenCalled();
   });
 
-  it('cierra un control sin escaneos sin preseleccionar', async () => {
-    api.fetchCurrentStockCount.mockResolvedValue({ ...blind, mine: 0, total: 0, scans: [] });
+  it('cierra sin escaneos y nunca presenta pérdidas confirmadas', async () => {
+    api.fetchCurrentStockCount.mockResolvedValue({ ...blind, total: 0, mine: 0, scans: [] });
     api.closeStockCount.mockResolvedValue({ ...closed, scanCount: 0 });
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const act = actor();
     desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: 'Cerrar control' }));
-    expect(await screen.findByRole('checkbox')).not.toBeChecked();
-    expect(screen.getByTestId('stock-adjust')).toBeDisabled();
-    expect(screen.getByTestId('stock-coverage')).toHaveTextContent('Sin escaneos');
+    await act.click(await screen.findByTestId('stock-close'));
+    expect(await screen.findByTestId('stock-coverage')).toHaveTextContent('Sin escaneos');
+    expect(screen.getByTestId('stock-coverage')).toHaveTextContent('no confirman pérdidas');
+    expect(screen.getByRole('button', { name: 'Sin escanear 1' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Faltan|Faltantes/)).not.toBeInTheDocument();
     expect(api.resolveStockCount).not.toHaveBeenCalled();
   });
 
-  it('muestra un error de carga sin preparar ninguna acción', async () => {
-    api.fetchStockCounts.mockResolvedValue([listed]);
-    api.fetchStockCount.mockRejectedValue(new Error('No se pudo abrir el control (503)'));
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    await actor.click(await screen.findByRole('button', { name: /Cerrado hoy 11:05/ }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('503');
-    expect(screen.queryByTestId('stock-adjust')).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-  });
-
-  it('un socio sin Inventario no inicia el control', async () => {
-    context.appSession = { membership: { role: 'MANAGER', sections: ['sales'] } };
-    desk(<StockCountScreen onBack={vi.fn()} />);
-    expect(await screen.findByTestId('stock-empty')).toBeInTheDocument();
+  it.each(['STAFF', 'MANAGER'])('mantiene solo lectura para %s sin permisos de gestión', async (role) => {
+    context.appSession = { membership: { role, sections: role === 'STAFF' ? ['inventory'] : ['sales'] } };
+    await result();
+    expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Iniciar control' })).not.toBeInTheDocument();
   });
 
+  it.each(['ADJUSTED', 'RECORDED'] as const)('conserva históricos %s en solo lectura', async (resolution) => {
+    api.fetchStockCount.mockResolvedValue({ ...closed, resolution });
+    await result();
+    expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
+    expect(screen.getByText(resolution === 'ADJUSTED' ? 'Ajustado' : 'Registrado')).toBeInTheDocument();
+  });
+
+  it('muestra controles anteriores y permite revisarlos', async () => {
+    const older = { ...listed, id: 'old', resolution: 'RECORDED' as const, startedAt: '2026-10-07T22:10:00Z', closedAt: '2026-10-07T22:10:00Z' };
+    api.fetchStockCounts.mockResolvedValue([listed, older]);
+    api.fetchStockCount.mockImplementation(async (_user, id) => ({ ...closed, id, resolution: id === 'old' ? 'RECORDED' : null }));
+    const act = actor();
+    desk(<StockCountScreen onBack={vi.fn()} standalone />);
+    const history = await screen.findByTestId('stock-history');
+    expect(within(history).getAllByRole('button')).toHaveLength(1);
+    await act.click(within(history).getByRole('button'));
+    await waitFor(() => expect(api.fetchStockCount).toHaveBeenLastCalledWith(user, 'old'));
+    await waitFor(() => expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument());
+    expect(within(screen.getByRole('region', { name: 'Resultado del conteo' })).getByText('Registrado')).toBeInTheDocument();
+  });
+
+  it('muestra un error si no puede abrir el último resultado', async () => {
+    api.fetchStockCounts.mockResolvedValue([listed]);
+    api.fetchStockCount.mockRejectedValue(new Error('No se pudo abrir (503)'));
+    desk(<StockCountScreen onBack={vi.fn()} />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('503');
+    expect(screen.queryByTestId('stock-record')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
   it('entra desde Inventario y vuelve con la flecha', async () => {
-    const actor = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    const act = actor();
     desk(<InventoryScreen />);
-    await actor.click(screen.getByTestId('stock-count-entry'));
+    await act.click(screen.getByTestId('stock-count-entry'));
     expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
-    await actor.click(screen.getByRole('button', { name: 'Volver' }));
+    await act.click(screen.getByRole('button', { name: 'Volver' }));
     expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
   });
 });
