@@ -27,7 +27,7 @@ export function ServiceScreen() {
   const [view, setView] = useState<'board' | 'list'>('board');
   const [statusId, setStatusId] = useState(phone ? 'ABIERTAS' : 'Todos');
   const [archivedMode, setArchivedMode] = useState(false);
-  const { rows: archivedOrders, error: archiveError } = useArchivedRows(repairOrders, fetchArchivedRepairs, rememberArchivedRepairs);
+  const { rows: archivedOrders } = useArchivedRows(repairOrders, fetchArchivedRepairs, rememberArchivedRepairs);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropStatus, setDropStatus] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -135,7 +135,6 @@ export function ServiceScreen() {
 
   return (
     <div className={`dscreen svc-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title={<div className="svc-title"><h1>Servicio técnico</h1></div>}
         subtitle={`${countPhrase(openCount, 'orden abierta', 'órdenes abiertas')} · ${countPhrase(readyCount, 'lista para retirar', 'listas para retirar')}`}

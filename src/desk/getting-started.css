@@ -401,7 +401,6 @@
 .steps-num { border: 1.5px solid #D5D8DF; background: #fff; }
 .steps-mark { background: #16181d; color: #FFD000; }
 .steps-go { height: 34px; padding: 0 12px; border-radius: 12px; background: #16181d; color: #fff; font-size: 13px; font-weight: 800; display: inline-flex; align-items: center; }
-.steps-error { position: fixed; }
 .fresh-perms-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin: 8px 0 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 16px; background: #fff; text-align: left; }
 .fresh-perms-row .ico { width: 28px; display: grid; gap: 3px; }
 .fresh-perms-row .ico span { display: block; height: 2px; border-radius: 2px; background: var(--primary); }

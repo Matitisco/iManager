@@ -1,8 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchPeriodicSummary, type PeriodicSummary as Summary, type SummarySale, type SummaryReturn, type SummaryStock } from '../../services/periodic-summary-api';
-import { toUserMessage } from '../../lib/user-message';
-import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { ListSkeleton } from '../list-skeleton';
@@ -42,15 +40,13 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const phone = usePhoneLayout();
   const money = useMoney();
   const [selection, setSelection] = useState('latest-half');
-  const [retry, setRetry] = useState(0);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
-  const [result, setResult] = useState<{ key: string; data?: Summary; error?: string }>({ key: '' });
+  const [result, setResult] = useState<{ key: string; data?: Summary; unavailable?: boolean }>({ key: '' });
   const ready = !!user && backendStatus === 'ready' && sessionConfirmed !== false && !!appSession?.store && !appSession.onboardingRequired;
-  const key = JSON.stringify([appSession?.store?.id, appSession?.user?.id, user?.uid, appSession?.membership, ready, selection, retry]);
+  const key = JSON.stringify([appSession?.store?.id, appSession?.user?.id, user?.uid, appSession?.membership, ready, selection]);
   const current = result.key === key ? result : undefined;
   const data = current?.data;
-  const error = current?.error;
-  useOfflineRecovery(error, () => setRetry(value => value + 1));
+  const unavailable = current?.unavailable;
   useEffect(() => {
     if (!ready || !user) return;
     let active = true;
@@ -59,7 +55,9 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
     void fetchPeriodicSummary(user, selection, controller.signal).then(data => {
       if (active) setResult({ key, data });
     }).catch((cause: unknown) => {
-      if (active) setResult({ key, error: toUserMessage(cause, 'No se pudo cargar el resumen periódico') });
+      if (!active) return;
+      console.warn('No se pudo cargar el resumen periódico.', cause);
+      setResult({ key, unavailable: true });
     });
     return () => { active = false; controller.abort(); };
   }, [key, ready, user, selection]);
@@ -93,9 +91,8 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
         ] : []} onChange={selectPeriod} />
       </div>
     </div>
-    {error ? <div className="ferr" role="alert">{error}<button type="button" className="dbtn s" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div> : null}
-    {!ready && backendStatus !== 'checking' ? <p className="ferr" role="alert">No se pudo cargar el resumen periódico. Revisá la conexión de la tienda.</p> : null}
-    {!data && !error && (ready || backendStatus === 'checking') ? <ListSkeleton variant="cards" rows={3} testId="periodic-summary-loading" /> : null}
+    {unavailable || (!ready && backendStatus !== 'checking') ? <p className="periodic-note">Sin resumen para mostrar.</p> : null}
+    {!data && !unavailable && (ready || backendStatus === 'checking') ? <ListSkeleton variant="cards" rows={3} testId="periodic-summary-loading" /> : null}
     {data ? <>
       {blocked ? <p className="ferr" role="status">{money.warning ?? FX_WARNING}</p> : null}
       <div className="periodic-grid">

@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ManagedCatalog } from '../../types/public-catalog';
-import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
+import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import { DeskProvider } from '../ui';
 import { PublicCatalogScreen } from './PublicCatalogScreen';
 
@@ -88,16 +88,37 @@ describe('catalog section', () => {
     expect(screen.queryByText(/Cargá un WhatsApp válido/)).not.toBeInTheDocument();
   });
 
-  it('clears the offline banner and retries when the browser is online again', async () => {
+  it.each([new Error('No se pudo cargar el catálogo'), new TypeError('Failed to fetch')])('shows a neutral empty state for a failed load: %s', async cause => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     context.publicCatalog = null;
-    context.loadPublicCatalog.mockReset();
-    context.loadPublicCatalog.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockImplementation(async () => context.publicCatalog);
+    context.loadPublicCatalog.mockRejectedValue(cause);
     renderScreen();
-    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
-    context.publicCatalog = catalog();
-    window.dispatchEvent(new Event('online'));
-    await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
-    expect(await screen.findByText('1 disponible')).toBeInTheDocument();
+    expect(await screen.findByText('Sin catálogo para mostrar.')).toBeVisible();
+    expect(warn).toHaveBeenCalledWith('No se pudo cargar el catálogo.', cause);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar|Crear catálogo/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('catalog-loading')).not.toBeInTheDocument();
+    warn.mockRestore();
+  });
+
+  it('keeps the managed catalog and hides a failed secondary preview', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const cause = new Error('No se pudo cargar la vista previa');
+    vi.mocked(fetchPublicCatalog).mockRejectedValueOnce(cause);
+    context.loadPublicCatalog.mockRejectedValueOnce(cause);
+    renderScreen();
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudo cargar la vista previa del catálogo.', cause));
+    expect(warn).toHaveBeenCalledWith('No se pudo cargar el catálogo.', cause);
+    expect(screen.getByText('1 disponible')).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
+    expect(document.querySelector('.ferr')).not.toBeInTheDocument();
+    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('catalog-preview-loading')).not.toBeInTheDocument();
+    expect(document.querySelector('.cat-preview')).not.toBeInTheDocument();
+    warn.mockRestore();
   });
 });
 

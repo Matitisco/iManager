@@ -15,10 +15,10 @@ export function ExpensesScreen() {
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
-  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(expenses, loadArchived, rememberArchivedExpenses);
+  const { rows: archivedRows, loading } = useArchivedRows(expenses, loadArchived, rememberArchivedExpenses);
   const activeRows = (expensesLoaded === false ? null : expenses);
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
-  const error = archived ? archivedError : [ expenseError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
+  const error = archived ? '' : expenseError;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-expense' })}>Nuevo gasto</button>;
 
   return (

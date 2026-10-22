@@ -1,8 +1,6 @@
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
-import { toUserMessage } from '../../lib/user-message';
-import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { monthKey, monthLabel } from '../commissions';
 import { AssignSellerSheet } from '../AssignSellerSheet';
 import { CommissionAvatar } from '../CommissionAvatar';
@@ -58,9 +56,6 @@ export function SalesScreen() {
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const [assignOpen, setAssignOpen] = useState(false);
-  const [directoryError, setDirectoryError] = useState('');
-  const [sellerRetry, setSellerRetry] = useState(0);
-  useOfflineRecovery(directoryError, () => setSellerRetry(value => value + 1));
   const [unassignedMonth] = useNavigationState('Sales.unassignedMonth', () => { const requested = sessionStorage.getItem('commission-unassigned'); return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null; });
   const [onlyUnassigned, setOnlyUnassigned] = useNavigationState('Sales.onlyUnassigned', Boolean(unassignedMonth));
   useEffect(() => { sessionStorage.removeItem('commission-unassigned'); }, []);
@@ -68,10 +63,9 @@ export function SalesScreen() {
   useEffect(() => {
     if (!loadCommissionSellers) return;
     let active = true;
-    setDirectoryError('');
-    void loadCommissionSellers().catch((cause: unknown) => { if (active) setDirectoryError(toUserMessage(cause, 'No se pudieron cargar los vendedores')); });
+    void loadCommissionSellers().catch((cause: unknown) => { if (active) console.warn('No se pudieron cargar los vendedores.', cause); });
     return () => { active = false; };
-  }, [appSession?.store?.id, sellerRetry]);
+  }, [appSession?.store?.id]);
   const sellerPerson = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId);
   const sellerName = (sale: Sale) => sellerPerson(sale)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
   const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
@@ -83,7 +77,7 @@ export function SalesScreen() {
   const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
   const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
   const [columns, setColumns] = useNavigationState<SaleColumnFilters>('Sales.columns', EMPTY_SALE_FILTERS);
-  const { rows: voidedSales, error: archiveError } = useArchivedRows(sales, fetchVoidedSales, rememberVoidedSales);
+  const { rows: voidedSales } = useArchivedRows(sales, fetchVoidedSales, rememberVoidedSales);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('sales');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
@@ -161,7 +155,6 @@ export function SalesScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Ventas"
         subtitle={subtitle}
@@ -195,7 +188,6 @@ export function SalesScreen() {
           onClose={() => setSellerOpen(false)}
         />
       ) : null}
-      {directoryError ? <div className="ferr" role="alert">{directoryError}</div> : null}
       {onlyUnassigned ? <div className="commission-banner">Ventas sin vendedor{unassignedMonth ? ` de ${monthLabel(unassignedMonth)}` : ''}<button className="wlink" type="button" onClick={() => setOnlyUnassigned(false)}>Ver todas</button></div> : null}
       {draftError ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos aunque hayas recargado la página." onOpen={(id) => open({ type: 'edit-cj', id, source: 'sales' })} />

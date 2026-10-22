@@ -24,6 +24,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Base y exclusiones limitadas a DISPONIBLE, sin cambios de Prisma ni reescritura de fotos históricas. Sin escaneos usa lenguaje de observación; historial con Sin escanear / Sin cargar. Espacio inferior y scroll con reserva para navegación y safe area.
 - Tests de componentes cubren inicio, ciegas, cámara/manual/lector, grupos, errores, permisos, históricos y RECORD sin mutación; unitarios e integración PostgreSQL cubren el filtro de estados, exclusiones, aislamiento y registro. Evidencia de revisión visual sintética y comandos en `docs/stock-count-redesign-318.md`. Sin build ni E2E; commit en la rama actual, sin push.
 
+## Cargas secundarias discretas — 2026-10-22
+
+- Resumen periódico, catálogo y selectores de vendedores muestran vacíos neutrales ante fallos de consulta. Se ocultan avisos y reintentos de señas secundarias, Primeros pasos, vista previa de catálogo, contador de comisiones y datos archivados complementarios. Los filtros de archivados conservan sus vacíos existentes y las listas activas permanecen disponibles.
+- Las consultas fallidas registran la causa original con `console.warn`; estados e imports de error/reintento retirados. Guardados, pagos, aplicación/cancelación de señas y eliminación conservan sus errores visibles. Una consulta de vendedores tardía no sobrescribe un error de guardado, y una consulta de señas fallida conserva el crédito conocido del cliente.
+- TypeScript frontend/backend y 263 pruebas afectadas aprobados. Suite completa: 1.515/1.516 aprobadas; un timeout en la prueba existente de Chromium `sheet-compatibility` pasó al repetir el archivo aislado (7/7). Cambio OpenSpec `quiet-load-failures`. Sin build ni nuevos E2E; commit en `fix/ocultar-errores-secundarios`, sin push, según el pedido.
+
 ## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
 
 - Pestaña «Resumen periódico», quincenas/meses calendario cerrados según zona de la tienda, selector histórico y tres bentos v3b sin textos secundarios innecesarios. Cada «Ver todas» abre su lista completa en el modal Sheet compartido, sin navegación, con cierre y foco accesibles. Estados vacío, skeleton y error/reintento; móvil 390 px y desktop 1440 px, permisos y moneda compartidos con la aplicación.

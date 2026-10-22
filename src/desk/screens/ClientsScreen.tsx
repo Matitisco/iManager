@@ -89,7 +89,7 @@ export function ClientsScreen() {
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [archivedMode, setArchivedMode] = useNavigationState('Clients.archivedMode', false);
-  const { rows: archivedClients, error: archiveError } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
+  const { rows: archivedClients } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
   const offlineOwned = useOfflineBannerOwned();
@@ -124,7 +124,6 @@ export function ClientsScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
-      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Clientes"
         subtitle={`${clientSource.length === 1 ? '1 cliente' : `${clientSource.length} clientes`} · ${withBalance} con saldo`}
