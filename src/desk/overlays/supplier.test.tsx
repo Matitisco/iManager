@@ -185,22 +185,58 @@ describe('ficha de proveedor', () => {
     expect(screen.queryByText('Teléfono')).not.toBeInTheDocument();
     expect(screen.queryByTestId('supplier-problems')).not.toBeInTheDocument();
   });
-  it('retains the parent on archive cancellation and confirms through the existing endpoint', async () => {
+  it.each(['Cancelar', 'Cerrar', 'Escape', 'backdrop'])('replaces the detail with a single archive dialog and returns without refetch on %s', async (dismissal) => {
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
     await userEvent.click(screen.getByText('Más acciones'));
     await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
     const confirmation = screen.getByRole('dialog', { name: 'Archivar proveedor' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.queryByTestId('supplier-detail')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Registrar equipo' })).not.toBeInTheDocument();
     expect(ctx.archiveSupplier).not.toHaveBeenCalled();
-    await userEvent.click(within(confirmation).getByRole('button', { name: 'Cancelar' }));
+    if (dismissal === 'Escape') await userEvent.keyboard('{Escape}');
+    else if (dismissal === 'backdrop') fireEvent.mouseDown(confirmation.parentElement!);
+    else await userEvent.click(within(confirmation).getByRole('button', { name: dismissal }));
     expect(screen.queryByRole('dialog', { name: 'Archivar proveedor' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
+    expect(screen.getByText(supplier.email!)).toBeInTheDocument();
+    expect(screen.getByText('356789104523871')).toBeInTheDocument();
+    expect(screen.queryByTestId('supplier-loading')).not.toBeInTheDocument();
+    expect(fetchSupplier).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
+    expect(ctx.archiveSupplier).not.toHaveBeenCalled();
+  });
+  it('confirms through the existing endpoint', async () => {
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
     await userEvent.click(screen.getByText('Más acciones'));
     await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Archivar proveedor' })).getByRole('button', { name: 'Archivar' }));
     await waitFor(() => expect(ctx.archiveSupplier).toHaveBeenCalledWith('supplier', ''));
     expect(close).toHaveBeenCalledOnce();
+  });
+  it('keeps the archive reason and error in the only dialog until a successful retry', async () => {
+    ctx.archiveSupplier.mockRejectedValueOnce(new Error('No se pudo archivar'));
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    await userEvent.click(screen.getByText('Más acciones'));
+    await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Duplicado' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Detalle' }), 'Registro repetido');
+    await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo archivar');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.queryByTestId('supplier-detail')).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Detalle' })).toHaveValue('Registro repetido');
+    expect(screen.getByRole('button', { name: 'Duplicado' })).toHaveAttribute('aria-pressed', 'true');
+    expect(close).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Archivar' }));
+    expect(ctx.archiveSupplier).toHaveBeenNthCalledWith(2, 'supplier', 'Duplicado · Registro repetido');
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(toast).toHaveBeenCalledWith('Proveedor archivado');
   });
   it('offers only restoration for archived suppliers and keeps failures visible', async () => {
     fetchSupplier.mockResolvedValue({ ...supplier, deletedAt: '2026-10-22T15:00:00Z' });
