@@ -8,6 +8,11 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Control de stock — Acceso por pestaña — 2026-10-22
+
+- Retirado el botón antiguo del encabezado de Inventario en escritorio y móvil, junto con el estado local, el montaje alternativo y el modo con flecha de regreso. La pestaña y su ruta conservan el flujo de conteo; Carga en serie mantiene sus estilos compartidos.
+- Componentes actualizados y regresión de navegación por pestañas en escritorio/móvil; el selector E2E usa `getByRole('tab', { name: 'Control de stock' })`. Typecheck frontend/backend y 93 pruebas Vitest de conteo, Inventario y navegación aprobados. Sin build ni ejecución E2E; commit en español en la rama actual, sin push.
+
 ## Issue #308 / #483 punto 13 — Confirmaciones de archivo — 2026-10-22
 
 - Proveedor y gasto reemplazan su Sheet por ReasonSheet al archivar: un solo diálogo montado. Cancelar o cerrar recupera el detalle sin refetch ni skeleton y conserva las ediciones del gasto. Los fallos mantienen motivo y error; el éxito cierra todo.

@@ -427,7 +427,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}
             {tab === 'inventory' && <InventoryScreen />}
-            {tab === 'stockCount' && <StockCountScreen standalone onBack={() => go('inventory')} />}
+            {tab === 'stockCount' && <StockCountScreen />}
             {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
