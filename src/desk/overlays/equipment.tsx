@@ -12,6 +12,7 @@ import { batteryPercent, conditionLabel, equipmentTitle, isInStock, formatImei, 
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
+import { uniqueCapacityChoices } from '../equipment-capacity-options';
 import { canSeeFinancials } from '../sections';
 import type { CatalogKind } from '../../services/catalogs-api';
 import { ImanagerIcon } from '../icons';
@@ -120,6 +121,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const models = [...new Set([...MODELS, ...inventory.map((item) => item.model).filter(Boolean)])];
   const [model, setModel] = useState(current?.model ?? '');
   const [capacity, setCapacity] = useState(current?.capacity ?? '');
+  const capacityOptions = uniqueCapacityChoices(catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item }))), capacity);
   const [color, setColor] = useState(current?.color ?? '');
   const [battery, setBattery] = useState(current?.batteryHealth && current.batteryHealth !== '0%' ? String(batteryPercent(current.batteryHealth)) : '');
   const [imei, setImei] = useState(current?.imei ?? '');
@@ -172,12 +174,12 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
 
   return (
     <>
-    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} subtitle={current ? equipmentTitle(current.model, current.capacity) : 'Solo el modelo y el precio son obligatorios.'} onClose={close} busy={busy} className="eq-sheet">
+    <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} onClose={close} busy={busy} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
-      <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item })))} value={capacity} onChange={setCapacity} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
+      <Segs options={capacityOptions} value={capacity} onChange={setCapacity} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
       <div className="frow">
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
