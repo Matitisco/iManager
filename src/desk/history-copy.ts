@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../config/hiddenSections';
 export type HistoryDetailRow = { label: string; before: string | null; after: string | null };
 
 const OPENABLE = new Set(['inventory', 'sales', 'tradeins', 'service', 'clients', 'suppliers', 'expenses', 'returns']);
@@ -13,6 +14,7 @@ export function historySentence(event: { actorName?: string | null; verb?: strin
 }
 
 export function historyRecordNote(event: { legacy: boolean; recordState: string; section: string; entityType?: string }) {
+  if (isSectionHidden(event.section)) return 'Sección temporalmente oculta';
   if (event.entityType === 'stockcount' && event.recordState === 'active') return 'Está en Control de stock, dentro de Inventario.';
   const openable = !event.legacy
     && (event.recordState === 'active' || event.recordState === 'archived' || event.recordState === 'voided')

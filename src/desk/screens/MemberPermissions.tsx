@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../../config/hiddenSections';
 import { toUserMessage } from '../../lib/user-message';
 import { Fragment, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -56,6 +57,7 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
   };
   const saveBar = locked ? null : <Actions primary={phone ? 'Guardar' : 'Guardar permisos'} onPrimary={() => { void save(); }} onSecondary={onBack} busy={busy} />;
   const row = (id: typeof ORDER[number]) => {
+    if (isSectionHidden(id)) return null;
     const label = DESK_SECTIONS.find(s => s.id === id)!.label;
     const on = sections.includes(id);
     return <Fragment key={id}><div className={`perm team-perm${on ? '' : ' muted'}`}>

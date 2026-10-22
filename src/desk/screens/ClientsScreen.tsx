@@ -1,3 +1,4 @@
+import { isSectionHidden } from '../../config/hiddenSections';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
@@ -31,6 +32,8 @@ import { fetchArchivedClients } from '../../services/clients-api';
 import { rememberArchivedClients } from '../archive-cache';
 import { AccountCurrent } from './CurrentAccount';
 import { FollowUps } from './FollowUps';
+
+const CLIENT_VIEWS = [{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }];
 
 const SORTS = ['Deudores', 'Nombre', 'Última compra', 'Gastado'];
 
@@ -77,7 +80,10 @@ export function ClientsScreen() {
   const notices = useSectionNotices('clients');
   const [onlyNotices, setOnlyNotices] = useNavigationState('Clients.onlyNotices', false);
   const [query, setQuery] = useNavigationState('Clients.query', '');
-  const [view, setView] = useNavigationState('Clients.view', 'lista');
+  const [storedView, setView] = useNavigationState('Clients.view', 'lista');
+  const views = CLIENT_VIEWS.filter(item => !isSectionHidden(item.id));
+  const view = views.some(item => item.id === storedView) ? storedView : 'lista';
+  useEffect(() => { if (storedView !== view) setView(view); }, [storedView, view, setView]);
   const [filter, setFilter] = useNavigationState('Clients.filter', 'Todos');
   const [sort, setSort] = useNavigationState('Clients.sort', 'Deudores');
   const [columns, setColumns] = useNavigationState<ClientColumnFilters>('Clients.columns', EMPTY_CLIENT_FILTERS);
@@ -147,13 +153,13 @@ export function ClientsScreen() {
       {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar clients-filters">
-        <div className="acct-views">
+        {views.length > 1 ? <div className="acct-views">
           <ChipRow
-            options={[{ id: 'lista', label: 'Lista' }, { id: 'cuenta', label: 'Cuenta corriente' }, { id: 'seguimientos', label: 'Seguimientos' }]}
+            options={views}
             value={view}
             onChange={setView}
           />
-        </div>
+        </div> : null}
         {view === 'lista' ? <ChipRow
           options={[{ id: 'Todos', label: 'Todos' }, { id: 'saldo', label: 'Con saldo pendiente' }]}
           value={filter}

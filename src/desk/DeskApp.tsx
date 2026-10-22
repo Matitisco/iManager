@@ -286,7 +286,9 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   }, [appSession?.store?.id, isStaff]);
 
   const go = (next: DeskTab) => {
-    const hash = `#/${ROUTE[next]}`;
+    const requested = `#/${ROUTE[next]}`;
+    const hash = canonicalHash(requested) ?? requested;
+    next = tabFromHash(hash);
     if (window.location.hash === hash) {
       setTab(next);
       setOverlay(null);

@@ -3,6 +3,7 @@ import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client } from '../../types';
 import { DeskProvider } from '../ui';
+import { RoutePresentation } from '../route-viewport';
 import { ClientsScreen } from './ClientsScreen';
 
 const context = vi.hoisted(() => ({
@@ -177,5 +178,27 @@ describe('Clients on a phone', () => {
 
     await user.click(within(screen.getByTestId('phone-rows')).getByTestId('client-row-2'));
     expect(open).toHaveBeenCalledWith({ type: 'cl', id: '2' });
+  });
+});
+
+
+describe('temporary client tabs', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  });
+  it.each(['cuenta', 'seguimientos'])('restores the list from persisted %s', stored => {
+    context.clients = [client(1)];
+    const values = new Map<string, unknown>([['Clients.view', stored]]);
+    render(<RoutePresentation.Provider value={values}>
+      <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+        <ClientsScreen />
+      </DeskProvider>
+    </RoutePresentation.Provider>);
+    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
+    expect(values.get('Clients.view')).toBe('lista');
+    expect(screen.queryByRole('button', { name: /Cuenta corriente|Seguimientos|^Lista$/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('account-current')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('follow-ups')).not.toBeInTheDocument();
+    expect(document.querySelector('.acct-views')).toBeNull();
   });
 });

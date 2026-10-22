@@ -1,3 +1,4 @@
+import { hiddenPathFallback } from '../config/hiddenSections';
 import type { DeskTab } from './types';
 
 export const ROUTE: Record<DeskTab, string> = {
@@ -108,6 +109,8 @@ export function configHash(page: 'settings' | 'team', memberId?: string | null) 
 }
 
 export function tabFromHash(hash: string): DeskTab {
+  const fallback = hiddenPathFallback(hash);
+  if (fallback) return tabFromHash(fallback);
   const parts = hashPath(hash);
   if (!parts.length) return 'dashboard';
   if (isSettingsPath(parts)) return 'settings';
@@ -121,6 +124,8 @@ export function tabFromHash(hash: string): DeskTab {
 
 /** Hash canónico, o null si la ruta no es del escritorio (restablecer, salida, desconocida). */
 export function canonicalHash(hash: string): string | null {
+  const fallback = hiddenPathFallback(hash);
+  if (fallback) return fallback;
   const parts = hashPath(hash);
   const query = hashQuery(hash);
   if (!parts.length) return `#/dashboard${query}`;
