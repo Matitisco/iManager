@@ -42,7 +42,7 @@ export function dayPhrase(date: Date, timeZone: string, now = new Date()) {
 
 export function summaryLine(counts: { matched: number; missing: number; surplus: number; sold: number }) {
   const sold = counts.sold === 1 ? "1 figura vendido" : `${counts.sold} figuran vendidos`;
-  return `${counts.matched} coinciden · ${counts.missing} faltan · ${counts.surplus} sobran · ${sold}`;
+  return `${counts.matched} coinciden · ${counts.missing} sin escanear · ${counts.surplus} sin cargar · ${sold}`;
 }
 
 export function openSubtitle(input: { starter: string; at: Date; timeZone: string; counters: string[]; now?: Date }) {

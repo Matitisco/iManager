@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #318 — Control de stock — 2026-10-22
+
+- Rediseño aprobado en 1440/390: resultado reciente con estado Por revisar, cuatro grupos con IMEI completo y controles anteriores. Inicio mínimo en Sheet (hoja inferior móvil); registro únicamente mediante RECORD, sin selección ni acciones de archivar/cargar/ajustar inventario. Continúa el conteo abierto y conserva lector, ingreso manual, cámara y permisos.
+- Base y exclusiones limitadas a DISPONIBLE, sin cambios de Prisma ni reescritura de fotos históricas. Sin escaneos usa lenguaje de observación; historial con Sin escanear / Sin cargar. Espacio inferior y scroll con reserva para navegación y safe area.
+- Tests de componentes cubren inicio, ciegas, cámara/manual/lector, grupos, errores, permisos, históricos y RECORD sin mutación; unitarios e integración PostgreSQL cubren el filtro de estados, exclusiones, aislamiento y registro. Evidencia de revisión visual sintética y comandos en `docs/stock-count-redesign-318.md`. Sin build ni E2E; commit en la rama actual, sin push.
+
 ## Issue #374 — Resumen periódico dentro de Reportes — 2026-10-22
 
 - Pestaña «Resumen periódico», quincenas/meses calendario cerrados según zona de la tienda, selector histórico y tres bentos v3b sin textos secundarios innecesarios. Cada «Ver todas» abre su lista completa en el modal Sheet compartido, sin navegación, con cierre y foco accesibles. Estados vacío, skeleton y error/reintento; móvil 390 px y desktop 1440 px, permisos y moneda compartidos con la aplicación.
