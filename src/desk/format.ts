@@ -240,8 +240,20 @@ export function saleCode(sale: Sale): string {
   return `V-${String(number || 0).padStart(4, '0')}`;
 }
 
-export function isVoidSale(sale: { status?: string | null; voidedAt?: string | null }) {
-  return sale.status === 'CANCELADA' || sale.status === 'ANULADA' || Boolean(sale.voidedAt);
+export function isVoidRow(row: {
+  status?: string | null;
+  confirmationStatus?: string | null;
+  voidedAt?: string | null;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
+}) {
+  const cancelled = (status?: string | null) => ['CANCELADA', 'CANCELADO', 'CANCELLED', 'ANULADA', 'ANULADO'].includes(status?.trim().toUpperCase() ?? '');
+  return Boolean(row.voidedAt || row.archivedAt || row.deletedAt) || cancelled(row.status) || cancelled(row.confirmationStatus);
+}
+
+export function mergeRecordRows<T extends { id: string }>(active: readonly T[], archived: readonly T[]): T[] {
+  const ids = new Set(active.map(row => row.id));
+  return [...active, ...archived.filter(row => !ids.has(row.id))];
 }
 
 export function tradeCode(tradeIns: TradeIn[], id: string): string {

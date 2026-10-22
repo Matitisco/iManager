@@ -90,10 +90,11 @@ describe("proveedores, gastos y ganancia neta", () => {
     const staffItems = staffDetail.json().supplier.purchases.flatMap((purchase: { items: { cost?: number }[] }) => purchase.items);
     expect(staffItems.every((row: { cost?: number }) => row.cost == null)).toBe(true);
 
-    const archived = await app.inject({ method: "DELETE", url: `/api/suppliers/${supplierId}`, headers });
+    const archived = await app.inject({ method: "DELETE", url: `/api/suppliers/${supplierId}`, headers, payload: { reason: "  Duplicado  " } });
     expect(archived.statusCode).toBe(204);
     const stored = await prisma.supplier.findUniqueOrThrow({ where: { id: supplierId } });
     expect(stored.deletedAt).toBeTruthy();
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: supplierId, action: "supplier.archived" } })).toMatchObject({ reason: "Duplicado" });
     const kept = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: linkedId } });
     expect(kept.supplierId).toBe(supplierId);
 
@@ -132,9 +133,10 @@ describe("proveedores, gastos y ganancia neta", () => {
       headers,
       payload: { date: "2026-10-18", category: "Otros", amount: 80000, currency: "ARS" },
     });
-    await app.inject({ method: "DELETE", url: `/api/expenses/${dropped.json().expense.id}`, headers });
+    await app.inject({ method: "DELETE", url: `/api/expenses/${dropped.json().expense.id}`, headers, payload: { reason: "Error de carga" } });
     const gone = await prisma.expense.findUniqueOrThrow({ where: { id: dropped.json().expense.id as string } });
     expect(gone.deletedAt).toBeTruthy();
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: gone.id, action: "expense.archived" } })).toMatchObject({ reason: "Error de carga" });
 
     const arsItem = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: linkedId } });
     const usdItem = await prisma.inventoryItem.create({

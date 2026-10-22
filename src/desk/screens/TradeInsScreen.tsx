@@ -1,3 +1,5 @@
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { useEffect, useMemo, useState } from 'react';
@@ -46,7 +48,7 @@ function activeTradeColumnCount(filters: TradeColumnFilters) {
 }
 
 export function TradeInsScreen() {
-  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const { tradeIns, clients, cancelTradeOperation, deleteTradeIn, operationDrafts = [], listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const catalogs = useCatalogs();
@@ -62,22 +64,13 @@ export function TradeInsScreen() {
   const [draftFilters, setDraftFilters] = useState<TradeColumnFilters>(EMPTY_TRADE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [voidedMode, setVoidedMode] = useState(false);
-  const [voidedTrades, setVoidedTrades] = useState<TradeIn[]>([]);
+  const { rows: voidedTrades, error: archiveError } = useArchivedRows(tradeIns, fetchVoidedTradeIns, rememberVoidedTrades);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('tradeins');
   const ownDrafts = operationDrafts.filter((trade) => trade.confirmationStatus === 'PENDING');
   const openCount = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
-  useEffect(() => {
-    if (!voidedMode || !user) return;
-    let active = true;
-    fetchVoidedTradeIns(user).then((rows) => {
-      if (!active) return;
-      setVoidedTrades(rows);
-      rememberVoidedTrades(rows);
-    }).catch(() => { if (active) setVoidedTrades([]); });
-    return () => { active = false; };
-  }, [voidedMode, user]);
-  const tradeSource = voidedMode ? voidedTrades : tradeIns;
+
+  const tradeSource = voidedMode ? voidedTrades : mergeRecordRows(tradeIns, voidedTrades);
 
   const setColumn = (patch: Partial<TradeColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const setDraft = (patch: Partial<TradeColumnFilters>) => setDraftFilters((current) => ({ ...current, ...patch }));
@@ -88,6 +81,7 @@ export function TradeInsScreen() {
       const name = tradeClientLabel(item, clients);
       const code = tradeCode(tradeIns, item.id);
       const haystack = `${name} ${item.clientName ?? ''} ${item.deviceReceived} ${item.deviceReceivedImei} ${item.deviceGiven} ${code}`.toLowerCase();
+      if (!voidedMode && filter !== 'Todos' && !isVoidRow({ status: filter }) && isVoidRow(item)) return false;
       if (filter !== 'Todos' && item.status !== filter) return false;
       if (q && !haystack.includes(q)) return false;
       return matchesTradeColumns(item, columns, { code, client: name });
@@ -97,7 +91,7 @@ export function TradeInsScreen() {
       if (a == null || b == null) return a == null && b == null ? 0 : a == null ? 1 : -1;
       return direction * (a - b) || direction * ((left.tradeNumber ?? 0) - (right.tradeNumber ?? 0));
     });
-  }, [tradeSource, clients, query, filter, columns, sort]);
+  }, [tradeSource, clients, query, filter, columns, sort, voidedMode]);
   const listed = onlyNotices ? tradeIns.filter((item) => notices.reasonFor(item.id)) : rows;
   const quiet = !query.trim() && filter === 'Todos' && !tradeFiltersActive(columns) && !onlyNotices;
   const page = usePagedRows(listed, `${query}|${filter}|${sort}|${tradeFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}`);
@@ -128,9 +122,10 @@ export function TradeInsScreen() {
 
   return (
     <div className={`dscreen${phone ? ' has-dock' : ''}`}>
+      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Canjes"
-        subtitle={`${tradeIns.length} canjes · ${openCount} en curso`}
+        subtitle={`${tradeSource.length} canjes · ${openCount} en curso`}
         back={back}
         tools={(
           <>
@@ -168,7 +163,7 @@ export function TradeInsScreen() {
           explanation: deleteCancelled
             ? 'Se anulan los canjes cancelados. No se pueden restaurar. Se conservan el stock, las ventas, los saldos y los pagos.'
             : 'Se cancelarán los canjes seleccionados y sus ventas asociadas. Se restaurarán stock y saldos; el equipo recibido se archivará. Si el equipo recibido ya se vendió, la operación no se puede cancelar.',
-          execute: (item) => isCancelledTrade(item) ? deleteTradeIn(item.id) : cancelTradeOperation('tradeins', item.id),
+          execute: (item, reason) => isCancelledTrade(item) ? deleteTradeIn(item.id, reason) : cancelTradeOperation('tradeins', item.id, reason),
           unavailable: (item) => mixedSelection
             ? 'Seleccioná solo canjes cancelados para eliminar, o canjes activos para cancelar.'
             : !isCancelledTrade(item) && (!item.confirmationStatus || item.confirmationStatus === 'CANCELLED')
@@ -179,7 +174,7 @@ export function TradeInsScreen() {
       {phone ? (
         <>
           {!quiet && tradeIns.length > 0 ? (
-            <div className="sale-sec"><span>Canjes</span><span>{listed.length} de {tradeIns.length}</span></div>
+            <div className="sale-sec"><span>Canjes</span><span>{listed.length} de {tradeSource.length}</span></div>
           ) : null}
           {tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           {loadingLists ? <ListSkeleton variant="cards" rows={4} testId="tradeins-loading" /> : listed.length === 0 ? (
@@ -197,7 +192,8 @@ export function TradeInsScreen() {
                   return (
                     <div key={item.id} className={`sale-node${tone}`}>
                       <PhoneRecord
-                      selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
+                        className={isVoidRow(item) ? 'is-void' : undefined}
+                        selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                         reason={reason}
                         onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
                         onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
@@ -214,7 +210,7 @@ export function TradeInsScreen() {
         </>
       ) : (
       <div className="dcard flush">
-        <div className="dch pad"><h3>Canjes</h3><span className="mut">{listed.length} de {tradeIns.length}</span>{tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}</div>
+        <div className="dch pad"><h3>Canjes</h3><span className="mut">{listed.length} de {tradeSource.length}</span>{tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}</div>
         <div className="dtable-scroll">
           <table className="dtable trade-table" aria-label="Canjes">
             <thead>
@@ -268,7 +264,7 @@ export function TradeInsScreen() {
                   selection={selection.row(item.id, tradeCode(tradeIns, item.id))}
                   key={item.id}
                   as="tr"
-                  className={notices.reasonFor(item.id) ? 'novedad' : undefined}
+                  className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
                   onActivate={() => { notices.markVisible([item.id]); open({ type: 'cj', id: item.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cj', id: item.id, label: `${tradeCode(tradeIns, item.id)} · ${tradeClientLabel(item, clients)}`, onSelect: () => selection.start(item.id), ...point })}
                 >

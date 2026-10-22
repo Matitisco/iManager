@@ -357,7 +357,7 @@ describe('operation detail', () => {
     await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1'));
+    await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1', 'Error de carga'));
   });
 
   it('asks before cancelling an integrated sale', async () => {
@@ -370,7 +370,7 @@ describe('operation detail', () => {
     expect(screen.getByText('V-0004 se cancelará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' }), 'Error de carga'));
   });
 
   it('shows the cash to return before cancelling a partly paid sale', async () => {
@@ -397,7 +397,7 @@ describe('operation detail', () => {
     expect(screen.getByRole('button', { name: 'Cancelar operación' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cancelar operación' }));
-    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+    await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' }), 'Error de carga'));
   });
 
   it('does not announce a refund when the pending sale was not paid', async () => {

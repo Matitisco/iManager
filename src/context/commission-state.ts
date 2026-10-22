@@ -42,10 +42,10 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
     loadCommissions, loadCommissionDetail,
     loadCommissionSellers: async () => { const sellers = await api.fetchCommissionSellers(auth()); merge({ sellers }); },
     saveCommissionRule: async (input: CommissionRuleInput) => { await api.createCommissionRule(auth(), input); merge({ rules: await api.fetchCommissionRules(auth()) }); },
-    deleteCommissionRule: async (id: string) => { await api.deleteCommissionRule(auth(), id); merge({ rules: current.rules.filter(rule => rule.id !== id) }); },
+    deleteCommissionRule: async (id: string, reason?: string) => { await api.deleteCommissionRule(auth(), id, reason); merge({ rules: current.rules.filter(rule => rule.id !== id) }); },
     setCommissionRuleActive: async (id: string, active: boolean) => { const rule = await api.updateCommissionRule(auth(), id, { active }); merge({ rules: current.rules.map(old => old.id === id ? rule : old) }); },
-    voidCommissionPayment: async (id: string, memberId: string, period: string) => {
-      await api.voidCommissionPayment(auth(), id);
+    voidCommissionPayment: async (id: string, memberId: string, period: string, reason?: string) => {
+      await api.voidCommissionPayment(auth(), id, reason);
       try { await Promise.all([loadCommissions(period), loadCommissionDetail(memberId, period)]); }
       catch { merge({ summaries: {} }); throw new Error('El pago se anuló, pero no se pudo actualizar el saldo. Cerrá y volvé a cargar las comisiones.'); }
     },

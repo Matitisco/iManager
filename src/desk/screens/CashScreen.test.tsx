@@ -68,3 +68,27 @@ describe('pantalla de caja', () => {
     expect(screen.getByRole('button', { name: 'Contar y cerrar' })).toBeVisible();
   });
 });
+
+it('keeps archived registers red in Todos and preserves the active and archived tabs', async () => {
+  cashData.registers[1].archivedAt = '2026-10-22';
+  const user = setup();
+  expect(screen.getByRole('button', { name: /Caja USD/ })).toHaveClass('is-void');
+  await user.click(screen.getByRole('button', { name: 'Activas' }));
+  expect(screen.queryByRole('button', { name: /Caja USD/ })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Archivadas' }));
+  expect(screen.getByRole('button', { name: /Caja USD/ })).toHaveClass('is-void');
+  expect(screen.queryByRole('button', { name: /Caja ARS/ })).not.toBeInTheDocument();
+});
+
+it('marks voided movements red and sends the selected reason when cancelling another movement', async () => {
+  const movement = { id: 'old', createdAt: '2026-10-22T12:00:00Z', kind: 'INGRESO', amount: 10, voidedAt: '2026-10-22', category: 'Otros' };
+  api.loadCashHistory.mockResolvedValue({ movements: [movement, { ...movement, id: 'active', voidedAt: null }], total: 2, categories: [] });
+  const user = setup();
+  await user.click(screen.getByRole('button', { name: /Caja ARS/ }));
+  expect((await screen.findByText('Ingreso · Anulado')).closest('.cash-movement')).toHaveClass('is-void');
+  await user.click(screen.getByRole('button', { name: 'Anular Ingreso' }));
+  const modal = screen.getByRole('dialog', { name: 'Anular movimiento' });
+  await user.click(within(modal).getByRole('button', { name: 'Duplicado' }));
+  await user.click(within(modal).getByRole('button', { name: 'Anular movimiento' }));
+  expect(api.mutateCash).toHaveBeenCalledWith({ path: '/movements/active/void', method: 'POST', body: { reason: 'Duplicado' } });
+});

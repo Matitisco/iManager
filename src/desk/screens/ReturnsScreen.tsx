@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react';
+import { rememberArchivedReturns } from '../archive-cache';
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
+import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchReturns, type ReturnCaseView } from '../../services/returns-api';
 import { formatMoney, formatShortDate, statusLabel } from '../format';
 import { ListSkeleton } from '../list-skeleton';
@@ -11,31 +13,17 @@ function moneyOf(row: ReturnCaseView) {
   return formatMoney(row.moneyAmount, row.moneyCurrency === 'USD' ? 'USD' : 'ARS');
 }
 
+const loadArchived = (user: Parameters<typeof fetchReturns>[0]) => fetchReturns(user, true);
+
 export function ReturnsScreen() {
   const { returns, returnsError, user } = useAppContext();
   const { open, back } = useDesk();
-  const [archived, setArchived] = useState(false);
-  const [archivedRows, setArchivedRows] = useState<ReturnCaseView[] | null>(null);
-  const [archivedError, setArchivedError] = useState('');
-
-  useEffect(() => {
-    if (!archived || !user) return;
-    let active = true;
-    setArchivedRows(null);
-    setArchivedError('');
-    void fetchReturns(user, true).then((rows) => {
-      if (active) setArchivedRows(rows);
-    }).catch((cause: unknown) => {
-      if (active) {
-        setArchivedRows([]);
-        setArchivedError(getFriendlyErrorMessage(cause, 'No se pudieron cargar los reclamos archivados.'));
-      }
-    });
-    return () => { active = false; };
-  }, [archived, user]);
-
-  const rows = archived ? archivedRows : returns;
-  const error = archived ? archivedError : returnsError;
+  const [filter, setFilter] = useState('Todos');
+  const archived = filter === 'Archivados';
+  const { rows: archivedRows, error: archivedError, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
+  const activeRows = returns;
+  const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
+  const error = archived ? archivedError : [ returnsError, filter === 'Todos' ? archivedError : '' ].filter(Boolean).join(' ');
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-return' })}>Nuevo reclamo</button>;
 
   return (
@@ -43,8 +31,7 @@ export function ReturnsScreen() {
       <ScreenTitle title="Devoluciones" subtitle="Reclamos, notas de crédito y RMA con el proveedor." back={back} tools={null} desktop={add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
-          <button className={`gchip${!archived ? ' on' : ''}`} type="button" aria-pressed={!archived} onClick={() => setArchived(false)}>Activos</button>
-          <button className={`gchip${archived ? ' on' : ''}`} type="button" aria-pressed={archived} onClick={() => setArchived(true)}>Archivados</button>
+          {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}
         </div>
       </div>
       {error ? <p className="ferr" role="alert">{error}</p> : null}
@@ -58,7 +45,7 @@ export function ReturnsScreen() {
       {rows && rows.length > 0 ? (
         <div className="card ledger-list" data-testid="returns-list">
           {rows.map((row) => (
-            <button key={row.id} className="member" type="button" data-testid={`return-${row.id}`} onClick={() => open({ type: 'return', id: row.id })}>
+            <button key={row.id} className={`member${isVoidRow(row) ? ' is-void' : ''}`} type="button" data-testid={`return-${row.id}`} onClick={() => open({ type: 'return', id: row.id })}>
               <span className="ico-row"><DeskIcon name="swap" size={18} /></span>
               <span className="info">
                 <span className="name">{row.code} · {row.clientName || 'Sin cliente'}</span>

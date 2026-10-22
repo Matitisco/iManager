@@ -121,9 +121,10 @@ export function advanceRma(user: AuthUserLike, id: string, status: RmaStatus, st
   }).then((data) => data.return);
 }
 
-export function archiveReturn(user: AuthUserLike, id: string) {
+export function archiveReturn(user: AuthUserLike, id: string, reason?: string) {
   return apiRequest<void>(user, `/api/returns/${id}`, {
     method: 'DELETE',
+    body: { reason },
     fallback: 'No se pudo archivar el reclamo',
     errorFrom: 'friendly',
   });

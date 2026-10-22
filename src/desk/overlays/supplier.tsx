@@ -1,3 +1,4 @@
+import { ReasonSheet } from '../ReasonSheet';
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -5,7 +6,7 @@ import { fetchSupplier, type SupplierDetail as SupplierFile } from '../../servic
 import { canSeeFinancials } from '../sections';
 import { equipmentTitle, formatShortDate } from '../format';
 import { ListSkeleton } from '../list-skeleton';
-import { Actions, DeskIcon, Dialog, Field, Sheet, useDesk } from '../ui';
+import { Actions, DeskIcon, Field, Sheet, useDesk } from '../ui';
 import { useMoney } from '../exchange';
 
 function problemLine(problems: number, devices: number) {
@@ -79,15 +80,14 @@ export function SupplierDetail({ id }: { id: string }) {
     return () => { active = false; };
   }, [user, id]);
 
-  const archive = async () => {
+  const archive = async (reason: string) => {
     setBusy(true);
     try {
-      await archiveSupplier(id);
+      await archiveSupplier(id, reason);
       toast('Proveedor archivado');
       close();
     } catch (cause) {
       setError(getFriendlyErrorMessage(cause, 'No se pudo archivar el proveedor.'));
-      setConfirm(false);
     } finally {
       setBusy(false);
     }
@@ -149,14 +149,15 @@ export function SupplierDetail({ id }: { id: string }) {
         </div>
       ) : null}
       {confirm ? (
-        <Dialog
+        <ReasonSheet
           title="Archivar proveedor"
-          text="El proveedor queda archivado. Los equipos conservan el origen y nada se borra."
+          note="El proveedor queda archivado. Los equipos conservan el origen y nada se borra."
           ok="Archivar"
           danger
           busy={busy}
-          onOk={() => { void archive(); }}
-          onClose={() => setConfirm(false)}
+          error={error}
+          onOk={(reason) => { void archive(reason); }}
+          onClose={() => { if (!busy) setConfirm(false); }}
         />
       ) : null}
     </Sheet>

@@ -50,7 +50,7 @@ describe('bulk actions', () => {
   it('prevents duplicate submission/dismissal while processing', async () => {
     let resolve!: () => void; execute.mockImplementationOnce(() => new Promise<void>((done) => { resolve = done; }));
     render(<Harness />); select(); ask(); confirm();
-    expect(screen.getByRole('button', { name: 'Procesando…' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeDisabled(); expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
     fireEvent.keyDown(window, { key: 'Escape' }); expect(screen.getByRole('dialog')).toBeInTheDocument();
     expect(execute).toHaveBeenCalledTimes(1);
     await act(async () => resolve());

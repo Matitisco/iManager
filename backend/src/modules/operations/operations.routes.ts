@@ -1,3 +1,4 @@
+import { readReason } from '../audit/archive.js';
 import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
@@ -217,7 +218,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot cancel the trade-in operation" });
     const actor = await requireSensitiveActor(request.appUser, reply);
     if (!actor) return;
-    return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor);
+    return source === "sales" ? await cancelTradeFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body)) : await cancelTradeOperation(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body));
   });
 
   app.post("/:source/sales/:id/cancel", { preHandler }, async (request, reply) => {
@@ -228,6 +229,6 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const actor = await requireSensitiveActor(request.appUser, reply);
     if (!actor) return;
-    return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor);
+    return await cancelOperationFromSale(request.appUser!.storeId, params.id ?? "", actor, readReason(request.body));
   });
 }

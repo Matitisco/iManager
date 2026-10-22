@@ -194,8 +194,9 @@ describe("commissions API (adapted from #122)", () => {
     const reportRows = report.json().rows.filter((row: { memberId: string }) => row.memberId === f.member.id);
     expect(reportRows[0]).toMatchObject({ salesCount: 0, earned: { ARS: 0, USD: 0 }, pending: { [currency]: -10 } });
     expect(reportRows.at(-1)).toMatchObject({ adjustmentsTotal: { [currency]: -10 }, pending: { [currency]: -10 } });
-    const voided = await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: ownerHeaders() });
+    const voided = await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: ownerHeaders(), payload: { reason: "Duplicado" } });
     expect(voided.statusCode).toBe(200);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: payment.id, action: "commission.payment.voided" } })).toMatchObject({ reason: "Duplicado" });
     expect(voided.json().payment).toMatchObject({ voidedAt: expect.any(String), voidedBy: f.user.id });
     const afterVoid = await detail(f.member.id, snapshot.adjustmentPeriod!);
     expect(afterVoid.pending[currency]).toBe(0);
@@ -266,7 +267,8 @@ describe("commissions API (adapted from #122)", () => {
     await prisma.storeMember.update({ where: { id: f.member.id }, data: { sections: ["commissions"], sensitiveAccess: false } });
     expect((await getApp().inject({ method: "PATCH", url: `/api/commissions/rules/${saved.id}`, headers: f.headers, payload: { active: false } })).statusCode).toBe(200);
     expect((await getApp().inject({ method: "POST", url: `/api/commissions/payments/${payment.id}/void`, headers: f.headers })).statusCode).toBe(200);
-    expect((await getApp().inject({ method: "DELETE", url: `/api/commissions/rules/${saved.id}`, headers: f.headers })).statusCode).toBe(204);
+    expect((await getApp().inject({ method: "DELETE", url: `/api/commissions/rules/${saved.id}`, headers: f.headers, payload: { reason: "Error de carga" } })).statusCode).toBe(204);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: saved.id, action: "commission.rule.deleted" } })).toMatchObject({ reason: "Error de carga" });
     const foreign = await seedStoreContext({ firebaseUid: "foreign-owner", email: "foreign@example.com" });
     const foreignRule = await prisma.commissionRule.create({ data: { storeId: foreign.store!.id, rate: 10, effectiveFrom: new Date(), createdBy: foreign.user.id } });
     const foreignPayment = await prisma.commissionPayment.create({ data: { storeId: foreign.store!.id, memberId: foreign.membership!.id, period: PERIOD, amount: 10, currency: "ARS", settlesCurrency: "ARS", exchangeRate: 1000, createdBy: foreign.user.id } });

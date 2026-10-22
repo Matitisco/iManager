@@ -1,3 +1,4 @@
+import { ReasonSheet } from '../ReasonSheet';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
@@ -25,11 +26,11 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
   useOfflineRecovery(error, () => setSellerRetry(value => value + 1));
   const submitting = useRef(false);
   const [ruleAction, setRuleAction] = useState<{ id: string; action: 'Eliminar' | 'Desactivar' | 'Activar' } | null>(null);
-  const manageRule = async () => {
+  const manageRule = async (reason?: string) => {
     if (!ruleAction || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
     try {
-      if (ruleAction.action === 'Eliminar') await deleteCommissionRule(ruleAction.id);
+      if (ruleAction.action === 'Eliminar') await deleteCommissionRule(ruleAction.id, reason);
       else await setCommissionRuleActive(ruleAction.id, ruleAction.action === 'Activar');
       setRuleAction(null);
     } catch (cause) { setError(toUserMessage(cause, 'No se pudo modificar la regla')); }
@@ -63,7 +64,7 @@ export function CommissionRuleSheet({ memberId, period, onClose }: { memberId: s
     <p className="commission-info">{basis === 'PROFIT_PERCENT' ? 'Ganancia = precio − costo del equipo − valor tomado del canje. Se calcula en la moneda de cada venta.' : basis === 'SALE_PERCENT' ? 'Se calcula sobre el precio de venta, en la moneda de cada venta.' : `Por cada equipo vendido cobra ${commissionAmount(Number(rate) || 0, currency)}, sin importar el precio.`}{scope === 'person' ? ' Reemplaza la regla del equipo solo para esta persona.' : ''}</p>
     <Field label="Vigente desde"><input type="date" value={effectiveFrom} onChange={event => setEffectiveFrom(event.target.value)} disabled={busy} /></Field>
     <p className="eqs-note">Las ventas anteriores a esa fecha siguen con la regla que tenían. Las reglas personales ganan sobre la del equipo.</p>
-    {ruleAction ? createPortal(<Dialog title={`${ruleAction.action} regla`} text={ruleAction.action === 'Activar' ? 'La regla volverá a aplicarse a nuevas ventas desde su fecha de vigencia. Los pagos y las comisiones ya registradas se conservan.' : 'La regla dejará de aplicarse a nuevas ventas. Los pagos y las comisiones ya registradas se conservan.'} ok={`${ruleAction.action} regla`} danger={ruleAction.action !== 'Activar'} busy={busy} error={error} onClose={() => { if (!busy) setRuleAction(null); }} onOk={() => { void manageRule(); }} />, document.querySelector('.desk-app') ?? document.body) : null}
+    {ruleAction?.action === 'Eliminar' ? createPortal(<ReasonSheet title="Eliminar regla" note="La regla dejará de aplicarse a nuevas ventas. Los pagos y las comisiones ya registradas se conservan." ok="Eliminar regla" danger busy={busy} error={error} onClose={() => { if (!busy) setRuleAction(null); }} onOk={reason => { void manageRule(reason); }} />, document.querySelector('.desk-app') ?? document.body) : ruleAction ? createPortal(<Dialog title={`${ruleAction.action} regla`} text={ruleAction.action === 'Activar' ? 'La regla volverá a aplicarse a nuevas ventas desde su fecha de vigencia. Los pagos y las comisiones ya registradas se conservan.' : 'La regla dejará de aplicarse a nuevas ventas. Los pagos y las comisiones ya registradas se conservan.'} ok={`${ruleAction.action} regla`} danger={ruleAction.action !== 'Activar'} busy={busy} error={error} onClose={() => { if (!busy) setRuleAction(null); }} onOk={() => { void manageRule(); }} />, document.querySelector('.desk-app') ?? document.body) : null}
   </Sheet>;
 }
 export function CommissionPaymentSheet({ memberId, period, people, onClose }: { memberId: string | null; period: string; people: CommissionSummary['people']; onClose: () => void }) {

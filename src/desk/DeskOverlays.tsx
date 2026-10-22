@@ -6,10 +6,12 @@ import { getFriendlyErrorMessage } from '../lib/utils';
 import { archivedMatchOf } from '../services/api-client';
 import { restoreBackendClient } from '../services/clients-api';
 import { restoreBackendInventoryItem } from '../services/inventory-api';
+import { ReasonSheet } from './ReasonSheet';
+export { ReasonSheet } from './ReasonSheet';
 import { isActiveTradeOperation } from './format';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
-import { DeskIcon, Dialog, Sheet, useDesk, useEscape, Actions } from './ui';
+import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
 import type { Overlay } from './types';
 import { markSessionClosed } from './screens/SessionClosed';
 import { EquipmentDetail, EquipmentForm } from './overlays/equipment';
@@ -133,38 +135,13 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     const integratedSale = sale?.status !== 'CANCELADA' && Boolean(sale?.integratedOperation || sale?.tradeInId);
     const integratedTrade = trade ? isActiveTradeOperation(trade) : false;
     const cancelling = integratedSale || integratedTrade;
-    const copy = {
-      eq: ['este equipo', 'Equipo eliminado'],
-      sale: [integratedSale ? 'la operación' : 'esta venta', integratedSale ? 'Operación cancelada' : 'Venta eliminada'],
-      cj: [integratedTrade ? 'la operación' : 'este canje', integratedTrade ? 'Operación cancelada' : 'Canje eliminado'],
-      cl: ['este cliente', 'Cliente eliminado'],
-      ot: ['esta orden', 'Orden eliminada'],
-    }[overlay.kind];
     const repair = overlay.kind === 'ot' ? (ctx.repairOrders ?? []).find((row) => row.id === overlay.id) : undefined;
     const returnsCredit = Boolean(repair && repair.deposit > 0);
     const creditDelete = overlay.kind === 'cl' && Boolean(error?.includes('saldo a favor'));
-    if (cancelling) {
-      return (
-        <Dialog
-          title="Cancelar operación"
-          text={`${overlay.label} se cancelará y quedará en el historial.`}
-          ok="Cancelar operación"
-          cancel="Volver"
-          danger
-          busy={busy}
-          error={error}
-          onClose={desk.close}
-          onOk={() => run(async () => {
-            if (overlay.kind === 'sale') await ctx.deleteSale(overlay.id);
-            if (overlay.kind === 'cj') await ctx.deleteTradeIn(overlay.id);
-          }, copy[1])}
-        />
-      );
-    }
     const voiding = overlay.kind === 'sale' || overlay.kind === 'cj';
-    const title = overlay.kind === 'sale' ? `Anular venta ${overlay.label}` : overlay.kind === 'cj' ? 'Anular canje' : overlay.kind === 'ot' ? 'Archivar orden' : overlay.kind === 'cl' ? 'Archivar cliente' : 'Archivar equipo';
-    const note = voiding
-      ? 'El equipo vuelve a Disponible y se anula la comisión. Queda en «Anuladas» y no se puede deshacer.'
+    const title = cancelling ? 'Cancelar operación' : overlay.kind === 'sale' ? `Anular venta ${overlay.label}` : overlay.kind === 'cj' ? 'Anular canje' : overlay.kind === 'ot' ? 'Archivar orden' : overlay.kind === 'cl' ? 'Archivar cliente' : 'Archivar equipo';
+    const note = cancelling ? 'La operación se cancelará y quedará en el historial.' : voiding
+      ? 'El equipo vuelve a Disponible y se anula la comisión. Sigue visible en rojo y no se puede deshacer.'
       : returnsCredit
         ? 'La orden queda archivada. Si tenía una seña aplicada, vuelve como saldo a favor del cliente. Podés restaurarla.'
         : overlay.kind === 'ot'
@@ -177,7 +154,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
         title={title}
         subtitle={overlay.label}
         note={note}
-        ok={voiding ? 'Anular' : 'Archivar'}
+        ok={cancelling ? 'Cancelar operación' : voiding ? 'Anular' : 'Archivar'}
         danger={voiding}
         busy={busy}
         error={error}
@@ -225,32 +202,4 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'invite') return <InviteForm initialUrl={overlay.url} />;
   if (overlay.type === 'invites') return <InvitesList />;
   return null;
-}
-
-const REASONS = ['Error de carga', 'Duplicado', 'Devolución', 'Otro'];
-
-function ReasonSheet({ title, subtitle, note, ok, danger, busy, error, extra, onClose, onOk }: {
-  title: string;
-  subtitle?: string;
-  note: string;
-  ok: string;
-  danger?: boolean;
-  busy?: boolean;
-  error?: string | null;
-  extra?: { label: string; onClick: () => void } | null;
-  onClose: () => void;
-  onOk: (reason: string) => void;
-}) {
-  const [chip, setChip] = useState('Error de carga');
-  const [detail, setDetail] = useState('');
-  const reason = [chip === 'Otro' ? '' : chip, detail.trim()].filter(Boolean).join(' · ').slice(0, 280);
-  return <Sheet title={title} subtitle={subtitle} onClose={onClose} busy={busy} footer={<Actions primary={ok} secondary="Cancelar" danger={danger} busy={busy} onPrimary={() => onOk(reason)} onSecondary={onClose} />}>
-    <div className="pending-sale"><div><b>Qué pasa</b><small>{note}</small></div></div>
-    <p className="kicker">Motivo (opcional)</p>
-    <div className="wchips">{REASONS.map((label) => <button key={label} type="button" className={`wchip${chip === label ? ' on' : ''}`} onClick={() => setChip(label)}>{label}</button>)}</div>
-    <textarea aria-label="Detalle" maxLength={280} value={detail} placeholder="Agregá un detalle si querés" onChange={(event) => setDetail(event.target.value)} />
-    <p className="mut">{detail.length}/280</p>
-    {extra ? <button type="button" className="wlink" disabled={busy} onClick={extra.onClick}>{extra.label}</button> : null}
-    {error ? <p className="ferr" role="alert">{error}</p> : null}
-  </Sheet>;
 }

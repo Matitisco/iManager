@@ -200,23 +200,23 @@ export async function saveCommissionRule(storeId: string, actor: Actor, input: P
   });
 }
 
-export async function deleteCommissionRule(storeId: string, actor: Actor, id: string) {
+export async function deleteCommissionRule(storeId: string, actor: Actor, id: string, reason?: string | null) {
   return withSerializableRetry(async tx => {
     const rule = await tx.commissionRule.findFirst({ where: { id, storeId } });
     if (!rule) throw new DomainError("Regla no encontrada", 404);
     if (rule.deletedAt) return;
     await tx.commissionRule.update({ where: { id }, data: { deletedAt: new Date(), active: false } });
-    await writeAudit(tx, { storeId, actor, action: "commission.rule.deleted", entityType: "commissionRule", entityId: id });
+    await writeAudit(tx, { storeId, actor, action: "commission.rule.deleted", reason, entityType: "commissionRule", entityId: id });
   });
 }
 
-export async function voidCommissionPayment(storeId: string, actor: Actor, id: string) {
+export async function voidCommissionPayment(storeId: string, actor: Actor, id: string, reason?: string | null) {
   return withSerializableRetry(async tx => {
     const payment = await tx.commissionPayment.findFirst({ where: { id, storeId } });
     if (!payment) throw new DomainError("Pago no encontrado", 404);
     if (payment.voidedAt) return presentPayment(payment);
     const voided = await tx.commissionPayment.update({ where: { id }, data: { voidedAt: new Date(), voidedBy: actor.userId } });
-    await writeAudit(tx, { storeId, actor, action: "commission.payment.voided", entityType: "commissionPayment", entityId: id,
+    await writeAudit(tx, { storeId, actor, action: "commission.payment.voided", reason, entityType: "commissionPayment", entityId: id,
       detail: `${payment.amount} ${payment.currency} (${payment.period})` });
     return presentPayment(voided);
   });

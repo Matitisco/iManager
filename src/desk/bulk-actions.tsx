@@ -1,15 +1,16 @@
+import { ReasonSheet } from './ReasonSheet';
 import { toUserMessage } from '../lib/user-message';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { BulkSelection } from './bulk-selection';
 import { SelectFiltered } from './bulk-selection';
 import { usePhoneLayout } from './section-notices';
-import { Dialog, useDesk } from './ui';
+import { useDesk } from './ui';
 
 export type BulkAction<T> = {
   label: string;
   explanation: string;
-  execute: (row: T) => Promise<unknown>;
+  execute: (row: T, reason?: string) => Promise<unknown>;
   unavailable?: (row: T) => string | undefined;
   recover?: (row: T) => void;
 };
@@ -39,7 +40,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
     setError('');
     selection.setLocked(false);
   };
-  const confirm = async () => {
+  const confirm = async (reason: string) => {
     if (submitting.current || !confirmation?.length || !ready || !canManageSensitive) return;
     submitting.current = true;
     setBusy(true);
@@ -49,7 +50,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
       for (const row of confirmation) {
         if (!mounted.current) return;
         try {
-          await action.execute(row);
+          await action.execute(row, reason);
           if (!mounted.current) return;
           selection.remove(row.id);
           completed += 1;
@@ -86,8 +87,8 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
         {canManageSensitive && unavailable ? <small className="bulk-note">{unavailable}</small> : null}
       </div>
     ) : null}
-    {confirmation ? <Dialog title={`${action.label}: ${confirmation.length} ${confirmation.length === 1 ? 'registro' : 'registros'}`} text={`${action.explanation} Se procesan uno por uno; si alguno falla, se detiene la acción y se conservan los pendientes.`}
-      ok={busy ? 'Procesando…' : action.label} onOk={() => { void confirm(); }} onClose={dismiss} busy={busy} danger error={error} className="bulk-confirm"
+    {confirmation ? <ReasonSheet title={`${action.label}: ${confirmation.length} ${confirmation.length === 1 ? 'registro' : 'registros'}`} note={`${action.explanation} Se procesan uno por uno; si alguno falla, se detiene la acción y se conservan los pendientes.`}
+      ok={busy ? 'Procesando…' : action.label} onOk={reason => { void confirm(reason); }} onClose={dismiss} busy={busy} danger error={error} className="bulk-confirm"
       extra={error.includes('saldo a favor') && action.recover && confirmation[0] ? { label: 'Registrar devolución', onClick: () => { const row = confirmation[0]; dismiss(); if (row) action.recover?.(row); } } : null} /> : null}
   </>;
 }

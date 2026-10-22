@@ -107,16 +107,16 @@ describe('bulk table wiring', () => {
     expect(screen.getByRole('checkbox', { name: /Seleccionar Equipo 9/ })).toBeChecked();
     fireEvent.change(screen.getByPlaceholderText('Buscar modelo o color'), { target: { value: 'Equipo 1' } });
     expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
-    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteProduct).toHaveBeenCalledWith('1'));
+    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteProduct).toHaveBeenCalledWith('1', 'Error de carga'));
     expect(ctx.deleteProduct).toHaveBeenCalledTimes(1);
   });
   it('deletes clients through the existing method', async () => {
     mount(ClientsScreen); fireEvent.click(screen.getByRole('checkbox', { name: 'Seleccionar Ana' }));
-    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteClient).toHaveBeenCalledWith('c'));
+    confirm('Archivar selección'); await waitFor(() => expect(ctx.deleteClient).toHaveBeenCalledWith('c', 'Error de carga'));
   });
   it('cancels integrated sales and refuses active historical sales', async () => {
     const { unmount } = mount(SalesScreen); fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
-    confirm('Cancelar ventas'); await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' })));
+    confirm('Cancelar ventas'); await waitFor(() => expect(ctx.updateSale).toHaveBeenCalledWith(expect.objectContaining({ id: 's1', status: 'CANCELADA' }), 'Error de carga'));
     unmount(); ctx.sales[0].integratedOperation = false; mount(SalesScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
     expect(screen.getByRole('button', { name: 'Cancelar ventas' })).toBeDisabled();
@@ -132,7 +132,7 @@ describe('bulk table wiring', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
     confirm('Anular selección');
     await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledTimes(3));
-    expect(ctx.deleteSale.mock.calls).toEqual([['s1'], ['s2'], ['s3']]);
+    expect(ctx.deleteSale.mock.calls).toEqual([['s1', 'Error de carga'], ['s2', 'Error de carga'], ['s3', 'Error de carga']]);
     expect(ctx.updateSale).not.toHaveBeenCalled();
   });
   it('requires separate selections for deletion and cancellation', () => {
@@ -163,7 +163,7 @@ describe('bulk table wiring', () => {
 
   it('cancels trade operations through their source and blocks historical trades', async () => {
     const { unmount } = mount(TradeInsScreen); fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar C-/ }));
-    confirm('Cancelar canjes'); await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1'));
+    confirm('Cancelar canjes'); await waitFor(() => expect(ctx.cancelTradeOperation).toHaveBeenCalledWith('tradeins', 't1', 'Error de carga'));
     unmount(); ctx.tradeIns[0].confirmationStatus = null; mount(TradeInsScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar C-/ }));
     expect(screen.getByRole('button', { name: 'Cancelar canjes' })).toBeDisabled();

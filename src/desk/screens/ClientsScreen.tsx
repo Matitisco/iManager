@@ -1,3 +1,5 @@
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { clientNet } from '../client-balance';
@@ -67,7 +69,7 @@ function sortClients(rows: Client[], sort: string) {
 }
 
 export function ClientsScreen() {
-  const { clients, deleteClient, operationDrafts = [], user, listsLoaded } = useAppContext();
+  const { clients, deleteClient, operationDrafts = [], listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { open, back } = useDesk();
@@ -82,22 +84,13 @@ export function ClientsScreen() {
   const [draftFilters, setDraftFilters] = useState<ClientColumnFilters>(EMPTY_CLIENT_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [archivedMode, setArchivedMode] = useNavigationState('Clients.archivedMode', false);
-  const [archivedClients, setArchivedClients] = useState<Client[]>([]);
+  const { rows: archivedClients, error: archiveError } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
   const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
-  useEffect(() => {
-    if (!archivedMode || !user) return;
-    let active = true;
-    fetchArchivedClients(user).then((rows) => {
-      if (!active) return;
-      setArchivedClients(rows);
-      rememberArchivedClients(rows);
-    }).catch(() => { if (active) setArchivedClients([]); });
-    return () => { active = false; };
-  }, [archivedMode, user]);
-  const clientSource = archivedMode ? archivedClients : clients;
+
+  const clientSource = archivedMode ? archivedClients : mergeRecordRows(clients, archivedClients);
   const withBalance = clients.filter((client) => clientNet(client) > 0).length;
   const noticeFor = (client: Client) => reasonWithBalance(notices.reasonFor(client.id), client.pendingBalance, client.balanceCurrency);
 
@@ -106,11 +99,11 @@ export function ClientsScreen() {
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return clientSource.filter((client) => {
-      const matches = filter === 'Todos' || clientNet(client) > 0;
+      const matches = filter === 'Todos' || (archivedMode || !isVoidRow(client)) && clientNet(client) > 0;
       const haystack = `${client.name} ${client.phone} ${client.dni} ${client.email}`.toLowerCase();
       return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
     });
-  }, [clientSource, query, filter, columns]);
+  }, [clientSource, query, filter, columns, archivedMode]);
   const listed = onlyNotices ? clients.filter((client) => notices.reasonFor(client.id)) : rows;
   const ordered = phone ? sortClients(listed, sort) : listed;
   const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${phone ? sort : ''}`, undefined, 'Clients');
@@ -120,7 +113,7 @@ export function ClientsScreen() {
   useEffect(() => { notices.markVisible(page.visible.map((client) => client.id)); }, [visibleKey, notices.markVisible]);
   const tags = [...new Set(clients.map((client) => client.tag?.trim()).filter((tag): tag is string => Boolean(tag)))];
   const filterCount = activeClientColumnCount(columns);
-  const quietEmpty = clients.length === 0 && !query.trim() && filter === 'Todos' && !clientFiltersActive(columns) && !onlyNotices;
+  const quietEmpty = clientSource.length === 0 && !query.trim() && filter === 'Todos' && !clientFiltersActive(columns) && !onlyNotices;
   const openFilters = () => {
     setDraftFilters(columns);
     setFiltersOpen(true);
@@ -133,9 +126,10 @@ export function ClientsScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
+      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Clientes"
-        subtitle={`${clients.length === 1 ? '1 cliente' : `${clients.length} clientes`} · ${withBalance} con saldo`}
+        subtitle={`${clientSource.length === 1 ? '1 cliente' : `${clientSource.length} clientes`} · ${withBalance} con saldo`}
         back={back}
         tools={view === 'lista' ? (
           <span className="rslot">
@@ -176,7 +170,7 @@ export function ClientsScreen() {
       {view === 'lista' ? <NoticesBar count={notices.count} active={onlyNotices} onToggle={() => setOnlyNotices((current) => !current)} /> : null}
       {view === 'lista' ? <BulkActions hideStart key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
-        action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client) => deleteClient(client.id), recover: (client) => open({ type: 'cl', id: client.id }) }}
+        action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client, reason) => deleteClient(client.id, reason), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
       {view === 'lista' && phone ? (
         loadingLists ? <ListSkeleton variant="cards" rows={4} testId="clients-loading" /> : listed.length === 0 ? (
@@ -194,6 +188,7 @@ export function ClientsScreen() {
                   <Fragment key={client.id}>
                     {showGroup ? <div className="cl-sec">{group}</div> : null}
                     <PhoneRecord
+                      className={isVoidRow(client) ? 'is-void' : undefined}
                       selection={selection.row(client.id, client.name)}
                       reason={reason}
                       testId={`client-row-${client.id}`}
@@ -211,7 +206,7 @@ export function ClientsScreen() {
         )
       ) : view === 'lista' ? (
       <div className="dcard flush">
-        <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clients.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
+        <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clientSource.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
         <table className="dtable">
             <thead>
               <tr>
@@ -257,7 +252,7 @@ export function ClientsScreen() {
                   selection={selection.row(client.id, client.name)}
                   key={client.id}
                   as="tr"
-                  className={notices.reasonFor(client.id) ? 'novedad' : undefined}
+                  className={[notices.reasonFor(client.id) ? 'novedad' : '', isVoidRow(client) ? 'is-void' : ''].filter(Boolean).join(' ')}
                   testId={`client-row-${client.id}`}
                   onActivate={() => { notices.markVisible([client.id]); open({ type: 'cl', id: client.id }); }}
                   onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}

@@ -792,3 +792,21 @@ describe('servicio técnico en el celular', () => {
     expect(addRepairOrder).not.toHaveBeenCalled();
   });
 });
+
+it.each([false, true])('keeps archived orders red in Todos and hides them in active states (phone: %s)', async phone => {
+  const previous = window.matchMedia;
+  window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  try {
+    state.repairOrders = [order('373', 'RECIBIDO', { archivedAt: '2026-10-22' })];
+    const user = userEvent.setup();
+    desk(<ServiceScreen />);
+    await user.click(screen.getByRole('button', { name: 'Todos' }));
+    expect(screen.getByTestId('repair-card-373')).toHaveClass('is-void');
+    if (!phone) {
+      await user.click(screen.getByRole('button', { name: 'Lista' }));
+      expect(screen.getByTestId('repair-row-373')).toHaveClass('is-void');
+    }
+    await user.click(screen.getByRole('button', { name: 'Recibido 0' }));
+    expect(screen.queryByTestId(phone ? 'repair-card-373' : 'repair-row-373')).not.toBeInTheDocument();
+  } finally { cleanup(); window.matchMedia = previous; }
+});

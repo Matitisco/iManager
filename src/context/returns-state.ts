@@ -93,8 +93,8 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
       await reloadReturns();
       return saved;
     },
-    archiveReturn: async (id: string) => {
-      await archiveReturnApi(auth(), id);
+    archiveReturn: async (id: string, reason?: string) => {
+      await archiveReturnApi(auth(), id, reason);
       await reloadReturns();
     },
     restoreReturn: async (id: string) => {

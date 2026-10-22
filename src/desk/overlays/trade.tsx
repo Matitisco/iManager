@@ -241,7 +241,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           busy={busy}
           error={error}
           onClose={() => { if (!busy) setConfirmCancel(false); }}
-          onOk={() => { void run(async () => await cancelTradeOperation(source, id), 'Operación cancelada'); }}
+          onOk={reason => { void run(async () => await cancelTradeOperation(source, id, reason), 'Operación cancelada'); }}
         />
       );
     }

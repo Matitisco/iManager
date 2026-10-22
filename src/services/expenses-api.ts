@@ -46,9 +46,10 @@ export function updateExpense(user: AuthUserLike, id: string, input: ExpenseInpu
   }).then((data) => data.expense);
 }
 
-export function archiveExpense(user: AuthUserLike, id: string) {
+export function archiveExpense(user: AuthUserLike, id: string, reason?: string) {
   return apiRequest<void>(user, `/api/expenses/${id}`, {
     method: 'DELETE',
+    body: { reason },
     fallback: 'No se pudo archivar el gasto',
     errorFrom: 'friendly',
   });

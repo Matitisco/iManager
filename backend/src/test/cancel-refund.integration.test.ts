@@ -73,9 +73,10 @@ describe("cancel refund", () => {
       method: "POST",
       url: `/api/operations/sales/sales/${saleId}/cancel`,
       headers,
-      payload: {},
+      payload: { reason: "Duplicado · Operación repetida" },
     });
     expect(cancelled.statusCode).toBe(200);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: saleId, action: "sale.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
     expect(cancelled.json().sale).toMatchObject({ status: "CANCELADA", cancelledBy: "Ana Dueña" });
     expect(cancelled.json().sale.cancelledAt).toEqual(expect.any(String));
     expect(cancelled.json().summary).not.toContain("devolución");
@@ -159,9 +160,10 @@ describe("cancel refund", () => {
       method: "POST",
       url: `/api/operations/tradeins/trades/${tradeId}/cancel`,
       headers,
-      payload: {},
+      payload: { reason: "Duplicado · Operación repetida" },
     });
     expect(cancelled.statusCode).toBe(200);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeId, action: "trade.cancelled" } })).toMatchObject({ reason: "Duplicado · Operación repetida" });
     expect(cancelled.json().sale.status).toBe("CANCELADA");
     expect(cancelled.json().tradeIn).toMatchObject({ confirmationStatus: "CANCELLED", cancelledBy: "Test Owner" });
     const client = await prisma.client.findUniqueOrThrow({ where: { id: fixture.client.id } });

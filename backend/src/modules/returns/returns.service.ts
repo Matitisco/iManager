@@ -506,7 +506,7 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
   });
 }
 
-export async function archiveReturnCase(storeId: string, id: string, actor: Actor) {
+export async function archiveReturnCase(storeId: string, id: string, actor: Actor, reason?: string | null) {
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: null } });
@@ -519,6 +519,7 @@ export async function archiveReturnCase(storeId: string, id: string, actor: Acto
     await writeAudit(tx, {
       storeId,
       actor,
+      reason,
       action: "return.archived",
       entityType: "return",
       entityId: id,

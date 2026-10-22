@@ -1,3 +1,4 @@
+import { readReason } from '../audit/archive.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
@@ -28,8 +29,8 @@ export async function cashRoutes(app: FastifyInstance) {
   });
   app.patch('/:id', async request => {
     owner(request); requireMember(request);
-    const input = z.object({ name: z.string().trim().min(1).max(120).optional(), archived: z.boolean().optional(), isDefault: z.boolean().optional() }).strict().parse(request.body);
-    await editRegister(request.appUser.storeId, id(request), input, await loadActor(request.appUser.userId));
+    const input = z.object({ name: z.string().trim().min(1).max(120).optional(), archived: z.boolean().optional(), isDefault: z.boolean().optional(), reason: z.unknown().optional() }).strict().parse(request.body);
+    await editRegister(request.appUser.storeId, id(request), input, await loadActor(request.appUser.userId), readReason(request.body));
     return { ok: true };
   });
   app.post('/:id/open', async request => { requireMember(request); return startSession(request.appUser.storeId, id(request), await loadActor(request.appUser.userId)); });
@@ -56,7 +57,7 @@ export async function cashRoutes(app: FastifyInstance) {
     const input = z.object({ fromId: z.string().min(1), toId: z.string().min(1), amount: positive, exchangeRate: positive.optional(), note: note.optional(), requestKey: z.string().min(8).max(120) }).strict().parse(request.body);
     return transferFunds(request.appUser.storeId, { ...input, fromId: input.fromId!, toId: input.toId!, amount: input.amount!, requestKey: input.requestKey! }, await loadActor(request.appUser.userId));
   });
-  app.post('/movements/:id/void', async request => { owner(request); requireMember(request); await voidMovement(request.appUser.storeId, id(request), await loadActor(request.appUser.userId)); return { ok: true }; });
+  app.post('/movements/:id/void', async request => { owner(request); requireMember(request); await voidMovement(request.appUser.storeId, id(request), await loadActor(request.appUser.userId), readReason(request.body)); return { ok: true }; });
   app.patch('/movements/:id/category', async request => { owner(request); requireMember(request); const input = z.object({ category }).strict().parse(request.body); await changeCategory(request.appUser.storeId, id(request), input.category, await loadActor(request.appUser.userId)); return { ok: true }; });
   app.post('/sessions/:id/count', async request => {
     requireMember(request);

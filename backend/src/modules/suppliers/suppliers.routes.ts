@@ -1,3 +1,4 @@
+import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -51,7 +52,7 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.delete("/:id", { preHandler: guard }, async (request, reply) => {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const archived = await archiveSupplier(request.appUser.storeId, id, await loadActor(request.appUser.userId));
+    const archived = await archiveSupplier(request.appUser.storeId, id, await loadActor(request.appUser.userId), readReason(request.body));
     if (!archived) return reply.code(404).send({ error: "No encontramos ese proveedor" });
     return reply.code(204).send();
   });

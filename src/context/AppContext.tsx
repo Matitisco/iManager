@@ -68,10 +68,10 @@ interface AppState extends ReturnType<typeof useGettingStartedState>, ReturnType
   updateSaleOperation: (id: string, input: OperationInput) => Promise<OperationResult>;
   updateTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
   confirmTradeOperation: (source: OperationSource, id: string, input: OperationInput) => Promise<OperationResult>;
-  cancelTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
+  cancelTradeOperation: (source: OperationSource, id: string, reason?: string) => Promise<OperationResult>;
   fetchSaleOperation: (id: string) => Promise<OperationResult>;
   fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
-  updateSale: (sale: Sale) => Promise<OperationResult | void>;
+  updateSale: (sale: Sale, reason?: string) => Promise<OperationResult | void>;
   deleteSale: (id: string, reason?: string) => Promise<OperationResult | void>;
   addProduct: (product: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
@@ -607,16 +607,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
       return confirmTradeOperation(currentUser, source, id, { ...input, exchangeRate });
     }, true);
-  const runCancelSaleOperation = (id: string) =>
-    runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id), true);
-  const runCancelTradeOperation = (source: OperationSource, id: string) =>
-    runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id), true);
+  const runCancelSaleOperation = (id: string, reason?: string) =>
+    runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id, reason), true);
+  const runCancelTradeOperation = (source: OperationSource, id: string, reason?: string) =>
+    runOperation(source, (currentUser) => cancelTradeOperation(currentUser, source, id, reason), true);
   const runFetchSaleOperation = (id: string) =>
     runOperation('sales', (currentUser) => fetchSaleOperation(currentUser, id), false, `sale:${id}`);
   const runFetchTradeOperation = (source: OperationSource, id: string) =>
     runOperation(source, (currentUser) => fetchTradeOperation(currentUser, source, id), false, `trade:${id}`);
 
-  const updateSale = async (updatedSale: Sale) => {
+  const updateSale = async (updatedSale: Sale, reason?: string) => {
     if (!user) return;
     if (!backendSalesEnabled) {
       throw new Error(
@@ -626,7 +626,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const previous = sales.find((sale) => sale.id === updatedSale.id);
     if (previous?.integratedOperation || previous?.tradeInId) {
-      if (updatedSale.status === 'CANCELADA') return await runCancelSaleOperation(updatedSale.id);
+      if (updatedSale.status === 'CANCELADA') return await runCancelSaleOperation(updatedSale.id, reason);
       else return await runUpdateSaleOperation(updatedSale.id, {
         clientId: updatedSale.clientId || null,
         clientName: updatedSale.clientName || null,
@@ -640,7 +640,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         customFields: updatedSale.customFields,
       });
     }
-    const backendSale = await updateBackendSale(user, updatedSale);
+    const backendSale = await updateBackendSale(user, updatedSale, reason);
     setSales(prev => prev.map(sale => sale.id === backendSale.id ? backendSale : sale));
     noteLocalMutation();
     if (previous && previous.productId !== backendSale.productId) {
@@ -663,7 +663,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const existingSale = sales.find((sale) => sale.id === id);
     const cancelled = existingSale?.status === 'CANCELADA';
     if (!cancelled && (existingSale?.integratedOperation || existingSale?.tradeInId)) {
-      return await runCancelSaleOperation(id);
+      return await runCancelSaleOperation(id, reason);
     }
     await deleteBackendSale(user, id, reason);
 
@@ -952,7 +952,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const existing = tradeIns.find((trade) => trade.id === id);
     if (existing && isActiveTradeOperation(existing)) {
-      return await runCancelTradeOperation('tradeins', id);
+      return await runCancelTradeOperation('tradeins', id, reason);
     }
     await deleteBackendTradeIn(user, id, reason);
     setTradeIns(prev => prev.filter(t => t.id !== id));

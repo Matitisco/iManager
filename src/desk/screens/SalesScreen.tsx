@@ -1,3 +1,5 @@
+import { useArchivedRows } from '../use-archived-rows';
+import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { toUserMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
@@ -19,7 +21,6 @@ import {
   inPeriod,
   paymentLabel,
   periodBounds,
-  isVoidSale,
   saleCode,
   saleEquipment,
   statusLabel,
@@ -49,7 +50,7 @@ import { rememberVoidedSales } from '../archive-cache';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, user, listsLoaded } = useAppContext();
+  const { sales, clients, inventory, updateSale, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
@@ -83,7 +84,7 @@ export function SalesScreen() {
   const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
   const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
   const [columns, setColumns] = useNavigationState<SaleColumnFilters>('Sales.columns', EMPTY_SALE_FILTERS);
-  const [voidedSales, setVoidedSales] = useState<Sale[]>([]);
+  const { rows: voidedSales, error: archiveError } = useArchivedRows(sales, fetchVoidedSales, rememberVoidedSales);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('sales');
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'sales' && trade.confirmationStatus === 'PENDING');
@@ -100,18 +101,8 @@ export function SalesScreen() {
     () => sales.filter((sale) => sale.status !== 'CANCELADA' && inWindow(sale)),
     [sales, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone],
   );
-  const wantVoided = columns.statuses.includes('ANULADA');
-  useEffect(() => {
-    if (!wantVoided || !user) return;
-    let active = true;
-    fetchVoidedSales(user).then((rows) => {
-      if (!active) return;
-      setVoidedSales(rows);
-      rememberVoidedSales(rows);
-    }).catch(() => { if (active) setVoidedSales([]); });
-    return () => { active = false; };
-  }, [wantVoided, user]);
-  const salePool = wantVoided ? [...sales, ...voidedSales.filter((row) => !sales.some((sale) => sale.id === row.id))] : sales;
+
+  const salePool = mergeRecordRows(sales, voidedSales);
   const listed = useMemo(() => salePool.filter((sale) => inWindow(sale)), [salePool, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => sale.status !== 'CANCELADA' && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
   const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
@@ -144,8 +135,8 @@ export function SalesScreen() {
   });
   const rows = sellerPool.filter((sale) => matchesSaleColumns(sale, columns, rowLabels(sale)));
   const statusOn = phone && statusPill !== 'Todos';
-  const narrowed = statusOn ? rows.filter((sale) => statusLabel(sale.status) === statusPill) : rows;
-  const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(sale.status) === statusPill) : sellerPool;
+  const narrowed = statusOn ? rows.filter((sale) => statusLabel(sale.voidedAt ? 'ANULADA' : sale.status) === statusPill) : rows;
+  const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(sale.voidedAt ? 'ANULADA' : sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
   const shown = onlyNotices ? sales.filter((sale) => notices.reasonFor(sale.id)) : narrowed;
   const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${onlyNotices ? 'notices' : 'all'}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
@@ -176,6 +167,7 @@ export function SalesScreen() {
 
   return (
     <div className={`dscreen mobile-list-screen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
+      {archiveError ? <p className="ferr" role="alert">{archiveError}</p> : null}
       <ScreenTitle
         title="Ventas"
         subtitle={subtitle}
@@ -196,7 +188,7 @@ export function SalesScreen() {
           <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
           <MobileListOptions active={[columns.sellers.length ? 'Vendedor' : '', statusOn ? statusPill : ''].filter(Boolean).join(' · ')}>
           <SellerChip phone label={sellerChipLabel(columns.sellers, sellerOptions, true)} active={columns.sellers.length > 0} onOpen={() => { setSellerDraft(columns.sellers); setSellerOpen(true); }} onClear={() => setColumn({ sellers: [] })} />
-          <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Cancelada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
+          <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Cancelada', 'Anulada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
           <button className="dbtn s" type="button" disabled={shown.length === 0 || selection.mode} onClick={() => selection.start()}>Seleccionar</button>
           </MobileListOptions>
         </div>
@@ -254,7 +246,7 @@ export function SalesScreen() {
           explanation: deleteCancelled
             ? 'Se anulan las ventas canceladas. No se pueden restaurar. Se conservan el stock, los canjes, los saldos y los pagos.'
             : 'Se cancelarán las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restaurarán stock y saldos según las reglas de cada operación; el historial se conserva.',
-          execute: (sale) => sale.status === 'CANCELADA' ? deleteSale(sale.id) : updateSale({ ...sale, status: 'CANCELADA' }),
+          execute: (sale, reason) => sale.status === 'CANCELADA' ? deleteSale(sale.id, reason) : updateSale({ ...sale, status: 'CANCELADA' }, reason),
           unavailable: (sale) => mixedSelection
             ? 'Seleccioná solo ventas canceladas para eliminar, o ventas activas para cancelar.'
             : sale.status !== 'CANCELADA' && !sale.integratedOperation && !sale.tradeInId
@@ -275,10 +267,10 @@ export function SalesScreen() {
               {page.visible.map((sale) => {
                 const reason = notices.reasonFor(sale.id);
                 return (
-                  <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${isVoidSale(sale) ? ' cancelled' : ''}`}>
+                  <div key={sale.id} className={`sale-node${sale.status === 'PENDIENTE' ? ' pending' : ''}${isVoidRow(sale) ? ' cancelled' : ''}`}>
                     <PhoneRecord
                       selection={selection.row(sale.id, saleCode(sale))}
-                      className={isVoidSale(sale) ? 'is-void' : undefined}
+                      className={isVoidRow(sale) ? 'is-void' : undefined}
                       reason={reason}
                       onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
@@ -367,7 +359,7 @@ export function SalesScreen() {
                     selection={selection.row(sale.id, saleCode(sale))}
                     key={sale.id}
                     as="tr"
-                    className={[notices.reasonFor(sale.id) ? 'novedad' : '', isVoidSale(sale) ? 'is-void' : ''].filter(Boolean).join(' ') || undefined}
+                    className={[notices.reasonFor(sale.id) ? 'novedad' : '', isVoidRow(sale) ? 'is-void' : ''].filter(Boolean).join(' ') || undefined}
                     onActivate={() => { notices.markVisible([sale.id]); open({ type: 'sale', id: sale.id }); }}
                     onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                   >

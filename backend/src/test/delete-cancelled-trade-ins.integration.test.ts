@@ -106,7 +106,8 @@ describe("delete cancelled trade-ins", () => {
     const { sale, tradeIn } = created.json();
     const url = `/api/trade-ins/${tradeIn.id}`;
 
-    expect((await app.inject({ method: "DELETE", url, headers })).statusCode).toBe(204);
+    expect((await app.inject({ method: "DELETE", url, headers, payload: { reason: "Duplicado" } })).statusCode).toBe(204);
+    expect(await prisma.auditEvent.findFirst({ where: { entityId: tradeIn.id, action: "trade.cancelled" } })).toMatchObject({ reason: "Duplicado" });
     expect(await prisma.tradeIn.findUniqueOrThrow({ where: { id: tradeIn.id } })).toMatchObject({ confirmationStatus: "CANCELLED", status: "CANCELADO" });
     expect(await prisma.sale.findUniqueOrThrow({ where: { id: sale.id } })).toMatchObject({ status: "CANCELADA" });
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } })).toMatchObject({ status: "DISPONIBLE" });

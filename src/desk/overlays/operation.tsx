@@ -639,7 +639,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         error={error}
         onClose={() => { if (!busy) setConfirmCancel(false); }}
         currency={sale.amountCurrency}
-        onOk={() => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }), 'Operación cancelada'); }}
+        onOk={reason => { void run(async () => await updateSale({ ...sale, status: 'CANCELADA' }, reason), 'Operación cancelada'); }}
       />
     );
   }

@@ -1,3 +1,4 @@
+import { readReason } from "../audit/archive.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -55,7 +56,7 @@ export async function expenseRoutes(app: FastifyInstance) {
     requireMember(request);
     if (!denyUnlessOwner(request, reply)) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const archived = await archiveExpense(request.appUser.storeId, id, await loadActor(request.appUser.userId));
+    const archived = await archiveExpense(request.appUser.storeId, id, await loadActor(request.appUser.userId), readReason(request.body));
     if (!archived) return reply.code(404).send({ error: "No encontramos ese gasto" });
     return reply.code(204).send();
   });

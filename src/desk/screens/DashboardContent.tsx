@@ -11,7 +11,7 @@ import {
   isInStock,
   parseAppDate,
   paymentLabel,
-  isVoidSale,
+  isVoidRow,
   saleCode,
   saleEquipment,
   tradeClientLabel,
@@ -234,7 +234,7 @@ export function DashboardContent() {
               {recent.map((sale) => (
                 <PhoneRecord
                   key={sale.id}
-                  className={isVoidSale(sale) ? 'is-void' : undefined}
+                  className={isVoidRow(sale) ? 'is-void' : undefined}
                   onActivate={() => open({ type: 'sale', id: sale.id })}
                   onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}
                 >
@@ -253,7 +253,7 @@ export function DashboardContent() {
               <tbody>
                 {recent.map((sale) => {
                   return (
-                    <PressTarget key={sale.id} as="tr" className={isVoidSale(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
+                    <PressTarget key={sale.id} as="tr" className={isVoidRow(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
                       <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td>
                       <td>{saleBuyer(sale, clients)}</td>
                       <td>{saleEquipment(sale, inventory)}</td>
