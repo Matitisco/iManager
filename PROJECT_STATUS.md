@@ -3,6 +3,12 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 punto 5 — Capacidad duplicada al registrar equipo — 2026-10-22
+
+- El selector compartido de alta/edición agrupa capacidades GB/TB equivalentes de base, catálogo e inventario, ignorando espacios y mayúsculas de unidad. Conserva etiquetas/orden del catálogo y el valor histórico al editar; capacidades personalizadas distintas siguen disponibles. Se retiraron los subtítulos redundantes del formulario.
+- Validación: cinco regresiones reproducidas antes del fix, 56 pruebas Vitest relevantes aprobadas (10 nuevas), TypeScript frontend/backend y diff check aprobados. Doce capturas locales desktop/iPhone 13 en `.shots-483/`, cero pasos fallidos. Mockup previo `.wireframe-483.png`; OpenSpec `fix-equipment-capacity-483`.
+- Script `.shots-483.mjs` con puerto 4210 por defecto; verificado contra este worktree en 4213 porque 4210 sirve otro checkout. Sin cambios de backend/Prisma, build, formularios enviados a DB, commit, push ni PR; puntos 6, 8 y 14 fuera del alcance.
+
 ## Issue #375 — Filtros de columnas y Compras del cliente — 2026-10-22
 
 - Opciones de filtros compartidos en una línea, con elipsis y contador separado; menú contenido en el viewport. Compras muestra IMEI completo, tres registros y modal superpuesto; vista móvil completa con regreso a la ficha.
