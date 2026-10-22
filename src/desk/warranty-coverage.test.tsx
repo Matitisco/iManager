@@ -82,7 +82,7 @@ describe('warranty screens', () => {
     const block = screen.getByTestId('client-purchases');
     expect(block).toBeVisible();
     expect(block).toHaveTextContent('iPhone 13');
-    expect(block).toHaveTextContent(/Vigente/);
+    expect(block).toHaveTextContent(/Por vencer · hasta/);
     expect(screen.queryByRole('region', { name: 'Garantías' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cubierto')).not.toBeInTheDocument();
     restore();

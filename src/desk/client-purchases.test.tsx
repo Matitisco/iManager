@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, RepairOrder, Sale, TradeIn } from '../types';
 import { ExchangeProvider } from './exchange';
 import { ClientPurchases } from './ClientPurchases';
-import { clientPurchases, purchaseTotals } from './client-purchases';
+import { clientPurchases, purchaseTotals, purchaseWarranty } from './client-purchases';
 
 const sellers = [{ id: 'lucia', name: 'Lucía', role: 'STAFF' as const }];
 const inventory: Product[] = [{
@@ -60,7 +60,7 @@ const rows = {
 function renderPurchases() {
   return render(
     <ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}>
-      <ClientPurchases clientId="c1" sales={rows.sales} tradeIns={rows.tradeIns} repairs={rows.repairs} inventory={inventory} sellers={sellers} />
+      <ClientPurchases clientName="Nicolás Pereyra" clientId="c1" sales={rows.sales} tradeIns={rows.tradeIns} repairs={rows.repairs} inventory={inventory} sellers={sellers} />
     </ExchangeProvider>,
   );
 }
@@ -72,65 +72,102 @@ describe('client purchases', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('keeps warranties, excludes trade-ins from the totals and shows the full IMEI', async () => {
+  it('shows three rows with full IMEI, keeps annulled records and opens a separate full list', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPurchases();
+    const preview = screen.getByTestId('client-purchases');
     const stats = screen.getByTestId('client-purchase-stats');
-    expect(stats).toHaveTextContent('Total gastado');
     expect(stats).toHaveTextContent('US$ 2.585');
-    expect(stats).toHaveTextContent('Compras');
     expect(within(stats).getByText('7')).toBeInTheDocument();
     expect(stats).toHaveTextContent('2 vigentes');
     expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('8');
-    expect(screen.queryByText('Funda + vidrio')).not.toBeInTheDocument();
-    expect(screen.queryByText('Cancelado')).not.toBeInTheDocument();
+    expect(within(preview).getAllByTestId(/^purchase-(sale|trade|repair)-/)).toHaveLength(3);
+    const annulled = screen.getByTestId('purchase-sale-cancelled');
+    expect(annulled).toHaveClass('annulled');
+    expect(annulled).toHaveTextContent('Anulada');
+    expect(annulled.querySelector('.buy-pill')).toHaveClass('annulled');
+    expect(screen.getByTestId('purchase-sale-s1')).toHaveTextContent('IMEI 350000000004821');
+    expect(screen.getByTestId('purchase-sale-s1')).toHaveTextContent('Vigente · hasta 15/12/2026');
 
-    const saleRow = screen.getByTestId('purchase-sale-s1');
-    expect(saleRow).toHaveTextContent('iPhone 15 Pro · 256GB');
-    expect(saleRow).toHaveTextContent('IMEI ···4821');
-    expect(saleRow).toHaveTextContent('Lucía');
-    expect(saleRow).toHaveTextContent('US$ 980');
-    expect(saleRow).toHaveTextContent(/Vigente · /);
-    await user.click(within(saleRow).getByRole('button'));
-    expect(screen.getByTestId('purchase-detail-sale-s1')).toHaveTextContent('IMEI 350000000004821');
-    expect(screen.getByTestId('purchase-detail-sale-s1')).toHaveTextContent('Vigente hasta el');
-
-    const trade = screen.getByTestId('purchase-trade-t1');
-    expect(trade).toHaveTextContent('- US$ 260');
-    expect(trade).toHaveTextContent('recibido');
-    expect(trade.querySelector('.spill')).toBeNull();
-
-    const pending = screen.getByTestId('purchase-repair-r2');
-    expect(pending).toHaveTextContent('iPhone 11 · pin de carga');
-    expect(pending).toHaveTextContent('Al entregar');
-    expect(pending).toHaveTextContent('US$ 180');
-    await user.click(within(pending).getByRole('button'));
-    expect(screen.getByTestId('purchase-detail-repair-r2')).toHaveTextContent('empieza al entregar');
-
-    const done = screen.getByTestId('purchase-repair-r1');
-    expect(done).toHaveTextContent('Martín (técnico)');
-    expect(done).toHaveTextContent(/Vigente · /);
-
-    await user.click(screen.getByRole('button', { name: 'Canjes' }));
-    expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('1');
-    expect(screen.getByText('iPhone 12 · 128GB')).toBeInTheDocument();
-    expect(screen.queryByText('iPhone 15 Pro · 256GB')).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('purchases-more'));
+    const dialog = screen.getByRole('dialog', { name: 'Compras · Nicolás Pereyra' });
+    expect(within(dialog).getAllByTestId(/^purchase-(sale|trade|repair)-/)).toHaveLength(10);
+    expect(within(dialog).getByTestId('purchase-trade-t1')).toHaveTextContent('IMEI 350000000000937');
+    expect(within(dialog).getByTestId('purchase-trade-t1')).toHaveTextContent('- US$ 260');
+    expect(within(dialog).getByTestId('purchase-trade-t1').querySelector('.spill')).toBeNull();
+    expect(within(dialog).getByTestId('purchase-repair-r1')).toHaveTextContent('Por vencer · hasta 11/11/2026');
+    expect(within(dialog).getByTestId('purchase-sale-s2')).toHaveTextContent('Vencida · 14/10/2026');
+    await user.click(within(dialog).getByRole('button', { name: 'Canjes' }));
+    expect(within(dialog).getAllByTestId(/^purchase-/)).toHaveLength(2);
+    expect(within(dialog).getByText('1', { selector: '.buy-count' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('purchases-more')).toHaveFocus();
+    expect(within(preview).getAllByTestId(/^purchase-(sale|trade|repair)-/)).toHaveLength(3);
 
     await user.click(screen.getByRole('button', { name: 'Reparaciones' }));
     expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('2');
-    expect(screen.getByText('iPhone 13 · cambio de batería')).toBeInTheDocument();
     expect(screen.getByText('Al entregar')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Ventas' }));
-    expect(screen.queryByText('iPhone 12 · 128GB')).not.toBeInTheDocument();
-    expect(screen.getAllByText('Sin garantía').length).toBeGreaterThan(0);
-
-    await user.click(screen.getByRole('button', { name: 'Todas' }));
-    await user.click(screen.getByTestId('purchases-more'));
-    expect(screen.getByText('Funda + vidrio')).toBeInTheDocument();
-    expect(screen.getByText('iPhone 13 · 128GB')).toBeInTheDocument();
-    expect(screen.getAllByText(/Vencida · /).length).toBeGreaterThan(0);
     expect(screen.queryByTestId('purchases-more')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { status: 'CANCELADA' }, { status: 'ANULADA' }, { status: 'COMPLETADA', voidedAt: '2026-10-18' },
+  ])('retains annulled sales but excludes them from every aggregate: %j', (voidFields) => {
+    const purchases = clientPurchases({ clientId: 'c1', sales: [sale('valid', { amount: 42 }), sale('void', { amount: 9999, ...voidFields })], tradeIns: [], repairs: [], inventory, sellers });
+    expect(purchases).toHaveLength(2);
+    expect(purchases.find(row => row.annulled)).toMatchObject({ countsInTotals: false, warranty: null });
+    expect(purchaseTotals(purchases)).toEqual({ count: 1, activeWarranties: 1, spent: [{ currency: 'USD', amount: 42 }] });
+  });
+
+  it.each([
+    ['18/11/2026', 'vigente'], // 31 days
+    ['17/11/2026', 'por-vencer'], // inclusive 30 days
+    ['18/10/2026', 'por-vencer'], // inclusive expiry day
+    ['17/10/2026', 'vencida'],
+  ])('computes coverage on calendar dates: %s is %s', (until, expected) => {
+    const view = purchaseWarranty(expected === 'vencida' ? 'vencida' : 'vigente', until, 'Cobertura', new Date(2026, 9, 18, 23, 59));
+    expect(view.state).toBe(expected);
+    expect(view.badge).toContain(until);
+  });
+
+  it.each([
+    ['18/10/2026', 31, 'vigente'],
+    ['18/10/2026', 30, 'por-vencer'],
+    ['18/09/2026', 30, 'por-vencer'],
+    ['17/09/2026', 30, 'vencida'],
+    ['18/10/2026', 0, 'sin'],
+  ])('derives sale coverage from its date and duration: %s + %i', (date, warrantyDays, expected) => {
+    const purchases = clientPurchases({ clientId: 'c1', sales: [sale('dated', { date, warrantyDays })], tradeIns: [], repairs: [], inventory: [], sellers: [] });
+    expect(purchases[0].warranty?.state).toBe(expected);
+  });
+
+  it('handles no coverage and pending delivery without inventing a date', () => {
+    expect(purchaseWarranty('sin', null, 'Sin garantía')).toMatchObject({ state: 'sin', badge: 'Sin garantía' });
+    expect(purchaseWarranty('pendiente', null, 'Al entregar')).toMatchObject({ state: 'pendiente', badge: 'Al entregar' });
+  });
+
+  it('shows the approved empty state and zero totals', () => {
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}><ClientPurchases clientName="Julieta Ramos" clientId="empty" sales={[]} tradeIns={[]} repairs={[]} inventory={[]} sellers={[]} /></ExchangeProvider>);
+    expect(screen.getByText('Todavía no tiene compras')).toBeInTheDocument();
+    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('US$ 0');
+    expect(screen.getByText('0 vigentes')).toBeInTheDocument();
+    expect(screen.queryByTestId('purchases-more')).not.toBeInTheDocument();
+  });
+
+  it('opens mobile purchases full screen with a return to the client', async () => {
+    const matchMedia = vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({ matches: true, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPurchases();
+      await user.click(screen.getByTestId('purchases-more'));
+      const dialog = screen.getByRole('dialog', { name: 'Compras' });
+      expect(dialog).toHaveClass('buy-sheet');
+      expect(within(dialog).getByText('Nicolás Pereyra')).toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Volver a la ficha del cliente' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('purchases-more')).toHaveFocus();
+    } finally { matchMedia.mockRestore(); }
   });
 
   it('sums each currency when the store cannot convert them', () => {

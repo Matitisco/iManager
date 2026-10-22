@@ -1,7 +1,14 @@
 # iManager - Project Status
 
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
-**Ultima actualizacion: 2026-10-21**
+**Ultima actualizacion: 2026-10-22**
+
+## Issue #375 — Filtros de columnas y Compras del cliente — 2026-10-22
+
+- Opciones de filtros compartidos en una línea, con elipsis y contador separado; menú contenido en el viewport. Compras muestra IMEI completo, tres registros y modal superpuesto; vista móvil completa con regreso a la ficha.
+- Garantías vigentes, por vencer en hasta 30 días calendario y vencidas con fecha completa. Anuladas visibles en rosa con importe tachado y pill; excluidas de importes, contadores y garantías. Carga de anuladas/productos archivados y vendedores al abrir Clientes; recálculo histórico backend excluye CANCELADA/ANULADA y voidedAt, incluso al modificar únicamente el estado.
+- Validación: TypeScript/lint frontend/backend, 1.257 pruebas frontend y 520 unitarias backend aprobadas. Capturas y pruebas de componentes a 390×900 y 1440×900 en `docs/issue-375/`. Sin nuevas pruebas E2E, build, migraciones ni escrituras a bases reales. OpenSpec: `fix-client-purchases-375`. Cambios en working tree, sin commit, push ni PR.
+
 
 ## Issue #466 — Invitación de instalación PWA — 2026-10-21
 

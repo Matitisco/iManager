@@ -1,0 +1,4 @@
+- [x] Corregir opciones y posición del filtro compartido con pruebas de renderizado.
+- [x] Implementar estados de cobertura y exclusión de anuladas con pruebas unitarias.
+- [x] Implementar preview y modal de compras con pruebas de componentes y layout móvil/desktop.
+- [x] Verificar typecheck/lint y suites unitarias frontend/backend sin build.
