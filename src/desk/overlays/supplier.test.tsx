@@ -107,6 +107,19 @@ describe('formulario de proveedor', () => {
 });
 
 describe('ficha de proveedor', () => {
+  it('preserves full long contact values in titles when mobile text is truncated', async () => {
+    const email = `${'compras'.repeat(24)}@mayoristacentro.example.com`;
+    const phone = '+54 261 555 0106 / +54 261 555 0107 / +54 261 555 0108';
+    fetchSupplier.mockResolvedValue({ ...supplier, email, phone });
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    for (const value of [email, phone]) {
+      const contact = screen.getByText(value);
+      expect(contact.tagName).toBe('DD');
+      expect(contact).toHaveAttribute('title', value);
+      expect(contact.closest('.supplier-contact')).not.toBeNull();
+    }
+  });
   it('uses a silent skeleton until the detail resolves', async () => {
     const pending = deferred<SupplierFile>();
     fetchSupplier.mockReturnValue(pending.promise);

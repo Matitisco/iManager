@@ -8,6 +8,10 @@ La ficha de Proveedor SHALL separar contacto, notas y compras con espaciado expl
 - **THEN** los valores y títulos se ajustan al ancho sin solaparse, el IMEI permanece completo y las compras tienen padding interno y divisores
 - **AND** el cuerpo permite scroll y el pie conserva Registrar equipo y Más acciones para Subir stock, Editar y Archivar
 
+#### Scenario: Contacto largo en móvil
+- **WHEN** se abre una ficha con email o teléfono largo en un viewport de hasta 760 px
+- **THEN** cada valor ocupa una sola línea con elipsis, sin solaparse con su etiqueta ni desbordar la ficha, y conserva el valor completo en el atributo title
+
 #### Scenario: Costos y archivo
 - **WHEN** un usuario sin permiso financiero consulta una ficha o se abre un proveedor archivado
 - **THEN** se conserva la restricción de costos existente y el archivado ofrece Restaurar en lugar de acciones de alta o edición

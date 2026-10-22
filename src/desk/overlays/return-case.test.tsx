@@ -95,7 +95,7 @@ describe('cambio de estado de reclamo', () => {
     expect(screen.queryByLabelText('Nota (opcional)')).not.toBeInTheDocument();
   });
 });
-describe('editar y eliminar reclamo', () => {
+describe('editar y anular reclamo', () => {
   it('prefills fields without needing the original sale loaded, and PATCHes only changed values', async () => {
     ctx.returns = [{ ...claim, diagnosis: 'Diagnóstico previo' }];
     mount(<ReturnForm id="claim" />);
@@ -116,8 +116,11 @@ describe('editar y eliminar reclamo', () => {
     expect(screen.getByLabelText('Diagnóstico')).toHaveValue('Batería');
     expect(close).not.toHaveBeenCalled();
   });
-  it('does not delete before confirmation or after cancellation', async () => {
+  it('asks to Anular and does not persist before confirmation or after cancellation', async () => {
     mount(<ReturnDelete id="claim" />);
+    expect(screen.getByRole('dialog', { name: '¿Anular reclamo?' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
+    expect(screen.queryByText(/Eliminar/)).not.toBeInTheDocument();
     expect(screen.getByText(/fuera de los totales/)).toBeInTheDocument();
     expect(ctx.archiveReturn).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
@@ -127,12 +130,13 @@ describe('editar y eliminar reclamo', () => {
   it('keeps the confirmation open on failure and allows retry', async () => {
     ctx.archiveReturn.mockRejectedValueOnce(new Error('No se guardó'));
     mount(<ReturnDelete id="claim" />);
-    await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('No se guardó');
     expect(close).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(close).toHaveBeenCalledOnce());
     expect(ctx.archiveReturn).toHaveBeenCalledTimes(2);
+    expect(ctx.archiveReturn).toHaveBeenLastCalledWith('claim');
   });
   it('explains that an existing settlement remains recorded', () => {
     ctx.returns = [{ ...claim, status: 'RESUELTO', resolution: 'REINTEGRO' }];
