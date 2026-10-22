@@ -53,6 +53,10 @@ describe('history copy', () => {
     expect(historyRecord({ entityLabel: 'iPhone 15 Pro 256GB · IMEI …5673', entityIdentifier: 'IMEI 356789012345673', target: '' }).identifier).toBe('IMEI 356789012345673');
   });
 
+  it('conserva un único separador cuando la capacidad ya está separada en la etiqueta guardada', () => {
+    expect(historyRecord({ entityLabel: 'iPhone 15 Pro · 256GB', target: '' }).title).toBe('iPhone 15 Pro · 256GB');
+  });
+
   it('hides the record button when the record cannot be opened', () => {
     expect(historyRecordNote({ legacy: true, recordState: 'gone', section: 'sales' })).toBe('Movimiento anterior al historial: no tiene detalle');
     expect(historyRecordNote({ legacy: false, recordState: 'gone', section: 'sales' })).toBe('El registro ya no existe');

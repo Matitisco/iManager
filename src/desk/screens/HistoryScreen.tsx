@@ -1,4 +1,7 @@
 import { ListSkeleton } from '../list-skeleton';
+import { ChevronDown } from 'lucide-react';
+import { AuditDeviceIcon } from './audit-device-icon';
+import './history.css';
 import { isSectionHidden } from '../../config/hiddenSections';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -14,9 +17,10 @@ import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
 import { groupHistoryDays, historyDetailRows, historyRecord, historyRecordNote, historySentence } from '../history-copy';
 import { formatArDateTime, formatArTime } from '../../lib/ar-date';
 import { sectionAllowed } from '../nav';
-import { avatarTone, initials } from '../format';
+import { initials } from '../format';
 import { usePhoneLayout } from '../section-notices';
 import { ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { GroupTabs } from '../group-tabs';
 import { NoSectionAccess } from './NoSectionAccess';
 
 const PERIODS = [
@@ -49,8 +53,9 @@ function FilterChip({ label, emptyLabel, value, onChange, options }: {
 }) {
   const current = options.find((option) => option.id === value);
   return (
-    <label className={`gchip history-chip${value ? ' on' : ''}`}>
+    <label className={`history-chip${value ? ' on' : ''}`}>
       <span>{value && current ? current.label : <><span className="history-filter-desktop">{emptyLabel}</span><span className="history-filter-phone">{label}</span></>}</span>
+      <ChevronDown size={12} aria-hidden="true" />
       <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">{emptyLabel}</option>
         {options.filter((option) => option.id).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
@@ -147,7 +152,7 @@ export function HistoryScreen() {
   }
 
   return <div className="dscreen history-screen" data-testid="history-screen">
-    <ScreenTitle title="Historial" desktop={<SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o IMEI" />} />
+    <ScreenTitle title="Historial" navigation={<GroupTabs showPending={false} />} desktop={<SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o IMEI" />} />
     {phone ? <SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o IMEI" /> : null}
     <div className="dbar history-filters">
       <FilterChip label="Persona" emptyLabel="Todas las personas" value={actorId} onChange={setActorId} options={actors.map((actor) => ({ id: actor.userId, label: `${actor.name}${actor.removed ? ' (salió)' : ''}` }))} />
@@ -163,15 +168,15 @@ export function HistoryScreen() {
       {filtered ? <button className="dbtn s" type="button" onClick={() => { setQuery(''); setActorId(''); setPeriod('30'); setGroup(''); setSection(''); }}>Limpiar filtros</button> : null}
     </div> : null}
     {!loading && !error ? groups.map((day) => <section className="history-day" key={day.key} aria-label={day.label}>
-      <div className="sale-sec"><span>{day.label.toUpperCase()}</span><span>{day.rows.length} {day.rows.length === 1 ? 'movimiento' : 'movimientos'}</span></div>
-      <div className="card history-list">
+      <div className="history-day-heading"><b>{day.label.replace(/ 20\d{2}$/, match => day.key.startsWith(String(new Date().getFullYear())) ? '' : match)}</b><span aria-label={`${day.rows.length} ${day.rows.length === 1 ? 'movimiento' : 'movimientos'}`}>{day.rows.length}</span></div>
+      <div className="history-list">
         <div className="history-columns" aria-hidden="true"><span>Persona</span><span>Acción</span><span>Registro</span><span>Hora</span><span /></div>
         {day.rows.map((event) => {
           const record = historyRecord(event);
           return <button key={event.id} type="button" className="history-row" data-entity={event.entityType} aria-label={`${event.actorName || 'Alguien'} · ${event.title} · ${record.title} · ${formatArTime(event.createdAt)}`} title={historySentence(event)} onClick={() => setSelected(event)}>
-            <span className="history-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b><time className="history-phone-time" dateTime={event.createdAt}> · {formatArTime(event.createdAt)}</time></span>
+            <span className="history-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b></span>
             <span className="history-action">{event.title}</span>
-            <span className={`history-record${!record.identifier && !event.entitySubtitle ? ' history-record-inline' : ''}`}><b>{record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span>{record.identifier || event.entitySubtitle}</span> : null}<span className="history-section">{event.sectionLabel}</span></span></span>
+            <span className="history-record"><b>{record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span>{record.identifier || event.entitySubtitle}</span> : null}</span></span>
             <time className="history-time" dateTime={event.createdAt}>{formatArTime(event.createdAt)}</time>
             <svg className="history-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>;
@@ -186,7 +191,10 @@ export function HistoryScreen() {
 }
 
 function HistoryAvatar({ name }: { name: string }) {
-  return <span className={`av-c ${name === 'Sistema' ? 'k' : avatarTone(name || 'S')}`} aria-hidden="true">{initials(name || 'S')}</span>;
+  let hash = 0;
+  for (const character of name || 'S') hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  const tone = ['p', 'b', 'g'][hash % 3];
+  return <span className={`av-c ${name === 'Sistema' ? 'k' : tone}`} aria-hidden="true">{initials(name || 'S')}</span>;
 }
 
 function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () => void }) {
@@ -195,6 +203,7 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState('');
   const when = formatArDateTime(event.createdAt);
+  const today = when.slice(0, 10) === formatArDateTime(new Date()).slice(0, 10);
   const rows = historyDetailRows(event);
   const note = historyRecordNote(event);
   const record = historyRecord(event);
@@ -224,16 +233,16 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     catch (err) { setOpenError(err instanceof Error ? err.message : 'No se pudo abrir el registro'); }
     finally { setOpening(false); }
   };
-  return <Sheet className="history-detail" title={event.title} titleAccessory={<span className="history-section history-detail-section">{event.sectionLabel}</span>} onClose={onClose} busy={opening} footer={<div className="history-detail-actions">
+  return <Sheet className="history-detail" title={event.title} titleAccessory={<span className="history-detail-meta">{event.sectionLabel} · <time dateTime={event.createdAt}><span className="history-detail-date">{when.replace(' ', ' · ')}</span><span className="history-detail-date-phone">{today ? `Hoy ${formatArTime(event.createdAt)}` : when.replace(' ', ' · ')}</span></time></span>} onClose={onClose} busy={opening} footer={<div className="history-detail-actions">
     <button className="btn2 s" type="button" disabled={opening} onClick={onClose}>Cerrar</button>
     {canOpen ? <button className="btn2 p" type="button" disabled={opening} onClick={() => void openRecord()}>
       {event.recordState === 'archived' ? 'Ver en archivados' : event.entityType === 'inventory' ? 'Ver equipo' : 'Ver registro'}
     </button> : null}
   </div>}>
-    <div className="history-detail-record"><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div>
-    <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><div><b>{event.actorName || 'Alguien'}</b><p>{event.actorRoleLabel ? `${event.actorRoleLabel} · ` : ''}<time dateTime={event.createdAt}>{when.replace(' ', ' · ')}</time></p></div></div>
-    {rows.length ? <table className="history-diff"><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
-      {rows.map((change, index) => <tr key={`${change.label}-${index}`}><th scope="row">{change.label}</th><td data-label="Antes">{change.before ?? '—'}</td><td data-label="Después">{change.after ?? '—'}</td></tr>)}
+    <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><div><b>{event.actorName || 'Alguien'}</b>{event.actorRoleLabel ? <p>{event.actorRoleLabel}</p> : null}</div></div>
+    <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div>
+    {rows.length ? <table className={`history-diff${rows.length === 1 && /precio/i.test(rows[0].label) ? ' single' : ''}`}><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
+      {rows.map((change, index) => <tr key={`${change.label}-${index}`}><th scope="row">{change.label}</th><td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before ?? '—'}</span></td><td><span className="history-diff-label" aria-hidden="true">Después</span><b>{change.after ?? '—'}</b></td></tr>)}
     </tbody></table> : event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
     {event.reason?.trim() ? <p className="history-reason"><b>Motivo</b> {event.reason}</p> : null}
     {note ? <p className="history-missing">{note}</p> : null}

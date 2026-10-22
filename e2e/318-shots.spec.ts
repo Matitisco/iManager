@@ -131,20 +131,19 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: `docs/pr-shots/318-vacio-${width}.png`, animations: 'disabled' });
 
     await page.getByRole('button', { name: 'Iniciar control' }).click();
-    const sheet = page.getByRole('dialog', { name: 'Iniciar control de stock' });
+    const sheet = page.getByRole('dialog', { name: 'Iniciar control' });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByRole('button', { name: 'Accesorios · más adelante' })).toBeDisabled();
-    await expect(sheet.getByText('3 equipos')).toBeVisible();
+    await expect(sheet.getByText('3 equipos sin IMEI quedan fuera.')).toBeVisible();
     await expect(sheet.getByText('Faltan', { exact: true })).toHaveCount(0);
     await expect(sheet.getByText('iPhone 13 mini', { exact: false })).toHaveCount(0);
     await page.locator('.stage').evaluate((node) => { node.scrollTop = 0; });
     await page.screenshot({ path: `docs/pr-shots/318-iniciar-${width}.png`, animations: 'disabled' });
-    await sheet.getByRole('button', { name: 'Iniciar control' }).click();
+    await sheet.getByRole('button', { name: 'Iniciar conteo' }).click();
 
     const input = page.getByTestId('stock-scan-input');
     await expect(input).toBeFocused();
     await expect(page.getByText('18 tuyos · 31 en total')).toBeVisible();
-    await expect(page.getByText('Encontrado · iPhone 13 128GB')).toBeVisible();
+    await expect(page.getByText('Encontrado · iPhone 13 · 128GB')).toBeVisible();
     await expect(page.getByText('Faltan', { exact: true })).toHaveCount(0);
     await expect(page.getByText('iPhone 13 mini', { exact: false })).toHaveCount(0);
     await page.locator('.stage').evaluate((node) => { node.scrollTop = 0; });
@@ -158,14 +157,14 @@ for (const width of [390, 1440]) {
     await expect(page.getByText('Faltan')).toHaveCount(0);
 
     await page.getByTestId('stock-close').click();
-    await expect(page.getByText('Disponibles que nadie escaneó')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Faltan 3' })).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.getByText('3 sin IMEI quedaron afuera')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Resultado del conteo' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Sin escanear 3' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('stock-excluded')).toContainText('3 sin IMEI fuera del conteo');
     await page.locator('.stage').evaluate((node) => { node.scrollTop = 0; });
     await page.screenshot({ path: `docs/pr-shots/318-resultado-${width}.png`, animations: 'disabled' });
     await page.getByTestId('stock-record').click();
     await expect.poll(() => resolveMode).toBe('RECORD');
     await expect(page.getByText('Registrado')).toBeVisible();
-    await expect(page.getByText('36 coinciden · 3 faltan · 2 sobran · 1 figura vendido')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Coinciden 36' })).toBeVisible();
   });
 }

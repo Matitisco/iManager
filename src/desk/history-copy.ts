@@ -45,7 +45,7 @@ export function historyRecord(event: Pick<HistoryEvent, 'entityLabel' | 'entityI
   const label = event.entityLabel?.trim() || event.target?.trim() || 'Registro';
   const imei = label.match(/\s*·?\s*(IMEI\s+[^·]+)$/i);
   const title = (imei ? label.slice(0, imei.index).trim() : label)
-    .replace(/\s+(\d+\s*(?:GB|TB))\b/i, ' · $1');
+    .replace(/\s+(?:·\s*)?(\d+\s*(?:GB|TB))\b/i, ' · $1');
   return { title, identifier: event.entityIdentifier?.trim() || imei?.[1]?.trim() || null };
 }
 

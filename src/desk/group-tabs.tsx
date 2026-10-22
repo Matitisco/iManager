@@ -10,7 +10,9 @@ export function NavChrome({ pending, children }: { pending: PendingInput; childr
   return <PendingContext.Provider value={pending}>{children}</PendingContext.Provider>;
 }
 
-function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab; go: (tab: DeskTab) => void }) {
+type GroupTabsProps = { tab?: DeskTab; labels?: Partial<Record<DeskTab, string>>; showPending?: boolean };
+
+function GroupTabsOn({ pending, tab, go, labels, showPending = true }: { pending: PendingInput; tab: DeskTab; go: (tab: DeskTab) => void } & Omit<GroupTabsProps, 'tab'>) {
   const { appSession } = useAppContext();
   const sections = appSession?.membership?.sections;
   const role = appSession?.membership?.role;
@@ -33,7 +35,7 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
             data-testid={`group-tab-${item.id}`}
             onClick={() => go(item.id)}
           >
-            {count > 0 ? `${item.label} · ${count}` : item.label}
+            {showPending && count > 0 ? `${labels?.[item.id] || item.label} · ${count}` : labels?.[item.id] || item.label}
           </button>
         );
       })}
@@ -42,9 +44,9 @@ function GroupTabsOn({ pending, tab, go }: { pending: PendingInput; tab: DeskTab
 }
 
 /** Pestañas del grupo, arriba de la página. Sin el chrome del escritorio no se muestra. */
-export function GroupTabs() {
+export function GroupTabs({ tab, labels, showPending }: GroupTabsProps = {}) {
   const pending = useContext(PendingContext);
   const desk = useContext(DeskContext);
   if (!pending || !desk) return null;
-  return <GroupTabsOn pending={pending} tab={desk.tab} go={desk.go} />;
+  return <GroupTabsOn pending={pending} tab={tab || desk.tab} go={desk.go} labels={labels} showPending={showPending} />;
 }

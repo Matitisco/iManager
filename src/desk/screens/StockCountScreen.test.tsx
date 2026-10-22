@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { Product } from '../../types';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,7 +13,7 @@ const reloadInventory = vi.fn(async () => undefined);
 const user = { uid: 'owner-1' };
 
 const context = vi.hoisted(() => ({
-  inventory: [] as never[],
+  inventory: [] as Product[],
   operationDrafts: [] as never[],
   operationNotifications: [] as never[],
   listsLoaded: true,
@@ -132,6 +133,7 @@ beforeEach(() => {
   Object.values(api).forEach((mock) => mock.mockReset());
   desktop();
   context.user = user;
+  context.inventory = [];
   context.appSession = { store: { name: 'Tienda Ejemplo' }, membership: { role: 'OWNER', sections: null } };
   context.reloadInventory = reloadInventory;
   reloadInventory.mockClear();
@@ -170,6 +172,35 @@ describe('control de stock #318', () => {
     return screen.findByRole('region', { name: 'Resultado del conteo' });
   };
 
+  it.each([false, true])('expande todos los equipos y vuelve a la vista compacta al cambiar de grupo (móvil: %s)', async (mobile) => {
+    if (mobile) phone();
+    const missing = Array.from({ length: 8 }, (_, index) => ({ ...closed.buckets.missing[0], key: `line-${index}`, model: `Equipo ${index}` }));
+    api.fetchStockCount.mockResolvedValue({ ...closed, buckets: { ...closed.buckets, missing } });
+    const act = actor();
+    await result();
+    expect(screen.queryByText(`Equipo ${mobile ? 4 : 5} · 128GB`)).not.toBeInTheDocument();
+    await act.click(screen.getByRole('button', { name: 'Ver los 8' }));
+    expect(screen.getByText('Equipo 7 · 128GB')).toBeInTheDocument();
+    await act.click(screen.getByRole('button', { name: 'Coinciden 1' }));
+    await act.click(screen.getByRole('button', { name: 'Sin escanear 8' }));
+    expect(screen.queryByText('Equipo 7 · 128GB')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver los 8' })).toHaveAttribute('aria-expanded', 'false');
+    const steps = screen.getByRole('list', { name: 'Pasos del control' });
+    expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
+    expect(within(steps).getByText('Revisar').closest('li')).toHaveAttribute('aria-current', 'step');
+    expect(screen.queryByText('Conteos físicos del local')).not.toBeInTheDocument();
+  });
+
+  it('presenta el alcance con el inventario cargado sin incluir vendidos, archivados o equipos sin IMEI', async () => {
+    const product: Product = { id: 'eq', imei: '352098117744521', model: 'iPhone', capacity: '128GB', color: 'Negro', condition: 'Usado', grade: 'A', batteryHealth: '90%', price: 1, status: 'DISPONIBLE' };
+    context.inventory = [product, { ...product, id: 'sold', status: 'VENDIDO' }, { ...product, id: 'reserved', status: 'RESERVADO' }, { ...product, id: 'archived', archivedAt: '2026-10-20' }, { ...product, id: 'without-imei', imei: '' }];
+    const act = actor();
+    desk(<StockCountScreen onBack={vi.fn()} />);
+    await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
+    expect(await within(screen.getByRole('dialog')).findByText('Disponibles · 1')).toBeInTheDocument();
+    expect(api.startStockCount).not.toHaveBeenCalled();
+  });
+
   it('espera con un esqueleto y después muestra el vacío', async () => {
     const list = deferred<StockCountListItem[]>();
     api.fetchStockCounts.mockReturnValue(list.promise);
@@ -180,7 +211,7 @@ describe('control de stock #318', () => {
     expect(await screen.findByTestId('stock-empty')).toBeInTheDocument();
   });
 
-  it.each([false, true])('inicia con el modal mínimo sin mostrar cantidades esperadas (móvil: %s)', async (mobile) => {
+  it.each([false, true])('presenta el alcance al iniciar y conserva el conteo a ciegas (móvil: %s)', async (mobile) => {
     if (mobile) phone();
     const preview = deferred<StockCountPreview>();
     api.fetchStockCountPreview.mockReturnValue(preview.promise);
@@ -189,12 +220,13 @@ describe('control de stock #318', () => {
     await act.click(await screen.findByRole('button', { name: 'Iniciar control' }));
     const dialog = screen.getByRole('dialog', { name: 'Iniciar control' });
     expect(dialog).toHaveClass('stock-start-sheet');
-    expect(within(dialog).getByText('Disponible')).toBeInTheDocument();
+    expect(within(dialog).getByText('Comparar con')).toBeInTheDocument();
     expect(within(dialog).getByText('Conteo a ciegas')).toBeInTheDocument();
     expect(within(dialog).getByTestId('stock-preview-loading')).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent(/Accesorios|Quiénes cuentan|reservados|en revisión|Faltan|iPhone|Cargando…/);
     preview.resolve({ excludedNoImei: 3, scope: 'Disponible', counters: 'Todo el equipo con Inventario' });
     expect(await within(dialog).findByText('3 equipos sin IMEI quedan fuera.')).toBeInTheDocument();
+    expect(within(dialog).getByText('Disponibles · 0')).toBeInTheDocument();
     await act.click(within(dialog).getByRole('button', { name: 'Iniciar conteo' }));
     expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
     expect(api.startStockCount).toHaveBeenCalledWith(user);
@@ -262,8 +294,8 @@ describe('control de stock #318', () => {
     const summary = await result();
     expect(summary).toHaveTextContent('Conteo del 19 de octubre');
     expect(summary).toHaveTextContent('Por revisar');
-    expect(summary).toHaveTextContent('Comparación con Disponibles.');
-    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('3 equipos sin IMEI, fuera del conteo.');
+    expect(summary).toHaveTextContent('Comparado con Disponibles');
+    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('3 sin IMEI fuera del conteo');
     expect(screen.getByRole('button', { name: 'Sin escanear 1' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByText('iPhone 13 mini · 128GB')).toBeInTheDocument();
     expect(screen.getByText('IMEI 352098117741188')).toBeInTheDocument();
@@ -292,7 +324,7 @@ describe('control de stock #318', () => {
     expect(screen.getByText('Registrado')).toBeInTheDocument();
     expect(reloadInventory).not.toHaveBeenCalled();
     expect(toast).toHaveBeenCalledWith('Quedó registrado, sin cambiar el inventario.');
-    expect(screen.getByText('El inventario no cambia.')).toBeInTheDocument();
+    expect(screen.getByTestId('stock-excluded')).toHaveTextContent('Comparado con Disponibles');
     if (mobile) expect(screen.getByTestId('stock-count-page')).toHaveClass('has-dock');
   });
 

@@ -1,0 +1,61 @@
+/* Valores de las referencias aprobadas 318/372; limitados a estas pantallas. */
+.desk-app:has(.stock-page, .history-screen) {
+  --bg: #F6F6F7;
+  --primary: #16171A;
+  --secondary: #6B7280;
+  --border: #ECECEE;
+  --row: #F3F4F6;
+}
+.desk-app :is(.stock-page, .history-screen) { padding: 30px 36px 40px; }
+.desk-app :is(.stock-page, .history-screen) .dtop { align-items: center; margin-bottom: 18px; }
+.desk-app :is(.stock-page, .history-screen) .dtop h1 { font-size: 32px; font-weight: 700; line-height: 1.15; }
+.desk-app :is(.stock-page, .history-screen) .nav-tabs { gap: 8px; margin: 0 0 18px; }
+.desk-app :is(.stock-page, .history-screen) .nav-tabs button.sg { height: 38px; padding: 0 16px; border: 1px solid #E5E7EB; font-size: 14px; font-weight: 600; }
+.desk-app :is(.stock-page, .history-screen) .nav-tabs button.sg.on { border-color: var(--primary); }
+.desk-app:has(.stock-page, .history-screen) .ov { background: rgba(17, 17, 20, .4); }
+.desk-app :is(.stock-start-sheet, .history-detail).sheet { width: 520px; border-radius: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, .18); }
+.desk-app :is(.stock-start-sheet, .history-detail) > .sheet-h { padding: 26px 26px 18px; border: 0; align-items: flex-start; }
+.desk-app :is(.stock-start-sheet, .history-detail) .sheet-title h3 { font-size: 23px; line-height: normal; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+.desk-app :is(.stock-start-sheet, .history-detail) .modal-x { width: 36px; height: 36px; flex: none; border-radius: 50%; background: #F3F4F6; }
+.desk-app :is(.stock-start-sheet, .history-detail) > .sheet-scroll { padding: 0 26px; }
+.desk-app :is(.stock-start-sheet, .history-detail) > .sheet-foot { margin: 0; padding: 18px 26px 26px; border: 0; }
+.desk-app :is(.stock-start-sheet, .history-detail) .btn2 { min-width: 0; width: auto; height: 46px; min-height: 46px; border-radius: 12px; padding: 0 22px; font-size: 15px; font-weight: 600; box-shadow: none; }
+.desk-app :is(.stock-start-sheet, .history-detail) .btn2.p { background: var(--primary); padding-inline: 20px; }
+.desk-app :is(.stock-start-sheet, .history-detail) .btn2.s { background: #fff; border: 1px solid #E5E7EB; }
+@media (min-width: 761px) {
+  .desk-app:has(.stock-page, .history-screen) .side { width: 246px; gap: 2px; }
+  .desk-app:has(.stock-page, .history-screen) .dbrand { padding: 0 7px 20px; }
+  .desk-app:has(.stock-page, .history-screen) .dbrand b { font-size: 18px; font-weight: 700; line-height: 1.1; letter-spacing: 0; }
+  .desk-app:has(.stock-page, .history-screen) .dbrand small { font-size: 12px; font-weight: 400; }
+  .desk-app:has(.stock-page, .history-screen) .ditem { height: 42px; font-size: 15px; font-weight: 600; }
+  .desk-app:has(.stock-page, .history-screen) .dcount { min-width: 0; height: auto; padding: 2px 7px; font-weight: 700; }
+  .desk-app:has(.stock-page, .history-screen) .dlabel { font-weight: 600; letter-spacing: .04em; }
+  .desk-app:has(.stock-page, .history-screen) .ov:has(.stock-start-sheet, .history-detail) { padding-left: 270px; padding-top: min(200px, 20dvh); align-items: flex-start; }
+}
+@media (max-width: 760px) {
+  .desk-app:has(.stock-page, .history-screen) { --tab-clearance: calc(86px + env(safe-area-inset-bottom, 0px)); }
+  .desk-app:has(.stock-page, .history-screen) .mtab { left: 8px; right: 8px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); height: 76px; max-width: calc(100% - 16px); padding: 7px; border: 1px solid var(--border); border-radius: 20px; box-shadow: 0 6px 24px rgba(0, 0, 0, .06); }
+  .desk-app:has(.stock-page, .history-screen) .mtab button { height: 60px; font-size: 11.5px; font-weight: 600; }
+  .desk-app:has(.stock-page, .history-screen) .mtab svg { width: 22px; height: 22px; }
+  .desk-app:has(.stock-page, .history-screen) .mtab .dcount { top: 0; left: calc(50% + 1px); right: auto; min-width: 0; height: 19px; padding: 1px 6px; border: 2px solid #fff; border-radius: 999px; font-size: 10px; font-weight: 700; }
+  .desk-app:has(.stock-page, .history-screen) .mhead { padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px; }
+  .desk-app:has(.stock-page, .history-screen) .mstore { gap: 10px; }
+  .desk-app:has(.stock-page, .history-screen) .mstore-logo { width: 34px; height: 34px; }
+  .desk-app:has(.stock-page, .history-screen) .mstore-word { font-size: 16px; font-weight: 700; line-height: 1.1; letter-spacing: 0; }
+  .desk-app:has(.stock-page, .history-screen) .mstore-copy small { font-size: 12px; font-weight: 400; }
+  .desk-app:has(.stock-page, .history-screen) .dolar.chip { max-width: none; border-color: #E5E7EB; }
+  .desk-app:has(.stock-page, .history-screen) .dolar.chip .dolar-hit { padding: 6px 10px; gap: 5px; font-size: 12.5px; font-weight: 600; }
+  .desk-app:has(.stock-page, .history-screen) .dolar.chip :is(.dolar-chip-name, .dolar-chip-px) { font-size: 12.5px; font-weight: 600; letter-spacing: 0; }
+  .desk-app :is(.stock-page, .history-screen) { padding: 0 16px 24px; }
+  .desk-app :is(.stock-page, .history-screen) .dtop { margin-bottom: 14px; gap: 6px; }
+  .desk-app :is(.stock-page, .history-screen) .dtop h1 { font-size: 28px; }
+  .desk-app :is(.stock-page, .history-screen) .nav-tabs { flex-wrap: nowrap; gap: 8px; margin-bottom: 14px; }
+  .desk-app :is(.stock-page, .history-screen) .nav-tabs button.sg { flex: 1; justify-content: center; min-width: 0; padding: 10px 0; height: auto; font-size: 14px; }
+  .desk-app :is(.stock-start-sheet, .history-detail).sheet { width: 100%; max-width: 100%; padding: 10px 0 0; border-radius: 24px 24px 0 0; }
+  .desk-app :is(.stock-start-sheet, .history-detail) .sheet-grab { width: 38px; height: 5px; background: #D1D5DB; margin: 0 auto 16px; }
+  .desk-app :is(.stock-start-sheet, .history-detail) > .sheet-h { padding: 0 16px 16px; align-items: flex-start; }
+  .desk-app :is(.stock-start-sheet, .history-detail) > .sheet-scroll { padding: 0 16px; }
+  .desk-app :is(.stock-start-sheet, .history-detail) > .sheet-foot { padding: 16px 16px calc(34px + env(safe-area-inset-bottom, 0px)); }
+  .desk-app :is(.stock-start-sheet, .history-detail) .btn2 { width: 100%; height: 59px; font-size: 22px; border-radius: 14px; padding: 15px; }
+  .desk-app :is(.stock-start-sheet, .history-detail) .btn2.s { display: none; }
+}
