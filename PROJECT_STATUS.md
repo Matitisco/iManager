@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 puntos 11 y 12 — Importador compacto — 2026-10-22
+
+- Un único ImportModal/Sheet para stock, proveedores, clientes, ventas y la alternativa de planillas del onboarding: 600 px desktop y bottom sheet móvil, DM Sans, modos CSV / Subir .txt / Pegar listado, dropzone accesible, preview virtualizada compacta con errores por fila y footer con acción principal. Edición/exclusión de texto, ajuste de hojas/encabezado/mapeo y errores de persistencia conservados; cierre bloqueado durante guardado y respuestas tardías descartadas al volver.
+- Sin cambios al parser ni API: CSV conserva XLSX y stock conserva el analizador de texto; clientes, ventas y consumidores sin analizador libre reutilizan parseWorkbook CSV para TXT/listados con columnas. No se alteran las reglas de importación parcial ni los valores por defecto.
+- Validación: 1.439 pruebas frontend, 69 pruebas del área (9 nuevas) y 7 E2E existentes de importación aprobados; lint/typecheck frontend/backend, diff check y OpenSpec estricto aprobados. OpenSpec informa que el spec base inventory-import carece de sección Requirements; es previo y sólo afecta su futuro archivado. Playwright local en 1440×900 y 390×844 (iPhone 13): tres modos, previews de stock/clientes/ventas, corrección de precio y ausencia de desbordes/errores de página. CSV de stock con mapeo y persistencia PostgreSQL fake comprobada tras recargar en ambos tamaños; texto de stock usa intercepción del análisis sin llamadas externas.
+- Referencias de main, mockup previo generado con imagegen y capturas finales en `/workspace/imanager-local/shots/483-i/`, fuera del repo. OpenSpec `redesign-import-modal-483-i`; rama `feat/483-medios`, un commit y checklist 11/12 del PR #495. Sin build, backend/Prisma, operaciones productivas, merge ni cambios en 6/8/14 o puntos anteriores.
+
 ## Issue #483 punto 4 — Historial en segundo modal — 2026-10-22
 
 - Los seguimientos de Stock, Ventas y Canjes (antiguos e integrados) ofrecen un botón Historial con reloj. Retirados el historial inline y los enlaces Ocultar historial/Ver todo de esos detalles. Segundo Sheet superpuesto con timeline, cambios, motivo, autor y fecha/hora completa; cerrar devuelve el foco y conserva el detalle/borrador.

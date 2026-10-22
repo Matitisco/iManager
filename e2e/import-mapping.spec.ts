@@ -65,8 +65,8 @@ for (const viewport of viewports) {
       await expect(dialog).toBeVisible();
       await dialog.locator('input[type="file"]').setInputFiles(WORKBOOK);
 
-      await expect(dialog.getByTestId('import-summary-count')).toHaveText('Detectamos 3 hojas, 37 equipos');
       await expect(dialog.getByTestId('import-sheet-summary')).toHaveCount(3);
+      await dialog.locator('.import-sheets > summary').click();
       await expect(dialog.getByText('iPhones Usados')).toBeVisible();
       await expect(dialog.getByText('iPhones Nuevos')).toBeVisible();
       await expect(dialog.getByText('OUTLET')).toBeVisible();
@@ -78,7 +78,7 @@ for (const viewport of viewports) {
       const preview = dialog.getByTestId('import-preview');
       await preview.scrollIntoViewIfNeeded();
       await expect(preview.getByTestId('import-preview-row').first()).toBeVisible();
-      await expect(dialog.getByText('Moneda')).toHaveCount(phone ? 0 : 1);
+      await expect(dialog.getByText('Moneda')).toHaveCount(0);
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
       await preview.evaluate((element) => { element.scrollTop = element.scrollHeight; });
       await expect(preview).toHaveAttribute('aria-rowcount', '37');

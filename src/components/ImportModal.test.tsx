@@ -70,20 +70,18 @@ async function openPreview(count: number, sheet = false) {
 }
 
 describe('previsualización de importación', () => {
-  it('lista todos los equipos en una tabla virtualizada', async () => {
+  it('lista todos los equipos en filas compactas virtualizadas', async () => {
     await openPreview(3000);
     expect(screen.getByTestId('import-preview-count')).toHaveTextContent(`${new Intl.NumberFormat('es-AR').format(3000)} equipos`);
-    expect(screen.getByText('Modelo')).toBeInTheDocument();
-    expect(screen.getByText('Moneda')).toBeInTheDocument();
     const preview = screen.getByTestId('import-preview');
-    expect(preview.parentElement?.parentElement).toHaveAttribute('data-layout', 'table');
+    expect(preview.parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
     const rendered = preview.querySelectorAll('[data-testid="import-preview-row"]');
     expect(rendered.length).toBeGreaterThan(0);
     expect(rendered.length).toBeLessThan(80);
     expect(screen.getByText('Equipo 1')).toBeInTheDocument();
     expect(screen.queryByText('ZZ-ULTIMO')).not.toBeInTheDocument();
 
-    preview.scrollTop = 44 * 2990;
+    preview.scrollTop = 72 * 2990;
     fireEvent.scroll(preview);
     expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
     expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(80);
@@ -256,7 +254,7 @@ describe('previsualización de ventas y clientes', () => {
     expect(screen.getByText(first)).toBeInTheDocument();
     const preview = screen.getByTestId('import-preview');
     expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(40);
-    preview.scrollTop = (kind === 'sales' ? 44 : 44) * 79;
+    preview.scrollTop = 72 * 79;
     fireEvent.scroll(preview);
     expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
     unmount();
@@ -346,7 +344,7 @@ describe('cierre del importador con Escape', () => {
   it('sigue cerrando el modal de escritorio con un clic afuera', () => {
     const onClose = renderImporter(false);
     const dialog = screen.getByRole('dialog', { name: 'Importar equipos' });
-    fireEvent.click(dialog.parentElement as HTMLElement);
+    fireEvent.mouseDown(dialog.parentElement as HTMLElement);
     expect(onClose).toHaveBeenCalledOnce();
   });
 });

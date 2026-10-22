@@ -1,13 +1,14 @@
 import { toUserMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { X, Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
-import { Sheet, useEscape } from '../desk/ui';
+import { Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
+import { Sheet } from '../desk/ui';
 import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
 import { expandTextRows, textRowError } from '../lib/text-import-review';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
+import { ListSkeleton } from '../desk/list-skeleton';
+import './ImportModal.css';
 
 export interface ImportFieldDef {
   key: string;
@@ -32,6 +33,7 @@ interface Props {
   onClose: () => void;
   onStageChange?: (stage: 'file' | 'mapping' | 'review' | 'analyze') => void;
   title?: string;
+  /** Kept for callers using the previous layout hint; Sheet now adapts automatically. */
   sheet?: boolean;
   nouns?: { one: string; many: string };
   unrelatedNotice?: string;
@@ -40,27 +42,20 @@ interface Props {
   onApply: (sheets: ImportSheetPayload[], plan: ImportSheetPlan[], refreshMapping: boolean) => Promise<ImportAnalysis>;
 }
 
-function ignoreEscape() {}
-
-function formatCount(count: number) {
-  return new Intl.NumberFormat('es-AR').format(count);
-}
-
 function countLabel(count: number, nouns: { one: string; many: string }) {
-  return `${formatCount(count)} ${count === 1 ? nouns.one : nouns.many}`;
+  return `${new Intl.NumberFormat('es-AR').format(count)} ${count === 1 ? nouns.one : nouns.many}`;
 }
 
 function sheetLine(count: number, nouns: { one: string; many: string }, condition: string) {
-  const noun = count === 1 ? nouns.one : nouns.many;
-  const total = formatCount(count);
-  if (condition === 'NUEVO') return `${total} ${noun} ${count === 1 ? 'nuevo' : 'nuevos'}`;
-  if (condition === 'USADO') return `${total} ${noun} ${count === 1 ? 'usado' : 'usados'}`;
-  if (condition === 'PRE-OWNED') return `${total} ${noun} pre-owned`;
-  return `${total} ${noun}`;
+  const label = countLabel(count, nouns);
+  if (condition === 'NUEVO') return `${label} ${count === 1 ? 'nuevo' : 'nuevos'}`;
+  if (condition === 'USADO') return `${label} ${count === 1 ? 'usado' : 'usados'}`;
+  if (condition === 'PRE-OWNED') return `${label} pre-owned`;
+  return label;
 }
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, onStageChange, title = 'Importar', sheet = false,
+  fields, onImport, onClose, onStageChange, title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
@@ -88,7 +83,7 @@ export const ImportModal: React.FC<Props> = ({
   const requestRef = useRef(0);
   const editorRef = useRef<HTMLFieldSetElement>(null);
   useEffect(() => { if (editing !== null) editorRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [editing]);
-  useEscape(sheet ? ignoreEscape : onClose);
+  useEffect(() => () => { requestRef.current += 1; }, []);
 
   const applyResult = (analysis: ImportAnalysis) => {
     setPlan(analysis.plan);
@@ -105,10 +100,13 @@ export const ImportModal: React.FC<Props> = ({
   };
 
   const handleText = async (value: string) => {
-    if (!onAnalyzeText) return;
     setFileError(null);
-    if (!value.trim()) { setFileError('Pegá un listado de equipos para analizar.'); return; }
+    if (!value.trim()) { setFileError('Pegá un listado para analizar.'); return; }
     if (new TextEncoder().encode(value).length > 100_000) { setFileError('El texto supera los 100 KB. Dividilo en listados más chicos.'); return; }
+    if (!onAnalyzeText) {
+      await handleFile(new File([value], 'listado.csv', { type: 'text/csv' }));
+      return;
+    }
     const requestId = ++requestRef.current;
     setStep('reading');
     try {
@@ -126,7 +124,7 @@ export const ImportModal: React.FC<Props> = ({
   const handleFile = async (file: File) => {
     setFileError(null);
     const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext === 'txt' && onAnalyzeText) {
+    if (ext === 'txt') {
       setSource('txt');
       if (file.size > 100_000) { setFileError('El archivo supera los 100 KB. Dividilo en listados más chicos.'); return; }
       try {
@@ -137,7 +135,7 @@ export const ImportModal: React.FC<Props> = ({
       return;
     }
     if (!['csv', 'xlsx'].includes(ext ?? '')) {
-      setFileError(onAnalyzeText ? 'Formato no soportado. Usá .csv, .xlsx o .txt' : 'Formato no soportado. Usá .csv o .xlsx');
+      setFileError('Formato no soportado. Usá .csv, .xlsx o .txt');
       return;
     }
     const requestId = requestRef.current + 1;
@@ -200,6 +198,7 @@ export const ImportModal: React.FC<Props> = ({
   const selected = active ? fieldToColumn(active.mapping) : {};
 
   const handleImport = async () => {
+    if (importing || !canImport) return;
     setImporting(true);
     setFileError(null);
     try {
@@ -213,33 +212,35 @@ export const ImportModal: React.FC<Props> = ({
     }
   };
 
-  const headline = summary
-    ? `Detectamos ${summary.sheetCount} ${summary.sheetCount === 1 ? 'hoja' : 'hojas'}, ${countLabel(summary.rowCount, nouns)}`
-    : '';
-
-  const subtitle = {
-    upload: onAnalyzeText ? 'Elegí Excel, texto pegado o un archivo .txt' : 'Subí un archivo CSV o XLSX',
-    reading: source === 'excel' ? 'Leyendo la planilla…' : 'Analizando el listado…',
-    summary: unrelated
-      ? (unrelatedNotice.includes('ventas') ? 'Sin ventas para importar' : unrelatedNotice.includes('clientes') ? 'Sin clientes para importar' : 'Sin equipos para importar')
-      : 'Listo para importar',
-    adjust: 'Ajustá hojas, encabezado o columnas',
-    result: 'Importación completada',
-  }[step];
+  const rowErrors = rows.map((row) => {
+    if (textPreview) return textRowError(row);
+    const missing = fields.filter((field) => field.required && !row[field.key]?.trim());
+    return missing.length ? `Falta ${missing.map((field) => field.label).join(', ')}` : null;
+  });
+  const busy = importing || applying || step === 'reading';
+  const listLabel = `Listado de ${nouns.many === 'filas' ? 'equipos' : nouns.many}`;
+  const placeholder = onAnalyzeText
+    ? 'iPhone 13 128GB Midnight 89% US$ 420\n13 pro max 256 azul bat 85 520usd'
+    : fields.some((field) => field.key === 'name')
+      ? 'Nombre,Teléfono,Email\nLucía,2615550106,lucia@example.com'
+      : fields.some((field) => field.key === 'amount')
+        ? 'Fecha,Cliente,Equipo,Precio\n22/10/2026,Lucía,iPhone 13,420'
+        : 'Modelo,Precio\niPhone 13,420';
 
   const body = (
-    <div className={sheet ? 'inv-import-body' : 'overflow-y-auto flex-1 p-5'}>
+    <div className="inv-import-body">
       {step === 'upload' && (
-        <div className="space-y-4">
-          {onAnalyzeText && <div className="grid grid-cols-3 gap-2" role="group" aria-label="Origen del listado">
-            {([['excel', 'Excel'], ['paste', 'Pegar listado'], ['txt', 'Subir .txt']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={source === value} onClick={() => { setSource(value); setFileError(null); }} className={`rounded-xl min-h-11 px-2 text-sm font-medium border ${source === value ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200'}`}>{label}</button>)}
-          </div>}
-          {source === 'paste' ? <div className="space-y-3">
-            <label htmlFor="inventory-paste" className="block text-sm font-medium text-gray-700">Listado de equipos</label>
-            <textarea id="inventory-paste" value={text} onChange={(event) => setText(event.target.value)} rows={8} maxLength={100_000} placeholder={'iPhone 13 128GB Midnight 89% US$ 420\n13 pro max 256 azul bat 85 520usd'} className="w-full rounded-xl border border-gray-200 bg-gray-50 p-3 text-base focus:outline-none focus:ring-2 focus:ring-black" />
-            <p className="text-xs text-gray-500">Hasta 100 KB / 1000 líneas. Revisá y corregí los equipos antes de confirmar.</p>
-            <button type="button" className="btn2 p" style={{ minHeight: 44 }} onClick={() => void handleText(text)}>Analizar listado</button>
-          </div> : <div
+        <div className="import-source">
+          <div className="import-modes" role="group" aria-label="Origen del listado">
+            {([['excel', 'CSV'], ['txt', 'Subir .txt'], ['paste', 'Pegar listado']] as const).map(([value, label]) => (
+              <button type="button" key={value} aria-pressed={source === value} onClick={() => { setSource(value); setFileError(null); }} className={source === value ? 'on' : ''}>{label}</button>
+            ))}
+          </div>
+          {source === 'paste' ? <textarea
+            aria-label={listLabel} value={text} onChange={(event) => setText(event.target.value)}
+            rows={7} maxLength={100_000} placeholder={placeholder} className="import-paste"
+          /> : <button
+            type="button" aria-label={source === 'txt' ? 'Elegir archivo .txt' : 'Elegir archivo CSV o XLSX'}
             onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={(event) => {
@@ -249,30 +250,26 @@ export const ImportModal: React.FC<Props> = ({
               if (file) void handleFile(file);
             }}
             onClick={() => fileInputRef.current?.click()}
-            className={`inv-drop border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-colors ${dragging ? 'border-black bg-gray-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}`}
+            className={`import-drop${dragging ? ' dragging' : ''}`}
           >
-            <Upload size={32} className="text-gray-400" />
-            <div className="text-center">
-              <p className="font-medium text-gray-700">Arrastrá un archivo o hacé click para elegir</p>
-              <p className="text-sm text-gray-400 mt-1">{source === 'txt' ? '.txt UTF-8 — máx. 100 KB / 1000 líneas' : '.csv, .xlsx — máx. 5000 filas'}</p>
-            </div>
-          </div>}
+            <Upload size={28} aria-hidden="true" />
+            <strong>Elegir archivo</strong>
+            <span>{source === 'txt' ? '.txt · 100 KB' : '.csv · .xlsx · 5000 filas'}</span>
+            <span className="import-drag-hint">o arrastralo acá</span>
+          </button>}
           <input
-            ref={fileInputRef}
-            type="file"
-            accept={source === 'txt' ? '.txt,text/plain' : '.csv,.xlsx'}
-            className="hidden"
+            ref={fileInputRef} type="file" aria-label="Archivo a importar"
+            accept={source === 'txt' ? '.txt,text/plain' : '.csv,.xlsx'} hidden
             onChange={(event) => {
               const file = event.target.files?.[0];
+              event.target.value = '';
               if (file) void handleFile(file);
             }}
           />
         </div>
       )}
 
-      {step === 'reading' && (
-        <p className="text-sm text-gray-500" data-testid="import-reading">{source === 'excel' ? 'Leyendo la planilla…' : 'Analizando el listado… Podés revisar los equipos al terminar.'}</p>
-      )}
+      {step === 'reading' && <ListSkeleton variant="lines" rows={5} testId="import-reading" />}
 
       {step === 'summary' && summary && unrelated && (
         <div data-testid="import-unrelated" role="status" className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
@@ -282,15 +279,16 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
-          <p className="text-lg font-bold text-gray-900" data-testid="import-summary-count">{textPreview ? `Detectamos ${rows.length} filas · ${countLabel(equipmentCount, nouns)} para importar` : headline}</p>
+          {summary.sheetCount > 1 && <details className="import-sheets">
+          <summary>{summary.sheetCount} hojas</summary>
           <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100">
             {summary.sheets.filter((item) => item.included).map((item) => (
               <li key={item.name} data-testid="import-sheet-summary" className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <span className="font-medium text-gray-800">{item.name}</span>
-                <span className="text-gray-500">{textPreview ? `${item.rows} filas reconocidas` : sheetLine(item.rows, nouns, item.condition)}</span>
+                <span className="text-gray-500">{sheetLine(item.rows, nouns, item.condition)}</span>
               </li>
             ))}
-          </ul>
+          </ul></details>}
           {summary.rowCount === 0 && (
             <p className="text-sm text-gray-600">No encontramos filas para importar. Podés ajustar el encabezado.</p>
           )}
@@ -299,9 +297,10 @@ export const ImportModal: React.FC<Props> = ({
               rows={rows}
               columns={previewColumns(fields)}
               currency={currency}
-              layout={sheet ? 'cards' : 'table'}
+              layout="cards"
               nouns={textPreview ? { one: 'fila', many: 'filas' } : nouns}
               review={textPreview ? review : undefined}
+              errors={rowErrors}
               excluded={excluded}
               onEdit={textPreview ? (index) => setEditing(index) : undefined}
             />
@@ -310,7 +309,6 @@ export const ImportModal: React.FC<Props> = ({
       )}
 
       {step === 'summary' && textPreview && !unrelated && <div className="space-y-3 mt-3">
-        <p className="text-xs text-gray-600">Revisá todos los datos. Si faltan moneda o condición se propone {currency} y USADO; el precio vacío requiere edición.</p>
         {excluded.size > 0 && <p className="text-sm text-gray-600">{excluded.size} filas excluidas · <button type="button" className="underline" onClick={() => setExcluded(new Set())}>Restaurar filas</button></p>}
         {editing !== null && rows[editing] && <fieldset ref={editorRef} className="rounded-xl border border-gray-200 p-3 space-y-3" data-testid="import-row-editor">
           <legend className="text-sm font-bold px-1">Revisar equipo · línea {review[editing]?.line}</legend>
@@ -329,7 +327,7 @@ export const ImportModal: React.FC<Props> = ({
             <button type="button" className="btn2 p" style={{ minHeight: 44 }} onClick={() => setEditing(null)}>Listo</button>
           </div>
         </fieldset>}
-        {validationError && <p role="alert" className="text-sm text-red-700">{validationError}</p>}
+        {validationError && !selectedRows.some(textRowError) && <p role="alert" className="text-sm text-red-700">{validationError}</p>}
       </div>}
       {step === 'summary' && textPreview && discarded.length > 0 && <details className="mt-3 rounded-xl border border-gray-200 p-3" data-testid="import-discarded">
         <summary className="text-sm font-medium cursor-pointer">{discarded.length} {discarded.length === 1 ? 'línea descartada' : 'líneas descartadas'}</summary>
@@ -462,7 +460,7 @@ export const ImportModal: React.FC<Props> = ({
       )}
 
       {fileError && step !== 'result' && (
-        <div className="mt-3 flex items-center gap-2 text-red-600 text-sm">
+        <div role="alert" className="import-error">
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
@@ -472,7 +470,7 @@ export const ImportModal: React.FC<Props> = ({
     </div>
   );
 
-  const importLabel = importing ? 'Importando…' : `Importar ${countLabel(equipmentCount, nouns)}`;
+  const importLabel = `Importar ${countLabel(equipmentCount, nouns)}`;
   const backUpload = () => {
     requestRef.current += 1;
     setStep('upload');
@@ -482,84 +480,26 @@ export const ImportModal: React.FC<Props> = ({
     setEditing(null);
   };
 
-  const modalFooter = (
-    <div className="p-5 border-t border-gray-200 flex justify-end gap-3">
-      {step === 'upload' && <button type="button" onClick={onClose} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Cancelar</button>}
-      {step === 'summary' && unrelated && (
-        <button type="button" onClick={backUpload} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
-      )}
-      {step === 'summary' && !unrelated && (
-        <>
-          <button type="button" onClick={backUpload} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
-          {!textPreview && <button type="button" data-testid="import-adjust-open" onClick={() => setStep('adjust')} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Ajustar importación</button>}
-          <button type="button" data-testid="import-confirm" onClick={() => void handleImport()} disabled={!canImport || importing} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>
-            {importLabel} <ArrowRight size={15} />
-          </button>
-        </>
-      )}
-      {step === 'adjust' && (
-        <>
-          <button type="button" onClick={() => setStep('summary')} className="btn2 s" style={{ width: 'auto', height: 44, padding: '0 16px' }}>Volver</button>
-          <button type="button" onClick={() => setStep('summary')} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>Listo</button>
-        </>
-      )}
-      {step === 'result' && <button type="button" onClick={onClose} className="btn2 p" style={{ width: 'auto', height: 44, padding: '0 18px' }}>Cerrar</button>}
+  const footer = (
+    <div className="import-actions">
+      {step === 'upload' && <>
+        <button type="button" className="btn2 s" onClick={onClose}>Cancelar</button>
+        <button type="button" className="btn2 p" disabled={source === 'paste' && !text.trim()} onClick={() => source === 'paste' ? void handleText(text) : fileInputRef.current?.click()}>
+          {source === 'paste' ? 'Analizar listado' : 'Elegir archivo'}
+        </button>
+      </>}
+      {step === 'reading' && <button type="button" className="btn2 s" onClick={backUpload}>Volver</button>}
+      {step === 'summary' && <>
+        <button type="button" className="btn2 s" disabled={busy} onClick={backUpload}>Volver</button>
+        {!unrelated && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={() => setStep('adjust')}>Ajustar importación</button>}
+        {!unrelated && <button type="button" className="btn2 p" data-testid="import-confirm" aria-busy={importing} disabled={!canImport || importing} onClick={() => void handleImport()}>{importLabel} <ArrowRight size={15} aria-hidden="true" /></button>}
+      </>}
+      {step === 'adjust' && <button type="button" className="btn2 p" disabled={busy} onClick={() => setStep('summary')}>Listo</button>}
+      {step === 'result' && <button type="button" className="btn2 p" onClick={onClose}>Cerrar</button>}
     </div>
   );
 
-  const sheetFooter = step === 'upload' ? (
-    <div className="sacts one"><button type="button" className="btn2 s" onClick={onClose}>Cancelar</button></div>
-  ) : step === 'summary' && unrelated ? (
-    <div className="sacts one"><button type="button" className="btn2 s" onClick={backUpload}>Volver</button></div>
-  ) : step === 'summary' ? (
-    <div className="sacts">
-      <button type="button" className="btn2 s" data-testid="import-adjust-open" onClick={() => textPreview ? backUpload() : setStep('adjust')}>{textPreview ? 'Volver' : 'Ajustar importación'}</button>
-      <button type="button" className="btn2 p" data-testid="import-confirm" disabled={!canImport || importing} onClick={() => void handleImport()}>{importLabel}</button>
-    </div>
-  ) : step === 'adjust' ? (
-    <div className="sacts one"><button type="button" className="btn2 p" onClick={() => setStep('summary')}>Listo</button></div>
-  ) : step === 'result' ? (
-    <div className="sacts one"><button type="button" className="btn2 p" onClick={onClose}>Cerrar</button></div>
-  ) : null;
-
-  if (sheet) {
-    return (
-      <Sheet title={title} subtitle={subtitle} onClose={onClose} className="inv-import">
-        {body}
-        {sheetFooter}
-      </Sheet>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col"
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">{title}</h2>
-            <p className="text-sm text-gray-500">{subtitle}</p>
-          </div>
-          <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X size={18} className="text-gray-500" />
-          </button>
-        </div>
-        {body}
-        {modalFooter}
-      </motion.div>
-    </motion.div>
-  );
+  return <Sheet title={title} onClose={onClose} busy={importing || applying} className="inv-import" footer={footer}>
+    {body}
+  </Sheet>;
 };
