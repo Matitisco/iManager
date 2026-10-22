@@ -7,6 +7,7 @@ import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
 import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
+import { fetchHistory, type HistoryEvent } from '../services/history-api';
 import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
 const paymentsApi = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ const ctx = vi.hoisted(() => ({
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../services/clients-api', () => paymentsApi);
 vi.mock('../services/accounts-api', () => accountsApi);
+vi.mock('../services/history-api', () => ({ fetchHistory: vi.fn(async () => ({ events: [], nextCursor: null })) }));
 
 const open = vi.fn();
 const close = vi.fn();
@@ -101,6 +103,17 @@ function ReportsWithOverlay() {
   </DeskProvider>;
 }
 
+function mockCancellationHistory(actorName: string, createdAt: string) {
+  ctx.user = { getIdToken: async () => 'token' };
+  const event: HistoryEvent = {
+    id: 'cancel', createdAt, actorName, actorUserId: null, actorRole: null, actorRoleLabel: null,
+    action: 'CANCEL', group: 'Anulación/Archivo', section: 'sales', sectionLabel: 'Ventas', entityType: 'sale', entityId: 's1',
+    entityLabel: null, detail: null, changes: [], reason: null, source: null, legacy: false,
+    title: 'Operación anulada', verb: 'anuló', target: 'la operación', suffix: '', recordState: 'voided',
+  };
+  vi.mocked(fetchHistory).mockResolvedValueOnce({ events: [event], nextCursor: null });
+}
+
 describe('operation detail', () => {
   beforeEach(() => {
     ctx.sales = [sale()];
@@ -130,6 +143,14 @@ describe('operation detail', () => {
     open.mockReset();
     close.mockReset();
     toast.mockReset();
+  });
+
+  it.each(['sale', 'integrated-trade', 'legacy-trade'] as const)('offers a single history dialog button in %s tracking', kind => {
+    if (kind === 'legacy-trade') ctx.tradeIns = [trade({ confirmationStatus: undefined, saleId: null })];
+    renderOverlay(kind === 'sale' ? { type: 'sale', id: 's1' } : { type: 'cj', id: 't1' });
+    expect(screen.getAllByRole('button', { name: 'Historial' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Historial' })).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(screen.queryByText(/Ocultar historial|Ver historial|Ver todo|Sin movimientos recientes/)).not.toBeInTheDocument();
   });
 
   it('confirms deletion of a cancelled linked sale and keeps failures visible', async () => {
@@ -489,7 +510,8 @@ describe('operation detail', () => {
     expect(screen.queryByRole('button', { name: 'Eliminar' })).not.toBeInTheDocument();
   });
 
-  it('shows who cancelled the sale on the record', () => {
+  it('shows who cancelled the sale in the stacked history', async () => {
+    mockCancellationHistory('Ana Pérez', '2026-10-09T15:04:00.000Z');
     ctx.sales = [sale({
       status: 'CANCELADA',
       tradeInId: null,
@@ -497,7 +519,11 @@ describe('operation detail', () => {
       cancelledAt: '2026-10-09T15:04:00.000Z',
     })];
     renderOverlay({ type: 'sale', id: 's1' });
-    expect(screen.getByText('Anulada por Ana Pérez el 09/10/2026 12:04')).toBeInTheDocument();
+    expect(screen.queryByText('Anulada por Ana Pérez el 09/10/2026 12:04')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    const history = screen.getByRole('dialog', { name: 'Historial' });
+    expect(await within(history).findByText('anuló la operación')).toBeInTheDocument();
+    expect(within(history).getByText(/Ana Pérez/)).toHaveTextContent('09/10/2026 12:04');
   });
 
   it('keeps edit off the desk client sheet and shows it on a phone', () => {
@@ -693,7 +719,8 @@ describe('operation detail', () => {
     }
   });
 
-  it('shows who cancelled the trade on the record', () => {
+  it('shows who cancelled the trade in the stacked history', async () => {
+    mockCancellationHistory('Luis Socio', '2026-10-09T18:30:00.000Z');
     ctx.tradeIns = [trade({
       confirmationStatus: 'CANCELLED',
       status: 'CANCELADO',
@@ -701,6 +728,10 @@ describe('operation detail', () => {
       cancelledAt: '2026-10-09T18:30:00.000Z',
     })];
     renderOverlay({ type: 'cj', id: 't1' });
-    expect(screen.getByText('Anulada por Luis Socio el 09/10/2026 15:30')).toBeInTheDocument();
+    expect(screen.queryByText('Anulada por Luis Socio el 09/10/2026 15:30')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    const history = screen.getByRole('dialog', { name: 'Historial' });
+    expect(await within(history).findByText('anuló la operación')).toBeInTheDocument();
+    expect(within(history).getByText(/Luis Socio/)).toHaveTextContent('09/10/2026 15:30');
   });
 });

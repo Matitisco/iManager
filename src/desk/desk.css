@@ -2201,6 +2201,28 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .dtable td.r { white-space: nowrap; }
 .record-history { margin: 8px 0 16px; }
 .record-history ul { margin: 8px 0 0; padding-left: 18px; color: var(--secondary); }
+.tracking-summary { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.tracking-summary .dhero { flex: 1; min-width: 0; margin: 0; }
+.tracking-summary .big { overflow-wrap: anywhere; }
+.sheet .record-history-button.btn2.s { flex: none; gap: 8px; height: auto; min-height: 44px; padding: 10px 14px; background: #fff; font-size: 14px; white-space: nowrap; }
+.tracking-history-action { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+.record-history-layer > .ov { z-index: 100; }
+.record-history-sheet { width: 480px; }
+.record-history-timeline { list-style: none; padding: 0; margin: 0; }
+.record-history-timeline li { position: relative; padding: 0 0 24px 28px; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.record-history-timeline li::before { content: ''; position: absolute; top: 4px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--lime); z-index: 1; }
+.record-history-timeline li:not(:last-child)::after { content: ''; position: absolute; top: 20px; bottom: 4px; left: 7px; width: 1px; background: var(--border); }
+.record-history-timeline li:last-child { padding-bottom: 0; }
+.record-history-meta { margin: 5px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+.record-history-change { margin: 5px 0 0; line-height: 1.5; }
+.record-history-change > span:first-child { color: var(--secondary); }
+.record-history-empty { margin: 8px 0; color: var(--secondary); font-size: 14px; }
+.record-history-sheet .ferr { display: grid; justify-items: start; gap: 12px; }
+@media (max-width: 600px) {
+  .tracking-summary { gap: 8px; }
+  .tracking-summary .dhero { padding: 12px; }
+  .tracking-summary .big { font-size: 24px; }
+}
 @media (max-width: 760px) {
   .history-row { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; padding: 14px; }
   .history-row .spill { grid-column: 2; justify-self: start; }

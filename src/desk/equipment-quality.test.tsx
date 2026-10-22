@@ -53,6 +53,8 @@ describe('equipment quality', () => {
     ctx.inventory = [product()];
     renderOverlay({ type: 'eq', id: 'eq-1' });
     const dialog = screen.getByRole('dialog', { name: 'iPhone 13 · 128GB' });
+    expect(within(dialog).getByRole('button', { name: 'Historial' })).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(within(dialog).queryByText(/Ocultar historial|Ver historial|Ver todo|Sin movimientos recientes/)).not.toBeInTheDocument();
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
     expect(within(footer).getByRole('button', { name: 'Guardar estado' })).toHaveClass('sheet-primary');
     const menu = footer.querySelector('.sheet-action-menu') as HTMLDetailsElement;

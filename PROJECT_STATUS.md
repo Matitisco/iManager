@@ -3,6 +3,13 @@
 Documento vivo. Se actualiza al cerrar cada iteracion importante.
 **Ultima actualizacion: 2026-10-22**
 
+## Issue #483 punto 4 — Historial en segundo modal — 2026-10-22
+
+- Los seguimientos de Stock, Ventas y Canjes (antiguos e integrados) ofrecen un botón Historial con reloj. Retirados el historial inline y los enlaces Ocultar historial/Ver todo de esos detalles. Segundo Sheet superpuesto con timeline, cambios, motivo, autor y fecha/hora completa; cerrar devuelve el foco y conserva el detalle/borrador.
+- Consulta bajo demanda y carga de todas las páginas del mismo registro dentro del modal. Skeleton sin texto visible, vacío breve y error con reintento; las respuestas tardías se descartan al cerrar/cambiar registro, usuario o tienda. Clientes, Reparaciones y la sección general Historial conservan su comportamiento.
+- Validación: suite completa frontend (1.427 pruebas) y regresiones de componentes, lint/typecheck frontend/backend, OpenSpec estricto y diff check aprobados. Revisión Playwright local en 1440×900 y 390×844 (iPhone 13): apertura/cierre, foco, borrador conservado, skeleton, reintento y paginación de 51 eventos; sin overflow ni errores de página. API/datos fake locales y estados de consulta sintéticos por intercepción HTTP. Referencias, mockup previo generado con imagegen y capturas finales externas en `/workspace/imanager-local/shots/483-h/`.
+- Sin cambios de backend, AppContext o Prisma ni producción/build; puntos previos conservados y 6/8/14 fuera del alcance. OpenSpec `record-history-modal-483-h`; un commit sobre `feat/483-medios`, PR #495 sin merge.
+
 ## Issue #483 punto 3 — Novedades vistas por sección — 2026-10-22
 
 - Equipos, Ventas, Canjes y Clientes guardan en PostgreSQL las versiones vistas por usuario y tienda. Abrir la sección limpia sus badges desktop/móvil; la instantánea de entrada queda primero antes de paginar, con punto/fondo sutil y el tratamiento de anuladas intacto. Los cambios posteriores quedan pendientes para la próxima visita; fallos visibles con reintento, sin modificar las lecturas de la bandeja de notificaciones.

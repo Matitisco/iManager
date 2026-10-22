@@ -6,7 +6,7 @@ import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../..
 import { createWedgeBuffer } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedTrade } from '../archive-cache';
-import { RecordHistory } from '../screens/HistoryScreen';
+import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
 import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
@@ -23,7 +23,7 @@ import { confirmScan } from '../scan/beep';
 import { CameraScanner } from '../scan/CameraScanner';
 import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Actions, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
-import { clearBad, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, AuditLine, type FormProps } from './shared';
+import { clearBad, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, type FormProps } from './shared';
 import { operationMoneyInput, OperationForm } from './operation';
 
 export function TradeForm({ id, source = 'tradeins', run, busy, error }: FormProps & { id?: string; source?: OperationSource }) {
@@ -251,9 +251,8 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} busy={busy} className="cj-sheet" footer={detailFooter}>
         {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
-        <RecordHistory entityType="trade" entityId={trade.id} />
+        <div className="tracking-history-action"><RecordHistoryButton entityType="trade" entityId={trade.id} label={tradeCode(tradeIns, trade.id)} /></div>
         <div className="kv"><span>Estado técnico</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>
-        {trade.confirmationStatus === 'CANCELLED' ? <AuditLine action="Anulada" by={trade.voidedBy ?? trade.cancelledBy} at={trade.voidedAt ?? trade.cancelledAt} /> : null}
         {trade.confirmationStatus !== 'CANCELLED' ? (
           <>
             <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
@@ -284,7 +283,10 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     </SheetActions> : <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
-      <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
+      <div className="tracking-summary">
+        <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
+        <RecordHistoryButton entityType="trade" entityId={trade.id} label={code} />
+      </div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
       <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
       <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
