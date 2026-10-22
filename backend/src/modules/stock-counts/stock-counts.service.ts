@@ -162,7 +162,7 @@ export async function previewStockCount(storeId: string) {
   const excludedNoImei = countable.filter((row) => !normalizeImei(row.imei)).length;
   return {
     excludedNoImei,
-    scope: "Disponibles, reservados y en revisión",
+    scope: "Disponible",
     counters: "Todo el equipo con Inventario",
   };
 }

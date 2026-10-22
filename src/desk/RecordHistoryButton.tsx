@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAppContext } from '../context/AppContext';
 import { formatArDateTime } from '../lib/ar-date';
 import { fetchHistory, type HistoryEvent } from '../services/history-api';
-import { historyAction, historyDetailRows } from './history-copy';
+import { historyRecordAction, historyDetailRows } from './history-copy';
 import { DeskIcon, Sheet } from './ui';
 import { ListSkeleton } from './list-skeleton';
 
@@ -61,7 +61,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
   return <Sheet title="Historial" subtitle={label} className="record-history-sheet" onClose={onClose}>
     {events.length ? <ol className="record-history-timeline">
       {events.map(event => <li key={event.id}>
-        <b>{historyAction(event) || event.title}</b>
+        <b>{historyRecordAction(event) || event.title}</b>
         <p className="record-history-meta"><time dateTime={event.createdAt}>{formatArDateTime(event.createdAt)}</time> · {event.actorName || 'Sistema'}</p>
         {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}>
           <span>{change.label}: </span>{change.before ? <>{change.before} <span aria-label="a">→</span> </> : null}{change.after || '—'}

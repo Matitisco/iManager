@@ -13,7 +13,7 @@ import { restoreBackendRepair } from '../services/repairs-api';
 import { RecordHistoryButton } from './RecordHistoryButton';
 import { FX_WARNING } from './money';
 import { DatePicker } from './date-picker';
-import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice, repairStatusMeta } from './repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from './ui';
 import { DEFAULT_REPAIR_WARRANTY_DAYS, parseWarrantyDaysInput, repairWarrantyView } from '../lib/warranty';
@@ -263,21 +263,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
-      <div className="svc-log">
-        <span>Historial</span>
-        <ol>
-          {order.events.map((event) => {
-            const meta = repairStatusMeta(event.status, statuses);
-            return (
-              <li key={event.id}>
-                <i style={{ background: meta.color }} />
-                <b>{meta.label}</b>
-                <small>{event.createdAt}</small>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
       {order.whatsappUrl ? (
         <div className="svc-wa">
           <span>Listo para avisar al cliente</span>
@@ -291,7 +276,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const due = order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '';
   const dueLabel = due ? (late ? `${due} · atrasada` : due) : '—';
   const step = index >= 0 ? index + 1 : 0;
-  const currentEventId = [...order.events].reverse().find((event) => event.status === order.status)?.id;
   return (
     <Sheet className="svc-sheet" title={`#${order.code}`} subtitle={order.device} onClose={close} busy={busy || saving} footer={footer}>
       <div className="svc-steps" aria-hidden="true">
@@ -325,22 +309,6 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       </div>
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
-      <div className="svc-log">
-        <span>Historial</span>
-        <ol>
-          {order.events.map((event) => {
-            const meta = repairStatusMeta(event.status, statuses);
-            const current = event.id === currentEventId;
-            return (
-              <li key={event.id} className={current ? 'now' : undefined}>
-                <i className={current ? 'now' : undefined} style={current ? undefined : { background: meta.color }} />
-                <b>{meta.label}</b>
-                <small>{event.createdAt}</small>
-              </li>
-            );
-          })}
-        </ol>
-      </div>
       {order.whatsappUrl ? (
         <div className="svc-wa">
           <span>Listo para avisar al cliente</span>

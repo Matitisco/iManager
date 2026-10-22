@@ -1,11 +1,20 @@
 import { isSectionHidden } from '../config/hiddenSections';
 import type { HistoryEvent } from '../services/history-api';
+import { statusLabel } from './format';
 export type HistoryDetailRow = { label: string; before: string | null; after: string | null };
 
 const OPENABLE = new Set(['inventory', 'sales', 'tradeins', 'service', 'clients', 'suppliers', 'expenses', 'returns']);
 
 export function historyAction(event: { verb?: string | null; target?: string | null; suffix?: string | null }) {
   return [event.verb, event.target, event.suffix].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+export function historyRecordAction(event: { action?: string; changes?: HistoryDetailRow[] | null; verb?: string | null; target?: string | null; suffix?: string | null }) {
+  if (event.action === 'repair.status') {
+    const status = event.changes?.find(change => change.label === 'Estado')?.after;
+    if (status) return `Pasó a ${statusLabel(status)}`;
+  }
+  return historyAction(event);
 }
 
 export function historySentence(event: { actorName?: string | null; verb?: string | null; target?: string | null; suffix?: string | null }) {
@@ -23,8 +32,12 @@ export function historyRecordNote(event: { legacy: boolean; recordState: string;
   return 'El registro ya no existe';
 }
 
-export function historyDetailRows(event: { changes?: HistoryDetailRow[] | null; detail?: string | null }): HistoryDetailRow[] {
-  return (event.changes ?? []).filter((row) => row.label?.trim() && (row.before != null || row.after != null));
+export function historyDetailRows(event: { action?: string; changes?: HistoryDetailRow[] | null; detail?: string | null }): HistoryDetailRow[] {
+  return (event.changes ?? []).filter((row) => row.label?.trim() && (row.before != null || row.after != null)).map(row =>
+    (event.action === 'repair.status' || event.action === 'repair.created') && row.label === 'Estado'
+      ? { ...row, before: row.before ? statusLabel(row.before) : null, after: row.after ? statusLabel(row.after) : null }
+      : row,
+  );
 }
 
 /** Retain the saved label; a live identifier may complete its shortened IMEI. */

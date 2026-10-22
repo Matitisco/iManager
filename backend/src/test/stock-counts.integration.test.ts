@@ -42,17 +42,23 @@ describe("blind stock count", () => {
     const salesHeaders = buildAuthHeaders({ uid: "count-sales", email: "count-sales@example.com", name: "Iván" });
 
     const found = await device(storeId, { imei: "352098117744521", model: "iPhone 13", status: "DISPONIBLE", price: 850000 });
-    const missing = await device(storeId, { imei: "352098117741188", model: "iPhone 13 mini", status: "RESERVADO", price: 560000 });
-    const soldLater = await device(storeId, { imei: "352098117746612", model: "iPhone 11", status: "EN_REVISION", price: 330000 });
+    const missing = await device(storeId, { imei: "352098117741188", model: "iPhone 13 mini", status: "DISPONIBLE", price: 560000 });
+    const soldLater = await device(storeId, { imei: "352098117746612", model: "iPhone 11", status: "DISPONIBLE", price: 330000 });
     const alreadySold = await device(storeId, { imei: "352098117745521", model: "iPhone XR", status: "VENDIDO", price: 240000 });
     await device(storeId, { imei: null, model: "Sin chip", status: "DISPONIBLE" });
     const review = await device(storeId, { imei: "352098117742207", model: "iPhone 14", status: "EN_REVISION" });
+
+    const reserved = await device(storeId, { imei: "352098117740001", model: "Reservado", status: "RESERVADO" });
+    await device(storeId, { model: "Reservado sin IMEI", status: "RESERVADO" });
+    await device(storeId, { model: "En revisión sin IMEI", status: "EN_REVISION" });
+    const archivedExcluded = await device(storeId, { model: "Archivado", status: "DISPONIBLE" });
+    await prisma.inventoryItem.update({ where: { id: archivedExcluded.id }, data: { archivedAt: new Date() } });
 
     const preview = await app.inject({ method: "GET", url: "/api/stock-counts/preview", headers });
     expect(preview.statusCode).toBe(200);
     expect(preview.json()).toEqual({
       excludedNoImei: 1,
-      scope: "Disponibles, reservados y en revisión",
+      scope: "Disponible",
       counters: "Todo el equipo con Inventario",
     });
     expect(preview.body).not.toContain("iPhone");
@@ -72,8 +78,11 @@ describe("blind stock count", () => {
     expect(started.json().count.total).toBe(0);
 
     const snapshot = await prisma.stockCountExpected.findMany({ where: { stockCountId: countId } });
-    expect(snapshot.map((row) => row.inventoryItemId).sort()).toEqual([found.id, missing.id, soldLater.id, review.id].sort());
+    expect(snapshot.map((row) => row.inventoryItemId).sort()).toEqual([found.id, missing.id, soldLater.id].sort());
     expect(snapshot.map((row) => row.inventoryItemId)).not.toContain(alreadySold.id);
+    expect(snapshot.map((row) => row.inventoryItemId)).not.toContain(reserved.id);
+    expect(snapshot.map((row) => row.inventoryItemId)).not.toContain(review.id);
+    expect(snapshot.every((row) => row.statusAtSnapshot === "DISPONIBLE")).toBe(true);
 
     const again = await app.inject({ method: "POST", url: "/api/stock-counts", headers: partnerHeaders });
     expect(again.statusCode).toBe(409);
@@ -108,7 +117,7 @@ describe("blind stock count", () => {
     expect(closed.statusCode).toBe(200);
     const buckets = closed.json().count.buckets;
     expect(buckets.matched.map((row: { inventoryItemId: string }) => row.inventoryItemId)).toEqual([found.id]);
-    expect(buckets.missing.map((row: { inventoryItemId: string }) => row.inventoryItemId).sort()).toEqual([missing.id, review.id].sort());
+    expect(buckets.missing.map((row: { inventoryItemId: string }) => row.inventoryItemId).sort()).toEqual([missing.id].sort());
     expect(buckets.sold.map((row: { imei: string; note: string | null }) => ({ imei: row.imei, note: row.note }))).toEqual([
       { imei: soldLater.imei, note: "Se vendió durante el conteo" },
       { imei: alreadySold.imei, note: "Figura vendido" },
@@ -116,7 +125,7 @@ describe("blind stock count", () => {
     expect(buckets.surplus.map((row: { imei: string }) => row.imei)).toEqual(["352098117747702"]);
     expect(closed.json().count.excludedNoImei).toBe(1);
     expect(closed.json().count.summary).toContain("1 coinciden");
-    expect(closed.json().count.summary).toContain("2 faltan");
+    expect(closed.json().count.summary).toContain("1 sin escanear");
 
     const touchedSold = await app.inject({
       method: "POST",
@@ -187,7 +196,7 @@ describe("blind stock count", () => {
     const openAgain = await app.inject({ method: "GET", url: `/api/stock-counts/${countId}`, headers });
     expect(openAgain.json().count.buckets.missing[0].model).toBe("iPhone 12");
     const listed = await app.inject({ method: "GET", url: "/api/stock-counts", headers });
-    expect(listed.json().counts[0].summary).toContain("1 faltan");
+    expect(listed.json().counts[0].summary).toContain("1 sin escanear");
     expect(listed.json().counts[0].summary).not.toContain("iPhone");
   });
 });

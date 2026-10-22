@@ -81,6 +81,19 @@ export function ExpenseForm({ id }: { id?: string }) {
     }
   };
 
+  if (confirm) return (
+    <ReasonSheet
+      title="Archivar gasto"
+      note="El gasto queda archivado y deja de restar en la ganancia neta. No se borra."
+      ok="Archivar"
+      danger
+      busy={busy}
+      error={error}
+      onOk={(reason) => { void archive(reason); }}
+      onClose={() => { if (!busy) setConfirm(false); }}
+    />
+  );
+
   return (
     <Sheet title={id ? 'Editar gasto' : 'Nuevo gasto'} onClose={close} busy={busy} footer={
       current?.deletedAt ? (
@@ -100,18 +113,6 @@ export function ExpenseForm({ id }: { id?: string }) {
       <Field label="Moneda"><span /></Field>
       <Segs options={[{ id: 'ARS', label: 'Pesos' }, { id: 'USD', label: 'Dólares' }]} value={currency} onChange={(value) => setCurrency(value === 'USD' ? 'USD' : 'ARS')} />
       <Field label="Notas"><textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></Field>
-      {confirm ? (
-        <ReasonSheet
-          title="Archivar gasto"
-          note="El gasto queda archivado y deja de restar en la ganancia neta. No se borra."
-          ok="Archivar"
-          danger
-          busy={busy}
-          error={error}
-          onOk={(reason) => { void archive(reason); }}
-          onClose={() => { if (!busy) setConfirm(false); }}
-        />
-      ) : null}
     </Sheet>
   );
 }
