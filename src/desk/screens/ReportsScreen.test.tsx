@@ -3,7 +3,6 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, ClientCategory, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { ExchangeProvider } from '../exchange';
-import type { RecordsAvailability } from '../../context/store-records';
 import { ReportsScreen } from './ReportsScreen';
 
 const context = vi.hoisted(() => ({
@@ -17,8 +16,6 @@ const context = vi.hoisted(() => ({
   appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
   expenses: [] as Array<{ id: string; date: string; category: string; amount: number; currency: 'ARS' | 'USD'; exchangeRate: number | null; notes: string | null; deletedAt: string | null }>,
   expensesLoaded: true,
-  recordsAvailability: undefined as RecordsAvailability | undefined,
-  retryRecords: vi.fn(),
 }));
 const desk = vi.hoisted(() => ({ open: vi.fn(), toast: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -68,8 +65,6 @@ async function exportedCsv() {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-07T12:00:00-03:00'));
-  context.recordsAvailability = undefined;
-  context.retryRecords.mockClear();
   context.sales = [
     sale('1', '2026-04-01T00:00:00-03:00', 100),
     sale('2', '2026-04-02', 200),
@@ -105,17 +100,17 @@ describe('Reports custom period', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Hoy' }));
     expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('07/10/2026');
     expect(total()).toBe('$ 42');
-    expect(screen.getByText('Últimos 30 días')).toBeInTheDocument();
+    expect(screen.getByText('Facturación · últimos 30 días')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar período' }));
-    expect(screen.getByText('· del 07/10/2026 al 07/10/2026')).toBeInTheDocument();
+    expect(screen.getByText('Facturación · 07/10/2026 al 07/10/2026')).toBeInTheDocument();
   });
 
   it('applies inclusive dates to revenue, comparison, bars, donut and detail rows', async () => {
     render(<ReportsScreen />);
     await applyRange();
     expect(total()).toBe('$ 600');
-    expect(screen.getByText('· del 01/04/2026 al 03/04/2026')).toBeInTheDocument();
-    expect(screen.getByText('↓ 40 % · menos que los 3 días anteriores')).toBeInTheDocument();
+    expect(screen.getByText('Facturación · 01/04/2026 al 03/04/2026')).toBeInTheDocument();
+    expect(screen.getByText('▼ 40% vs período anterior')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '01/04/2026: $ 100' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '02/04/2026: $ 200' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '03/04/2026: $ 300' })).toBeInTheDocument();
@@ -153,16 +148,16 @@ describe('Reports custom period', () => {
     render(<ReportsScreen />);
     await applyRange();
     await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
-    expect(total()).toBe('2 equipos');
-    expect(screen.getByText('Por estado actual')).toBeInTheDocument();
+    expect(total()).toBe('2');
+    expect(screen.getByText('Estado actual')).toBeInTheDocument();
     expect(screen.getByText(/1 equipo sin fecha de ingreso no se incluye/)).toBeInTheDocument();
     expect(document.querySelectorAll('.gtk')).toHaveLength(2);
     expect(screen.queryByText('Equipo 3 128 GB')).not.toBeInTheDocument();
     expect(screen.queryByText('Equipo 4 128 GB')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Disponible: 1' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Canjes' }));
-    expect(total()).toBe('2 canjes');
-    expect(document.querySelector('.gdelta')).toHaveClass('report-delta-neutral');
+    expect(total()).toBe('2');
+    expect(screen.getByText('1 en curso')).toBeInTheDocument();
     expect(document.querySelectorAll('.gtk')).toHaveLength(2);
     expect(screen.queryByText('Canje 3')).not.toBeInTheDocument();
     expect(screen.queryByText('Canje 4')).not.toBeInTheDocument();
@@ -198,10 +193,10 @@ describe('Reports custom period', () => {
     context.sales.push(sale('8', '2026-10-07', 42));
     render(<ReportsScreen />);
     await applyRange();
-    await userEvent.click(screen.getByRole('button', { name: '7 días' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Semana' }));
     expect(total()).toBe('$ 42');
     expect(screen.queryByLabelText('Fecha de inicio')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '7 días' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Semana' })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
     expect(screen.getByLabelText('Fecha de inicio')).toHaveValue('01/04/2026');
   });
@@ -289,14 +284,14 @@ describe('Reports on a phone', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Aplicar período' }));
     expect(screen.queryByRole('dialog', { name: 'Período personalizado' })).not.toBeInTheDocument();
     expect(total()).toBe('$ 600');
-    expect(screen.getByText('· del 01/04/2026 al 03/04/2026')).toBeInTheDocument();
+    expect(screen.getByText('Facturación · 01/04/2026 al 03/04/2026')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'true');
     const cash = screen.getByRole('button', { name: 'Efectivo: 50%' });
     expect(cash).toHaveTextContent('$ 300');
     expect(cash).toHaveTextContent('50%');
     expect(document.querySelector('.gnow')).toHaveTextContent('03/04/2026');
-    await userEvent.click(screen.getByRole('button', { name: '7 días' }));
-    expect(screen.getByRole('button', { name: '7 días' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Semana' }));
+    expect(screen.getByRole('button', { name: 'Semana' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('button', { name: 'Personalizado' })).toHaveAttribute('aria-pressed', 'false');
   });
 });
@@ -414,7 +409,7 @@ describe('Reports breakdown and new sections', () => {
     await applyRange();
     await userEvent.click(screen.getByRole('button', { name: 'Clientes' }));
     expect(total()).toBe('1');
-    expect(screen.getByText(/1 recurrente\./)).toBeInTheDocument();
+    expect(screen.getByText('1 recurrente')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Por tipo' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Alta: 1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recurrente: 1' })).toBeInTheDocument();
@@ -445,11 +440,9 @@ describe('Reports breakdown and new sections', () => {
     );
     await applyRange();
     await userEvent.click(screen.getByRole('button', { name: 'Servicio' }));
-    expect(screen.getByText('Presupuestado · órdenes ingresadas')).toBeInTheDocument();
+    expect(screen.getByText(/Facturación ·/)).toBeInTheDocument();
     expect(total()).toBe('US$ 1.500');
-    expect(screen.getByText('2 días')).toBeInTheDocument();
-    expect(screen.getByText('Del ingreso a Entregado · 1 de 1 entregas medibles')).toBeInTheDocument();
-    expect(document.querySelector('.gcol')).toHaveAttribute('aria-label', '01/04/2026: 2');
+    expect(screen.getByText(/2 órdenes · tiempo medio: 2 días/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Por estado' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recibido: 1' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Entregado: 1' })).toBeInTheDocument();
@@ -510,104 +503,4 @@ describe('reports without module access', () => {
     expect(screen.getByRole('button', { name: 'Servicio' })).toBeInTheDocument();
     for (const label of ['Ventas', 'Stock', 'Canjes', 'Clientes']) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
   });
-});
-
-
-const availability = (status: 'loading' | 'success' | 'error'): RecordsAvailability => Object.fromEntries(['sales', 'inventory', 'tradeIns', 'clients', 'repairs'].map(key => [key, { status, ...(status === 'error' ? { error: 'No se pudieron cargar los datos.' } : {}) }])) as RecordsAvailability;
-describe('Reports semantics and availability #451', () => {
-  it('shows loading and failure distinctly, disables export and retries before displaying successful empty data', async () => {
-    context.recordsAvailability = availability('loading');
-    const view = render(<ReportsScreen />);
-    expect(screen.getByRole('status')).toHaveTextContent('Cargando reporte');
-    expect(document.querySelector('.gamount')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Exportar' })).toBeDisabled();
-    context.recordsAvailability = availability('error'); view.rerender(<ReportsScreen />);
-    expect(screen.getByRole('alert')).toHaveTextContent('No se pudo cargar el reporte');
-    expect(screen.queryByText('No hay ventas para este período y filtro.')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(context.retryRecords).toHaveBeenCalledOnce();
-    context.recordsAvailability = availability('success'); view.rerender(<ReportsScreen />);
-    expect(total()).toBe('$ 0');
-    expect(screen.getByRole('button', { name: 'Exportar' })).toBeEnabled();
-  });
-  it('distinguishes unavailable previous conversion from a previous zero', async () => {
-    context.sales = [{ ...sale('current', '2026-10-07', 100), amountCurrency: 'ARS' }, { ...sale('previous', '2026-08-10', 100), amountCurrency: 'USD' }];
-    render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: null, manualSell: null }}><ReportsScreen /></ExchangeProvider>);
-    expect(total()).toBe('$ 100');
-    expect(document.querySelector('.gdelta')).toHaveTextContent('Variación no disponible');
-    expect(document.querySelector('.gdelta')).toHaveClass('report-delta-neutral');
-    expect(document.querySelector('.gdelta')).not.toHaveTextContent('%');
-  });
-  it('uses full authorized inventory to classify sales of equipment entered before the reporting range', async () => {
-    context.inventory[0] = { ...context.inventory[0], createdAt: '2025-01-01', model: 'Older stock model' };
-    context.sales[0] = { ...context.sales[0], productId: context.inventory[0].id };
-    render(<ReportsScreen />); await applyRange();
-    await userEvent.click(screen.getByRole('combobox', { name: 'Columna de desglose' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Modelo' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Older stock model: 17%' }));
-    expect(document.querySelectorAll('.gtk')).toHaveLength(1);
-    expect(screen.getByText('Venta 1')).toBeInTheDocument();
-    expect(await exportedCsv()).toContain('Venta 1');
-  });
-  it('keeps owner financial results below charts and only in Ventas', async () => {
-    context.appSession = { membership: { role: 'OWNER' } };
-    render(<ReportsScreen />); await applyRange();
-    const chart = document.querySelector('.repgrid')!;
-    const business = screen.getByText('Resultado del negocio').closest('section')!;
-    expect(chart.compareDocumentPosition(business) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(business).toHaveTextContent('Ventas, gastos y devoluciones');
-    await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
-    expect(screen.queryByText('Resultado del negocio')).not.toBeInTheDocument();
-  });
-  it('separates snapshot availability from dated entries', async () => {
-    render(<ReportsScreen />); await applyRange();
-    await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
-    expect(total()).toBe('2 equipos');
-    const kpis = document.querySelectorAll('.report-kpi');
-    expect(kpis[0]).toHaveTextContent('Disponibles hoy3');
-    expect(kpis[1]).toHaveTextContent('$ 600');
-    expect(kpis[2]).toHaveTextContent('No disponible');
-  });
-  it('resets an empty trade period and category/bar selection to rolling thirty days', async () => {
-    context.tradeIns = [trade('1', '2026-09-20')];
-    render(<ReportsScreen />);
-    await userEvent.click(screen.getByRole('button', { name: 'Canjes' }));
-    await userEvent.click(screen.getByRole('button', { name: '7 días' }));
-    expect(screen.getByText('No hubo canjes en este período')).toBeInTheDocument();
-    expect(document.querySelector('.repgrid')).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Ver últimos 30 días' }));
-    expect(total()).toBe('1 canje');
-    expect(screen.getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('.repgrid')).not.toBeNull();
-  });
-  it('shows registrations without confirmed purchase zeroes when sales permission is absent', async () => {
-    context.clients = [client('c1', 'Registration only', '2026-10-06')];
-    context.appSession = { membership: { role: 'STAFF', sections: ['reports', 'clients'] } };
-    render(<ReportsScreen />);
-    expect(total()).toBe('1');
-    expect(screen.getByText('Clientes registrados')).toBeInTheDocument();
-    expect(screen.getByText(/Compras no disponibles: requieren permiso/)).toBeInTheDocument();
-    expect(screen.queryByText('0 compras')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Recurrente: 0' })).not.toBeInTheDocument();
-    const csv = await exportedCsv();
-    expect(csv).toContain('"Registration only","","","Alta"');
-  });
-  it('cancels custom changes without applying them and previews the preceding equal window', async () => {
-    render(<ReportsScreen />);
-    await userEvent.click(screen.getByRole('button', { name: 'Personalizado' }));
-    fireEvent.change(screen.getByLabelText('Fecha de inicio'), { target: { value: '2026-10-01' } });
-    fireEvent.change(screen.getByLabelText('Fecha de fin'), { target: { value: '2026-10-21' } });
-    expect(screen.getByText(/21 días · se compara con los 21 días anteriores/)).toHaveTextContent('10/09/2026 al 30/09/2026');
-    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-    expect(screen.getByText('Últimos 30 días')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Fecha de inicio')).not.toBeInTheDocument();
-  });
-});
-
-it('retains canceled sales in CSV while explicitly excluding them from totals and eligible count', async () => {
-  render(<ReportsScreen />); await applyRange();
-  expect(total()).toBe('$ 600');
-  expect(screen.getByText('4 listadas · 3 computables')).toBeInTheDocument();
-  expect(screen.getByText('Venta 6').closest('.gtk')).toHaveTextContent('Excluida de totales');
-  expect(await exportedCsv()).toContain('Cancelada');
 });

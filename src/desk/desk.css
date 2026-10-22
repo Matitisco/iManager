@@ -2047,68 +2047,11 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .commission-name b, .commission-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .commission-rule-chip { max-width: 100%; white-space: normal; }
 .reports-screen > .dtop { align-items: flex-start; }
-.reports-screen .report-export { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-.reports-screen .report-export span { font-size: 12px; color: var(--secondary); }
-.reports-screen .gfilters { row-gap: 10px; margin-bottom: 12px; }
-.reports-screen .gfilters > .commission-period { margin-left: auto; }
-.reports-screen .gfilters .gperiods { justify-content: flex-end; }
-.reports-screen button.gchip { background: #fff; border: 1px solid var(--border); }
-.reports-screen button.gchip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
-.reports-screen button.circ { border: 1px solid var(--border); background: #fff; }
-.reports-screen button:disabled { cursor: default; opacity: .5; }
-.reports-screen .gperiods button.gchip.on { background: #FFF4BF; border-color: #F5D34E; color: var(--primary); }
-.reports-screen .gperiods .gchip { min-height: 36px; }
-.reports-screen .report-applied { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; font-size: 12px; line-height: 1.6; color: var(--secondary); margin-bottom: 18px; }
-.reports-screen .report-applied strong { color: var(--primary); }
-.reports-screen .gtotal { margin-bottom: 8px; }
-.reports-screen .report-delta-positive { color: #168354; background: #E4F4ED; }
-.reports-screen .report-delta-negative { color: #C52F3D; background: #FCEDEF; }
-.reports-screen .report-delta-neutral { color: var(--secondary); background: #EEF0F3; }
-.reports-screen .report-notes { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--secondary); line-height: 1.5; margin: 8px 0 18px; }
-.reports-screen .report-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
-.reports-screen .report-kpi { border: 1px solid var(--border); border-radius: 22px; background: #fff; padding: 16px; min-width: 0; }
-.reports-screen .report-kpi strong { display: block; font-size: 22px; letter-spacing: -.03em; margin: 4px 0; overflow-wrap: anywhere; }
-.reports-screen .report-kpi p { font-size: 12px; line-height: 1.45; color: var(--secondary); margin: 0; }
-.reports-screen .report-preview { font-size: 12px; color: var(--secondary); line-height: 1.5; margin: 0; align-self: center; flex: 1 1 220px; }
-.reports-screen .gcancel { min-height: 44px; padding: 0 12px; font-weight: 600; }
-.reports-screen .report-business { margin-top: 18px; padding: 18px; border: 1px solid var(--border); border-radius: 24px; background: #fff; }
-.reports-screen .report-business-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin-bottom: 12px; }
-.reports-screen .report-business-head h3 { font-size: 16px; }
-.reports-screen .report-business-head span { font-size: 12px; color: var(--secondary); }
-.reports-screen .net-stats { margin: 0; }
-.reports-screen .net-stats .dstat { background: none; border: 0; padding: 0; box-shadow: none; }
-.reports-screen .net-stats .big { font-size: 22px; }
-.reports-screen .report-empty, .reports-screen .report-state { background: #fff; border: 1px solid var(--border); border-radius: 24px; padding: 36px 20px; text-align: center; }
-.reports-screen .report-empty h3, .reports-screen .report-state h3 { font-size: 18px; margin-bottom: 6px; }
-.reports-screen .report-empty p { max-width: 420px; margin: 0 auto 16px; line-height: 1.5; color: var(--secondary); }
-.reports-screen .report-state p, .reports-screen .report-filter-scope, .reports-screen .report-signed p { color: var(--secondary); font-size: 13px; margin-bottom: 12px; }
-.reports-screen .report-signed .glg { width: 100%; }
 @media (max-width: 760px) {
-  .reports-screen .gfilters { width: 100%; max-width: 100%; flex-direction: column; align-items: stretch; overflow: visible; gap: 8px; }
-  .reports-screen .gfilters > div, .reports-screen .gfilters .gperiods { width: 100%; max-width: 100%; min-width: 0; margin-left: 0; flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; gap: 8px; }
+  .reports-screen .gfilters .gperiods { gap: 4px; justify-content: flex-start; margin-left: 0; flex-wrap: wrap; }
   .reports-screen .gfilters .gperiods > :first-child { margin-left: 0; }
-  .reports-screen .gfilters .gchip { flex: none; min-height: 44px; }
-  .reports-screen .gperiods .gchip { padding-inline: 12px; }
-  .reports-screen .report-applied { font-size: 13px; margin-top: 8px; margin-bottom: 22px; }
-  .reports-screen .report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .reports-screen .report-kpi:last-child { grid-column: 1 / -1; }
-  .reports-screen .report-kpi { padding: 16px; }
-  .reports-screen .report-kpi strong { font-size: clamp(19px, 5.5vw, 25px); }
-  .reports-screen .report-kpi p, .reports-screen .report-notes { font-size: 13px; }
-  .reports-screen .net-stats { grid-template-columns: 1fr; gap: 0; }
-  .reports-screen .net-stats .dstat { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--border); }
-  .reports-screen .net-stats .dstat:last-child { border: 0; padding-bottom: 0; }
-  .reports-screen .report-empty { padding: 36px 22px; }
-  .reports-screen .gcard { padding: 20px 16px; }
-  .reports-screen .gcol { max-width: none; }
-  .reports-screen .gxl span { font-size: 9px; }
+  .reports-screen .gperiods .gchip { padding-inline: 7px; flex: none; }
 }
-.report-range .report-preview { margin-top: 12px; font-size: 14px; color: var(--secondary); line-height: 1.5; }
-.report-range #report-custom-range { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.report-range .report-preview, .report-range .ferr { grid-column: 1 / -1; }
-.report-range .dp-field { min-width: 0; margin: 0; }
-.report-range .dp-field:has(.dp-calendar.inline) { grid-column: 1 / -1; }
-
 .gtk .gr { text-align: right; }
 .gtk .gamt { text-align: right; white-space: nowrap; }
 .dtable tbody tr.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); }
