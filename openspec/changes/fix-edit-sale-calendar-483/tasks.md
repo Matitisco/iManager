@@ -6,3 +6,9 @@
 
 ## Backend
 Sin cambios.
+
+## Corrección en viewport bajo
+- [x] Reproducir y capturar antes/después en los tres tamaños pedidos.
+- [x] Medir el panel y reposicionarlo completo dentro del viewport cuando no entra en el cuerpo.
+- [x] Revelar el calendario inline móvil sin mover el encabezado ni las acciones.
+- [x] Cubrir regresión de posicionamiento y componente; correr suites y TypeScript.
