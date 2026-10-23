@@ -16,6 +16,8 @@ export interface SupplierListItem {
   notes: string | null;
   deviceCount: number;
   problemCount: number;
+  claimCount?: number;
+  lastPurchasedAt?: string | null;
   deletedAt: string | null;
 }
 
@@ -34,10 +36,20 @@ export interface SupplierPurchaseItem {
 
 export interface SupplierPurchase {
   id: string;
+  name: string | null;
   purchasedAt: string;
   notes: string | null;
+  devices: number;
   problemCount: number;
+  claimCount: number;
+  totalCost?: number | null;
+  currency?: string | null;
+  costTotals?: Array<{ currency: string; totalCost: number }>;
+}
+
+export interface SupplierPurchaseDetail extends SupplierPurchase {
   items: SupplierPurchaseItem[];
+  summary: { devices: number; problems: number };
 }
 
 export interface SupplierDetail extends SupplierListItem {
@@ -52,10 +64,17 @@ export function fetchSuppliers(user: AuthUserLike, archived = false) {
 }
 
 export function fetchSupplier(user: AuthUserLike, id: string) {
-  return apiRequest<{ supplier: SupplierDetail }>(user, `/api/suppliers/${id}`, {
+  return apiRequest<{ supplier: SupplierDetail }>(user, `/api/suppliers/${id}?includeItems=0`, {
     fallback: 'No se pudo abrir el proveedor',
     errorFrom: 'friendly',
   }).then((data) => data.supplier);
+}
+
+export function fetchSupplierPurchase(user: AuthUserLike, id: string, purchaseId: string) {
+  return apiRequest<{ purchase: SupplierPurchaseDetail }>(user, `/api/suppliers/${id}/purchases/${purchaseId}`, {
+    fallback: 'No se pudo abrir la compra',
+    errorFrom: 'friendly',
+  }).then((data) => data.purchase);
 }
 
 export function createSupplier(user: AuthUserLike, input: SupplierInput) {

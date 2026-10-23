@@ -162,7 +162,8 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           onSave={(draft) => {
             const payload = scanProduct(draft, money.active === 'USD' ? 'USD' : 'ARS', seeCosts);
             void run(async () => {
-              await addProduct(payload, { restockRetired: true });
+              await addProduct({ ...payload, ...(supplierId ? { supplierId } : {}) }, { restockRetired: true });
+              if (supplierId) await reloadLedger();
               signalDesk('desk-eq-saved');
               signalDesk('desk-check', 'inv');
             }, 'Equipo cargado');
@@ -217,7 +218,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       </div>
       <Field label="Proveedor">
         {suppliers === null ? <FieldSkeleton /> : (
-          <select aria-label="Proveedor" value={supplier} onChange={(event) => setSupplier(event.target.value)}>
+          <select aria-label="Proveedor" disabled={!!supplierId} value={supplierId || supplier} onChange={(event) => setSupplier(event.target.value)}>
             <option value="">Sin proveedor</option>
             {(suppliers ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
           </select>
@@ -274,7 +275,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           status,
           categoryId: current?.categoryId,
           customFields: current?.customFields,
-          ...(suppliers === null ? {} : supplier ? { supplierId: supplier } : current ? { supplierId: null } : {}),
+          ...(supplierId ? { supplierId } : suppliers === null ? {} : supplier ? { supplierId: supplier } : current ? { supplierId: null } : {}),
         };
         if (current) {
           const next = { ...current, ...payload };

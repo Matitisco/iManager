@@ -1,9 +1,9 @@
 .supplier-sheet .supplier-file { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .supplier-contact { margin: 0; min-width: 0; }
-.supplier-contact > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: baseline; gap: 16px; padding: 14px 0; font-size: 14px; line-height: 1.5; }
+.supplier-contact > div { display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 12px; padding: 12px 0; font-size: 14px; line-height: 1.5; }
 .supplier-contact > div + div { border-top: 1px solid var(--border); }
-.supplier-contact dt { color: var(--secondary); }
-.supplier-contact dd { margin: 0; min-width: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.supplier-contact dt { display: grid; place-items: center; color: var(--secondary); }
+.supplier-contact dd { margin: 0; min-width: 0; text-align: left; font-weight: 600; overflow-wrap: anywhere; }
 .supplier-file .supplier-note { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--row); font-size: 13px; line-height: 1.6; color: var(--secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
 .supplier-file .supplier-status { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .supplier-purchases { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -18,7 +18,7 @@
 .supplier-item-cost { grid-column: 3; font-size: 13px; line-height: 1.6; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .supplier-item-imei { grid-column: 2 / -1; font-size: 12px; line-height: 1.5; color: var(--secondary); overflow-wrap: anywhere; }
 .supplier-item-status { grid-column: 2 / -1; justify-self: start; max-width: 100%; padding: 3px 7px; border-radius: 6px; background: var(--lime-soft); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.desk-app .supplier-item:hover { background: var(--row); }
+.desk-app button.supplier-item:hover { background: var(--row); }
 .supplier-item:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
 .supplier-file .supplier-empty { margin: 0; padding: 12px 0; color: var(--secondary); font-size: 14px; line-height: 1.5; }
 .supplier-sheet .supplier-fields { display: flex; flex-direction: column; gap: 20px; min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -32,9 +32,54 @@
 
 @media (max-width: 760px) {
   .supplier-sheet > .sheet-scroll { padding-top: 16px; }
-  .supplier-contact > div { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; }
+  .supplier-contact > div { grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
   .supplier-contact dd { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .supplier-purchase { padding: 14px; }
   .desk-app .supplier-item { grid-template-columns: 28px minmax(0, 1fr) fit-content(40%); gap: 4px 8px; }
   .supplier-item-icon { width: 28px; height: 28px; border-radius: 8px; }
+}
+
+/* #308: supplier summary and the shared purchase layers. */
+.sup-aside { display: inline-flex; align-items: center; flex: none; }
+.sup-aside .spill { display: inline-flex; align-items: center; gap: 4px; }
+.supplier-sheet .sup-status { margin: 0; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; font-weight: 600; }
+.supplier-purchases .sup-sec { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.supplier-purchases .sup-sec h4 { margin: 0; font-size: 16px; }
+.sup-sec .wlink { white-space: nowrap; }
+.supplier-purchase.sup-card { padding: 4px 16px; }
+.supplier-purchase.sup-card .supplier-item:first-child { border-top: 0; }
+.desk-app .supplier-item.sup-buy { grid-template-columns: 32px minmax(0, 1fr) fit-content(48%); align-items: center; }
+.sup-buy .supplier-item-cost { grid-row: 1; align-self: center; color: var(--primary); }
+.sup-buy .supplier-item-cost i { font-style: normal; color: var(--section); margin-left: 6px; font-weight: 400; }
+.sup-buy .supplier-item-name { grid-row: 1; }
+.sup-buy .supplier-item-imei { grid-row: 2; }
+.supplier-item-status.warn { font-weight: 600; }
+.sheet.sup-choose { width: 440px; }
+.sup-choose .card { margin: 0; }
+.sup-choose .chev { color: var(--section); }
+.sheet.sup-second { width: 520px; }
+.sup-second .supplier-purchase.supplier-items { padding-top: 0; padding-bottom: 0; }
+.sup-second .sheet-foot > .btn2 { width: 100%; }
+.supplier-sheet > .sheet-h, .sup-second > .sheet-h, .sup-choose > .sheet-h { padding-bottom: 12px; }
+.supplier-sheet > .sheet-h .sub, .sup-second > .sheet-h .sub, .sup-choose > .sheet-h .sub { margin: 0 0 16px; }
+.supplier-load-error { color: var(--secondary); font-size: 14px; line-height: 1.5; }
+.supplier-sheet:has([data-testid="supplier-loading"]) { height: min(782px, 88dvh, calc(100dvh - 48px)); }
+.supplier-loading-footer { display: grid; grid-template-columns: 1fr 1.35fr; gap: 8px; }
+.supplier-loading-footer .skeleton { height: 52px; border-radius: 999px; }
+.supplier-stock-layer { display: contents; }
+.supplier-stock-layer > .ov { z-index: 120; background: rgba(17,17,17,.32); }
+@media (max-width: 760px) {
+  .sup-pill-t { display: none; }
+  .supplier-sheet:has([data-testid="supplier-loading"]) { height: min(782px, 92dvh, calc(100dvh - 24px)); }
+  .sup-aside .spill { min-width: 34px; justify-content: center; }
+  .desk-app .sheet.sup-choose { width: 100%; }
+  .desk-app .ov.center.sup-top { align-items: flex-end; padding: 0; }
+  .sup-choose .sheet-scroll { padding-bottom: 24px; }
+  .supplier-sheet > .sheet-h .sub, .sup-choose > .sheet-h .sub { margin-bottom: 0; }
+  .desk-app .ov.supplier-history-layer { padding: 0; align-items: stretch; background: var(--bg); }
+  .desk-app .sheet.sup-second { width: 100%; max-width: none; height: 100dvh; max-height: 100dvh; border-radius: 0; padding: 0; background: var(--bg); animation: none; box-shadow: none; }
+  .sup-second > .sheet-h { align-items: center; justify-content: flex-start; gap: 12px; padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 12px; background: var(--bg); }
+  .sup-second > .sheet-h h3 { font-size: 20px; }
+  .sup-second > .sheet-h .sub { margin: 2px 0 0; font-size: 13px; }
+  .sup-second > .sheet-scroll { padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .sup-second .supplier-purchase { background: var(--card); }
 }

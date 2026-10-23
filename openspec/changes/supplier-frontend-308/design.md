@@ -1,0 +1,3 @@
+# Diseño aprobado
+
+Referencias: /workspace/redisenio-308/notas.md, src/add.css y src/html/*.html. Usar Sheet de 540 px, scroll interno y pie fijo. Compras resumidas desde includeItems=0 y equipos desde GET purchases/:id. Segundo Sheet subov de 520 px, pantalla completa móvil con wback al breakpoint 760. Reutilizar EquipmentForm e ImportHost en una capa local que conserva la ficha y refresca tras persistir. Proveedor bloqueado también en escaneo. Costos/totales sujetos a canSeeFinancials. Patrones aún no existe: aviso informativo sin ruta inventada. Conservar tokens y colores semánticos reales.

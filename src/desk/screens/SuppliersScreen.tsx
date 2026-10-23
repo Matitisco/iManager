@@ -1,6 +1,8 @@
 import { isNetworkErrorMessage } from '../../lib/user-message';
 import { useArchivedRows } from '../use-archived-rows';
-import { isVoidRow, mergeRecordRows } from '../format';
+import { formatShortDate, isVoidRow, mergeRecordRows } from '../format';
+import { ImanagerIcon } from '../icons';
+import '../overlays/supplier.css';
 import { useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchSuppliers } from '../../services/suppliers-api';
@@ -10,7 +12,7 @@ import { DeskIcon, MobileDock, ScreenTitle, useDesk } from '../ui';
 const loadArchived = (user: Parameters<typeof fetchSuppliers>[0]) => fetchSuppliers(user, true);
 
 export function SuppliersScreen() {
-  const { suppliers, supplierError, user } = useAppContext();
+  const { suppliers, supplierError } = useAppContext();
   const { open, back } = useDesk();
   const [filter, setFilter] = useState('Todos');
   const archived = filter === 'Archivados';
@@ -18,7 +20,7 @@ export function SuppliersScreen() {
   const activeRows = suppliers;
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows : mergeRecordRows(activeRows, archivedRows);
   const error = archived ? '' : supplierError;
-  const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-supplier' })}>Nuevo proveedor</button>;
+  const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-supplier' })}><span aria-hidden="true">＋</span>Nuevo proveedor</button>;
 
   return (
     <div className="dscreen" data-testid="suppliers-screen">
@@ -45,9 +47,10 @@ export function SuppliersScreen() {
                 <span className="name">{row.name}</span>
                 <span className="role">
                   {row.deviceCount} {row.deviceCount === 1 ? 'equipo' : 'equipos'}
-                  {row.problemCount ? ` · ${row.problemCount} con problemas` : ''}
+                  {row.lastPurchasedAt ? ` · última compra ${formatShortDate(row.lastPurchasedAt).slice(0, 5)}` : ''}
                 </span>
               </span>
+              {row.problemCount > 0 ? <span className="sup-aside"><span className="spill lime" aria-label={`${row.problemCount} con problemas`}><ImanagerIcon name="en-revision" size={16} /><span>{row.problemCount}<span className="sup-pill-t"> con problemas</span></span></span></span> : null}
               <span className="chev" aria-hidden="true">›</span>
             </button>
           ))}

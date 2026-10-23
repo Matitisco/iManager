@@ -383,7 +383,7 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer, variant = 'default' }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string; variant?: 'default' | 'detail' }) {
+export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer, variant = 'default', overlayClassName, mobileBack = false }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string; variant?: 'default' | 'detail'; overlayClassName?: string; mobileBack?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const modal = useModalLayer({ ref, onClose, busy });
   const phone = usePhoneLayout();
@@ -393,16 +393,17 @@ export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy
 
   return (
     <ModalLayerContext.Provider value={modal.scope}>
-    <div className="ov" onMouseDown={modal.requestClose}>
+    <div className={`ov${overlayClassName ? ` ${overlayClassName}` : ''}`} onMouseDown={modal.requestClose}>
       <div ref={ref} tabIndex={-1} className={`sheet sheet-frame${variant === 'detail' ? ' sheet-detail' : ''}${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
-        {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
+        {phone && !mobileBack ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="sheet-h">
+          {phone && mobileBack ? <BackButton onClick={modal.requestClose} /> : null}
           <div className="sheet-title">
             <h3>{title}</h3>
             {titleAccessory}
             {subtitle ? <p className="sub">{subtitle}</p> : null}
           </div>
-          <ModalCloseButton onClick={modal.requestClose} disabled={busy} />
+          {!phone || !mobileBack ? <ModalCloseButton onClick={modal.requestClose} disabled={busy} /> : null}
         </div>
         <div className="sheet-scroll">
           {body}

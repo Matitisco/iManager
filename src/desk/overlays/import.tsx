@@ -7,7 +7,7 @@ import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 
-export function ImportHost({ kind, supplierId, supplierName }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }) {
+export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string; onSaved?: () => void | Promise<void> }) {
   const phone = usePhoneLayout();
   const { user, reloadInventory, reloadSales, reloadClients, reloadLedger } = useAppContext();
   const { close, toast } = useDesk();
@@ -30,8 +30,9 @@ export function ImportHost({ kind, supplierId, supplierName }: { kind: 'inv' | '
   const section = sectionFor(kind);
   return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => analyzeInventoryText(user, text) : undefined} onAnalyze={(sheets) => analyzeImport(user, section, sheets)} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
     const result = await config.onImport(user, rows);
+    if ((result.imported ?? 0) + (result.updated ?? 0) > 0) await onSaved?.();
     const count = (result.imported ?? 0) + (result.updated ?? 0);
-    toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
+    if (count > 0) toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
     if (kind === 'inv') signalDesk('desk-check', 'inv');
     if (kind === 'sale') signalDesk('desk-check', 'ven');
     return result;

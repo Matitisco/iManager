@@ -2,18 +2,21 @@ import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SupplierDetail as SupplierFile, SupplierListItem } from '../../services/suppliers-api';
+import type { SupplierDetail as SupplierFile, SupplierListItem, SupplierPurchaseDetail } from '../../services/suppliers-api';
 import { DeskProvider } from '../ui';
 import { SupplierDetail, SupplierForm } from './supplier';
 
 const ctx = vi.hoisted(() => ({
+  inventory: [], sales: [], tradeIns: [], returns: [], reloadLedger: vi.fn(), reloadInventory: vi.fn(), addProduct: vi.fn(),
   suppliers: [] as SupplierListItem[], saveSupplier: vi.fn(), archiveSupplier: vi.fn(), restoreSupplier: vi.fn(),
   user: { uid: 'owner' }, appSession: { store: { id: 'store' }, membership: { role: 'OWNER', sections: null as string[] | null } },
 }));
-const fetchSupplier = vi.hoisted(() => vi.fn());
+const layout = vi.hoisted(() => ({ phone: false }));
+vi.mock('../section-notices', async original => ({ ...await original<typeof import('../section-notices')>(), usePhoneLayout: () => layout.phone }));
+const { fetchSupplier, fetchSupplierPurchase } = vi.hoisted(() => ({ fetchSupplier: vi.fn(), fetchSupplierPurchase: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
-vi.mock('../../services/suppliers-api', () => ({ fetchSupplier }));
-vi.mock('../exchange', () => ({ useMoney: () => ({ show: (value: number) => `US$ ${value}` }) }));
+vi.mock('../../services/suppliers-api', () => ({ fetchSupplier, fetchSupplierPurchase }));
+vi.mock('../exchange', () => ({ useMoney: () => ({ active: 'USD', show: (value: number) => `US$ ${value}`, inputValue: (value: number) => String(value) }) }));
 const close = vi.fn();
 const open = vi.fn();
 const toast = vi.fn();
@@ -21,12 +24,16 @@ const supplier: SupplierFile = {
   id: 'supplier', name: 'Mayorista Centro', phone: '+54 261 555 0106', email: 'compras@mayoristacentro.example.com',
   notes: 'Retirar por sucursal.\nConsultar disponibilidad.', deletedAt: null, deviceCount: 2, problemCount: 1,
   purchases: [{
-    id: 'purchase', purchasedAt: '2026-10-14', notes: 'Retiro acordado.', problemCount: 1,
-    items: [{ id: 'device', model: 'iPhone 15 Pro', capacity: '256GB', imei: '356789104523871', status: 'EN_REVISION', cost: 900, currency: 'USD', problem: true, problemLabel: 'En revisión', createdAt: '2026-10-14T15:00:00Z' }],
-  }, {
-    id: 'sin-lote', purchasedAt: '', notes: 'Equipos con proveedor y sin compra agrupada.', problemCount: 0,
-    items: [{ id: 'loose', model: 'iPhone 14', capacity: '128GB', imei: '', status: 'DISPONIBLE', cost: 700, currency: 'USD', problem: false, problemLabel: null, createdAt: '2026-10-13T15:00:00Z' }],
+    id: 'purchase', name: null, purchasedAt: '2026-10-14', notes: 'Retiro acordado.', devices: 2, problemCount: 1, claimCount: 1,
+    totalCost: 1600, currency: 'USD',
   }],
+};
+const purchaseFile: SupplierPurchaseDetail = {
+  ...supplier.purchases[0], summary: { devices: 2, problems: 1 },
+  items: [
+    { id: 'device', model: 'iPhone 15 Pro', capacity: '256GB', imei: '356789104523871', status: 'EN_REVISION', cost: 900, currency: 'USD', problem: true, problemLabel: 'En revisión', createdAt: '2026-10-14T15:00:00Z' },
+    { id: 'loose', model: 'iPhone 14', capacity: '128GB', imei: '', status: 'DISPONIBLE', cost: 700, currency: 'USD', problem: false, problemLabel: null, createdAt: '2026-10-13T15:00:00Z' },
+  ],
 };
 function mount(node: ReactNode) {
   return render(<div className="desk-app"><DeskProvider value={{ tab: 'suppliers', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}>{node}</DeskProvider></div>);
@@ -39,9 +46,13 @@ function deferred<T>() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  layout.phone = false;
   ctx.suppliers = [supplier];
   ctx.appSession.membership = { role: 'OWNER', sections: null };
   fetchSupplier.mockResolvedValue(supplier);
+  fetchSupplierPurchase.mockResolvedValue(purchaseFile);
+  ctx.reloadLedger.mockResolvedValue(undefined);
+  ctx.addProduct.mockResolvedValue({ id: 'new' });
   ctx.saveSupplier.mockResolvedValue(supplier);
   ctx.archiveSupplier.mockResolvedValue(undefined);
   ctx.restoreSupplier.mockResolvedValue(supplier);
@@ -130,60 +141,144 @@ describe('ficha de proveedor', () => {
     await act(async () => pending.resolve(supplier));
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
   });
-  it('shows a visible query error and retries', async () => {
+  it('shows a neutral query error without a retry action', async () => {
     fetchSupplier.mockRejectedValueOnce(new Error('No se pudo cargar el detalle'));
     mount(<SupplierDetail id="supplier" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el detalle');
-    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
-    expect(await screen.findByTestId('supplier-detail')).toBeInTheDocument();
-    expect(fetchSupplier).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
   });
-  it('groups purchases, preserves full IMEI and state, and opens the selected equipment', async () => {
+  it('opens a purchase over the file with full IMEI and problem states', async () => {
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    const purchase = screen.getByRole('region', { name: 'Compra del 14/10/2026' });
-    expect(within(purchase).getByText('356789104523871')).toBeInTheDocument();
+    expect(screen.getByTestId('supplier-problems')).toHaveTextContent('1 de 2 equipos con problemas');
+    expect(screen.queryByText(/Sin IMEI|Sin compra/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
+    const purchase = await screen.findByTestId('supplier-purchase-detail');
+    expect(within(purchase).getByText('IMEI 356789104523871')).toBeInTheDocument();
     expect(within(purchase).getByText('En revisión')).toBeInTheDocument();
-    expect(screen.getByText(supplier.email!)).toBeInTheDocument();
-    expect(screen.getByTestId('supplier-problems')).toHaveTextContent('1 de 2 equipos están en revisión o en servicio.');
-    expect(screen.getByRole('region', { name: 'Sin compra agrupada' })).toHaveTextContent('Sin IMEI');
-    expect(screen.queryByText('Equipos con proveedor y sin compra agrupada.')).not.toBeInTheDocument();
-    await userEvent.click(within(purchase).getByRole('button'));
+    expect(fetchSupplierPurchase).toHaveBeenCalledWith(ctx.user, 'supplier', 'purchase');
+    expect(purchase.closest('.ov')).toHaveClass('center', 'subov');
+    await userEvent.click(within(purchase).getByRole('button', { name: /iPhone 15 Pro/ }));
     expect(open).toHaveBeenCalledWith({ type: 'eq', id: 'device' });
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByTestId('supplier-purchase-detail')).not.toBeInTheDocument();
+    expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
   });
-  it('keeps the main action in the footer and secondary actions in a disclosure', async () => {
+  it.each([0, 3, 5])('shows Ver todas only above three purchases (%s)', async count => {
+    fetchSupplier.mockResolvedValue({ ...supplier, purchases: Array.from({ length: count }, (_, i) => ({ ...supplier.purchases[0], id: `p${i}`, name: `Lote ${i}` })) });
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(screen.getByRole('button', { name: 'Registrar equipo' }).closest('.sheet-foot')).not.toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Registrar equipo' }));
-    expect(open).toHaveBeenCalledWith({ type: 'new-eq', supplierId: 'supplier' });
-    const disclosure = screen.getByText('Más acciones').closest('details')!;
-    expect(disclosure).not.toHaveAttribute('open');
-    await userEvent.click(screen.getByText('Más acciones'));
-    await userEvent.click(screen.getByRole('button', { name: 'Subir stock' }));
-    expect(open).toHaveBeenCalledWith({ type: 'import', kind: 'inv', supplierId: 'supplier', supplierName: supplier.name });
-    expect(disclosure).not.toHaveAttribute('open');
+    const all = screen.queryByRole('button', { name: `Ver todas (${count})` });
+    expect(!!all).toBe(count > 3);
+    expect(screen.getByTestId('supplier-detail').querySelectorAll('.sup-buy')).toHaveLength(Math.min(count, 3));
+    if (all) {
+      await userEvent.click(all);
+      const history = screen.getByRole('dialog', { name: 'Compras' });
+      expect(within(history).getAllByRole('button', { name: /Lote/ })).toHaveLength(count);
+      expect(history.parentElement).toHaveClass('subov');
+      await userEvent.click(within(history).getByRole('button', { name: /Lote 4/ }));
+      expect(await screen.findByRole('dialog', { name: 'Lote 4' })).toBeInTheDocument();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.getByRole('dialog', { name: 'Compras' })).toBeInTheDocument();
+      expect(close).not.toHaveBeenCalled();
+    }
+  });
+  it('keeps Cargar stock in the footer and offers the two inventory flows', async () => {
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    expect(screen.getByRole('button', { name: 'Cargar stock' }).closest('.sheet-foot')).not.toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Cargar stock' }));
+    const chooser = screen.getByRole('dialog', { name: 'Cargar stock' });
+    expect(within(chooser).getByRole('button', { name: /Registrar equipo/ })).toBeInTheDocument();
+    expect(within(chooser).getByRole('button', { name: /Subir listado/ })).toBeInTheDocument();
+    expect(screen.queryByText('Carga en serie')).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByText('Más acciones'));
     await userEvent.click(screen.getByRole('button', { name: 'Editar' }));
     expect(open).toHaveBeenCalledWith({ type: 'edit-supplier', id: 'supplier' });
   });
-  it('hides costs from staff without financial permission', async () => {
-    ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
+  it.each([true, false])('gates purchase totals and item costs with financial access (%s)', async allowed => {
+    if (!allowed) ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(screen.queryByText('US$ 900')).not.toBeInTheDocument();
-    expect(screen.queryByText('US$ 700')).not.toBeInTheDocument();
-    expect(screen.getByText('356789104523871')).toBeInTheDocument();
+    expect(!!screen.queryByText('US$ 1600')).toBe(allowed);
+    await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
+    await screen.findByTestId('supplier-purchase-detail');
+    expect(!!screen.queryByText('US$ 900')).toBe(allowed);
+    expect(screen.getByText('IMEI 356789104523871')).toBeInTheDocument();
+    expect(screen.queryByText('Sin IMEI')).not.toBeInTheDocument();
   });
-  it('shows costs with permission and handles an empty supplier without placeholder contact', async () => {
-    const view = mount(<SupplierDetail id="supplier" />);
-    expect(await screen.findByText('US$ 900')).toBeInTheDocument();
-    view.unmount();
+  it('omits missing supplier data and empty purchase sections', async () => {
     fetchSupplier.mockResolvedValue({ ...supplier, phone: null, email: null, notes: null, deviceCount: 0, problemCount: 0, purchases: [] });
     mount(<SupplierDetail id="empty" />);
-    expect(await screen.findByText('Todavía no hay compras.')).toBeInTheDocument();
+    await screen.findByTestId('supplier-detail');
+    expect(screen.queryByRole('region', { name: 'Compras' })).not.toBeInTheDocument();
     expect(screen.queryByText('Teléfono')).not.toBeInTheDocument();
     expect(screen.queryByTestId('supplier-problems')).not.toBeInTheDocument();
+  });
+  it('uses full screen mobile purchase layers with a back arrow and returns to the file', async () => {
+    layout.phone = true;
+    fetchSupplierPurchase.mockResolvedValue({ ...purchaseFile, items: [
+      { ...purchaseFile.items[0], problemLabel: 'En RMA' },
+      { ...purchaseFile.items[1], problemLabel: 'Reclamo' },
+    ] });
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
+    const purchase = await screen.findByTestId('supplier-purchase-detail');
+    const dialog = purchase.closest('[role="dialog"]')! as HTMLElement;
+    expect(within(dialog).getByRole('button', { name: 'Volver' })).toHaveClass('wback');
+    expect(within(dialog).queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
+    expect(within(purchase).getByText('En RMA')).toBeInTheDocument();
+    expect(within(purchase).getByText('Reclamo')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Volver' }));
+    expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+  });
+  it('silently omits failed secondary purchase data without error or retry copy', async () => {
+    fetchSupplierPurchase.mockRejectedValueOnce(new Error('Unavailable'));
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
+    await waitFor(() => expect(fetchSupplierPurchase).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId('supplier-purchase-detail')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reintentar|No hay conexión/)).not.toBeInTheDocument();
+  });
+  it('reuses EquipmentForm with a locked supplier, keeps failures open and refreshes after saving', async () => {
+    ctx.addProduct.mockRejectedValueOnce(new Error('No se pudo guardar el equipo'));
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    await userEvent.click(screen.getByRole('button', { name: 'Cargar stock' }));
+    await userEvent.click(screen.getByRole('button', { name: /Registrar equipo/ }));
+    const form = screen.getByRole('dialog', { name: 'Registrar equipo' });
+    expect(within(form).getByRole('combobox', { name: 'Proveedor' })).toBeDisabled();
+    expect(within(form).getByRole('combobox', { name: 'Proveedor' })).toHaveValue('supplier');
+    fireEvent.change(within(form).getByLabelText('Modelo'), { target: { value: 'iPhone 13' } });
+    fireEvent.change(within(form).getByLabelText('Precio de venta'), { target: { value: '500' } });
+    await userEvent.click(within(form).getByRole('button', { name: 'Guardar equipo' }));
+    expect(await screen.findByText('No se pudo guardar el equipo')).toBeInTheDocument();
+    expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ supplierId: 'supplier', model: 'iPhone 13' }));
+    expect(form).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3 });
+    await userEvent.click(within(form).getByRole('button', { name: 'Guardar equipo' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Registrar equipo' })).not.toBeInTheDocument());
+    expect(ctx.reloadLedger).toHaveBeenCalledOnce();
+    expect(fetchSupplier).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('3 equipos')).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+  });
+  it('returns to the loaded file without refetch when registration is cancelled', async () => {
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    await userEvent.click(screen.getByRole('button', { name: 'Cargar stock' }));
+    await userEvent.click(screen.getByRole('button', { name: /Registrar equipo/ }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Registrar equipo' })).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
+    expect(fetchSupplier).toHaveBeenCalledOnce();
+    expect(ctx.addProduct).not.toHaveBeenCalled();
   });
   it.each(['Cancelar', 'Cerrar', 'Escape', 'backdrop'])('replaces the detail with a single archive dialog and returns without refetch on %s', async (dismissal) => {
     mount(<SupplierDetail id="supplier" />);
@@ -202,7 +297,7 @@ describe('ficha de proveedor', () => {
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
     expect(screen.getByText(supplier.email!)).toBeInTheDocument();
-    expect(screen.getByText('356789104523871')).toBeInTheDocument();
+    expect(screen.getByText('Retiro acordado.', { exact: false })).toBeInTheDocument();
     expect(screen.queryByTestId('supplier-loading')).not.toBeInTheDocument();
     expect(fetchSupplier).toHaveBeenCalledOnce();
     expect(close).not.toHaveBeenCalled();
