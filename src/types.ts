@@ -30,6 +30,8 @@ export interface Product {
   supplierId?: string | null;
   supplierName?: string | null;
   stockPurchaseId?: string | null;
+  purchasedAt?: string | null;
+  purchaseName?: string | null;
   soldAt?: string | null;
   createdAt?: string;
   customFields?: Record<string, any>;

@@ -144,3 +144,12 @@ describe('editar y anular reclamo', () => {
     expect(screen.getByText(/Se conservan los movimientos registrados/)).toBeInTheDocument();
   });
 });
+
+it('muestra la fila Proveedor solo cuando el reclamo tiene supplierName', () => {
+  const first = mount(<ReturnDetail id="claim" />);
+  expect(screen.queryByTestId('return-supplier')).not.toBeInTheDocument();
+  first.unmount();
+  ctx.returns = [{ ...claim, supplierId: 'supplier', supplierName: 'Importadora Andes' }];
+  mount(<ReturnDetail id="claim" />);
+  expect(screen.getByTestId('return-supplier')).toHaveTextContent('ProveedorImportadora Andes');
+});

@@ -11,9 +11,11 @@ import { DeskIcon, Sheet, useDesk } from '../ui';
 const deviceCount = (count: number) => `${count} ${count === 1 ? 'equipo' : 'equipos'}`;
 const purchaseLabel = (purchase: SupplierPurchase) => purchase.name || formatShortDate(purchase.purchasedAt);
 
+type PurchaseReference = Pick<SupplierPurchase, 'id' | 'name' | 'purchasedAt'> & Partial<SupplierPurchase>;
+
 function usePurchaseTotal(seeCosts: boolean) {
   const money = useMoney();
-  return (purchase: SupplierPurchase) => {
+  return (purchase: Partial<SupplierPurchase>) => {
     if (!seeCosts) return '';
     if (purchase.costTotals?.length) return purchase.costTotals.map(cost => money.show(cost.totalCost, cost.currency)).join(' + ');
     return purchase.totalCost != null ? money.show(purchase.totalCost, purchase.currency) : '';
@@ -40,13 +42,14 @@ export function SupplierPurchaseSheet({ title, subtitle, mobileSubtitle = false,
   </Sheet>;
 }
 
-export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose }: { supplierId: string; purchase: SupplierPurchase; seeCosts: boolean; onClose: () => void }) {
+export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose }: { supplierId: string; purchase: PurchaseReference; seeCosts: boolean; onClose: () => void }) {
   const { user, appSession } = useAppContext();
   const { open } = useDesk();
   const [detail, setDetail] = useState<PurchaseFile | null>(null);
   const [failed, setFailed] = useState(false);
   const money = useMoney();
-  const total = usePurchaseTotal(seeCosts)(purchase);
+  const info = detail ?? purchase;
+  const total = usePurchaseTotal(seeCosts)(info);
   const storeId = appSession?.store?.id;
   useEffect(() => {
     let active = true;
@@ -56,14 +59,14 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
     return () => { active = false; };
   }, [user, storeId, supplierId, purchase.id]);
 
-  return <SupplierPurchaseSheet title={purchase.name || `Compra del ${formatShortDate(purchase.purchasedAt)}`} subtitle={`${deviceCount(purchase.devices)}${total ? ` · ${total}` : ''}`} onClose={onClose}>
+  return <SupplierPurchaseSheet title={purchase.name || `Compra del ${formatShortDate(purchase.purchasedAt)}`} subtitle={[info.devices != null ? deviceCount(info.devices) : '', total].filter(Boolean).join(' · ') || undefined} onClose={onClose}>
     {!detail && !failed ? <div className="supplier-purchase sup-card supplier-items" data-testid="supplier-purchase-loading" role="status" aria-label="Cargando" aria-busy="true">
-      {Array.from({ length: Math.min(purchase.devices, 10) }, (_, index) => <div className="supplier-item" key={index} aria-hidden="true">
+      {Array.from({ length: Math.min(purchase.devices ?? 5, 10) }, (_, index) => <div className="supplier-item" key={index} aria-hidden="true">
         <span className="supplier-item-icon"><Skeleton style={{ width: 16 }} /></span>
         <Skeleton className="supplier-item-name" style={{ height: 21, width: '75%' }} />
         {seeCosts ? <Skeleton className="supplier-item-cost" style={{ height: 20.8, width: 70 }} /> : null}
         <Skeleton className="supplier-item-imei" style={{ height: 18, width: '60%' }} />
-        {index < purchase.problemCount ? <Skeleton style={{ gridColumn: '2 / -1', height: 24, width: 76 }} /> : null}
+        {index < (purchase.problemCount ?? 0) ? <Skeleton style={{ gridColumn: '2 / -1', height: 24, width: 76 }} /> : null}
       </div>)}
     </div> : null}
     {detail ? <div className="supplier-purchase sup-card supplier-items" data-testid="supplier-purchase-detail">

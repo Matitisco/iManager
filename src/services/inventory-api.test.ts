@@ -4,6 +4,7 @@ import {
   createBackendInventoryItem,
   deleteBackendInventoryItem,
   fetchBackendInventory,
+  fetchBackendInventoryItem,
   updateBackendInventoryItem,
 } from './inventory-api';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -52,6 +53,14 @@ describe('inventory-api', () => {
     vi.mocked(fetchWithTimeout).mockReset();
     mockUser.getIdToken.mockResolvedValue('token-123');
     setApiBaseUrl('https://api.imanager.test/');
+  });
+
+  it('consulta el detalle con origen y resumen de compra, y rechaza datos inválidos', async () => {
+    const detail = { ...inventoryItem, supplierId: 'supplier', supplierName: 'Andes', stockPurchaseId: 'buy', purchasedAt: '2026-09-05', purchaseName: 'Septiembre', purchaseSummary: { problems: 4, devices: 11 } };
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(jsonResponse({ inventoryItem: detail })).mockResolvedValueOnce(jsonResponse({}));
+    await expect(fetchBackendInventoryItem(mockUser, 'item-1')).resolves.toEqual(detail);
+    expect(fetchWithTimeout).toHaveBeenLastCalledWith('https://api.imanager.test/api/inventory/item-1', expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ Authorization: 'Bearer token-123' }) }));
+    await expect(fetchBackendInventoryItem(mockUser, 'item-1')).rejects.toThrow('Respuesta inválida');
   });
 
   it('loads inventory with the auth headers and falls back to backend error messages', async () => {
