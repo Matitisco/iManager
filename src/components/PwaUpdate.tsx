@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { appBuildId, watchControllerUpdates, watchUpdateSafety, watchVersionUpdates } from '../lib/pwa-update';
+import { appBuildId, readRemoteBuildId, watchControllerUpdates, watchUpdateSafety, watchVersionUpdates } from '../lib/pwa-update';
 import './pwa-update.css';
 import { showBootSplash } from '../lib/boot-splash';
 
@@ -11,6 +11,7 @@ export function PwaUpdate() {
   const [needsSave, setNeedsSave] = useState(false);
   const requestUpdate = useRef<() => void>(() => {});
   useEffect(() => {
+    let active = true;
     let pending = false;
     let reloading = false;
     let remoteId = '';
@@ -43,7 +44,12 @@ export function PwaUpdate() {
       if (!reload(true)) setAvailable(true);
     };
     const stopController = 'serviceWorker' in navigator
-      ? watchControllerUpdates(navigator.serviceWorker, () => notice())
+      ? watchControllerUpdates(navigator.serviceWorker, async () => {
+        // The new bundle can load before its worker claims the page. A late
+        // controllerchange must not announce that same release a second time.
+        const buildId = await readRemoteBuildId();
+        if (active && buildId !== appBuildId()) notice(buildId ?? undefined);
+      })
       : () => {};
     // Vite's PROD flag follows NODE_ENV. CI builds with NODE_ENV=test, so the
     // production mode is what decides whether this bundle watches for deploys.
@@ -64,6 +70,7 @@ export function PwaUpdate() {
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
+      active = false;
       stopController();
       stopVersion();
       safety.dispose();
