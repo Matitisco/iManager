@@ -1,6 +1,6 @@
 import { openDeskSection } from '../navigation';
 import { expect, test, type Page } from '@playwright/test';
-import { NETWORK_ERROR_MESSAGE, SERVER_ERROR_MESSAGE } from '../../src/lib/user-message';
+import { ACTION_ERROR_MESSAGE, SERVER_ERROR_MESSAGE } from '../../src/lib/user-message';
 import { data, me } from './fixtures.mjs';
 
 async function openCanjeConfirmation(page: Page) {
@@ -31,13 +31,13 @@ async function openCanjeConfirmation(page: Page) {
   return page.getByRole('dialog', { name: /Anular (venta|canje)/ });
 }
 
-test('installed shell keeps the canje dialog open with a Spanish offline error and allows retry', async ({ page, context }) => {
+test('installed shell keeps the canje dialog open with a neutral failure message and allows retry', async ({ page, context }) => {
   const dialog = await openCanjeConfirmation(page);
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await context.setOffline(true);
   try {
     await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
-    await expect(dialog.locator('.ferr')).toHaveText(NETWORK_ERROR_MESSAGE);
+    await expect(dialog.locator('.ferr')).toHaveText(ACTION_ERROR_MESSAGE);
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Anular', exact: true })).toBeEnabled();
     await expect(page.locator('body')).not.toContainText(/Failed to fetch|Load failed|NetworkError/);

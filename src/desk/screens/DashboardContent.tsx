@@ -3,6 +3,7 @@ import { ArrowLeftRight, ChevronRight, CreditCard } from 'lucide-react';
 import { Skeleton } from '../../components/Skeleton';
 import { useAppContext } from '../../context/AppContext';
 import { ROLE_LABEL } from '../../lib/roles';
+import { isNetworkErrorMessage, toUserMessage } from '../../lib/user-message';
 import { listMembers, type TeamMember } from '../../services/members-api';
 import { fetchReportsOverview, type ReportsOverview } from '../../services/reports-api';
 import { clientNet } from '../client-balance';
@@ -26,7 +27,7 @@ export function DashboardContent() {
   const phone = usePhoneLayout();
   const [range, setRange] = useState<DashboardRange>(() => dashboardMonth());
   const [members, setMembers] = useState<TeamMember[]>([]);
-  const [report, setReport] = useState<{ key: string; data: ReportsOverview | null; failed?: boolean } | null>(null);
+  const [report, setReport] = useState<{ key: string; data: ReportsOverview | null; failed?: boolean; networkFailure?: boolean } | null>(null);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const storeId = appSession?.store?.id;
@@ -50,13 +51,14 @@ export function DashboardContent() {
     const controller = new AbortController();
     fetchReportsOverview(user, range.start, range.end, controller.signal)
       .then(data => { if (!cancelled) setReport({ key: queryKey, data }); })
-      .catch(() => { if (!cancelled) setReport({ key: queryKey, data: null, failed: true }); });
+      .catch((cause: unknown) => { if (!cancelled) setReport({ key: queryKey, data: null, failed: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)) }); });
     return () => { cancelled = true; controller.abort(); };
   }, [ready, seeFinancials, user, queryKey, range.start, range.end, sales, inventory]);
 
   const current = ready && seeFinancials && report?.key === queryKey ? report : null;
   const overview = current?.data;
   const reportLoading = ready && seeFinancials && !current;
+  const hideLoadMessage = backendStatus === 'offline' || current?.networkFailure;
   const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, appSession?.store?.currency) : money.show(amount, appSession?.store?.currency);
   const available = inventory.filter(item => isInStock(item.status)).length;
   const openTrades = tradeIns.filter(item => isInProgressTrade(item.status)).length;
@@ -97,10 +99,10 @@ export function DashboardContent() {
     {seeFinancials ? <div className="dashboard-chart-row">
       <section className="dashboard-panel dashboard-trend">
         <div className="dashboard-panel-heading"><h2>{phone ? trendTitle : 'Tendencia de ventas'}</h2>{overview && overview.summary.unitsSold > 0 ? <Delta value={overview.comparison.revenueChange} /> : null}</div>
-        {reportLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={range} phone={phone} format={amount => reportMoney(amount, true)} />}
+        {reportLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : hideLoadMessage ? null : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={range} phone={phone} format={amount => reportMoney(amount, true)} />}
       </section>
       <section className="dashboard-panel dashboard-payments"><h2>Medios de pago</h2>
-        {reportLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{current?.failed || !ready ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>
+        {reportLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: 80 }} /></div> : hideLoadMessage ? null : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{current?.failed || !ready ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>
           <div className="dashboard-payment-stack" aria-hidden="true">{overview.paymentMethods.map((method, index) => <i key={method.label} style={{ width: `${method.share}%`, background: paymentColor(index) }} />)}</div>
           <div className="dashboard-payment-list">{overview.paymentMethods.map((method, index) => <div key={method.label} className="dashboard-payment">
             <span className="dashboard-payment-name"><i style={{ background: paymentColor(index) }} />{method.label}</span><span className="dashboard-payment-amount">{reportMoney(method.revenue)}</span><b>{Math.round(method.share)}%</b><div className="dashboard-payment-bar"><i style={{ width: `${method.share}%` }} /></div>

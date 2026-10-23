@@ -4,7 +4,7 @@ import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { clientNet } from '../client-balance';
-import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
+import { suppressLocalNetworkBanner } from '../offline-banner';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -92,7 +92,6 @@ export function ClientsScreen() {
   const { rows: archivedClients } = useArchivedRows(clients, fetchArchivedClients, rememberArchivedClients);
   const menu = useColumnMenu();
   const draftError = useOperationDraftError('clients');
-  const offlineOwned = useOfflineBannerOwned();
   const ownDrafts = operationDrafts.filter((trade) => trade.operationSource === 'clients' && trade.confirmationStatus === 'PENDING');
 
   const clientSource = archivedMode ? archivedClients : mergeRecordRows(clients, archivedClients);
@@ -144,7 +143,7 @@ export function ClientsScreen() {
         )}
       />
       {phone ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar por nombre, DNI o teléfono" /></div> : null}
-      {draftError && !suppressLocalNetworkBanner(draftError, offlineOwned) ? <div className="ferr">{draftError}</div> : null}
+      {draftError && !suppressLocalNetworkBanner(draftError) ? <div className="ferr">{draftError}</div> : null}
       <PendingDrafts compact={phone} drafts={ownDrafts} hint="Podés retomarlos para completar la venta." onOpen={(id) => open({ type: 'edit-cj', id, source: 'clients' })} />
       <div className="dbar clients-filters">
         {views.length > 1 ? <div className="acct-views">

@@ -3,11 +3,8 @@ import { pingHealth } from './connection';
 import { subscribeConnection, subscribeReconnect } from './online';
 import { NETWORK_ERROR_MESSAGE } from './user-message';
 
-/**
- * Clears a network banner when the connection returns.
- * #347 only listened inside the catalog effect, so other screens (Más, comisiones,
- * borradores) kept the error string after `online`. iPhone also skips that event
- * while the page stays visible, so the subscription watches visibility and onLine.
+/** Retry failed network loads on reconnect, visibility changes and health probes.
+ * The message is an internal signal; callers suppress it at the render boundary.
  */
 export function useOfflineRecovery(message: string | null | undefined, retry: () => void) {
   const retryRef = useRef(retry);

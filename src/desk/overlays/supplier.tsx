@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { ReasonSheet } from '../ReasonSheet';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -88,7 +89,7 @@ export function SupplierDetail({ id }: { id: string }) {
     void fetchSupplier(user, id).then((row) => {
       if (active) setDetail(row);
     }).catch((cause: unknown) => {
-      if (active) setError(getFriendlyErrorMessage(cause, 'No se pudo abrir el proveedor.'));
+      if (active) setError(toUserMessage(cause, 'No se pudo abrir el proveedor.'));
     });
     return () => { active = false; };
   }, [user, id, storeId, retry]);
@@ -144,7 +145,7 @@ export function SupplierDetail({ id }: { id: string }) {
           <button className="btn2 p sheet-primary" type="button" onClick={() => open({ type: 'new-eq', supplierId: detail.id })}>Registrar equipo</button>
         </>}
       </SheetActions> : null}>
-      {error && !confirm ? <div className="ferr" role="alert">{error}{!detail ? <button className="wlink" type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button> : null}</div> : null}
+      {error && !isNetworkErrorMessage(error) && !confirm ? <div className="ferr" role="alert">{error}{!detail ? <button className="wlink" type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button> : null}</div> : null}
       {!detail && !error ? <ListSkeleton variant="cards" rows={3} testId="supplier-loading" /> : null}
       {detail ? (
         <div className="supplier-file" data-testid="supplier-detail">

@@ -12,7 +12,7 @@ for (const device of [
 ]) test.describe(`offline banner ${device.name}`, () => {
   test.use(device.use);
 
-  test('hides the public banner when the connection returns without navigating', async ({ page, request, browser }, testInfo) => {
+  test('recovers the public catalog without a connection banner', async ({ page, request, browser }, testInfo) => {
     const email = buildTestEmail(testInfo, 'offline-catalog');
     await page.route('https://dolarapi.com/**', route => route.fulfill({ json: { compra: 1280, venta: 1300 } }));
     // Seed before the single login navigation. Consecutive setup reloads can
@@ -37,7 +37,8 @@ for (const device of [
     const url = lead.url();
     await context.setOffline(true);
     await lead.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(lead.getByTestId('offline-banner')).toBeVisible();
+    await expect(lead.getByText('US$ 920')).toHaveCount(0);
+    await expect(lead.getByTestId('offline-banner')).toHaveCount(0);
     await context.setOffline(false);
     await expect(lead.getByTestId('offline-banner')).toHaveCount(0);
     await expect(lead.getByText('US$ 920')).toBeVisible();
@@ -45,7 +46,7 @@ for (const device of [
     await context.close();
   });
 
-  test('shows the notice on Más and Clientes after the open screen goes offline, then clears it', async ({ page, request }, testInfo) => {
+  test('keeps Más and Clientes free of connection notices while offline', async ({ page, request }, testInfo) => {
     test.skip(!device.mobile, 'Más sólo existe en el teléfono');
     await page.setViewportSize({ width: 393, height: 852 });
     const email = buildTestEmail(testInfo, 'offline-phone');
@@ -55,17 +56,17 @@ for (const device of [
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await page.context().setOffline(true);
-    await expect(page.getByTestId('offline-banner')).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByTestId('offline-banner')).toHaveText('No hay conexión. Revisá tu internet y probá de nuevo.');
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0);
+    await expect(page.getByText('No hay conexión. Revisá tu internet y probá de nuevo.')).toHaveCount(0);
     await page.getByTestId('sidebar-tab-clients').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
-    await expect(page.getByTestId('offline-banner')).toBeVisible();
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await page.context().setOffline(false);
     await expect(page.getByTestId('offline-banner')).toHaveCount(0, { timeout: 8_000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
   });
 
-  test('hides the Más banner when the connection returns without leaving the screen', async ({ page, request }, testInfo) => {
+  test('keeps Más free of banners during recovery', async ({ page, request }, testInfo) => {
     test.skip(!device.mobile, 'Más sólo existe en el teléfono');
     const email = buildTestEmail(testInfo, 'offline-more');
     await page.route('https://dolarapi.com/**', route => route.fulfill({ json: { compra: 1280, venta: 1300 } }));
@@ -73,7 +74,7 @@ for (const device of [
     await page.context().setOffline(true);
     await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await expect(page.getByTestId('offline-banner')).toBeVisible();
+    await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     const hash = await page.evaluate(() => window.location.hash);
     await page.context().setOffline(false);
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);

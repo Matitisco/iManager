@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage, toActionMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { ChevronDown } from 'lucide-react';
 import { AuditDeviceIcon } from './audit-device-icon';
@@ -114,7 +115,7 @@ export function HistoryScreen() {
     }).catch((err: unknown) => {
       if (!active) return;
       if (err instanceof ApiError && err.status === 403) setForbidden(true);
-      else setError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
+      else setError(toUserMessage(err, 'No se pudo cargar el historial'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; if (generation.current === request) generation.current++; };
   }, [user, appSession?.store?.id, filters, attempt]);
@@ -141,7 +142,7 @@ export function HistoryScreen() {
       setEvents(current => [...new Map([...current, ...page.events].map(event => [event.id, event])).values()]);
       setCursor(page.nextCursor);
     } catch (err) {
-      if (generation.current === request) setPageError(err instanceof Error ? err.message : 'No se pudieron cargar más movimientos');
+      if (generation.current === request) setPageError(toUserMessage(err, 'No se pudieron cargar más movimientos'));
     } finally {
       if (generation.current === request) { pagePending.current = false; setLoadingMore(false); }
     }
@@ -161,7 +162,7 @@ export function HistoryScreen() {
       <FilterChip label="Sección" emptyLabel="Todas las secciones" value={section} onChange={setSection} options={SECTIONS.filter((item) => item.id && !isSectionHidden(item.id)).map((item) => ({ id: item.id, label: item.label }))} />
     </div>
     {loading ? <ListSkeleton variant={phone ? "cards" : "rows"} testId="history-loading" /> : null}
-    {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
     {!loading && !error && events.length === 0 ? <div className="inv-empty-box" data-testid="history-empty">
       <b>{filtered ? 'Nada con esos filtros' : 'Todavía no hay movimientos'}</b>
       <p>{filtered ? 'Probá con otra persona, período o sección.' : 'Cuando el equipo registre, edite o archive, va a aparecer acá.'}</p>
@@ -183,7 +184,7 @@ export function HistoryScreen() {
         })}
       </div>
     </section>) : null}
-    {pageError ? <div className="ferr" role="alert">{pageError}</div> : null}
+    {pageError && !isNetworkErrorMessage(pageError) ? <div className="ferr" role="alert">{pageError}</div> : null}
     {loadingMore ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={2} testId="history-more-loading" /> : null}
     {!loading && !error && cursor ? <button className="dbtn s history-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>Cargar más</button> : null}
     {selected ? <HistoryDetail event={selected} onClose={() => setSelected(null)} /> : null}
@@ -256,7 +257,7 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
               : event.entityType === 'return' ? fetchReturns(user, true).then(rememberArchivedReturns)
               : Promise.resolve();
     try { await load; open(); }
-    catch (err) { setOpenError(err instanceof Error ? err.message : 'No se pudo abrir el registro'); }
+    catch (err) { setOpenError(toActionMessage(err, 'No se pudo abrir el registro')); }
     finally { setOpening(false); }
   };
   return <Sheet variant="detail" className="history-detail" title={event.title} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
@@ -277,6 +278,6 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     </tbody></table> : !counts.length && event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
     {event.reason?.trim() ? <p className="history-reason"><b>Motivo</b> {event.reason}</p> : null}
     {note ? <p className="history-missing">{note}</p> : null}
-    {openError ? <div className="ferr" role="alert">{openError}</div> : null}
+    {openError && !isNetworkErrorMessage(openError) ? <div className="ferr" role="alert">{openError}</div> : null}
   </Sheet>;
 }

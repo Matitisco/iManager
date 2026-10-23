@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../context/AppContext';
@@ -49,7 +50,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
           cursor = page.nextCursor ?? undefined;
         } while (cursor);
       } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : 'No se pudo cargar el historial.');
+        if (active) setError(toUserMessage(cause, 'No se pudo cargar el historial.'));
       } finally {
         if (active) setLoading(false);
       }
@@ -71,7 +72,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
       </li>)}
     </ol> : null}
     {loading ? <ListSkeleton variant="cards" rows={3} testId="record-history-loading" /> : null}
-    {error ? <div className="ferr" role="alert">{error}<button type="button" className="btn2 s" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button type="button" className="btn2 s" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
     {!loading && !error && !events.length ? <p className="record-history-empty">Sin movimientos</p> : null}
   </Sheet>;
 }

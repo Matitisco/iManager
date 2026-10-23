@@ -1,13 +1,12 @@
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
 import { depositAmount, depositAvailable } from '../deposits';
-import { toUserMessage } from '../../lib/user-message';
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { parseDeviceCode } from '../../lib/device-scan';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
-import { getFriendlyErrorMessage } from '../../lib/utils';
 import { voidedSale } from '../archive-cache';
 import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
@@ -136,7 +135,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   useEffect(() => {
     let active = true;
     loadOperationOptions(source).catch((err: unknown) => {
-      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudieron cargar las opciones.'));
+      if (active) setOptionError(toUserMessage(err, 'No se pudieron cargar las opciones.'));
     });
     return () => { active = false; };
   }, [source]);
@@ -147,7 +146,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ? fetchSaleOperation(saleId)
       : tradeRef ? fetchTradeOperation(source, tradeRef) : null;
     loadLinked?.catch((err: unknown) => {
-      if (active) setOptionError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación vinculada.'));
+      if (active) setOptionError(toUserMessage(err, 'No se pudo cargar la operación vinculada.'));
     });
     return () => { active = false; };
   }, [saleId, tradeRef, source, currentSale?.integratedOperation]);
@@ -444,7 +443,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     }>
       {cancelled ? <div className="ferr">Esta venta está cancelada y no se puede editar.</div> : null}
       {error && <div ref={errorRef} className="ferr">{error}</div>}
-      {optionError && <div className="ferr">{optionError}</div>}
+      {optionError && !isNetworkErrorMessage(optionError) && <div className="ferr">{optionError}</div>}
       <ClientField
         clients={optionClients}
         value={buyer}
@@ -557,7 +556,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       {settlement.active ? <p className="eqs-note">El estado de cobro sale de los pagos y las cuotas.</p> : <><Field label="Cobro"><span /></Field>
       <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} /></>}
-      {sellerError ? <div className="ferr" role="alert">{sellerError}</div> : null}
+      {sellerError && !isNetworkErrorMessage(sellerError) ? <div className="ferr" role="alert">{sellerError}</div> : null}
       <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
     </Sheet>
@@ -613,7 +612,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   }, [user, sale?.clientId, sale?.openBalance, sale?.status, sale?.amount, buyerPending]);
   useEffect(() => { setAccountDue(null); }, [id]);
   useEffect(() => {
-    if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(getFriendlyErrorMessage(err, 'No se pudo cargar la operación.')));
+    if (sale?.integratedOperation) void fetchSaleOperation(id).catch((err: unknown) => setDetailError(toUserMessage(err, 'No se pudo cargar la operación.')));
   }, [id, sale?.integratedOperation]);
   if (!sale) return null;
   const linkedTrade = sale.tradeInId ? tradeIns.find((item) => item.id === sale.tradeInId) : undefined;
@@ -685,7 +684,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         </SheetActions>
       )
     }>
-      {error && <div className="ferr">{error}</div>}{detailError && <div className="ferr">{detailError}</div>}
+      {error && <div className="ferr">{error}</div>}{detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
       {sale.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulada</b><small>{sale.voidedBy ? `por ${sale.voidedBy}` : 'Esta venta está anulada'}{sale.voidReason ? ` · ${sale.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
       <div className="tracking-summary">
         <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>

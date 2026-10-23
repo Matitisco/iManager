@@ -1,7 +1,7 @@
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { toUserMessage } from '../../lib/user-message';
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { fetchPeriodicReport, savePeriodicReport, type PeriodicReportFrequency } from '../../services/periodic-report-api';
 import { usePhoneLayout } from '../section-notices';
 import { Actions, Field, Segs, Sheet, useDesk } from '../ui';
@@ -36,7 +36,7 @@ export function PeriodicReportForm({ run, busy, error }: FormProps) {
       setFrequency(settings.frequency);
       const stored = settings.recipients.join(', ');
       setRecipients(stored || appSession?.store?.email || appSession?.user?.email || '');
-      const bits = [settings.lastPeriodLabel ? `Último período enviado: ${settings.lastPeriodLabel}` : '', settings.lastError ?? ''].filter(Boolean);
+      const bits = [settings.lastPeriodLabel ? `Último período enviado: ${settings.lastPeriodLabel}` : '', isNetworkErrorMessage(settings.lastError) ? '' : settings.lastError ?? ''].filter(Boolean);
       setNote(bits.join(' '));
       setLoaded(true);
     }).catch((cause: unknown) => {
@@ -47,7 +47,7 @@ export function PeriodicReportForm({ run, busy, error }: FormProps) {
 
   return (
     <Sheet title="Reporte automático" subtitle={phone ? 'Configuración' : 'Mismos números que Reportes. Se manda a la mañana, hora de Argentina, cuando cierra el período.'} className="cfg-sheet" onClose={close}>
-      {loadError ? <p className="ferr" role="alert">{loadError}</p> : null}
+      {loadError && !isNetworkErrorMessage(loadError) ? <p className="ferr" role="alert">{loadError}</p> : null}
       {error ? <p className="ferr" role="alert">{error}</p> : null}
       {phone ? <p className="sub">Mismos números que Reportes. Se manda a la mañana, hora de Argentina, cuando cierra el período.</p> : null}
       <Field label="Envío">

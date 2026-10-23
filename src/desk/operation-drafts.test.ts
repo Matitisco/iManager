@@ -1,9 +1,13 @@
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from '../services/fetch-with-timeout';
 import { ApiError } from '../services/api-client';
 import { fetchOperationDrafts } from '../services/operations-api';
-import { DRAFT_LOAD_ERROR_MESSAGE, draftLoadNotice } from './operation-drafts';
+import { DRAFT_LOAD_ERROR_MESSAGE, draftLoadNotice, useOperationDraftError } from './operation-drafts';
 import { NETWORK_ERROR_MESSAGE, SERVER_ERROR_MESSAGE } from '../lib/user-message';
+
+const { loadOperationDrafts } = vi.hoisted(() => ({ loadOperationDrafts: vi.fn() }));
+vi.mock('../context/AppContext', () => ({ useAppContext: () => ({ loadOperationDrafts }) }));
 
 vi.mock('../services/fetch-with-timeout', () => ({
   fetchWithTimeout: vi.fn(),
@@ -73,4 +77,16 @@ describe('draftLoadNotice', () => {
     expect(draftLoadNotice('ECONNRESET')).toBe(DRAFT_LOAD_ERROR_MESSAGE);
     expect(draftLoadNotice(new TypeError('Load failed'))).toBe(NETWORK_ERROR_MESSAGE);
   });
+});
+
+ it('hides a draft network load error while retaining its automatic reconnect retry', async () => {
+  loadOperationDrafts.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce([]);
+  const { result, unmount } = renderHook(() => useOperationDraftError('sales'));
+  await act(async () => {});
+  expect(loadOperationDrafts).toHaveBeenCalledTimes(1);
+  expect(result.current).toBeNull();
+  await act(async () => { window.dispatchEvent(new Event('online')); });
+  expect(loadOperationDrafts).toHaveBeenCalledTimes(2);
+  expect(result.current).toBeNull();
+  unmount();
 });

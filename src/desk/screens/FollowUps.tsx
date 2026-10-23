@@ -3,7 +3,7 @@ import { Cake, Clock, MessageCircle, Receipt, Shield, Sparkles } from 'lucide-re
 import { motion } from 'motion/react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { fetchFollowUps, saveFollowUpSettings, type FollowUpCard, type FollowUpGroup, type FollowUpKind, type FollowUpSettings } from '../../services/accounts-api';
 import { useMoney } from '../exchange';
 import { avatarTone, initials } from '../format';
@@ -130,7 +130,7 @@ export function FollowUps({ query = '' }: { query?: string }) {
         </div>
         {settings ? <button className="fu-rules" type="button" onClick={() => setEditing(true)}><Sparkles size={15} />Reglas</button> : null}
       </div>
-      {error ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={() => load()}>Reintentar</button></div> : null}
+      {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={() => load()}>Reintentar</button></div> : null}
       {loading ? <ListSkeleton variant="cards" rows={3} testId="follow-ups-loading" /> : null}
       {!loading && cards.length > 0 ? (
         <div className="fu-chips">
@@ -244,11 +244,11 @@ function FollowSettings({ initial, onClose, onSaved }: { initial: FollowUpSettin
     setBusy(true);
     setError('');
     try { await saveFollowUpSettings(user, form); onSaved(); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudieron guardar las reglas')); setBusy(false); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudieron guardar las reglas')); setBusy(false); }
   };
   return (
     <Sheet title="Reglas de seguimiento" onClose={() => { if (!busy) onClose(); }}>
-      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
       <Field label="Días de anticipación del cumpleaños"><input aria-label="Anticipación del cumpleaños" inputMode="numeric" value={String(form.birthdayLeadDays)} onChange={(event) => set({ birthdayLeadDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>
       <Field label="Días de anticipación de la garantía"><input aria-label="Anticipación de la garantía" inputMode="numeric" value={String(form.warrantyLeadDays)} onChange={(event) => set({ warrantyLeadDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>
       <Field label="Días sin comprar"><input aria-label="Días sin comprar" inputMode="numeric" value={String(form.inactiveDays)} onChange={(event) => set({ inactiveDays: Number(event.target.value.replace(/\D/g, '') || 0) })} /></Field>

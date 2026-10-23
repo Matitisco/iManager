@@ -88,12 +88,13 @@ describe('catalog section', () => {
     expect(screen.queryByText(/Cargá un WhatsApp válido/)).not.toBeInTheDocument();
   });
 
-  it.each([new Error('No se pudo cargar el catálogo'), new TypeError('Failed to fetch')])('shows a neutral empty state for a failed load: %s', async cause => {
+  it.each([new Error('No se pudo cargar el catálogo'), new TypeError('Failed to fetch')])('shows nothing for a failed load: %s', async cause => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     context.publicCatalog = null;
     context.loadPublicCatalog.mockRejectedValue(cause);
     renderScreen();
-    expect(await screen.findByText('Sin catálogo para mostrar.')).toBeVisible();
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudo cargar el catálogo.', cause));
+    expect(screen.queryByText('Sin catálogo para mostrar.')).not.toBeInTheDocument();
     expect(warn).toHaveBeenCalledWith('No se pudo cargar el catálogo.', cause);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reintentar|Crear catálogo/ })).not.toBeInTheDocument();

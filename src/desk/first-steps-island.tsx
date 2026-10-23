@@ -14,7 +14,7 @@ import {
   type FirstStepId,
 } from "../lib/first-steps";
 import { isAppInstalled, installDismissedForever, subscribeInstall } from "../lib/pwa";
-import { toUserMessage } from "../lib/user-message";
+import { toActionMessage } from "../lib/user-message";
 import { useDesk } from "./ui";
 
 const EMPTY_FLAGS: FirstStepFlags = {
@@ -58,7 +58,7 @@ function useFirstSteps() {
     if (!updateGettingStarted || !canSeeFirstSteps(role)) return;
     const changed = () => {
       if (!isAppInstalled()) return;
-      void updateGettingStarted({ installed: true }).catch((cause) => setError(toUserMessage(cause)));
+      void updateGettingStarted({ installed: true }).catch((cause) => setError(toActionMessage(cause)));
     };
     changed();
     return subscribeInstall(changed);
@@ -82,7 +82,7 @@ function useFirstSteps() {
       await updateGettingStarted?.({ installed: true, installedHow: 'manual' });
       setInstallation(false);
     } catch (cause) {
-      setError(toUserMessage(cause));
+      setError(toActionMessage(cause));
     }
   };
 

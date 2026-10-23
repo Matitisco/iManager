@@ -18,9 +18,12 @@ vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 const views = { inventory: InventoryScreen, sales: SalesScreen, tradeins: TradeInsScreen, clients: ClientsScreen };
 const originalMedia = window.matchMedia;
 const versions = ['1', '2'].map(id => ({ id, updatedAt: '2026-10-22T12:00:00.000Z' }));
-const day = new Date().toISOString().slice(0, 10);
+const day = '2026-10-22';
 
 beforeEach(() => {
+  // Keep records in the local period even after UTC has rolled over to tomorrow.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(`${day}T21:30:00-03:00`));
   vi.clearAllMocks();
   const numbers = Array.from({ length: 12 }, (_, i) => 12 - i);
   context.inventory = numbers.map(n => ({ id: String(n), model: `Equipo ${n}`, capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', imei: String(n).padStart(15, '0'), batteryHealth: '90%', price: n * 100, cost: 10, status: n === 2 ? 'ARCHIVADO' : 'DISPONIBLE', ...(n === 2 ? { archivedAt: day } : {}) }));
@@ -28,7 +31,7 @@ beforeEach(() => {
   context.tradeIns = numbers.map(n => ({ id: String(n), tradeNumber: n, date: n <= 2 ? day.slice(0, 8) + '01' : day, clientId: '', clientName: `Persona ${n}`, deviceReceived: `Equipo ${n}`, deviceReceivedImei: '', deviceGiven: 'Otro', takeValue: n * 100, differencePaid: 0, status: n === 2 ? 'CANCELADO' : 'LISTO', confirmationStatus: n === 2 ? 'CANCELLED' : 'CONFIRMED' }));
   context.clients = numbers.map(n => ({ id: String(n), name: `Persona ${n}`, dni: String(n), phone: '', email: '', totalSpent: n * 100, pendingBalance: n * 100, lastPurchaseDate: day, ...(n === 2 ? { archivedAt: day } : {}) }));
 });
-afterEach(() => { window.matchMedia = originalMedia; context.sectionChanges = {}; });
+afterEach(() => { vi.useRealTimers(); window.matchMedia = originalMedia; context.sectionChanges = {}; });
 
 describe.each([390, 1440])('section novelty rows at %spx', width => {
   it.each(['inventory', 'sales', 'tradeins', 'clients'] as ViewSection[])('prioritizes %s before pagination, keeps cancelled marks, and acknowledges the section without reason text', async section => {

@@ -285,19 +285,20 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
   });
 
-  it('shows the offline banner on every section and clears it when the browser is back online', async () => {
+  it('never shows a connection banner on Dashboard when the browser goes offline or online', async () => {
     usePhone();
     window.location.hash = '#/dash';
     render(<DeskApp />);
     expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
     await act(async () => { window.dispatchEvent(new Event('offline')); });
-    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+    expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
     await act(async () => { window.dispatchEvent(new Event('online')); });
     await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
     expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
   });
 
-  it('shows the offline banner across the phone layout when onLine flips without an event, and clears it on Clientes while onLine stays false', async () => {
+  it('keeps all phone sections quiet while onLine stays false', async () => {
     usePhone();
     const online = { value: true };
     const previousOnLine = Object.getOwnPropertyDescriptor(window.navigator, 'onLine');
@@ -323,17 +324,18 @@ describe('sidebar unread counts', () => {
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 
       online.value = false;
-      expect(await screen.findByTestId('offline-banner', {}, { timeout: 2500 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
 
       goHash('#/inv');
       expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
-      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 
       goHash('#/clientes');
       expect(await screen.findByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
-      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
 
       releaseHealth();
       healthGate = Promise.resolve();
@@ -355,7 +357,7 @@ describe('sidebar unread counts', () => {
     }
   });
 
-  it('shows the offline banner on Más and Clientes when the network fails while onLine stays true', async () => {
+  it('keeps Más and Clientes quiet while health probes detect and recover a failed connection', async () => {
     usePhone();
     const previousFetch = globalThis.fetch;
     const testGlobal = globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string };
@@ -376,14 +378,15 @@ describe('sidebar unread counts', () => {
       render(<DeskApp />);
       expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
       expect(navigator.onLine).not.toBe(false);
-      expect(await screen.findByTestId('offline-banner', {}, { timeout: 4000 })).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
       await waitFor(() => expect(probes.some((probe) => probe.url.includes('/api/health?_=') && probe.cache === 'no-store')).toBe(true), { timeout: 4000 });
       expect(screen.getByRole('heading', { name: 'Más' })).toBeInTheDocument();
       expect(screen.getByTestId('mobile-tab-bar')).toBeInTheDocument();
 
       goHash('#/clientes');
       expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument();
-      expect(screen.getByTestId('offline-banner')).toBeInTheDocument();
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
 
       reachable = true;
       await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument(), { timeout: 5000 });
