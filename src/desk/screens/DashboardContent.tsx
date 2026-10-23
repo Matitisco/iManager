@@ -141,7 +141,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     {kpiCount > 0 ? <div className="dstats" data-count={kpiCount}>
       {seeFinancials ? <>
         <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>
-        <Kpi label="Margen bruto" value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
+        <Kpi label="Margen bruto" value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
       </> : null}
       {showUnits ? <Kpi label="Equipos vendidos" value={seeFinancials ? overview?.summary.unitsSold ?? '—' : listsLoadFailed ? '—' : units} loading={seeFinancials ? periodLoading : initialLoading} onClick={can('sales') ? () => go('sales') : undefined}>{comparable ? <Delta value={overview?.comparison.unitsChange} /> : null}</Kpi> : null}
       {showStock ? <Kpi label="Stock disponible" value={listsLoadFailed ? '—' : available} suffix={!listsLoadFailed && inventory.length ? `de ${inventory.length}` : undefined} loading={initialLoading} onClick={can('inventory') ? () => go('inventory') : undefined}>
@@ -185,8 +185,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   </div>;
 }
 
-function Kpi({ label, value, suffix, loading, onClick, children }: { label: string; value: ReactNode; suffix?: string; loading: boolean; onClick?: () => void; children?: ReactNode }) {
-  const content = <><div className="eb">{label || <Skeleton style={{ width: 100, height: '1lh' }} />}</div><div className="big">{loading ? <Skeleton style={{ width: 100, height: '1lh' }} /> : <>{value}{suffix ? <> <small className="mut">{suffix}</small></> : null}</>}</div>{!loading && children ? children : <span className="spill dashboard-delta-reserve" aria-hidden="true">&nbsp;</span>}</>;
+function Kpi({ label, value, suffix, suffixInFooter, loading, onClick, children }: { label: string; value: ReactNode; suffix?: string; suffixInFooter?: boolean; loading: boolean; onClick?: () => void; children?: ReactNode }) {
+  const content = <><div className="eb">{label || <Skeleton style={{ width: 100, height: '1lh' }} />}</div><div className="big">{loading ? <Skeleton style={{ width: 100, height: '1lh' }} /> : <><span className="dashboard-kpi-value">{value}</span>{suffix && !suffixInFooter ? <> <small className="mut">{suffix}</small></> : null}</>}</div><div className="dashboard-kpi-footer">{!loading && children ? children : <span className="spill dashboard-delta-reserve" aria-hidden="true">&nbsp;</span>}{!loading && suffix && suffixInFooter ? <small className="mut">{suffix}</small> : null}</div></>;
   return onClick ? <button type="button" className="dstat" aria-busy={loading} onClick={onClick}>{content}</button> : <div className="dstat" aria-busy={loading}>{content}</div>;
 }
 

@@ -1,0 +1,3 @@
+- [x] Ajustar composición y tipografía móvil de los KPIs sin cambiar formatos.
+- [x] Revisar capturas locales a 360, 412 y 473 px con montos grandes y escritorio a 1440 px.
+- [x] Verificar TypeScript de frontend y backend.
