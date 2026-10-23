@@ -247,7 +247,7 @@ function LoadedReturnDetail({ current }: { current: ReturnCaseView }) {
     </section>
   </Sheet>
   {historyOpen ? createPortal(<div className="record-history-layer">
-    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet hist-screen" mobileBack onClose={() => setHistoryOpen(false)}
+    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet" onClose={() => setHistoryOpen(false)}
       footer={phone ? null : <button className="btn2 s" type="button" onClick={() => setHistoryOpen(false)}>Cerrar</button>}>
       <ol className="return-timeline" data-testid="return-events">
         {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>

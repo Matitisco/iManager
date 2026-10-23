@@ -2511,8 +2511,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .return-sheet.ret-state .sheet-scroll { gap: 18px; padding-top: 18px; }
 .return-sheet.ret-state .return-summary { padding: 14px 18px; }
 .sheet .record-history-button.btn2.s.icon-only { width: 44px; height: 44px; min-height: 44px; padding: 0; gap: 0; justify-content: center; flex: none; }
-.sheet.return-history-sheet { width: 480px; }
-.return-history-sheet .sheet-scroll { padding-top: 22px; }
+@media (min-width: 761px) {
+  .sheet.return-history-sheet { width: 480px; }
+  .return-history-sheet .sheet-scroll { padding-top: 22px; }
+}
 .return-history-sheet .sheet-foot .btn2 { width: 100%; }
 .return-row.is-void .rtxt { color: var(--err); }
 .return-row .spill svg { display: none; }
@@ -2547,11 +2549,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .ctx.return-menu .ctxh { display: block; padding: 4px 8px 14px; font-size: 15px; font-weight: 800; color: var(--primary); }
   .ctx.return-menu button { min-height: 56px; padding: 0 8px; font-size: 16px; font-weight: 700; }
   .ctx.return-menu button + button { border-top: 0; }
-  .desk-app .sheet.hist-screen { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; border-radius: 0; margin: 0; padding: 0; }
-  .hist-screen .sheet-h { display: flex; align-items: center; gap: 12px; padding: calc(16px + env(safe-area-inset-top, 0px)) 12px 16px; }
-  .hist-screen .sheet-h .wback { width: 44px; height: 44px; }
-  .hist-screen .sheet-title h3 { font-size: 22px; margin: 0; }
-  .return-history-sheet .sheet-scroll { padding: 20px 20px; }
   .return-delete .sheet-scroll { padding: 20px 20px 24px; }
 }
 
