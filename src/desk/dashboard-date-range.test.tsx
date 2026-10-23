@@ -58,6 +58,21 @@ describe('selector de rango Dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(apply).toHaveBeenLastCalledWith({ start: '2026-10-10', end: '2026-10-12' });
   });
+  it.each([false, true])('incluye los cinco presets en popover u hoja móvil (celular: %s)', async phone => {
+    const user = userEvent.setup();
+    render(<DashboardDateRange range={null} onApply={apply} phone={phone} />);
+    await user.click(screen.getByRole('button', { name: phone ? 'Total' : 'Elegir período, Total' }));
+    const dialog = screen.getByRole('dialog', { name: 'Elegir período' });
+    expect(dialog.classList.contains('phone')).toBe(phone);
+    const chips = Array.from(dialog.querySelectorAll('.dashboard-presets button'));
+    expect(chips.map(chip => chip.textContent)).toEqual(['Hoy', '7 días', 'Este mes', 'Mes anterior', 'Total']);
+    expect(within(dialog).getByRole('button', { name: 'Total' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(within(dialog).getByRole('button', { name: 'Hoy' }));
+    expect(apply).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Aplicar' }));
+    expect(apply).toHaveBeenCalledWith({ start: '2026-10-22', end: '2026-10-22' });
+  });
+
   it('muestra Total en móvil y vuelve al mes anterior con la flecha', async () => {
     const user = userEvent.setup();
     render(<DashboardDateRange range={null} onApply={apply} phone />);

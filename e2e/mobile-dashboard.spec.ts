@@ -106,7 +106,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
     await expect(page.getByRole('columnheader', { name: 'Venta' })).toHaveCount(0);
-    const columns = await page.locator('.dkpis').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+    const columns = await page.locator('.dashboard-screen .dstats').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(2);
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/dashboard-390-empty.png` });
@@ -138,16 +138,14 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('dashboard-sales')).toContainText(clientName);
     const sales = page.getByTestId('dashboard-sales');
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
-    await expect(sales.locator('.dashboard-sale-row').first()).toBeVisible();
+    await expect(sales.locator('.phone-row').first()).toBeVisible();
     await expect(sales).toContainText('Pixel 8 128GB');
     await expect(sales).toContainText('$ 650.000');
     await expect(sales).toContainText('Completada');
     await expect(sales).not.toContainText('Margen');
     await expect(sales).not.toContainText(/costo/i);
-    const trades = page.getByTestId('dashboard-trades');
-    await expect(trades).toContainText('Canjes en curso');
-    await expect(trades).toContainText('1');
-    await expect(page.getByRole('button', { name: /Ventas del mes/ })).toContainText('$');
+    await expect(page.getByTestId('dashboard-trades')).toHaveCount(0);
+    await expect(page.locator('.dashboard-screen .dstat').filter({ hasText: /^Ventas/ })).toContainText('$');
     await expect(page.getByTestId('row-menu').first()).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
     await expectFits(page);
@@ -160,7 +158,8 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
-    await page.getByTestId('dashboard-trades').click();
+    await page.getByTestId('sidebar-tab-more').click();
+    await page.getByTestId('more-screen').getByRole('button', { name: /Canjes/ }).click();
     await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await page.getByTestId('dashboard-bell').click();
@@ -172,10 +171,9 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.locator('.toast.show')).toBeHidden();
     await expect(sales).toContainText(clientName);
-    await expect(trades).toContainText('Canjes en curso');
     await expectFits(page);
     if (SHOTS) {
-      await page.getByTestId('dashboard-trades').scrollIntoViewIfNeeded();
+      await page.getByTestId('dashboard-sales').scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${SHOTS}/dashboard-360-cards.png` });
     }
   });
@@ -200,7 +198,7 @@ test.describe('dashboard on a phone', () => {
       const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
-      const month = staff.getByRole('button', { name: /Ventas del mes/ });
+      const month = staff.locator('.dashboard-screen .dstat').filter({ hasText: /^Ventas/ });
       await expect(month).toHaveCount(0);
       await expect(staff.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
       await expect(staff.getByTestId('dashboard-sales')).toContainText('Ana Staff');
@@ -228,7 +226,7 @@ test.describe('dashboard on a phone', () => {
     await page.reload();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(page.getByTestId('dashboard-sales')).toContainText('US$ 800');
-    await expect(page.getByRole('button', { name: /Ventas del mes/ })).toContainText('US$');
+    await expect(page.locator('.dashboard-screen .dstat').filter({ hasText: /^Ventas/ })).toContainText('US$');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/dashboard-390-usd.png`, fullPage: true });
   });

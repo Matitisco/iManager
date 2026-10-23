@@ -1,0 +1,5 @@
+Alinea el Dashboard v3 aprobado con el sistema compartido: `dstat`, `dstats`, `dcard`, `dch`, `dgrid`, `dtable compact` y `phone-rows`. Retira `.dashboard-v2` y sus overrides de tipografía, cards y grillas. Recupera Ventas con cinco registros en tabla desktop y cuatro tarjetas móviles; el KPI usa «Ventas» para cualquier rango.
+
+Agrega el bento oscuro Contanos con `commission-hero` y `btn2 l`, enlace a WhatsApp e ícono negro sobre lime, sin subtítulo. El selector mide 420 px en escritorio y conserva los cinco chips en una fila y la hoja móvil. Mantiene Total, recálculo, permisos, apertura y menú de ventas, con skeletons que reservan el layout final.
+
+Validación: typecheck/lint frontend y backend; `npx vitest run` (198 archivos, 1.647 pruebas) y `npm --prefix backend run test:unit` (81 archivos, 572 pruebas), aprobados. Revisión visual con fixtures a 1440/390 px: sin desborde; posiciones y alturas idénticas durante la carga inicial, la espera del reporte y el contenido final. Selectores E2E existentes actualizados, sin agregar ni ejecutar E2E. Sin cambios de Prisma ni build. Cambios en el working tree, sin commit ni push.
