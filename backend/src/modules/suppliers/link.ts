@@ -3,6 +3,8 @@ import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 
+import { readPurchaseName } from "./purchase-name.js";
+
 type Db = Prisma.TransactionClient;
 
 async function activeSupplier(db: Db, storeId: string, supplierId: string) {
@@ -21,6 +23,7 @@ export async function assignItemSupplier(
   itemId: string,
   supplierId: string | null,
   actor?: Actor | null,
+  purchaseName?: string | null,
 ) {
   const item = await db.inventoryItem.findFirst({
     where: { id: itemId, storeId },
@@ -64,7 +67,7 @@ export async function assignItemSupplier(
   }
   if (!purchaseId) {
     const purchase = await db.stockPurchase.create({
-      data: { storeId, supplierId, purchasedAt: new Date() },
+      data: { storeId, supplierId, purchasedAt: new Date(), name: readPurchaseName({ purchaseName }) },
     });
     purchaseId = purchase.id;
     if (actor) {
@@ -100,13 +103,14 @@ export async function attachItemsToPurchase(
   supplierId: string,
   itemIds: string[],
   actor?: Actor | null,
+  purchaseName?: string | null,
 ) {
   const ids = [...new Set(itemIds)];
   if (!ids.length) return null;
   return prisma.$transaction(async (tx) => {
     const supplier = await activeSupplier(tx, storeId, supplierId);
     const purchase = await tx.stockPurchase.create({
-      data: { storeId, supplierId, purchasedAt: new Date(), notes: "Compra cargada desde un listado." },
+      data: { storeId, supplierId, purchasedAt: new Date(), name: readPurchaseName({ purchaseName }), notes: "Compra cargada desde un listado." },
     });
     const linked = await tx.inventoryItem.updateMany({
       where: { storeId, id: { in: ids }, supplierId: null, archivedAt: null },

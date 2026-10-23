@@ -828,6 +828,7 @@ model StockPurchase {
   id          String    @id @default(cuid())
   storeId     String
   supplierId  String
+  name        String?   @db.VarChar(120)
   purchasedAt DateTime
   notes       String?   @db.Text
   deletedAt   DateTime?
