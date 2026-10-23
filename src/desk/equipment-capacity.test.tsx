@@ -98,6 +98,33 @@ describe('equipment capacity selector regression #483.5', () => {
     await waitFor(() => expect(mocks.context.updateProduct).toHaveBeenLastCalledWith(expect.objectContaining({ capacity: '256GB' })));
   });
 
+  it.each(['128 GB', '128gb', '128\u00a0GB', '1 tb'])('preserves and clears legacy capacity %j after delayed catalog hydration', async legacy => {
+    mocks.context.inventory.push(product(legacy, 'legacy'));
+    let resolve!: (data: CatalogPayload) => void;
+    mocks.fetch.mockReturnValueOnce(new Promise<CatalogPayload>(done => { resolve = done; }));
+    const { dialog, user } = await setup('legacy');
+    const selectedButtons = () => picker(dialog).getAllByRole('button').filter(button => button.classList.contains('on'));
+    expect(selectedButtons()).toHaveLength(1);
+
+    const hydrated = payload(['64 GB', '128 GB', '128gb', '128\u00a0GB', '256GB', '512GB', '1 TB', '1tb']);
+    // API row IDs are distinct from the values used by the equipment form.
+    hydrated.options = hydrated.options.map((row, index) => ({ ...row, id: `catalog-${index}` }));
+    await act(async () => resolve(hydrated));
+    expect(within(dialog).getAllByText('Capacidad', { selector: 'label' })).toHaveLength(1);
+    expect(picker(dialog).getAllByRole('button').filter(button => button.classList.contains('sg')).map(button => button.textContent))
+      .toEqual(['64 GB', '128 GB', '256GB', '512GB', '1 TB']);
+    expect(selectedButtons()).toHaveLength(1);
+    expect(selectedButtons()[0]).toHaveTextContent(legacy.startsWith('1 ') ? '1 TB' : '128 GB');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(mocks.context.updateProduct).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ capacity: legacy })));
+    await user.click(selectedButtons()[0]);
+    expect(selectedButtons()).toHaveLength(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(mocks.context.updateProduct).toHaveBeenLastCalledWith(expect.objectContaining({ capacity: '' })));
+    expect(mocks.context.updateProduct).toHaveBeenCalledTimes(2);
+  });
+
   it('retains selection and the modal on persistence failure, allowing retry', async () => {
     mocks.context.updateProduct.mockRejectedValueOnce(new Error('No se pudo guardar'));
     const { dialog, user } = await setup('128 GB');
