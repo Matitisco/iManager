@@ -45,7 +45,18 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);
 
   useLayoutEffect(() => {
-    if (!open || disabled || panel === 'inline') return;
+    if (!open || disabled) return;
+    if (panel === 'inline') {
+      const body = root.current?.closest<HTMLElement>('.sheet-scroll');
+      const node = calendar.current;
+      if (body && node) {
+        const bodyRect = body.getBoundingClientRect();
+        const panelRect = node.getBoundingClientRect();
+        // Reveal the inline panel inside the form, above its fixed footer.
+        body.scrollTop += Math.max(0, panelRect.bottom - bodyRect.bottom + CALENDAR_GAP);
+      }
+      return;
+    }
     const body = boundary === 'sheet' ? root.current?.closest<HTMLElement>('.sheet-scroll') : null;
     const place = (reveal = false) => {
       let rect = field.current?.getBoundingClientRect();
@@ -55,6 +66,12 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
       const viewportTop = viewport?.offsetTop ?? 0;
       const viewportWidth = viewport?.width ?? window.innerWidth;
       const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportBounds = {
+        left: viewportLeft + 12,
+        right: viewportLeft + viewportWidth - 12,
+        top: viewportTop + 12,
+        bottom: viewportTop + viewportHeight - 12,
+      };
       if (body) {
         const bodyRect = body.getBoundingClientRect();
         const bounds = {
@@ -68,7 +85,7 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
         const height = node?.offsetHeight ? node.scrollHeight + node.offsetHeight - node.clientHeight : CALENDAR_HEIGHT;
         const below = bounds.bottom - rect.bottom - CALENDAR_GAP;
         const above = rect.top - bounds.top - CALENDAR_GAP;
-        if (reveal && height > Math.max(below, above)) {
+        if (reveal && height > Math.max(below, above) && height <= bounds.bottom - bounds.top - rect.height - CALENDAR_GAP) {
           // Move only the form, just enough to fit the panel next to its field.
           const available = Math.max(0, bounds.bottom - bounds.top - rect.height - CALENDAR_GAP);
           body.scrollTop += below >= above
@@ -77,7 +94,7 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
           rect = field.current!.getBoundingClientRect();
         }
         if (rect.bottom <= bounds.top || rect.top >= bounds.bottom) { close(); return; }
-        setPosition(placeCalendar(rect, bounds, height));
+        setPosition(placeCalendar(rect, bounds, height, viewportBounds));
         return;
       }
       const width = Math.min(296, viewportWidth - 24);

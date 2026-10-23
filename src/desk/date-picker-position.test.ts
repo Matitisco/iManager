@@ -38,4 +38,40 @@ describe('sale calendar placement', () => {
     expect(placeCalendar(anchor, bounds, 150).top).toBe(386);
     expect(placeCalendar(anchor, bounds, 420).maxHeight).toBe(196);
   });
+
+  it('shows the full calendar beside the sale field at 1440×620 instead of cropping it to the sheet', () => {
+    const anchor = rect(478, 369, 484, 48);
+    const result = placeCalendar(anchor, rect(458, 149, 524, 345), 373, rect(12, 12, 1416, 596));
+    expect(result).toEqual({ left: 970, top: 235, width: 296, maxHeight: 596 });
+    expect(result.top + 373).toBe(608);
+    expect(result.left).toBe(anchor.right + 8);
+  });
+
+  it('moves to the left side when the right side has no room', () => {
+    expect(placeCalendar(rect(1100, 369, 200, 48), rect(1000, 149, 350, 345), 373, rect(12, 12, 1416, 596)))
+      .toMatchObject({ left: 796, top: 235, maxHeight: 596 });
+  });
+
+  it.each([250, 420])('uses the measured %s px height for the fallback position', height => {
+    const result = placeCalendar(rect(478, 369, 484, 48), rect(458, 200, 524, 294), height, rect(12, 12, 1416, 596));
+    expect(result.top).toBe(608 - height);
+    expect(result.maxHeight).toBeGreaterThanOrEqual(height);
+  });
+
+  it('keeps the original placement when the sheet has enough room', () => {
+    const anchor = rect(478, 200, 484, 48);
+    const bounds = rect(458, 148, 524, 600);
+    expect(placeCalendar(anchor, bounds, 373, rect(12, 12, 1416, 876))).toEqual(placeCalendar(anchor, bounds, 373));
+  });
+
+  it('repositions vertically in a narrow visual viewport with an offset', () => {
+    const viewport = rect(42, 62, 296, 506);
+    const result = placeCalendar(rect(46, 300, 280, 48), rect(42, 250, 296, 150), 373, viewport);
+    expect(result).toEqual({ left: 42, top: 62, width: 296, maxHeight: 506 });
+  });
+
+  it('only constrains the panel when the visual viewport itself is smaller', () => {
+    expect(placeCalendar(rect(46, 100, 140, 48), rect(42, 70, 150, 90), 373, rect(42, 62, 180, 176)))
+      .toEqual({ left: 42, top: 62, width: 180, maxHeight: 176 });
+  });
 });
