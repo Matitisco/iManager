@@ -7,8 +7,9 @@ import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
 import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { DashboardScreen } from './DashboardScreen';
+import { clearDashboardCache, readLatestDashboardCache } from '../dashboard-cache';
 
-const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.fn(async () => []) }));
+const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.fn() }));
 const context = vi.hoisted(() => ({
   appSession: {
     user: { displayName: 'Luis', email: 'luis@test.com' },
@@ -43,8 +44,21 @@ function makeSale(id: string, date: string, clientName: string): Sale {
 function phoneMedia() {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: query.includes('760'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
 }
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (cause: Error) => void;
+  const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
+  return { promise, resolve, reject };
+}
+function expectNoSkeleton() {
+  expect(screen.queryByTestId('dashboard-initial-loading')).toBeNull();
+  expect(screen.queryByTestId('dashboard-sales-loading')).toBeNull();
+  expect(document.querySelector('.dashboard-screen .skeleton, .dashboard-screen [aria-busy="true"]')).toBeNull();
+}
 let originalMatchMedia: typeof window.matchMedia;
 beforeEach(() => {
+  clearDashboardCache();
+  context.user.uid = 'user-1';
   originalMatchMedia = window.matchMedia;
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-22T12:00:00-03:00'));
@@ -54,10 +68,169 @@ beforeEach(() => {
   context.backendStatus = 'ready'; context.sessionConfirmed = true; context.listsLoaded = true; context.listsSettled = true; context.listsLoadFailed = false; context.gettingStartedLoaded = true; context.gettingStarted = null;
   context.sales = []; context.inventory = []; context.tradeIns = []; context.clients = []; context.operationNotifications = [];
   api.fetchReportsOverview.mockReset().mockResolvedValue(structuredClone(report));
+  api.listMembers.mockReset().mockResolvedValue([]);
 });
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each(['7 días', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
+    const user = userEvent.setup();
+    context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-02', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
+    renderScreen();
+    await screen.findByText('$ 12,69M');
+    const oldLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label');
+    const next = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(next.promise);
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: preset }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(screen.getByRole('button', { name: /Elegir período/ })).not.toHaveAttribute('aria-label', oldLabel);
+    if (preset === 'Total') expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
+    expect(screen.getByText('$ 12,69M')).toBeVisible();
+    expect(screen.getByText('Anterior')).toBeVisible();
+    expect(screen.queryByText('Histórica')).toBeNull();
+    expect(screen.getByText('Efectivo')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('15');
+    expectNoSkeleton();
+    await act(async () => next.resolve({ ...report, summary: { ...report.summary, revenue: 1000, unitsSold: 42 }, paymentMethods: [{ label: 'Tarjeta', revenue: 1000, share: 100, count: 42 }] }));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 1.000');
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('42');
+    expect(screen.getByText('Tarjeta')).toBeVisible();
+    expect(screen.queryByText('Efectivo')).toBeNull();
+    if (preset === 'Total') {
+      expect(screen.getByText('Histórica')).toBeVisible();
+      expect(screen.queryByLabelText(/Variación/)).toBeNull();
+    } else expect(screen.queryByText('Anterior')).toBeNull();
+    expectNoSkeleton();
+  });
+
+  it('revalida cambios reales de ventas y stock sin vaciar, y conserva el resultado si falla', async () => {
+    context.sales = [makeSale('old', '2026-10-22', 'Inicial')];
+    const view = renderScreen();
+    await screen.findByText('$ 12,69M');
+    const next = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(next.promise);
+    context.sales = [makeSale('new', '2026-10-22', 'Nueva'), ...context.sales];
+    view.rerender(dashboardView());
+    expect(screen.getByText('$ 12,69M')).toBeVisible();
+    expect(screen.queryByText('Nueva')).toBeNull();
+    expectNoSkeleton();
+    const salesSignal = api.fetchReportsOverview.mock.calls.at(-1)![3] as AbortSignal;
+    const stock = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(stock.promise);
+    context.inventory = [{ id: 'p', status: 'DISPONIBLE' }] as Product[];
+    view.rerender(dashboardView());
+    expect(salesSignal.aborted).toBe(true);
+    expect(screen.getByRole('button', { name: /Stock disponible/ })).toHaveTextContent('1 de 1');
+    expectNoSkeleton();
+    await act(async () => stock.resolve({ ...report, summary: { ...report.summary, revenue: 2000 } }));
+    expect(screen.getByText('Nueva')).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000');
+    await act(async () => next.resolve(report));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000');
+    const failed = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(failed.promise);
+    context.sales = [makeSale('failed', '2026-10-22', 'Sin resolver'), ...context.sales];
+    view.rerender(dashboardView());
+    await act(async () => failed.reject(new Error('403')));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000');
+    expect(screen.queryByText('Sin resolver')).toBeNull();
+    expect(screen.queryByText('No se pudo consultar el período')).toBeNull();
+    expectNoSkeleton();
+    context.backendStatus = 'offline';
+    view.rerender(dashboardView());
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000');
+    expectNoSkeleton();
+  });
+
+  it('aborta un rango lento y descarta su resultado después de resolver el más reciente', async () => {
+    const user = userEvent.setup();
+    renderScreen(); await screen.findByText('$ 12,69M');
+    const old = deferred<ReportsOverview>();
+    const latest = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
+    for (const preset of ['7 días', 'Total']) {
+      await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+      await user.click(screen.getByRole('button', { name: preset }));
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+      expectNoSkeleton();
+    }
+    expect((api.fetchReportsOverview.mock.calls[1][3] as AbortSignal).aborted).toBe(true);
+    await act(async () => latest.resolve({ ...report, summary: { ...report.summary, revenue: 2000 } }));
+    await act(async () => old.resolve({ ...report, summary: { ...report.summary, revenue: 999 } }));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000');
+    expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
+    expectNoSkeleton();
+  });
+
+  it.each(['7 días', 'Total'])('remonta en el mes actual cacheado después de elegir %s, sin skeleton mientras revalida', async preset => {
+    const user = userEvent.setup();
+    api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez', email: 'ana@test.com' } }]);
+    const view = renderScreen(); await screen.findByText('$ 12,69M');
+    const monthLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label')!;
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: 2000 } });
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: preset }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 2.000'));
+    view.unmount();
+    const next = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(next.promise);
+    api.listMembers.mockReturnValueOnce(new Promise(() => {}));
+    renderScreen();
+    expect(screen.getByText('$ 12,69M')).toBeVisible();
+    expect(screen.getByTitle(/Ana Gómez/)).toBeVisible();
+    expect(screen.getByRole('button', { name: monthLabel })).toBeVisible();
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
+    expectNoSkeleton();
+    await act(async () => next.resolve({ ...report, summary: { ...report.summary, revenue: 3000 } }));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 3.000');
+  });
+
+  it.each([
+    ['2026-10-23', '2026-10-01'],
+    ['2026-11-01', '2026-11-01'],
+  ])('remonta con skeleton del reporte si la clave del mes actual no existe al llegar %s', async (today, start) => {
+    api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez' } }]);
+    const view = renderScreen(); await screen.findByText('$ 12,69M');
+    const scope = JSON.stringify([context.appSession.store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections]);
+    await waitFor(() => expect(readLatestDashboardCache(scope)?.initialResolved).toBe(true));
+    view.unmount();
+    vi.setSystemTime(new Date(`${today}T12:00:00-03:00`));
+    const next = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(next.promise);
+    api.listMembers.mockReturnValueOnce(new Promise(() => {}));
+    renderScreen();
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, start, today, expect.any(AbortSignal));
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveAttribute('aria-busy', 'true');
+    expect(document.querySelectorAll('.dashboard-trend .skeleton, .dashboard-payments .skeleton')).toHaveLength(2);
+    expect(screen.getByTestId('dashboard-sales-loading')).toBeInTheDocument();
+    expect(screen.getByTitle(/Ana Gómez/)).toBeVisible();
+    expect(screen.getByRole('button', { name: /Stock disponible/ })).toHaveAttribute('aria-busy', 'false');
+    expect(document.querySelector('.avatars .skeleton')).toBeNull();
+    await act(async () => next.resolve({ ...report, summary: { ...report.summary, revenue: 3000 } }));
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 3.000');
+    expectNoSkeleton();
+  });
+
+  it.each(['uid', 'store', 'role', 'sections', 'logout'])('no reutiliza el reporte ni miembros al cambiar %s', async change => {
+    api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez' } }]);
+    const view = renderScreen(); await screen.findByText('$ 12,69M');
+    view.unmount();
+    if (change === 'uid') context.user.uid = 'user-2';
+    if (change === 'store') context.appSession.store.id = 'store-2';
+    if (change === 'role') context.appSession.membership.role = 'MANAGER';
+    if (change === 'sections') context.appSession.membership.sections = ['dashboard', 'reports', 'sales'];
+    if (change === 'logout') clearDashboardCache();
+    api.fetchReportsOverview.mockReturnValueOnce(new Promise(() => {}));
+    api.listMembers.mockReturnValueOnce(new Promise(() => {}));
+    renderScreen();
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    expect(screen.queryByTitle(/Ana Gómez/)).toBeNull();
+    expect(screen.getByTestId('dashboard-sales-loading')).toBeInTheDocument();
+  });
+
   it('usa overview para los cuatro KPI, porcentajes y gráficos, sin el flujo anterior', async () => {
     renderScreen();
     expect(await screen.findByText('$ 12,69M')).toBeVisible();
@@ -144,7 +317,7 @@ describe('Dashboard aprobado', () => {
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
   });
 
-  it('coordina la carga de Total y oculta un fallo de red sin recuperar cifras anteriores', async () => {
+  it('conserva el período resuelto si falla la revalidación de Total', async () => {
     const user = userEvent.setup();
     context.sales = [makeSale('old', '2024-01-01', 'Histórica')];
     renderScreen();
@@ -155,13 +328,14 @@ describe('Dashboard aprobado', () => {
     await user.click(screen.getByRole('button', { name: 'Total' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, undefined, undefined, expect.any(AbortSignal));
-    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveAttribute('aria-busy', 'true');
-    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByText('$ 12,69M')).toBeVisible();
     expect(screen.queryByText('Histórica')).toBeNull();
-    expect(screen.queryByLabelText(/Variación/)).toBeNull();
+    expect(screen.getAllByLabelText(/Variación/)).not.toHaveLength(0);
     await act(async () => reject(new TypeError('Failed to fetch')));
-    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('—');
-    expect(screen.getByText('Histórica')).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 12,69M');
+    expect(screen.queryByText('Histórica')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
     expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Cargando…|Reintentar/)).toBeNull();
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty, .dtop .sub')).toBeNull();
   });
@@ -357,7 +531,7 @@ describe('Dashboard aprobado', () => {
       expect(card).toHaveAttribute('aria-busy', 'false');
       expect(within(card).queryByLabelText(/Variación/)).toBeNull();
     }
-    expect(screen.queryByText('Antes')).toBeNull();
+    expect(screen.getByText('Antes')).toBeVisible();
     await act(async () => resolve({
       summary: { revenue: 1000, grossProfit: 250, unitsSold: 1, marginRate: 25 },
       comparison: { available: false, revenueChange: 100, grossProfitChange: 100, unitsChange: 100 },
@@ -372,6 +546,7 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByLabelText(/Variación/)).toBeNull();
     expect(screen.getByRole('img', { name: 'Ventas del período' }).querySelectorAll('title')[6]).toHaveTextContent('$ 1.000');
     expect(screen.getByTestId('dashboard-sales')).toHaveTextContent('Hoy');
+    expect(screen.queryByText('Antes')).toBeNull();
     expect([stock, trades, balances].map(card => card.textContent)).toEqual(stable);
   });
 

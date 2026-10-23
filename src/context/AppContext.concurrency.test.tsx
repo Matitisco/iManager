@@ -15,6 +15,7 @@ import { fetchBackendSales, updateBackendSale, deleteBackendSale } from '../serv
 import { fetchBackendTradeIns, updateBackendTradeIn, deleteBackendTradeIn } from '../services/trade-ins-api';
 import { fetchBackendRepairs, updateBackendRepair, createBackendRepair, changeBackendRepairStatus, deleteBackendRepair, restoreBackendRepair } from '../services/repairs-api';
 import { AppProvider, useAppContext } from './AppContext';
+import { dashboardCacheVersion, readDashboardCache, writeDashboardCache } from '../desk/dashboard-cache';
 
 const auth = vi.hoisted(() => ({ listener: null as null | ((user: AuthUserLike | null) => void), adapter: { onAuthStateChanged: vi.fn(), logout: vi.fn(), getCurrentUser: vi.fn() } }));
 vi.mock('../services/auth-adapter', () => ({ getAuthAdapter: () => auth.adapter }));
@@ -65,6 +66,21 @@ beforeEach(() => {
 });
 
 describe('AppContext concurrency #461', () => {
+  it('limpia la caché del Dashboard al salir o cambiar de usuario, y la conserva al renovar identidad', async () => {
+    await mount();
+    const currentUser = auth.adapter.getCurrentUser() as AuthUserLike;
+    await act(async () => auth.listener?.(currentUser));
+    const remember = () => writeDashboardCache('dashboard:undefined:undefined', { scope: 'dashboard', range: null, report: null, members: [], initialResolved: true }, dashboardCacheVersion());
+    remember();
+    await act(async () => auth.listener?.({ ...currentUser }));
+    expect(readDashboardCache('dashboard:undefined:undefined')).toBeDefined();
+    await act(async () => auth.listener?.({ ...currentUser, uid: 'other-user' }));
+    expect(readDashboardCache('dashboard:undefined:undefined')).toBeUndefined();
+    remember();
+    await act(async () => auth.listener?.(null));
+    expect(readDashboardCache('dashboard:undefined:undefined')).toBeUndefined();
+  });
+
   it('does not roll back a newer successful optimistic product edit when an earlier edit fails', async () => {
     const { result } = await mount();
     const older = deferred<Product>(), newer = deferred<Product>();
