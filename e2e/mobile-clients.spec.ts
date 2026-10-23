@@ -1,4 +1,4 @@
-import { expandListOptions } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -60,7 +60,7 @@ async function expectFits(page: Page) {
 
 async function openClients(page: Page) {
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await expect(page.getByRole('heading', { name: 'Clientes' })).toBeVisible();
 }
 
@@ -69,7 +69,7 @@ test.describe('desktop clients stays put', () => {
     const email = buildTestEmail(testInfo, 'clients-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Clientes desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-clients').click();
+    await openDeskSection(page, 'clients');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('clients-empty')).toHaveCount(0);
@@ -84,7 +84,7 @@ test.describe('desktop clients stays put', () => {
 
     await createClientViaApi(request, email, { name: 'Cliente escritorio', dni: '30111000', phone: '1100001111' });
     await page.reload();
-    await page.getByTestId('sidebar-tab-clients').click();
+    await openDeskSection(page, 'clients');
     await expect(page.getByRole('cell', { name: /Cliente escritorio/ })).toBeVisible();
     await expect(page.getByTestId('phone-rows')).toHaveCount(0);
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);

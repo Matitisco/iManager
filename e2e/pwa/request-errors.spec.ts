@@ -17,7 +17,7 @@ async function openCanjeConfirmation(page: Page) {
   const mobile = (page.viewportSize()?.width ?? 1440) <= 760;
   if (mobile) {
     await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('more-screen').getByTestId('sidebar-tab-tradeins').click();
+    await openDeskSection(page, 'tradeins');
   } else await openDeskSection(page, 'tradeins');
   await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
   const row = page.locator(mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'iPhone recibido 1' });

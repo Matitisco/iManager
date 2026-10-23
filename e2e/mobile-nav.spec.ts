@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
 
@@ -82,23 +83,25 @@ test.describe('phone navigation', () => {
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page).toHaveURL(/#\/mas/);
     await expect(page.getByRole('heading', { level: 1, name: 'Más', exact: true })).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('Equipos dados y recibidos');
-    await expect(page.getByTestId('more-item-clients')).toContainText('Agenda y saldos');
+    await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('Canjes');
+    await expect(page.getByTestId('more-item-clients')).toContainText('Clientes');
     await expect(page.getByTestId('more-item-dashboard')).toBeVisible();
-    await expect(page.getByTestId('more-item-sales')).toBeVisible();
-    await expect(page.getByTestId('more-item-inventory')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-service')).toContainText('Órdenes de reparación');
-    await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('sin leer');
+    await expect(page.getByTestId('more-item-sales')).toBeAttached();
+    await expect(page.getByTestId('more-item-inventory')).toBeAttached();
+    await expect(page.getByTestId('sidebar-tab-service')).toContainText('Servicio técnico');
+    await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('Notificaciones');
     await expect(page.getByTestId('sidebar-tab-settings')).toContainText('Configuración');
     await expect(page.getByTestId('more-profile')).toContainText('Propietario');
     await expect(page.getByTestId('sidebar-tab-more')).toHaveClass(/on/);
-    await expect(page.getByTestId('sidebar-tab-commissions')).toBeVisible();
+    await expect(page.getByTestId('sidebar-tab-commissions')).toBeAttached();
     await expect(page.getByText(/Tentativo/)).toHaveCount(0);
     await expect(page.getByText(/Propuesta tentativa/)).toHaveCount(0);
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-390-mas.png` });
 
-    // A low row of Más must not lend its scroll position to the destination.
+    // With a short viewport a destination must not inherit the menu scroll.
+    await page.setViewportSize({ width: 390, height: 440 });
+    await page.getByTestId('nav-group-analisis').locator('button[aria-expanded]').first().click();
     const stage = page.locator('.stage');
     await page.getByTestId('sidebar-tab-reports').scrollIntoViewIfNeeded();
     await page.getByTestId('sidebar-tab-reports').focus();
@@ -123,14 +126,14 @@ test.describe('phone navigation', () => {
     }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/nav-360-mas.png` });
 
-    await page.getByTestId('more-item-clients').click();
+    await openDeskSection(page, 'clients');
     await expect(page).toHaveURL(/#\/atencion\/clientes/);
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
     await expect(bar.getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
     await expect(page.getByTestId('sidebar-tab-more')).not.toHaveClass(/on/);
     await expectFits(page);
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
     await expect(page.getByTestId('sidebar-tab-more')).not.toHaveClass(/on/);
@@ -162,8 +165,9 @@ test.describe('phone navigation', () => {
       await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
       await bar.getByTestId('sidebar-tab-more').click();
       await expect(staff.getByTestId('sidebar-tab-service')).toContainText('Servicio técnico');
+      await staff.getByTestId('nav-group-atencion').locator('button[aria-expanded]').first().click();
       await expect(staff.getByTestId('more-item-clients')).toBeVisible();
-      await expect(staff.getByTestId('sidebar-tab-notifications')).toBeVisible();
+      await expect(staff.getByTestId('sidebar-tab-notifications')).toBeHidden();
       await expect(staff.getByTestId('sidebar-tab-cash')).toHaveCount(0);
       await expect(staff.getByTestId('sidebar-tab-reports')).toHaveCount(0);
       await expect(staff.getByTestId('sidebar-tab-commissions')).toContainText('Mis comisiones');

@@ -81,12 +81,7 @@ test.describe('phone', () => {
     await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
     await expect(page.locator('.side')).toHaveCount(0);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-dolar.png` });
-    const service = page.getByTestId('sidebar-tab-service');
-    if (!(await service.isVisible())) {
-      await page.getByTestId('sidebar-tab-more').click();
-      await expect(service).toBeVisible();
-    }
-    await service.click();
+    await openDeskSection(page, 'service');
     await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-servicio.png` });
   });

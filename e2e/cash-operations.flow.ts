@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { sheetAction } from './sheet-actions';
 import { isSectionHidden } from '../src/config/hiddenSections';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -31,7 +32,7 @@ async function close(request: APIRequestContext, email: string, boxId: string, a
 }
 async function sell(page: Page, phone: boolean, method: string) {
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   const sales = page.getByTestId('sales-screen');
   await expect(sales).toBeVisible();
   await (phone ? sales.getByTestId('mobile-dock') : sales).getByRole('button', { name: 'Registrar venta', exact: true }).click();
@@ -44,7 +45,7 @@ async function sell(page: Page, phone: boolean, method: string) {
   await expect(form).toBeHidden();
 }
 async function detail(page: Page, phone: boolean) {
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   const sales = page.getByTestId('sales-screen');
   await expect(sales).toBeVisible();
   await sales.locator(phone ? '.phone-row' : 'tbody tr').filter({ hasText: 'iPhone 14' }).click();
@@ -80,11 +81,7 @@ async function closeEmptyCash(page: Page, request: APIRequestContext, email: str
     return;
   }
   await page.reload({ waitUntil: 'domcontentloaded' });
-  const tab = page.getByTestId('sidebar-tab-cash');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(tab.or(more).first()).toBeVisible();
-  if (!(await tab.isVisible())) await more.click();
-  await tab.click();
+  await openDeskSection(page, 'cash');
   await page.getByTestId('cash-screen').getByRole('button', { name: /Caja C/ }).click();
   await expect(page.locator('.cash-overview strong')).toHaveText('USD 0,00');
   await page.getByRole('button', { name: 'Contar y cerrar', exact: true }).click();
@@ -110,7 +107,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       if (closed) await close(request, email, boxId, 0);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('button', { name: /Stock disponible 1 de 1/ })).toBeVisible();
-      await page.getByTestId('sidebar-tab-inventory').click();
+      await openDeskSection(page, 'inventory');
       await expect(page.getByTestId('inventory-total')).toHaveText('1 de 1');
       await sell(page, phone, 'Efectivo');
       expect((await fetchSales(request, email)).sales).toEqual([expect.objectContaining({ productId: product.id, amount: 100, status: 'COMPLETADA' })]);

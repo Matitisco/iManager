@@ -169,7 +169,8 @@ export async function bootstrapStoreViaApi(
   }
   await waitForSessionReady(request, email);
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
+  await expect(page.locator('.desk-app')).toBeVisible();
+  await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
 }
 
 export async function bootstrapStore(page: Page, request: APIRequestContext, email: string, storeName: string) {

@@ -10,7 +10,7 @@ test('@smoke creates an inventory item from the UI and persists it', async ({ pa
   const model = `iPhone Inventory ${Date.now()}`;
 
   await bootstrapStoreViaApi(page, request, email, storeName);
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
   const dialog = page.getByRole('dialog', { name: 'Registrar equipo' });
 
@@ -28,7 +28,7 @@ test('@smoke creates an inventory item from the UI and persists it', async ({ pa
   await expect(row).toBeVisible();
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText(model)).toBeVisible();
 
   const { inventory } = await fetchInventory(request, email);
@@ -40,7 +40,7 @@ test('creates an item as VENDIDO and registers its sale', async ({ page, request
   const model = `iPhone Sold At Creation ${Date.now()}`;
   const imei = String(Date.now()).padStart(15, '7').slice(-15);
   await bootstrapStoreViaApi(page, request, email, `Created Sold ${testInfo.parallelIndex}`);
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
   const createDialog = page.getByRole('dialog', { name: 'Registrar equipo' });
   await createDialog.getByLabel('Modelo').fill(model);
@@ -78,7 +78,7 @@ test('a VENDIDO change can be closed and resumed after reload to register the sa
     cost: 1200,
   });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('row').filter({ hasText: model }).click();
   const detail = page.getByRole('dialog', { name: new RegExp(model) });
   await detail.getByRole('button', { name: 'Vendido' }).click();
@@ -88,7 +88,7 @@ test('a VENDIDO change can be closed and resumed after reload to register the sa
 
   await page.getByRole('row').filter({ hasText: model }).getByRole('button', { name: 'Retomar' }).waitFor();
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   const row = page.getByRole('row').filter({ hasText: model });
   await expect(row.getByText('Venta por registrar')).toBeVisible();
   await row.getByRole('button', { name: 'Retomar' }).click();
@@ -115,7 +115,7 @@ test('a zero-price item can be marked sold and its sale registered', async ({ pa
   expect(imported).toMatchObject({ imported: 1, errors: [] });
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('row').filter({ hasText: model }).click();
   const detail = page.getByRole('dialog', { name: new RegExp(model) });
   await expect(detail.getByText('Sin precio', { exact: true })).toBeVisible();
@@ -162,7 +162,7 @@ test('a device received in a trade-in can be sold after it is marked vendido', a
   const receivedItem = afterTrade.inventory.find((item) => item.model === received);
   expect(receivedItem).toMatchObject({ status: 'EN_REVISION', price: 0 });
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('row').filter({ hasText: received }).click();
   const detail = page.getByRole('dialog', { name: new RegExp(received) });
   await detail.getByRole('button', { name: 'Vendido' }).click();
@@ -193,7 +193,7 @@ test('filters several inventory statuses at once', async ({ page, request }, tes
   await createInventoryItemViaApi(request, email, { imei: '350000000000112', model: 'Apartado', status: 'RESERVADO' });
   await createInventoryItemViaApi(request, email, { imei: '350000000000113', model: 'Salida', status: 'VENDIDO' });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByTestId('inventory-total')).toHaveText('3 de 3');
 
   const chips = page.locator('.wchips');

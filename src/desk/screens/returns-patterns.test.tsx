@@ -34,6 +34,12 @@ const coolGroup = { ...group, key: 'cool', label: 'Tech Cuyo', supplierId: 'cool
 const zeroGroup = { ...coolGroup, key: 'zero', label: 'Sin problemas', problems: 0, percent: 0 };
 const tree = (node = <ReturnsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
 const mount = (node = <ReturnsScreen />) => render(tree(node));
+function navigate(hash: string) {
+  act(() => {
+    history.replaceState(null, '', hash);
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+}
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(yes => { resolve = yes; });
@@ -85,7 +91,7 @@ describe('Patrones de Devoluciones', () => {
     api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group]));
     mount();
     expect(api.fetchReturnPatterns).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: 'Patrones' }));
+    navigate(returnPatternsHash());
     await screen.findByTestId('pattern-supplier');
     expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'supplier');
     expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
@@ -97,7 +103,7 @@ describe('Patrones de Devoluciones', () => {
     await screen.findByTestId('pattern-model');
     expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'model');
     expect(screen.queryByText('Ver proveedor')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Reclamos' }));
+    navigate('#/comercial/devoluciones?view=claims');
     expect(screen.getByRole('group', { name: 'Estado' })).toBeInTheDocument();
     expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
   });
@@ -162,7 +168,8 @@ describe('Patrones de Devoluciones', () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'cool'));
     mount();
     await screen.findByTestId('pattern-cool');
-    expect(screen.getByRole('button', { name: 'Patrones' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByRole('group', { name: 'Vista' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Agrupar' })).toBeInTheDocument();
     expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
     expect(screen.getByTestId('pattern-supplier')).not.toHaveClass('on');
     expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
@@ -199,7 +206,7 @@ describe('Patrones de Devoluciones', () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'supplier'));
     mount();
     await screen.findByTestId('pattern-supplier');
-    await userEvent.click(screen.getByRole('button', { name: 'Reclamos' }));
+    navigate('#/comercial/devoluciones?view=claims');
     expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
     act(() => showSupplierPatterns('supplier'));
     await screen.findByTestId('pattern-supplier');

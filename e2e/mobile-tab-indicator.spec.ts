@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail } from './utils';
 
@@ -57,7 +58,7 @@ test.describe('mobile tab indicator', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-before.png` });
 
     await page.addStyleTag({ content: '.mtab-indicator { transition-duration: 1200ms !important; }' });
-    await bar.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(bar, 'sales');
     await expect(page).toHaveURL(/#\/comercial\/ventas/);
     await expect(indicator).toBeVisible();
     const started = await indicatorState(page);
@@ -107,7 +108,7 @@ test.describe('mobile tab indicator', () => {
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.getByTestId('sidebar-tab-dashboard')).toHaveClass(/on/);
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('sidebar-tab-inventory')).toHaveClass(/on/);
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
@@ -130,7 +131,7 @@ test.describe('desktop tab indicator stays out of the sidebar', () => {
     expect(background).not.toBe('rgba(0, 0, 0, 0)');
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/desktop-1440.png` });
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page).toHaveURL(/#\/stock\/equipos/);
     await expect(page.getByTestId('mobile-tab-indicator')).toHaveCount(0);
     await expect(page.locator('.mtab-indicator')).toHaveCount(0);

@@ -8,7 +8,7 @@ test('free text always makes a new homonymous client; a client-ficha sale keeps 
   const clientName = `Cliente repetido ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Operations ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -35,7 +35,7 @@ test('free text always makes a new homonymous client; a client-ficha sale keeps 
   expect(duplicateClients.clients.filter((client) => client.name === clientName)).toHaveLength(2);
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByTestId(`client-row-${originalClientId}`).click();
   await page.getByRole('button', { name: 'Nueva venta' }).click();
   dialog = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -101,7 +101,7 @@ test('a Ventas-origin draft is recoverable after reload', async ({ page, request
   const received = `Equipo draft ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Sales Draft ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -113,7 +113,7 @@ test('a Ventas-origin draft is recoverable after reload', async ({ page, request
   await expect(dialog).toBeHidden();
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
   await page.getByRole('button', { name: 'Retomar' }).click();
@@ -262,7 +262,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   });
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByRole('button', { name: 'Nuevo cliente' }).click();
   const clientDialog = page.getByRole('dialog', { name: 'Nuevo cliente' });
   await clientDialog.getByLabel('Nombre y apellido').fill(clientName);
@@ -272,7 +272,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   const clientId = createdClients.clients.find((client) => client.name === clientName)?.id;
   expect(clientId).toBeTruthy();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('row').filter({ hasText: product.inventoryItem.model }).click();
   await (await sheetAction(page.getByRole('dialog'), 'Vender')).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -283,7 +283,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   await (await sheetAction(dialog, 'Guardar pendiente')).click();
   await expect(dialog).toBeHidden();
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
   await page.getByRole('button', { name: /Retomar/ }).click();
   dialog = page.getByRole('dialog', { name: 'Retomar canje' });
@@ -292,7 +292,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   await page.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(dialog).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByTestId(`client-row-${clientId}`).click();
   await page.getByRole('button', { name: 'Nueva venta' }).click();
   dialog = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -304,7 +304,7 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   await expect(dialog).toBeHidden();
 
   await page.reload();
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await expect(page.getByText('Canjes pendientes de confirmar')).toBeVisible();
   await page.getByRole('button', { name: /Retomar/ }).click();
   dialog = page.getByRole('dialog', { name: 'Retomar canje' });

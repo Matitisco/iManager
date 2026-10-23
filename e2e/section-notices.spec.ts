@@ -18,7 +18,7 @@ test('a sale highlights the sold phone in inventory and clears that section coun
     price: 1500,
   });
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   const sales = page.getByTestId('sales-screen');
   await expect(sales).toBeVisible();
   await sales.getByRole('button', { name: 'Registrar venta', exact: true }).click();
@@ -29,19 +29,19 @@ test('a sale highlights the sold phone in inventory and clears that section coun
   await page.getByRole('button', { name: 'Confirmar venta' }).click();
   await expect(dialog).toBeHidden();
 
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveText('1');
+  await expect(page.getByTestId('nav-group-stock').locator('button[aria-expanded]').first().getByLabel('1 aviso sin leer en Equipos')).toHaveText('1');
   await openDeskSection(page, 'inventory');
   const row = page.getByRole('row').filter({ hasText: model });
   await expect(page.getByTestId('section-notices')).toHaveCount(0);
   await expect(row.getByTestId('notice-dot')).toBeVisible();
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').locator('button[aria-expanded]').first().getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
   await expect(row.getByTestId('notice-dot')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(sales).toBeVisible();
   await openDeskSection(page, 'inventory');
   await expect(page.getByRole('heading', { name: 'Inventario', exact: true })).toBeVisible();
-  await expect(page.getByTestId('nav-group-stock').getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
+  await expect(page.getByTestId('nav-group-stock').locator('button[aria-expanded]').first().getByLabel('1 aviso sin leer en Equipos')).toHaveCount(0);
   await expect(page.getByTestId('notice-dot')).toHaveCount(0);
 });
 
@@ -59,7 +59,7 @@ test.describe('phone', () => {
       price: 1800,
     });
 
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     const sales = page.getByTestId('sales-screen');
     await expect(sales).toBeVisible();
     await sales.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta', exact: true }).click();
@@ -71,7 +71,7 @@ test.describe('phone', () => {
     await expect(dialog).toBeHidden();
 
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveText('1');
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     const list = page.getByTestId('phone-rows');
     await expect(page.getByTestId('section-notices')).toHaveCount(0);
     await expect(list.getByText(model, { exact: false })).toBeVisible();

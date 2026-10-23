@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, fetchInventory } from './utils';
 
@@ -10,7 +11,7 @@ test('a section change reflects an external archive, and another page follows a 
   const stale = await createInventoryItemViaApi(request, email, { imei: '359111111111111', model: 'Pixel Viejo', price: 400000 });
   const shared = await createInventoryItemViaApi(request, email, { imei: '359222222222222', model: 'Pixel Compartido', price: 500000 });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('Pixel Viejo')).toBeVisible();
   await expect(page.getByText('Pixel Compartido')).toBeVisible();
 
@@ -20,16 +21,16 @@ test('a section change reflects an external archive, and another page follows a 
   // Focus/navigation revalidation is coalesced for 15s after the initial load.
   await page.clock.install();
   await page.clock.fastForward(15_000);
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await refreshed;
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByRole('row').filter({ hasText: 'Pixel Viejo' })).toHaveClass(/is-void/);
   await expect(page.getByText('Pixel Compartido')).toBeVisible();
 
   const other = await context.newPage();
   await other.goto('/');
   const settled = other.waitForResponse((response) => response.url().includes('/api/inventory') && response.request().method() === 'GET' && response.ok());
-  await other.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(other, 'inventory');
   await settled;
   await expect(other.getByText('Pixel Compartido')).toBeVisible();
   const record = page.getByRole('row').filter({ hasText: 'Pixel Compartido' });
@@ -47,7 +48,7 @@ test('a section change reflects an external archive, and another page follows a 
 test('a refresh keeps the text typed in an open sale', async ({ page, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'list-sync-draft');
   await bootstrapStoreViaApi(page, request, email, 'iManager · Borrador');
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   const client = page.getByRole('combobox', { name: 'Cliente' });

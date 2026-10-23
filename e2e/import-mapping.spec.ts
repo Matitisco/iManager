@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
@@ -51,9 +52,7 @@ for (const viewport of viewports) {
       await page.getByRole('button', { name: 'Saltar por ahora' }).click();
       await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
 
-      const inventoryTab = page.getByTestId('sidebar-tab-inventory');
-      if (!(await inventoryTab.isVisible())) await page.getByTestId('sidebar-tab-more').click();
-      await inventoryTab.click();
+      await openDeskSection(page, 'inventory');
       await expect(page.getByRole('heading', { level: 1, name: 'Inventario' })).toBeVisible();
       if (phone) {
         await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();

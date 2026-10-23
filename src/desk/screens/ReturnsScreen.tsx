@@ -41,15 +41,11 @@ export function ReturnsScreen() {
   return (
     <div className="dscreen returns-screen" data-testid="returns-screen">
       <ScreenTitle title="Devoluciones" back={back} tools={null} desktop={add} />
-      <div className="gfilters pat-filters">
-        <div role="group" aria-label="Vista">
-          <button className={`gchip${!view.patterns ? ' on' : ''}`} type="button" aria-pressed={!view.patterns} onClick={() => setView(current => ({ ...current, patterns: false }))}>Reclamos</button>
-          <button className={`gchip${view.patterns ? ' on' : ''}`} type="button" aria-pressed={view.patterns} onClick={() => setView(current => ({ ...current, patterns: true }))}>Patrones</button>
-        </div>
-        {view.patterns ? <div className="pat-by" role="group" aria-label="Agrupar">
+      {view.patterns ? <div className="gfilters pat-filters">
+        <div className="pat-by" role="group" aria-label="Agrupar">
           {([{ id: 'supplier', label: 'Proveedor' }, { id: 'purchase', label: 'Compra' }, { id: 'model', label: 'Modelo' }] as const).map(option => <button key={option.id} className={`gchip sm${view.groupBy === option.id ? ' on' : ''}`} type="button" aria-pressed={view.groupBy === option.id} onClick={() => setView({ patterns: true, groupBy: option.id, group: undefined })}>{option.label}</button>)}
-        </div> : null}
-      </div>
+        </div>
+      </div> : null}
       {view.patterns ? <ReturnsPatterns key={scope} groupBy={view.groupBy} requestedGroup={view.group} /> : <>
       <div className="gfilters">
         <div role="group" aria-label="Estado">

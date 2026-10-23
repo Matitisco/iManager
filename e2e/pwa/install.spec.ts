@@ -1,3 +1,4 @@
+import { openDeskSection } from '../navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { me, data } from './fixtures.mjs';
 import { mkdir } from 'node:fs/promises';
@@ -32,10 +33,7 @@ async function session(page: Page) {
 }
 
 async function openInventory(page: Page) {
-  // Desktop opens the Stock group; mobile retains the Equipos shortcut.
-  const stock = page.getByRole('button', { name: 'Stock', exact: true });
-  if (await stock.isVisible()) await stock.click();
-  else await page.getByRole('button', { name: 'Equipos', exact: true }).click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
 }
 
@@ -144,7 +142,7 @@ test('Android preserves legacy dismissal and leaves installation available in Ay
   await expect(page.getByTestId('install-app')).toHaveCount(0);
   await page.getByTestId('sidebar-tab-more').click();
   await expect(page.getByTestId('install-card')).toHaveCount(0);
-  await page.getByTestId('sidebar-tab-help').click();
+  await openDeskSection(page, 'help');
   await page.getByRole('button', { name: /Instalar la app en el celular/ }).click();
   await expect(page.getByRole('dialog', { name: 'Instalá iManager' })).toBeVisible();
   await screenshot(page, 'issue-292-mobile-android-instalar.png');
@@ -342,7 +340,7 @@ test('mobile Desglose backdrop consumes pointerdown and click over report tabs',
   });
   await session(page);
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-reports').click();
+  await openDeskSection(page, 'reports');
   await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
   const select = page.getByRole('combobox', { name: 'Columna de desglose' });
   const tab = page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Stock', exact: true });

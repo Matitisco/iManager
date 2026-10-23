@@ -15,7 +15,7 @@ test('archives a device, shows it in history and restores it', async ({ page, re
     batteryHealth: '90%',
   });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('iPhone Historial')).toBeVisible();
   await page.getByRole('row').filter({ hasText: 'iPhone Historial' }).click({ button: 'right' });
   await page.locator('.ctx').getByRole('button', { name: 'Archivar', exact: true }).click();
@@ -30,7 +30,7 @@ test('archives a device, shows it in history and restores it', async ({ page, re
   await expect(page.getByRole('heading', { name: 'Historial' })).toBeVisible();
   await expect(page.getByText(/archivó/i).first()).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Archivados', exact: true }).click();
   const archived = page.getByRole('row').filter({ hasText: 'iPhone Historial' });
   await expect(archived).toBeVisible();

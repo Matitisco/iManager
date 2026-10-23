@@ -87,32 +87,33 @@ describe('sidebar unread counts', () => {
     });
   }
 
-  it.each([390, 1440])('conserva el resumen periódico en todas las transiciones de Análisis a %spx', async width => {
+  const analysisRoutes = {
+    reports: 'reportes', commissions: 'comisiones', history: 'historial', periodicSummary: 'resumen-periodico',
+  };
+  const transitions = [390, 1440].flatMap(width => Object.entries(analysisRoutes).flatMap(([source, path]) =>
+    Object.entries(analysisRoutes).filter(([target]) => source !== target).map(([target, targetPath]) => ({ width, path, target, targetPath })),
+  ));
+  it.each(transitions)('conserva el resumen periódico de $path a $targetPath a $width px', async ({ width, path, target, targetPath }) => {
     if (width === 390) usePhone();
     context.loadCommissions = vi.fn(async () => undefined);
-    const paths = {
-      reports: 'reportes', commissions: 'comisiones', history: 'historial', periodicSummary: 'resumen-periodico',
-    };
-    window.location.hash = '#/analisis/reportes';
+    window.location.hash = `#/analisis/${path}`;
     render(<DeskApp />);
-    for (const [source, path] of Object.entries(paths)) {
-      for (const [target, targetPath] of Object.entries(paths)) {
-        if (source === target) continue;
-        goHash(`#/analisis/${path}`);
-        expect(screen.getByTestId('group-tab-periodicSummary')).toHaveTextContent('Resumen periódico');
-        fireEvent.click(screen.getByTestId(`group-tab-${target}`));
-        await waitFor(() => expect(screen.getByTestId(`group-tab-${target}`)).toHaveAttribute('aria-selected', 'true'));
-        expect(window.location.hash).toBe(`#/analisis/${targetPath}`);
-        expect(screen.getAllByRole('tab', { selected: true })).toHaveLength(1);
-        expect(screen.getByTestId('group-tab-periodicSummary')).toBeInTheDocument();
-        expect(Boolean(document.querySelector('.periodic-summary'))).toBe(target === 'periodicSummary');
-      }
-    }
-    // El mismo hash debe restaurar el contenido después de desmontar la aplicación.
-    goHash('#/analisis/resumen-periodico');
-    cleanup();
+    if (width === 390) fireEvent.click(screen.getByTestId('sidebar-tab-more'));
+    const menu = await screen.findByRole('navigation', { name: 'Navegación principal' });
+    expect(within(menu).getByText('Resumen periódico')).toBeVisible();
+    const label = target === 'periodicSummary' ? 'Resumen periódico' : target === 'reports' ? 'Reportes' : target === 'history' ? 'Historial' : 'Comisiones';
+    fireEvent.click(within(menu).getByRole('button', { name: label }));
+    await waitFor(() => expect(window.location.hash).toBe(`#/analisis/${targetPath}`));
+    await waitFor(() => expect(Boolean(document.querySelector('.periodic-summary'))).toBe(target === 'periodicSummary'));
+    if (width === 1440) expect(within(menu).getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('tablist', { name: 'Secciones del grupo' })).not.toBeInTheDocument();
+  });
+
+  it.each([390, 1440])('restaura el resumen periódico desde la URL a %spx', width => {
+    if (width === 390) usePhone();
+    window.location.hash = '#/analisis/resumen-periodico';
     render(<DeskApp />);
-    expect(screen.getByTestId('group-tab-periodicSummary')).toHaveAttribute('aria-selected', 'true');
+    if (width === 1440) expect(screen.getByRole('button', { name: 'Resumen periódico' })).toHaveAttribute('aria-current', 'page');
     expect(document.querySelector('.periodic-summary')).toBeInTheDocument();
   });
 
@@ -122,7 +123,7 @@ describe('sidebar unread counts', () => {
     window.location.hash = '#/analisis/resumen-periodico';
     render(<DeskApp />);
     expect(Boolean(screen.queryByTestId('no-section-access'))).toBe(!granted);
-    expect(Boolean(screen.queryByTestId('group-tab-periodicSummary'))).toBe(granted);
+    expect(screen.queryByRole('tablist', { name: 'Secciones del grupo' })).not.toBeInTheDocument();
     expect(Boolean(document.querySelector('.periodic-summary'))).toBe(granted);
   });
 
@@ -153,6 +154,7 @@ describe('sidebar unread counts', () => {
       fireEvent.click(screen.getByTestId('sidebar-tab-suppliers'));
     } else {
       fireEvent.click(screen.getByRole('button', { name: /Finanzas/ }));
+      fireEvent.click(screen.getByTestId('sidebar-tab-suppliers'));
     }
     await waitFor(() => expect(location.hash).toBe('#/finanzas/proveedores'));
     expectHidden();
@@ -160,7 +162,8 @@ describe('sidebar unread counts', () => {
     await screen.findByRole('button', { name: 'Todos' });
     expectHidden();
     expect(document.querySelector('.acct-views')).toBeNull();
-    expect(screen.getByRole('tab', { name: 'Servicio técnico' })).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    if (width === 1440) expect(screen.getByTestId('sidebar-tab-service')).toBeVisible();
   });
 
   it.each([
@@ -211,68 +214,50 @@ describe('sidebar unread counts', () => {
     }
   });
 
-  it('keeps group badges in the flat sidebar and subsection badges in page tabs', async () => {
-    window.location.hash = '#/dash';
-    context.operationNotifications = [
-      { id: '1', storeId: 's', section: 'inventory', title: 'Equipo vendido', message: 'iPhone 13 vendido', recordId: 'p', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
-      { id: '2', storeId: 's', section: 'inventory', title: 'Equipo recibido', message: 'Entró un iPhone 11 por canje, en revisión', recordId: 'p2', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
-      { id: '3', storeId: 's', section: 'sales', title: 'Venta registrada', message: 'iPhone 13 · Juan Pérez · $ 50.000', recordId: 's1', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: null },
-      { id: '4', storeId: 's', section: 'clients', title: 'Saldo pendiente', message: 'Juan Pérez debe $ 50.000', recordId: 'c', kind: 'INTEGRATED_OPERATION', createdAt: '2026-10-08T12:00:00.000Z', readAt: '2026-10-08T13:00:00.000Z' },
-    ];
-    context.sectionChanges = { inventory: [{ id: 'p', updatedAt: '2026-10-08T12:00:00.000Z' }, { id: 'p2', updatedAt: '2026-10-08T12:00:00.000Z' }], sales: [{ id: 's1', updatedAt: '2026-10-08T12:00:00.000Z' }], tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
+  it('keeps pending badges in the accordion and marks the selected destination', async () => {
+    window.location.hash = '#/dashboard';
+    context.sectionChanges = { inventory: [{ id: 'p', updatedAt: '2026-10-08' }], tradeins: [{ id: 't1', updatedAt: '2026-10-08' }] };
     render(<DeskApp />);
-    expect(screen.getByLabelText('3 notificaciones sin leer')).toHaveTextContent('3');
-    expect(screen.getByLabelText('2 avisos sin leer en Equipos')).toHaveTextContent('2');
-    expect(screen.getByLabelText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes')).toHaveTextContent('2');
     const sidebar = within(document.querySelector('aside.side')! as HTMLElement);
-    expect(sidebar.queryByText('Equipos')).not.toBeInTheDocument();
-    expect(sidebar.queryByText('Canjes')).not.toBeInTheDocument();
-    expect(sidebar.queryByText('Servicio técnico')).not.toBeInTheDocument();
-    expect(document.querySelector('aside [aria-expanded], aside .chev, aside .sub')).toBeNull();
-
-    fireEvent.click(sidebar.getByRole('button', { name: /Comercial/ }));
-    expect(await screen.findByRole('tab', { name: 'Ventas · 1' })).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(screen.getByRole('tab', { name: 'Canjes · 1' }));
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Canjes · 1' })).toHaveAttribute('aria-selected', 'true'));
-    expect(sidebar.getByRole('button', { name: /Comercial/ })).toHaveAttribute('aria-current', 'page');
-    expect(sidebar.getByLabelText('1 aviso sin leer en Ventas; 1 aviso sin leer en Canjes')).toHaveTextContent('2');
-
+    const commercial = sidebar.getByRole('button', { name: /Comercial/ });
+    expect(commercial).toHaveAttribute('aria-expanded', 'false');
+    expect(within(commercial).getByLabelText('1 aviso sin leer en Canjes')).toHaveTextContent('1');
+    fireEvent.click(commercial);
+    expect(commercial).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(sidebar.getByTestId('sidebar-tab-tradeins'));
+    await waitFor(() => expect(sidebar.getByTestId('sidebar-tab-tradeins')).toHaveAttribute('aria-current', 'page'));
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     fireEvent.click(sidebar.getByRole('button', { name: /Stock/ }));
-    expect(await screen.findByRole('tab', { name: 'Equipos · 2' })).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Control de stock' })).toHaveAttribute('aria-selected', 'true'));
-    expect(sidebar.getByRole('button', { name: /Stock/ })).toHaveAttribute('aria-current', 'page');
-    expect(sidebar.queryByText('Control de stock')).not.toBeInTheDocument();
-    expect(screen.queryByText('★')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-tab-bar')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-tab-indicator')).not.toBeInTheDocument();
+    expect(commercial).toHaveAttribute('aria-expanded', 'false');
+    expect(sidebar.getByTestId('sidebar-tab-inventory')).toBeVisible();
+    expect(within(sidebar.getByTestId('sidebar-tab-inventory')).getByLabelText('1 aviso sin leer en Equipos')).toHaveTextContent('1');
+    expect(sidebar.queryByRole('button', { name: 'Canjes' })).not.toBeInTheDocument();
   });
 
-  it.each([390, 1440])('entra a Control de stock solo por la pestaña y vuelve a Equipos a %spx', async width => {
+  it.each([390, 1440])('navega a Control de stock por el menú y vuelve a Equipos a %spx', async width => {
     if (width === 390) usePhone();
     window.location.hash = '#/stock/equipos';
     render(<DeskApp />);
-
     expect(screen.getByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('stock-count-entry')).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Carga en serie' }).length).toBeGreaterThan(0);
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Control de stock' }));
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    if (width === 390) {
+      fireEvent.click(screen.getByTestId('sidebar-tab-more'));
+      await screen.findByTestId('more-screen');
+    }
+    fireEvent.click(screen.getByTestId('sidebar-tab-stockCount'));
     expect(await screen.findByTestId('stock-count-page')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: width === 390 ? 'Control' : 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
     expect(window.location.hash).toBe('#/stock/control');
-    if (width === 390) fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
-    else {
-      expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
-      fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    if (width === 390) {
+      fireEvent.click(screen.getByTestId('sidebar-tab-more'));
+      await screen.findByTestId('more-screen');
+      fireEvent.click(screen.getByTestId('more-item-inventory'));
+    } else {
+      expect(screen.getByTestId('sidebar-tab-stockCount')).toHaveAttribute('aria-current', 'page');
+      fireEvent.click(screen.getByTestId('sidebar-tab-inventory'));
     }
     expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Equipos' })).toHaveAttribute('aria-selected', 'true');
     expect(window.location.hash).toBe('#/stock/equipos');
     expect(screen.queryByTestId('stock-count-page')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Control de stock' })).not.toBeInTheDocument();
   });
 
   it.each([390, 1440])('clears only the visited section badge, retains marks during the visit and clears them on return at %spx', async width => {
@@ -283,18 +268,19 @@ describe('sidebar unread counts', () => {
     context.viewSection = vi.fn(async (section: ViewSection) => { context.sectionChanges = { ...context.sectionChanges, [section]: [] }; });
     const view = render(<DeskApp />);
     const container = width === 390 ? screen.getByTestId('mobile-tab-bar') : document.querySelector('aside.side')! as HTMLElement;
-    const badge = () => width === 390 ? within(container).getByRole('button', { name: 'Ventas' }).querySelector('.dcount') : within(container).getByLabelText(/aviso.*en Ventas/);
+    const badge = () => width === 390 ? within(container).getByRole('button', { name: 'Ventas' }).querySelector('.dcount') : within(within(container).getByRole('button', { name: /Comercial/ })).getByLabelText(/aviso.*en Ventas/);
     expect(badge()).toHaveTextContent('13');
     if (width === 390) expect(within(container).getByRole('button', { name: 'Ventas' })).toHaveAccessibleDescription('1 aviso sin leer en Ventas; 12 avisos sin leer en Canjes');
     goHash('#/comercial/canjes');
     await waitFor(() => expect(context.viewSection).toHaveBeenCalledWith('tradeins', versions));
     view.rerender(<DeskApp />);
-    expect(screen.getByRole('tab', { name: 'Canjes' })).toHaveAttribute('aria-selected', 'true');
+    if (width === 1440) expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
     expect(badge()).toHaveTextContent('1');
     expect(screen.getAllByTestId('notice-dot')).toHaveLength(1);
     goHash('#/dashboard');
     goHash('#/comercial/canjes');
-    await screen.findByRole('tab', { name: 'Canjes' });
+    await screen.findByRole('heading', { name: 'Canjes', level: 1 });
     expect(screen.queryByTestId('notice-dot')).not.toBeInTheDocument();
     expect(context.viewSection).toHaveBeenCalledTimes(1);
   });
@@ -311,10 +297,10 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Casa');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Ana');
     expect(screen.getByTestId('more-profile')).toHaveTextContent('Propietario');
-    expect(screen.getByTestId('sidebar-tab-tradeins')).toHaveTextContent('1 aviso sin leer en Canjes');
-    expect(screen.getByTestId('more-item-clients')).toHaveTextContent('Agenda y saldos');
-    expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('0 abiertas');
-    expect(screen.getByTestId('sidebar-tab-notifications')).toHaveTextContent('1 sin leer');
+    expect(within(screen.getByTestId('sidebar-tab-tradeins')).getByLabelText('1 aviso sin leer en Canjes')).toHaveTextContent('1');
+    expect(screen.getByTestId('more-item-clients')).toHaveTextContent('Clientes');
+    expect(screen.getByTestId('sidebar-tab-service')).toHaveTextContent('Servicio técnico');
+    expect(within(screen.getByTestId('sidebar-tab-notifications')).getByLabelText('1 notificación sin leer')).toHaveTextContent('1');
     expect(screen.getByTestId('sidebar-tab-settings')).toHaveTextContent('Configuración');
     expect(screen.getByTestId('sidebar-tab-more')).toHaveClass('on');
     expect(screen.getByTestId('sidebar-tab-reports')).toBeInTheDocument();

@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { enableHiddenSections } from './hidden-sections';
 import { devices, expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi } from './utils';
@@ -7,11 +8,7 @@ const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType });
 
 async function openClients(page: Page) {
-  const target = page.getByTestId('sidebar-tab-clients');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(target.or(more).first()).toBeVisible();
-  if (!(await target.isVisible())) await more.click();
-  await target.click();
+  await openDeskSection(page, 'clients');
 }
 
 async function post(request: APIRequestContext, email: string, url: string, data: unknown) {
@@ -47,7 +44,7 @@ for (const device of [
       });
 
       await page.reload();
-      await page.getByTestId('sidebar-tab-sales').click();
+      await openDeskSection(page, 'sales');
       const saleRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Cuotas' });
       await expect(saleRow).toContainText('Sin pago');
       await expect(saleRow).not.toContainText('Efectivo');
@@ -60,7 +57,7 @@ for (const device of [
 
       await post(request, email, `/api/clients/${client.id}/payments`, { amount: 30, method: 'EFECTIVO', currency: 'ARS' });
       await page.reload();
-      await page.getByTestId('sidebar-tab-sales').click();
+      await openDeskSection(page, 'sales');
       await saleRow.click();
       const afterPay = page.getByRole('dialog', { name: /V-/ });
       await expect(afterPay.getByText('Deuda $ 70')).toBeVisible();

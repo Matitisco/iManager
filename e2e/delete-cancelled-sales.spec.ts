@@ -1,4 +1,4 @@
-import { expandListOptions } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -41,7 +41,7 @@ for (const device of [
       const sales = (await fetchSales(request, email)).sales;
       expect(sales).toHaveLength(3);
       await page.reload();
-      await page.getByTestId('sidebar-tab-sales').click();
+      await openDeskSection(page, 'sales');
       const code = `V-${String(sales[0].saleNumber).padStart(4, '0')}`;
       const record = device.mobile ? page.locator('.phone-row').filter({ hasText: code }) : page.getByRole('row').filter({ hasText: code });
       await expect(record).toContainText('Anulada');
@@ -64,8 +64,7 @@ for (const device of [
       expect((await fetchSales(request, email)).sales).toHaveLength(2);
       expect(await snapshot()).toEqual(before);
       // Local client/stock state must also survive AppContext's delete path.
-      if (!(await page.getByTestId('sidebar-tab-clients').isVisible())) await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidebar-tab-clients').click();
+      await openDeskSection(page, 'clients');
       const clientRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Ana Pérez' });
       const clientRecord = before.clients.clients.find((row) => row.id === client.id)!;
       // The pending sale had no collection of its own. The general payment stays as credit, and the 50 typed on the client stays.
@@ -75,7 +74,7 @@ for (const device of [
       const formatted = new Intl.NumberFormat('es-AR').format(Math.abs(Math.round(net)));
       await expect(clientRow).toContainText(net > 0 ? `Saldo $ ${formatted}` : net < 0 ? `A favor $ ${formatted}` : 'Sin saldo');
       await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total gastado' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
-      await page.getByTestId('sidebar-tab-sales').click();
+      await openDeskSection(page, 'sales');
       await expandListOptions(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
       for (const sale of (await fetchSales(request, email)).sales) await page.getByRole('checkbox', { name: `Seleccionar V-${String(sale.saleNumber).padStart(4, '0')}`, exact: true }).check();
@@ -88,7 +87,7 @@ for (const device of [
       expect((await fetchSales(request, email)).sales).toHaveLength(0);
       expect((await fetchTradeIns(request, email)).tradeIns[0].saleId).toBeNull();
       expect(await snapshot()).toEqual(before);
-      await page.reload(); await page.getByTestId('sidebar-tab-sales').click();
+      await page.reload(); await openDeskSection(page, 'sales');
       await expect(page.locator(device.mobile ? '.sale-node' : 'tbody tr')).toHaveCount(3);
       await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(3);
       expect(await snapshot()).toEqual(before);

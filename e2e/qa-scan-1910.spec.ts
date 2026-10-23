@@ -46,9 +46,9 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   await expect(page.getByTestId('nav-group-atencion')).toBeVisible();
   await expect(page.getByTestId('nav-group-finanzas')).toBeVisible();
   await expect(page.locator('aside').getByTestId('sidebar-tab-followups')).toHaveCount(0);
-  await expect(page.locator('aside').getByTestId('sidebar-tab-returns')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-returns')).toBeHidden();
   await expect(page.locator('aside').getByTestId('sidebar-tab-expenses')).toHaveCount(0);
-  await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toBeVisible();
+  await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toBeHidden();
 
   const routes: Array<[string, string, string]> = [
     ['#/inv', '#/stock/equipos', 'Inventario'],
@@ -66,8 +66,8 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
     await page.goto(`/${legacy}`);
     await expect(page).toHaveURL(new RegExp(`${canonical.replaceAll('/', '\\/')}$`));
     await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
-    // A group with only one visible section (Finanzas) needs no tab bar.
-    if (!['Proveedores', '¿Qué hay para hoy?'].includes(heading)) await expect(page.getByRole('tablist', { name: 'Secciones del grupo' })).toBeVisible();
+    await expect(page.getByRole('tablist', { name: 'Secciones del grupo' })).toHaveCount(0);
+    if (heading !== '¿Qué hay para hoy?') await expect(page.locator('aside button[aria-expanded="true"]')).toHaveCount(1);
   }
 
   await expect(page.getByTestId('group-tab-followups')).toHaveCount(0);

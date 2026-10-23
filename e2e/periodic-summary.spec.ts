@@ -1,8 +1,9 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 import { me } from './pwa/fixtures.mjs';
 
 // A single flow checks the real shell at both supported widths with isolated HTTP fixtures.
-test('periodic summary: periods, complete breakdown, empty and retry at 390px and 1440px', async ({ page }, testInfo) => {
+test('periodic summary: periods, complete breakdown, empty and recovery at 390px and 1440px', async ({ page }, testInfo) => {
   const month = { id: 'month:2026-09', kind: 'month', from: '2026-09-01', to: '2026-09-30', label: 'septiembre de 2026' };
   const half = { id: 'half:2026-10-01', kind: 'half', from: '2026-10-01', to: '2026-10-15', label: '01 al 15/10/2026' };
   let failed = false;
@@ -43,8 +44,7 @@ test('periodic summary: periods, complete breakdown, empty and retry at 390px an
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
     await page.goto('/#/analisis/reportes');
-    const summaryTab = page.getByRole('tab', { name: 'Resumen periódico' });
-    await summaryTab.scrollIntoViewIfNeeded(); await summaryTab.click();
+    await openDeskSection(page, 'periodicSummary');
     await expect(page.getByRole('region', { name: 'Ventas' })).toBeVisible();
     await expect(page.locator('.periodic-total').filter({ hasText: /^\$ 0$/ })).toHaveCount(2);
     await expect(page.getByText('0 equipos', { exact: true })).toBeVisible();
@@ -93,6 +93,7 @@ test('periodic summary: periods, complete breakdown, empty and retry at 390px an
     await failure;
     await expect(page.getByRole('button', { name: 'Reintentar', exact: true })).toHaveCount(0);
     await expect(page.locator('.periodic-card')).toHaveCount(0);
+    await expect(page.getByText(/Cargando|Reintentar/, { exact: true })).toHaveCount(0);
     failed = false;
     await page.getByRole('button', { name: 'Último mes' }).click();
     await page.getByRole('button', { name: 'Última quincena' }).click();

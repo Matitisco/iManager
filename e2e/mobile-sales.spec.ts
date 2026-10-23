@@ -1,4 +1,4 @@
-import { expandListOptions } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, fetchClients, fetchSales } from './utils';
@@ -55,7 +55,7 @@ test.describe('desktop sales stays put', () => {
     const email = buildTestEmail(testInfo, 'sales-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Ventas desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByTestId('sales-hero')).toHaveCount(0);
@@ -82,7 +82,7 @@ test.describe('sales on a phone', () => {
       });
     });
     await bootstrapStoreViaApi(page, request, email, `Ventas ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('sales-hero')).toContainText('Facturación total');

@@ -25,9 +25,8 @@ test('confirms a free-output trade-in and persists a new sale and received devic
     cost: 1100,
   });
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-clients')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByRole('button', { name: 'Nuevo cliente' }).click();
   const clientDialog = page.getByRole('dialog', { name: 'Nuevo cliente' });
   await clientDialog.getByLabel('Nombre y apellido').fill(clientName);

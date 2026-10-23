@@ -8,7 +8,7 @@ test('saves equipment, a trade-in and a repair without an IMEI on desktop', asyn
   const received = `Canje sin IMEI ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `IMEI opcional ${testInfo.parallelIndex}`);
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
   const equipment = page.getByRole('dialog', { name: 'Registrar equipo' });
   await expect(equipment.getByLabel('IMEI (opcional)')).toHaveValue('');
@@ -58,7 +58,7 @@ test.describe('optional IMEI on a phone', () => {
     const model = `Cel sin IMEI ${Date.now()}`;
     await bootstrapStoreViaApi(page, request, email, `IMEI cel ${testInfo.parallelIndex}`);
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar equipo' }).click();
     const equipment = page.getByRole('dialog', { name: 'Registrar equipo' });
     await expect(equipment.getByLabel('IMEI (opcional)')).toBeVisible();

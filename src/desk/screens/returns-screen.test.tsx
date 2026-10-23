@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeskProvider } from '../ui';
 import { ReturnsScreen } from './ReturnsScreen';
 
@@ -21,6 +21,7 @@ function desk(child: ReactNode) {
 }
 
 describe('devoluciones', () => {
+  beforeEach(() => history.replaceState(null, '', '#/comercial/devoluciones'));
   it('muestra el esqueleto y no el vacío mientras cargan', () => {
     context.returns = null;
     desk(<ReturnsScreen />);
@@ -31,7 +32,8 @@ describe('devoluciones', () => {
   it('muestra el vacío recién cuando la lista llegó vacía', () => {
     context.returns = [];
     desk(<ReturnsScreen />);
-    expect(screen.getByText('Todavía no cargaste reclamos.')).toBeInTheDocument();
+    expect(screen.getByTestId('returns-empty')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Todavía no cargaste reclamos.', level: 2 })).toBeInTheDocument();
     expect(screen.queryByTestId('returns-loading')).not.toBeInTheDocument();
   });
 });

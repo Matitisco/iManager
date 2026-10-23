@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { devices, expect, test, type APIRequestContext, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, updateStoreViaApi } from './utils';
 
@@ -6,11 +7,7 @@ const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType });
 
 async function openClients(page: Page) {
-  const target = page.getByTestId('sidebar-tab-clients');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(target.or(more).first()).toBeVisible();
-  if (!(await target.isVisible())) await more.click();
-  await target.click();
+  await openDeskSection(page, 'clients');
 }
 
 async function post(request: APIRequestContext, email: string, url: string, data: unknown) {
@@ -48,7 +45,7 @@ for (const device of [
       expect(listed.ok(), await listed.text()).toBeTruthy();
       const staleClients = await listed.text();
       await page.reload();
-      await page.getByTestId('sidebar-tab-sales').click();
+      await openDeskSection(page, 'sales');
       const saleRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Cuotas' });
       await expect(saleRow).toBeVisible();
 

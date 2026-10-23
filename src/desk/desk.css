@@ -2588,3 +2588,24 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 
 .dolar.chip .dolar-hit { width: 100%; justify-content: center; }
 .dolar-skel { visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
+
+/* Sidenav: one disclosed group; destinations reuse the real menu. */
+.sn-nav .sn-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sn-nav .sn-trigger .dcount { margin-left: 0; }
+.sn-account { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border); }
+.sn-chevron { flex: none; color: var(--secondary); }
+.sn-trigger[aria-expanded="true"] .sn-chevron { transform: rotate(180deg); }
+.desk-app .sn-current-group { color: var(--primary); background: var(--bg); }
+.sn-current-group .dic { color: var(--primary); }
+.sn-children { margin: 4px 0 8px 21px; padding-left: 8px; border-left: 1px solid var(--border); }
+.sn-children[hidden] { display: none; }
+.sn-children .ditem { gap: 8px; font-size: 13px; padding: 0 10px; }
+.sn-children .dic { display: none; }
+.sn-children .sn-detail { padding-left: 22px; }
+.desk-app .sn-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+@media (max-width:760px) {
+  .sn-mobile { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 10px; overflow: visible; }
+  .sn-mobile .ditem { min-height: 44px; height: auto; padding-top: 10px; padding-bottom: 10px; }
+  .sn-mobile .sn-children .ditem { font-size: 14px; }
+  .sn-mobile .sn-label { white-space: normal; }
+}

@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 
@@ -50,7 +51,7 @@ async function expectFits(page: Page) {
 
 async function openNotifications(page: Page) {
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-notifications').click();
+  await openDeskSection(page, 'notifications');
   await expect(page.getByRole('heading', { name: 'Notificaciones' })).toBeVisible();
 }
 
@@ -59,7 +60,7 @@ test.describe('desktop notifications stay put', () => {
     const email = buildTestEmail(testInfo, 'notif-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Notif desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-notifications').click();
+    await openDeskSection(page, 'notifications');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-tab-bar')).toHaveCount(0);
     await expect(page.getByTestId('page-back')).toHaveCount(0);
@@ -116,7 +117,7 @@ test.describe('notifications on a phone', () => {
       model,
       price: 50000,
     });
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' }).click();
     const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
     await dialog.getByLabel('Cliente').fill(clientName);
@@ -127,8 +128,9 @@ test.describe('notifications on a phone', () => {
 
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveText('1');
     await page.getByTestId('sidebar-tab-more').click();
+    await page.getByTestId('nav-group-cuenta').locator('button[aria-expanded]').first().click();
     const moreNote = page.getByTestId('sidebar-tab-notifications');
-    await expect(moreNote).toContainText(/[1-9]\d* sin leer/);
+    await expect(moreNote.locator('.dcount')).toHaveText(/[1-9]\d*/);
     await expectFits(page);
 
     await moreNote.click();
@@ -165,14 +167,14 @@ test.describe('notifications on a phone', () => {
     await page.getByPlaceholder('Buscar notificaciones').fill('');
     await expect(sale).toBeVisible();
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     const list = page.getByTestId('phone-rows');
     await expect(page.getByTestId('section-notices')).toHaveCount(0);
     await expect(list.getByText(model)).toBeVisible();
     await expect(list.getByTestId('notice-dot')).toBeVisible();
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
-    await page.getByTestId('sidebar-tab-sales').click();
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'sales');
+    await openDeskSection(page, 'inventory');
     await expect(page.getByTestId('sidebar-tab-inventory').locator('.dcount')).toHaveCount(0);
     await expect(page.getByTestId('notice-dot')).toHaveCount(0);
 
@@ -192,6 +194,6 @@ test.describe('notifications on a phone', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/notifications-360-read.png` });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByTestId('sidebar-tab-more').click();
-    await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('0 sin leer');
+    await expect(page.getByTestId('sidebar-tab-notifications').locator('.dcount')).toHaveCount(0);
   });
 });

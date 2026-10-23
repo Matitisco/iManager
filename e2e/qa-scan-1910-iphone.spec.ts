@@ -22,8 +22,8 @@ test('barra, Más y redirecciones en el iPhone', async ({ page, request }, testI
   await page.getByTestId('sidebar-tab-more').click();
   await expect(page.getByRole('heading', { name: 'Más', level: 1 })).toBeVisible();
   await expect(page.getByTestId('sidebar-tab-followups')).toHaveCount(0);
-  await expect(page.getByTestId('sidebar-tab-returns')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-stockCount')).toBeVisible();
+  await expect(page.getByTestId('sidebar-tab-returns')).toBeHidden();
+  await expect(page.getByTestId('sidebar-tab-stockCount')).toBeHidden();
   await page.goto('/#/seguimientos');
   await expect(page).toHaveURL(/#\/atencion\/clientes$/);
   await expect(page.getByRole('heading', { name: 'Clientes', level: 1 })).toBeVisible();

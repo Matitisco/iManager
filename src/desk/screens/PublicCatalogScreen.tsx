@@ -15,6 +15,7 @@ import { ListSkeleton } from '../list-skeleton';
 import { Skeleton } from '../../components/Skeleton';
 import '../../catalog/catalog.css';
 import './public-catalog.css';
+import { useNavigationHash } from '../sidenav-navigation';
 
 const CATALOG_PAGE_SIZE = 16;
 
@@ -25,7 +26,8 @@ export function PublicCatalogScreen() {
   const { publicCatalog: catalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
   const { toast, open, back } = useDesk();
   const phone = usePhoneLayout();
-  const [tab, setTab] = useState('summary');
+  const hash = useNavigationHash();
+  const tab = new URLSearchParams(hash.split('?')[1]).get('view') === 'items' ? 'items' : 'summary';
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -91,7 +93,6 @@ export function PublicCatalogScreen() {
     {error ? <div className="ferr" role="alert">{error}</div> : null}
     {!unavailable && !storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}
     {loading && !catalog ? <CatalogSkeleton /> : !catalog && unavailable ? null : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
-      {phone && <div className="cat-tabs"><button className={tab === 'summary' ? 'on' : ''} onClick={() => setTab('summary')}>Resumen</button><button className={tab === 'items' ? 'on' : ''} onClick={() => setTab('items')}>Equipos</button></div>}
       {!phone && counts}
       <div className="cat-layout">
         {(!phone || tab === 'items') && <section className="cat-card cat-equipment" ref={equipment}>

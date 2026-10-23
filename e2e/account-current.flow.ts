@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { enableHiddenSections } from './hidden-sections';
 import { expect, test, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi } from './utils';
@@ -5,11 +6,7 @@ import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi }
 const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
 
 async function openClients(page: Page) {
-  const target = page.getByTestId('sidebar-tab-clients');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(target.or(more).first()).toBeVisible();
-  if (!(await target.isVisible())) await more.click();
-  await target.click();
+  await openDeskSection(page, 'clients');
 }
 
 export function registerAccountTests(device: { name: string }) {
