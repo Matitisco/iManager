@@ -40,6 +40,25 @@ function navigate(hash: string, state: unknown = null) {
 afterEach(() => { history.replaceState(null, '', '#/dashboard'); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('scroll del contenedor por entrada', () => {
+  it('canonicalizes old patterns entries once and preserves their history state and scroll', () => {
+    history.replaceState({ external: 'keep' }, '', '#/returns?view=patterns&groupBy=model');
+    render(<Harness />);
+    expect(location.hash).toBe('#/analisis/patrones?groupBy=model');
+    const stage = screen.getByTestId('stage');
+    stage.scrollTop = 240;
+    fireEvent.scroll(stage);
+    const saved: unknown = history.state;
+    const length = history.length;
+    navigate('#/comercial/devoluciones?view=claims');
+    expect(location.hash).toBe('#/comercial/devoluciones');
+    expect(stage.scrollTop).toBe(0);
+    navigate('#/returns?view=patterns&groupBy=model', saved);
+    expect(location.hash).toBe('#/analisis/patrones?groupBy=model');
+    expect(history.length).toBe(length);
+    expect(history.state.external).toBe('keep');
+    expect(stage.scrollTop).toBe(240);
+  });
+
   it('abre un módulo al inicio y restaura la entrada de Más al volver', () => {
     history.replaceState({ external: 'keep' }, '', '#/mas');
     render(<Harness />);

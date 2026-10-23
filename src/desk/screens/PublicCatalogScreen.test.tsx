@@ -340,7 +340,7 @@ describe('managed catalog pagination', () => {
     else expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('paginates mobile Equipos and preserves the page when navigation changes the view', async () => {
+  it('shows summary and equipment together on mobile and preserves pagination for old URLs', async () => {
     const media = window.matchMedia('(max-width: 760px)');
     vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ ...media, media: query, matches: query.includes('760') }));
     const user = userEvent.setup();
@@ -349,6 +349,7 @@ describe('managed catalog pagination', () => {
     const navigate = (view: string) => act(() => { window.location.hash = `#/stock/catalogo?view=${view}`; window.dispatchEvent(new HashChangeEvent('hashchange')); });
     navigate('items');
     const list = await equipmentList();
+    expect(screen.getByRole('heading', { name: 'Link público' })).toBeInTheDocument();
     expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(16);
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
     navigate('summary');

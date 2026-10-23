@@ -1,0 +1,5 @@
+- [x] Aplanar sidenav y registrar Patrones con permisos y ruta propia.
+- [x] Separar pantallas y corregir vacío/error de Patrones.
+- [x] Unificar Catálogo móvil y migrar enlaces antiguos.
+- [x] Actualizar tests relacionados y verificar Chrome local 1440/390 con datos falsos.
+- [x] TypeScript frontend/backend y preparación de entrega por PR etiquetado.

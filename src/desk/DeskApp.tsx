@@ -36,6 +36,7 @@ import { canManageCommissions } from './sections';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { FollowUpsScreen } from './screens/FollowUps';
+import { PatternsScreen } from './screens/PatternsScreen';
 import { ReturnsScreen } from './screens/ReturnsScreen';
 import { StockCountScreen } from './screens/StockCountScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
@@ -313,6 +314,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
             {tab === 'returns' && <ReturnsScreen />}
+            {tab === 'patterns' && <PatternsScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}
             {tab === 'clients' && <ClientsScreen />}
             {tab === 'followups' && <FollowUpsScreen />}

@@ -6,6 +6,7 @@ export const ROUTE: Record<DeskTab, string> = {
   sales: 'comercial/ventas',
   tradeins: 'comercial/canjes',
   returns: 'comercial/devoluciones',
+  patterns: 'analisis/patrones',
   inventory: 'stock/equipos',
   stockCount: 'stock/control',
   suppliers: 'finanzas/proveedores',
@@ -38,6 +39,11 @@ const LEGACY: Record<string, DeskTab> = {
   tradeins: 'tradeins',
   devoluciones: 'returns',
   returns: 'returns',
+  patterns: 'patterns',
+  patrones: 'patterns',
+  periodicSummary: 'periodicSummary',
+  'resumen-periodico': 'periodicSummary',
+  'analisis/reportes/resumen-periodico': 'periodicSummary',
   inv: 'inventory',
   inventario: 'inventory',
   equipos: 'inventory',
@@ -115,6 +121,8 @@ export function tabFromHash(hash: string): DeskTab {
   const parts = hashPath(hash);
   if (!parts.length) return 'dashboard';
   if (isSettingsPath(parts)) return 'settings';
+  const canonical = canonicalHash(hash);
+  if (canonical && canonical !== hash) return tabFromHash(canonical);
   const full = parts.join('/');
   const nested = parts.slice(0, 2).join('/');
   const match = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full || path === nested);
@@ -137,10 +145,21 @@ export function canonicalHash(hash: string): string | null {
   }
   const full = parts.join('/');
   const exact = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full);
-  if (exact) return `#/${exact[1]}${query}`;
-  const legacy = LEGACY[full];
-  if (legacy) return `#/${ROUTE[legacy]}${query}`;
-  return null;
+  let tab = exact?.[0] ?? LEGACY[full];
+  if (!tab) return null;
+  const params = new URLSearchParams(query);
+  const view = params.get('view');
+  if (tab === 'returns' && (view === 'patterns' || view === 'claims')) {
+    if (view === 'patterns') tab = 'patterns';
+    params.delete('view');
+  } else if (tab === 'reports' && (view === 'periodic' || view === 'periodicSummary' || view === 'periodic-summary' || view === 'resumen-periodico')) {
+    tab = 'periodicSummary';
+    params.delete('view');
+  } else if (tab === 'publicCatalog' && (view === 'summary' || view === 'items')) {
+    params.delete('view');
+  } else return `#/${ROUTE[tab]}${query}`;
+  const search = params.toString();
+  return `#/${ROUTE[tab]}${search ? `?${search}` : ''}`;
 }
 
 /** Push a history entry, or replace the current one and notify listeners. */

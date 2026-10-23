@@ -2,14 +2,11 @@ import { ImanagerIcon } from '../icons';
 import { isNetworkErrorMessage } from '../../lib/user-message';
 import { rememberArchivedReturns } from '../archive-cache';
 import { useArchivedRows } from '../use-archived-rows';
-import { useEffect } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchReturns, type ReturnCaseView } from '../../services/returns-api';
 import { formatMoney, formatShortDate, isVoidRow, mergeRecordRows } from '../format';
 import { ListSkeleton } from '../list-skeleton';
 import { MobileDock, Pill, PressTarget, ScreenTitle, useDesk } from '../ui';
-import { returnsView } from '../returns-navigation';
-import { ReturnsPatterns } from './ReturnsPatterns';
 import { useNavigationState } from '../route-viewport';
 
 function moneyOf(row: ReturnCaseView) {
@@ -21,16 +18,9 @@ function moneyOf(row: ReturnCaseView) {
 const loadArchived = (user: Parameters<typeof fetchReturns>[0]) => fetchReturns(user, true);
 
 export function ReturnsScreen() {
-  const { returns, returnsError, user, appSession } = useAppContext();
+  const { returns, returnsError } = useAppContext();
   const { open, back } = useDesk();
   const [filter, setFilter] = useNavigationState('returns:filter', 'Todos');
-  const [view, setView] = useNavigationState('returns:view', () => returnsView(window.location.hash));
-  useEffect(() => {
-    const sync = () => setView(returnsView(window.location.hash));
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
-  }, [setView]);
-  const scope = `${user?.uid}:${appSession?.store?.id}:${appSession?.membership?.role}:${JSON.stringify(appSession?.membership?.sections)}`;
   const archived = filter === 'Archivados';
   const { rows: archivedRows, loading } = useArchivedRows(returns, loadArchived, rememberArchivedReturns);
   const activeRows = returns;
@@ -41,12 +31,6 @@ export function ReturnsScreen() {
   return (
     <div className="dscreen returns-screen" data-testid="returns-screen">
       <ScreenTitle title="Devoluciones" back={back} tools={null} desktop={add} />
-      {view.patterns ? <div className="gfilters pat-filters">
-        <div className="pat-by" role="group" aria-label="Agrupar">
-          {([{ id: 'supplier', label: 'Proveedor' }, { id: 'purchase', label: 'Compra' }, { id: 'model', label: 'Modelo' }] as const).map(option => <button key={option.id} className={`gchip sm${view.groupBy === option.id ? ' on' : ''}`} type="button" aria-pressed={view.groupBy === option.id} onClick={() => setView({ patterns: true, groupBy: option.id, group: undefined })}>{option.label}</button>)}
-        </div>
-      </div> : null}
-      {view.patterns ? <ReturnsPatterns key={scope} groupBy={view.groupBy} requestedGroup={view.group} /> : <>
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}
@@ -75,8 +59,7 @@ export function ReturnsScreen() {
           ))}
         </div>
       ) : null}
-      </>}
-      {!view.patterns ? <MobileDock primary="Nuevo reclamo" onPrimary={() => open({ type: 'new-return' })} /> : null}
+      <MobileDock primary="Nuevo reclamo" onPrimary={() => open({ type: 'new-return' })} />
     </div>
   );
 }

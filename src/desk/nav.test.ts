@@ -40,7 +40,7 @@ describe('navegación por rol', () => {
     expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'stockCount', 'publicCatalog']);
     expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
     expect(group('OWNER', null, 'finanzas')).toEqual(['suppliers']);
-    expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'commissions', 'history', 'periodicSummary']);
+    expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'patterns', 'commissions', 'history', 'periodicSummary']);
     expect(nav.cuenta.map((item) => item.label)).toEqual(['Notificaciones', 'Ayuda', 'Configuración']);
     const labels = nav.main.flatMap((block) => block.kind === 'group' ? [block.label, ...block.items.map((item) => item.label)] : [block.item.label]);
     expect(new Set(labels).size).toBe(labels.length);
@@ -55,9 +55,9 @@ describe('navegación por rol', () => {
 
     const staff = desktopNav(null, 'STAFF');
     expect(staff.main[0]).toMatchObject({ kind: 'link', item: { id: 'dashboard' } });
-    expect(staff.main[1]).toMatchObject({ kind: 'link', item: { label: 'Mis comisiones' } });
+    expect(commissionsStandalone(null, 'STAFF')).toBe(false);
     expect(group('STAFF', null, 'finanzas')).toEqual(['suppliers']);
-    expect(group('STAFF', null, 'analisis')).toBeNull();
+    expect(group('STAFF', null, 'analisis')).toEqual(['patterns', 'commissions']);
     expect(group('STAFF', null, 'stock')).toEqual(['inventory', 'stockCount']);
     expect(group('STAFF', null, 'stock')).not.toContain('publicCatalog');
     expect(group('STAFF', ['inventory'], 'finanzas')).toEqual(['suppliers']);
@@ -71,6 +71,13 @@ describe('navegación por rol', () => {
     const block = desktopNav(['reports'], 'STAFF').main.find((item) => item.kind === 'group' && item.id === 'analisis');
     expect(block && block.kind === 'group' ? block.items.map((item) => item.label) : []).toEqual(['Reportes', 'Mis comisiones', 'Resumen periódico']);
     expect(desktopNav(['reports', 'commissions'], 'MANAGER').main.some((block) => block.kind === 'link' && block.item.id === 'commissions')).toBe(false);
+  });
+
+  it.each(['OWNER', 'MANAGER', 'STAFF'])('Patrones inherits sales permission for %s', role => {
+    for (const stored of [null, [], ['sales'], ['reports'], ['inventory']]) {
+      expect(sectionAllowed('patterns', stored, role)).toBe(sectionAllowed('returns', stored, role));
+      expect((group(role, stored, 'analisis') ?? []).includes('patterns')).toBe(sectionAllowed('patterns', stored, role));
+    }
   });
 
   it('muestra Catálogo solo con el permiso y nunca en la barra', () => {
@@ -103,7 +110,7 @@ describe('pendientes de un grupo', () => {
     expect(sectionPending('inventory', input)).toBe(2);
     expect(groupPending(['followups', 'service', 'clients'], input)).toBe(4);
     expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(10);
-    expect(groupPending(['reports', 'commissions', 'history', 'periodicSummary'], input)).toBe(1);
+    expect(groupPending(['reports', 'patterns', 'commissions', 'history', 'periodicSummary'], input)).toBe(1);
     expect(sectionPending('notifications', input)).toBe(5);
     expect(sectionPending('returns', input)).toBe(0);
   });

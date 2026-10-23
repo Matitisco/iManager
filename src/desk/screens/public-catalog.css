@@ -31,3 +31,5 @@
 .cat-loading .cat-layout>.cat-card { display: grid; gap: 16px; min-width: 0; }
 .cat-loading .list-skel.rows .list-skel-row { padding-left: 0; padding-right: 0; grid-template-columns: minmax(0,1fr) 70px; gap: 8px 16px; }
 @media(max-width:767px) { .cat-loading .cat-counts { margin-bottom: 12px; } .cat-loading .cat-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 12px; } }
+
+@media(max-width:760px) { .catalog-screen .cat-layout { display: flex; flex-direction: column; gap: 12px; } .catalog-screen .cat-summary { order: -1; } }

@@ -16,6 +16,7 @@ export type DeskTab =
   | 'commissions'
   | 'suppliers'
   | 'returns'
+  | 'patterns'
   | 'expenses'
   | 'reports'
   | 'periodicSummary'

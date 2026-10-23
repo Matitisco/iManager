@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from 'react';
 import { ChevronDown, CircleHelp } from 'lucide-react';
 import { DeskIcon } from './ui';
 import { desktopNav, groupOf, groupPending, moreTestId, pendingDescription, sectionPending, type PendingInput, type NavIcon } from './nav';
-import { ROUTE, tabFromHash } from './hash-route';
+import { tabFromHash } from './hash-route';
 import type { DeskTab } from './types';
 
 const subscribeHash = (notify: () => void) => {
@@ -35,15 +35,12 @@ export function SidenavNavigation({ nav, pending, activeHash, mobile = false, on
   // Synchronize before paint, including query-only navigation and browser Back.
   if (state.route !== activeHash) setState({ route: activeHash, expanded: group });
   const expanded = state.route === activeHash ? state.expanded : group;
-  const query = new URLSearchParams(activeHash.split('?')[1]);
-  const view = query.get('view');
-
-  const destination = (item: { id: DeskTab; label: string; icon: NavIcon }, nested = false, hash?: string, selected?: boolean) => {
-    const on = selected ?? (activeTab === item.id && !(item.id === 'returns' && view === 'patterns'));
-    const count = nested ? 0 : sectionPending(item.id, pending);
+  const destination = (item: { id: DeskTab; label: string; icon: NavIcon }) => {
+    const on = activeTab === item.id;
+    const count = sectionPending(item.id, pending);
     const description = pendingDescription([item.id], pending) || undefined;
-    return <button key={hash ?? item.id} className={`ditem sn-destination${nested ? ' sn-detail' : ''}${on ? ' on' : ''}`} type="button" aria-current={on ? 'page' : undefined} data-testid={nested && hash ? `sidenav-view-${item.id}-${hash?.split('view=')[1]}` : mobile ? moreTestId(item.id) : `sidebar-tab-${item.id}`} onClick={() => onOpen(item.id, hash)}>
-      {!nested ? <span className="dic"><SidenavGlyph name={item.icon} /></span> : null}
+    return <button key={item.id} className={`ditem sn-destination${on ? ' on' : ''}`} type="button" aria-current={on ? 'page' : undefined} data-testid={mobile ? moreTestId(item.id) : `sidebar-tab-${item.id}`} onClick={() => onOpen(item.id, undefined)}>
+      <span className="dic"><SidenavGlyph name={item.icon} /></span>
       <span className="sn-label">{item.label}</span>
       {count > 0 ? <span className="dcount" title={description} aria-label={description}>{count}</span> : null}
     </button>;
@@ -66,18 +63,7 @@ export function SidenavNavigation({ nav, pending, activeHash, mobile = false, on
             <ChevronDown size={16} className="sn-chevron" aria-hidden="true" />
           </button>
           <div id={panelId} className="sn-children" hidden={!open}>
-            {block.items.filter(item => item.id !== 'periodicSummary').map(item => <div key={item.id}>
-              {destination(item, false, undefined, item.id === 'returns' || (item.id === 'publicCatalog' && mobile) ? false : undefined)}
-              {item.id === 'reports' && block.items.some(child => child.id === 'periodicSummary') ? destination(block.items.find(child => child.id === 'periodicSummary')!, true) : null}
-              {item.id === 'returns' ? <>
-                {destination({ ...item, label: 'Reclamos' }, true, `#/${ROUTE.returns}?view=claims`, activeTab === 'returns' && view !== 'patterns')}
-                {destination({ ...item, label: 'Patrones' }, true, `#/${ROUTE.returns}?view=patterns`, activeTab === 'returns' && view === 'patterns')}
-              </> : null}
-              {item.id === 'publicCatalog' && mobile ? <>
-                {destination({ ...item, label: 'Resumen' }, true, `#/${ROUTE.publicCatalog}?view=summary`, activeTab === 'publicCatalog' && view !== 'items')}
-                {destination({ ...item, label: 'Equipos' }, true, `#/${ROUTE.publicCatalog}?view=items`, activeTab === 'publicCatalog' && view === 'items')}
-              </> : null}
-            </div>)}
+            {block.items.map(item => destination(item))}
           </div>
         </div>;
       })}

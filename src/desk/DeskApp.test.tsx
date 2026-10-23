@@ -87,6 +87,20 @@ describe('sidebar unread counts', () => {
     });
   }
 
+  it.each([
+    ['#/returns?view=patterns&groupBy=model', '#/analisis/patrones?groupBy=model', 'Patrones', 'patterns'],
+    ['#/returns?view=claims', '#/comercial/devoluciones', 'Devoluciones', 'returns'],
+    ['#/analisis/patrones', '#/analisis/patrones', 'Patrones', 'patterns'],
+  ])('mounts %s with the matching header and current destination', async (old, hash, title, id) => {
+    history.replaceState(null, '', old);
+    render(<DeskApp />);
+    await waitFor(() => expect(location.hash).toBe(hash));
+    expect(screen.getByRole('heading', { name: title, level: 1 })).toBeInTheDocument();
+    expect(screen.getByTestId(`sidebar-tab-${id}`)).toHaveAttribute('aria-current', 'page');
+    expect(document.querySelectorAll('.sn-nav [aria-current="page"]')).toHaveLength(1);
+    if (id === 'patterns') expect(screen.queryByText('Nuevo reclamo')).not.toBeInTheDocument();
+  });
+
   const analysisRoutes = {
     reports: 'reportes', commissions: 'comisiones', history: 'historial', periodicSummary: 'resumen-periodico',
   };
