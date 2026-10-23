@@ -8,7 +8,8 @@ import { readReason } from "../audit/archive.js";
 import { canSeeFinancials } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { zodOptionalImei } from "../../lib/imei.js";
-import type { InventoryItemInput, ImportRow, ListInventoryParams } from "./inventory.service.js";
+import { purchaseNameFields } from "../suppliers/purchase-name.js";
+import type { InventoryItemInput, ListInventoryParams } from "./inventory.service.js";
 import {
   createInventoryItem,
   createInventoryBatch,
@@ -18,6 +19,7 @@ import {
   restoreInventoryItem,
   listInventoryPaged,
   getInventoryFilteredIds,
+  getInventoryItem,
   updateInventoryItem,
   listCategories,
   createCategory,
@@ -45,6 +47,7 @@ const inventoryItemSchema = z.object({
 });
 
 const inventoryCreateSchema = inventoryItemSchema.extend({
+  ...purchaseNameFields,
   restockRetired: z.boolean().optional(),
 });
 
@@ -61,6 +64,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     skip: z.coerce.number().int().nonnegative().optional(),
     take: z.coerce.number().int().min(1).max(100).optional(),
     search: z.string().trim().optional(),
+    supplierId: z.string().trim().min(1).optional(),
     categoryId: z.string().optional().transform(v =>
       v === undefined ? undefined : v === 'null' ? null : v === 'all' ? undefined : v
     ),
@@ -84,7 +88,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const query = pagedQuerySchema.parse(request.query);
 
       if (query.archived) {
-        const inventory = await listInventory(request.appUser.storeId, { archived: true });
+        const inventory = await listInventory(request.appUser.storeId, { archived: true, supplierId: query.supplierId });
         return { inventory };
       }
 
@@ -93,6 +97,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
           skip: query.skip ?? 0,
           take: query.take ?? 30,
           search: query.search,
+          supplierId: query.supplierId,
           categoryId: query.categoryId,
           sortKey: query.sortKey,
           sortDir: query.sortDir,
@@ -107,7 +112,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
         return { items, total };
       }
 
-      const inventory = await listInventory(request.appUser.storeId);
+      const inventory = await listInventory(request.appUser.storeId, { supplierId: query.supplierId });
       return { inventory };
     }
   );
@@ -121,6 +126,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const query = pagedQuerySchema.parse(request.query);
       const ids = await getInventoryFilteredIds(request.appUser.storeId, {
         search: query.search,
+        supplierId: query.supplierId,
         categoryId: query.categoryId,
         condition: query.condition,
         status: query.status,
@@ -132,6 +138,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
       return { ids };
     }
   );
+
+  app.get("/:id", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async (request, reply) => {
+    requireMember(request);
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const inventoryItem = await getInventoryItem(request.appUser.storeId, id);
+    if (!inventoryItem) return reply.code(404).send({ error: "No encontramos ese equipo" });
+    return { inventoryItem };
+  });
 
   app.post(
     "/",
@@ -210,6 +224,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const bodySchema = z.object({
+        ...purchaseNameFields,
         rows: z
           .array(
             z.object({
@@ -231,11 +246,13 @@ export async function inventoryRoutes(app: FastifyInstance) {
         supplierId: z.string().trim().min(1).optional(),
       });
 
-      const { rows, supplierId } = bodySchema.parse(request.body) as { rows: ImportRow[]; supplierId?: string };
+      const { rows, supplierId, purchaseName, name } = bodySchema.parse(request.body);
       const result = await importInventoryItems(request.appUser.storeId, rows, {
         actor: await loadActor(request.appUser.userId),
         lockPrice: !canManageSensitive(request.appUser),
         supplierId,
+        purchaseName,
+        name,
       });
       return reply.code(200).send(result);
     }

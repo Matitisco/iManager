@@ -17,6 +17,7 @@ import {
   updateReturnCase,
 } from "./returns.service.js";
 import { DESTINATIONS, RESOLUTIONS, RMA_STATUSES, SETTLEMENTS } from "./returns-math.js";
+import { listReturnPatterns } from "./patterns.service.js";
 
 const openedOn = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.").refine(value => {
   const date = new Date(`${value}T15:00:00Z`);
@@ -26,6 +27,12 @@ const note = z.string().trim().max(280, "La nota es demasiado larga.").nullable(
 
 export async function returnRoutes(app: FastifyInstance) {
   const guard = [authenticate, resolveAppUser, requireSectionAccess("sales")];
+
+  app.get("/patterns", { preHandler: guard }, async (request) => {
+    requireMember(request);
+    const { groupBy } = z.object({ groupBy: z.enum(["supplier", "purchase", "model"]).default("supplier") }).parse(request.query);
+    return { patterns: await listReturnPatterns(request.appUser.storeId, groupBy) };
+  });
 
   app.get("/credit-notes", { preHandler: guard }, async (request) => {
     requireMember(request);

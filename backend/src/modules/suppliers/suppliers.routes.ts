@@ -6,7 +6,7 @@ import { requireMember, requireSectionAccess } from "../../middleware/section-ac
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { loadActor } from "../audit/audit.js";
 import { canSeeFinancials } from "../stores/sections.js";
-import { archiveSupplier, createSupplier, getSupplier, listSuppliers, restoreSupplier, updateSupplier, type SupplierInput } from "./suppliers.service.js";
+import { archiveSupplier, createSupplier, getSupplier, getSupplierPurchase, listSupplierPurchases, listSuppliers, restoreSupplier, updateSupplier, type SupplierInput } from "./suppliers.service.js";
 
 const supplierSchema = z.object({
   name: z.string().trim().min(1, "Completá el nombre.").max(120, "El nombre es demasiado largo."),
@@ -28,9 +28,26 @@ export async function supplierRoutes(app: FastifyInstance) {
   app.get("/:id", { preHandler: guard }, async (request, reply) => {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
-    const supplier = await getSupplier(request.appUser.storeId, id, canSeeFinancials(request.appUser));
+    const query = z.object({ includeItems: z.enum(["0", "1", "false", "true"]).optional() }).parse(request.query);
+    const supplier = await getSupplier(request.appUser.storeId, id, canSeeFinancials(request.appUser), query.includeItems !== "0" && query.includeItems !== "false");
     if (!supplier) return reply.code(404).send({ error: "No encontramos ese proveedor" });
     return { supplier };
+  });
+
+  app.get("/:id/purchases", { preHandler: guard }, async (request, reply) => {
+    requireMember(request);
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    const purchases = await listSupplierPurchases(request.appUser.storeId, id, canSeeFinancials(request.appUser));
+    if (!purchases) return reply.code(404).send({ error: "No encontramos ese proveedor" });
+    return { purchases };
+  });
+
+  app.get("/:id/purchases/:purchaseId", { preHandler: guard }, async (request, reply) => {
+    requireMember(request);
+    const { id, purchaseId } = z.object({ id: z.string().min(1), purchaseId: z.string().min(1) }).parse(request.params);
+    const purchase = await getSupplierPurchase(request.appUser.storeId, id, purchaseId, canSeeFinancials(request.appUser));
+    if (!purchase) return reply.code(404).send({ error: "No encontramos esa compra" });
+    return { purchase };
   });
 
   app.post("/", { preHandler: guard }, async (request, reply) => {
