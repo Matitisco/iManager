@@ -21,3 +21,20 @@ Vitest sigue dependencias transitivas: cambiar código backend importado por `ap
 Verificación del selector: `node --test scripts/ci-test-plan.test.mjs`. Límite del runner related: dos workers. No se cambia la configuración de las suites completas.
 
 Referencias: [Vitest related](https://vitest.dev/guide/cli.html#vitest-related), [outputs entre jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs).
+
+## Medición remota — 2026-10-23
+
+Tiempo desde creación del run hasta completar el check requerido `test`; la columna de ejecución excluye la cola inicial del workflow. Corridas individuales, no un benchmark controlado.
+
+| Caso | Total hasta test | Desde primer job | Cola inicial |
+| --- | --- | --- | --- |
+| [Referencia completa](https://github.com/Matitisco/iManager/actions/runs/40010040933) | 3m07s | 3m04s | 0m03s |
+| [UI: ErrorBoundary.tsx](https://github.com/Matitisco/iManager/actions/runs/40011840728) | 2m00s | 1m58s | 0m02s |
+| [Backend: ar-money.ts compartido](https://github.com/Matitisco/iManager/actions/runs/40011843831) | 3m53s | 3m11s | 0m42s |
+| [Docs](https://github.com/Matitisco/iManager/actions/runs/40011703016) | 0m57s | 0m54s | 0m03s |
+
+PRs temporales [#542](https://github.com/Matitisco/iManager/pull/542), [#543](https://github.com/Matitisco/iManager/pull/543) y [#545](https://github.com/Matitisco/iManager/pull/545), contra la propia rama CI para que el diff solo contenga el caso medido; cerrados sin merge. UI: 3 archivos/16 pruebas frontend, backend omitido y smoke conservado. Backend: 7 archivos/42 unitarios y 46 archivos/414 integraciones; smoke omitido. Docs: todas las suites omitidas y lint/test aprobados.
+
+El helper monetario compartido alcanza todas las integraciones mediante `app`; esa corrida no mejoró la latencia y tuvo cola adicional. La selección conserva esas dependencias por seguridad. La primera prueba detectó la propiedad distinta del checkout en contenedores: el runner ahora autoriza únicamente su ruta actual para `git ls-files` (sin modificar la configuración global).
+
+Verificación local: ocho casos Node del selector (incluye diff git real con commits múltiples, avance de base, rename, nombres con espacios/nueva línea, fallbacks y filesystem), actionlint y TypeScript frontend/backend aprobados; runner relacionado comprobado con 16 pruebas frontend y 42 backend. Sin build local.

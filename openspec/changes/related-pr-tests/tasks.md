@@ -4,5 +4,4 @@
 ## Frontend y backend
 - [x] Validar TypeScript de ambos proyectos y scripts relacionados, sin build ni suites completas locales.
 ## Entrega
-- [ ] Medir PRs de prueba UI y backend y cerrarlos sin merge.
-- [ ] Publicar PR real con label pendiente de revisión y merge inmediato tras CI verde.
+- [x] Medir PRs de prueba UI y backend y cerrarlos sin merge.
