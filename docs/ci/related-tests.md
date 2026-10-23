@@ -21,3 +21,5 @@ Vitest sigue dependencias transitivas: cambiar código backend importado por `ap
 Verificación del selector: `node --test scripts/ci-test-plan.test.mjs`. Límite del runner related: dos workers. No se cambia la configuración de las suites completas.
 
 Referencias: [Vitest related](https://vitest.dev/guide/cli.html#vitest-related), [outputs entre jobs](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/pass-job-outputs).
+
+<!-- Temporary documentation-only CI measurement. -->
