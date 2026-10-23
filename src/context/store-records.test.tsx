@@ -89,7 +89,7 @@ describe('caché de listas por tienda', () => {
     expect(result.current.sales).toEqual([]);
   });
 
-  it('espera todas las listas de red aunque haya caché y distingue una consulta fallida', async () => {
+  it('espera la revalidación inicial sin descartar la caché ante una consulta fallida', async () => {
     seed('store-1', 'Cache');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     let resolveTrades!: (rows: []) => void;
@@ -102,7 +102,7 @@ describe('caché de listas por tienda', () => {
     expect(result.current.listsSettled).toBe(false);
     await act(async () => resolveTrades([]));
     await waitFor(() => expect(result.current.listsSettled).toBe(true));
-    expect(result.current.listsLoadFailed).toBe(true);
+    expect(result.current.listsLoadFailed).toBe(false);
     error.mockRestore();
   });
 
@@ -199,4 +199,54 @@ describe('concurrent scoped list reads #461', () => {
     await act(() => result.current.refreshLists());
     expect(result.current.sales.map(row => row.id)).toEqual(['local']);
   });
+});
+
+it('keeps equal rows, loading flags and references through refetch and same-uid confirmation', async () => {
+  vi.mocked(fetchBackendSales).mockImplementation(async () => [sale('a', 'Ana')]);
+  const snapshots: { loaded: boolean; notificationsLoading: boolean }[] = [];
+  const { result, rerender } = renderHook(({ identity }) => {
+    const records = useStoreRecords({ user: identity, appSession: session, backendStatus: 'ready' });
+    snapshots.push({ loaded: records.listsLoaded, notificationsLoading: records.notificationsLoading });
+    return records;
+  }, { initialProps: { identity: user } });
+  await waitFor(() => expect(result.current.listsSettled && result.current.notificationsLoaded).toBe(true));
+  const before = result.current;
+  const calls = vi.mocked(fetchBackendSales).mock.calls.length;
+  snapshots.length = 0;
+  rerender({ identity: { ...user } });
+  expect(fetchBackendSales).toHaveBeenCalledTimes(calls);
+  await act(() => result.current.refreshLists());
+  for (const key of ['inventory', 'sales', 'clients', 'tradeIns', 'repairOrders', 'operationNotifications', 'operationDrafts', 'clientCategories'] as const) {
+    expect(result.current[key]).toBe(before[key]);
+  }
+  expect(snapshots.every(row => row.loaded && !row.notificationsLoading)).toBe(true);
+});
+
+it('waits for the resolved store before starting the initial lists', async () => {
+  const { result, rerender } = renderHook(({ ready }) => useStoreRecords({ user, appSession: ready ? session : null, backendStatus: ready ? 'ready' : 'checking' }), { initialProps: { ready: false } });
+  expect(fetchBackendInventory).not.toHaveBeenCalled();
+  rerender({ ready: true });
+  await waitFor(() => expect(result.current.listsSettled).toBe(true));
+  expect(fetchBackendInventory).toHaveBeenCalledTimes(1);
+});
+
+it('retains loaded lists and repair/notification data when background reads fail', async () => {
+  const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.mocked(fetchBackendSales).mockResolvedValue([sale('a', 'Ana')]);
+  const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+  await waitFor(() => expect(result.current.listsSettled && result.current.notificationsLoaded).toBe(true));
+  const before = result.current;
+  for (const fetcher of [fetchBackendInventory, fetchBackendSales, fetchBackendClients, fetchBackendTradeIns, fetchBackendRepairs, fetchNotifications]) {
+    vi.mocked(fetcher).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  }
+  await act(() => result.current.refreshLists());
+  expect(result.current.sales).toBe(before.sales);
+  expect(result.current.repairOrders).toBe(before.repairOrders);
+  expect(result.current.operationNotifications).toBe(before.operationNotifications);
+  expect(result.current.listsLoadFailed).toBe(false);
+  expect(result.current.listsLoaded).toBe(true);
+  expect(result.current.notificationsLoading).toBe(false);
+  expect(result.current.notificationsError).toBeNull();
+  expect(result.current.repairOrdersError).toBeNull();
+  warn.mockRestore();
 });

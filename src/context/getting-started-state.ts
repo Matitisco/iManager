@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useStableState } from '../lib/stable-state';
+import { useCallback, useEffect, useRef } from "react";
 import type { AuthUserLike } from "../types/auth-user";
 import {
   getGettingStarted,
@@ -11,9 +12,9 @@ export function useGettingStartedState(
   user: AuthUserLike | null,
   storeId?: string,
 ) {
-  const [progress, setProgress] = useState<GettingStartedProgress | null>(null);
+  const [progress, setProgress] = useStableState<GettingStartedProgress | null>(null);
   const scope = `${user?.uid ?? ""}:${storeId ?? ""}`;
-  const [settledScope, setSettledScope] = useState<string | null>(null);
+  const [settledScope, setSettledScope] = useStableState<string | null>(null);
   const current = useRef(scope);
   const requestVersion = useRef(0);
   const progressScope = useRef("");
@@ -34,7 +35,7 @@ export function useGettingStartedState(
         console.warn("No se pudieron cargar tus primeros pasos.", cause);
       }
     }
-  }, [user, storeId, scope]);
+  }, [user?.uid, storeId, scope]);
   const update = useCallback(
     async (patch: ProgressPatch) => {
       if (!user || !storeId) throw new Error("No hay una tienda activa.");
@@ -46,7 +47,7 @@ export function useGettingStartedState(
         setSettledScope(scope);
       }
     },
-    [user, storeId, scope],
+    [user?.uid, storeId, scope],
   );
   useEffect(() => {
     setProgress(null);

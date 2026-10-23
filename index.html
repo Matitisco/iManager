@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <style>
+      html, body { margin: 0; background: #F7F8FA; }
+      #boot-splash { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; background: #F7F8FA; opacity: 1; }
+      #boot-splash img { width: 80px; height: 80px; display: block; border-radius: 18px; }
+      @media (prefers-reduced-motion: reduce) { #boot-splash { transition: none !important; } }
+    </style>
     <title>iManager</title>
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
@@ -48,6 +54,7 @@
     <!-- End PWA splash images -->
   </head>
   <body>
+    <div id="boot-splash" aria-hidden="true"><img src="/icons/icon-192.png" alt="" width="80" height="80" /></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

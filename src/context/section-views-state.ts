@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { useCallback, useEffect, useRef } from 'react';
 import { toUserMessage } from '../lib/user-message';
 import { canOpenSection } from '../desk/sections';
 import { fetchSectionChanges, markSectionViewed, type RecordVersion, type SectionChanges, type ViewSection } from '../services/section-views-api';
@@ -10,7 +11,7 @@ export function useSectionViewsState(user: AuthUserLike | null, session: AppSess
   const ready = !!user && status === 'ready' && !!session?.store && !session.onboardingRequired;
   const current = useRef({ scope, generation: 0 });
   if (current.current.scope !== scope) current.current = { scope, generation: 0 };
-  const [state, setState] = useState<{ scope: string; changes: SectionChanges; error: string }>({ scope, changes: {}, error: '' });
+  const [state, setState] = useStableState<{ scope: string; changes: SectionChanges; error: string }>({ scope, changes: {}, error: '' });
 
   const refreshSectionChanges = useCallback(async () => {
     if (!ready || !user) return;
@@ -26,7 +27,7 @@ export function useSectionViewsState(user: AuthUserLike | null, session: AppSess
         setState(previous => ({ scope, changes: previous.scope === scope ? previous.changes : {}, error: toUserMessage(error) }));
       }
     }
-  }, [user, ready, scope]);
+  }, [user?.uid, ready, scope]);
 
   useEffect(() => {
     void refreshSectionChanges();
@@ -59,7 +60,7 @@ export function useSectionViewsState(user: AuthUserLike | null, session: AppSess
       if (current.current === epoch) setState(previous => ({ ...previous, error: toUserMessage(error) }));
       throw error;
     }
-  }, [user, ready, scope, session?.membership?.role, session?.membership?.sections]);
+  }, [user?.uid, ready, scope, session?.membership?.role, session?.membership?.sections]);
 
   return {
     sectionChanges: ready && state.scope === scope ? state.changes : {},

@@ -180,6 +180,9 @@ test('manifest and Apple metadata point to existing images of the declared dimen
     assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, icon.sizes);
   }
   const html = await readFile('index.html', 'utf8');
+  assert.match(html, /html, body \{[^}]*background: #F7F8FA/);
+  assert.match(html, /<div id="boot-splash" aria-hidden="true"><img src="\/icons\/icon-192.png" alt="" width="80" height="80" \/><\/div>\s*<div id="root"><\/div>/);
+  assert.ok(html.indexOf('<style>') < html.indexOf('</head>'));
   assert.match(html, /viewport-fit=cover/); assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
   const launches = [...html.matchAll(/href="(\/splash\/splash-(\d+)x(\d+)\.png)"/g)];
   assert.equal(launches.length, 26);

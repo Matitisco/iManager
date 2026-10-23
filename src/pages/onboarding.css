@@ -308,7 +308,7 @@
   width: 35%;
   height: 100%;
   background: #ffd000;
-  animation: onb-loading 1.5s infinite;
+  animation: none;
 }
 .onb progress {
   display: block;
@@ -473,7 +473,7 @@
   width: 7px;
   height: 13px;
   border-radius: 2px;
-  animation: onb-confetti 1.8s ease-out both;
+  display: none;
 }
 .onb-edit-backdrop {
   position: fixed;

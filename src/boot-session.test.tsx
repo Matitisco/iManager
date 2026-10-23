@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
@@ -49,21 +49,22 @@ vi.mock('./services/auth-adapter', () => ({
 }));
 
 const sessionFetch = vi.hoisted(() => vi.fn());
+const listFetch = vi.hoisted(() => vi.fn());
 vi.mock('./services/backend-session', () => ({
   getBackendBaseUrl: () => 'https://api.test',
   fetchBackendSession: (...args: unknown[]) => sessionFetch(...args),
 }));
-vi.mock('./services/inventory-api', () => ({ fetchBackendInventory: () => new Promise(() => {}) }));
-vi.mock('./services/sales-api', () => ({ fetchBackendSales: () => new Promise(() => {}) }));
+vi.mock('./services/inventory-api', () => ({ fetchBackendInventory: () => listFetch() }));
+vi.mock('./services/sales-api', () => ({ fetchBackendSales: () => listFetch() }));
 vi.mock('./services/clients-api', () => ({
-  fetchBackendClients: () => new Promise(() => {}),
-  fetchClientCategoriesApi: () => new Promise(() => {}),
+  fetchBackendClients: () => listFetch(),
+  fetchClientCategoriesApi: () => listFetch(),
 }));
-vi.mock('./services/trade-ins-api', () => ({ fetchBackendTradeIns: () => new Promise(() => {}) }));
-vi.mock('./services/repairs-api', () => ({ fetchBackendRepairs: () => new Promise(() => {}) }));
+vi.mock('./services/trade-ins-api', () => ({ fetchBackendTradeIns: () => listFetch() }));
+vi.mock('./services/repairs-api', () => ({ fetchBackendRepairs: () => listFetch() }));
 vi.mock('./services/operations-api', () => ({
-  fetchNotifications: () => new Promise(() => {}),
-  fetchOperationDrafts: () => new Promise(() => {}),
+  fetchNotifications: () => listFetch(),
+  fetchOperationDrafts: () => listFetch(),
 }));
 
 const session = {
@@ -103,6 +104,7 @@ beforeEach(() => {
   auth.user = null;
   auth.listener = null;
   sessionFetch.mockReset();
+  listFetch.mockReset().mockReturnValue(new Promise(() => {}));
 });
 
 afterEach(() => {
@@ -110,11 +112,13 @@ afterEach(() => {
 });
 
 describe('apertura de sesión', () => {
-  it('abre el shell con la caché y reserva el Dashboard hasta confirmar sesión y consultas', async () => {
+  it('mantiene el splash y no monta el shell antes de confirmar sesión y consultas', async () => {
     signedIn();
     sessionFetch.mockReturnValue(new Promise(() => undefined));
-    render(<App />);
-    expect(await screen.findByTestId('dashboard-initial-loading')).toBeInTheDocument();
+    const { container } = render(<App />);
+    await act(async () => {});
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByTestId('dashboard-initial-loading')).not.toBeInTheDocument();
     expect(screen.queryByText('Venta guardada')).not.toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-trades')).not.toBeInTheDocument();
     expect(screen.queryByText('Resolviendo sesión segura')).not.toBeInTheDocument();
@@ -134,6 +138,7 @@ describe('apertura de sesión', () => {
 
   it('no pide comisiones de dueño con el rol cacheado', async () => {
     signedIn();
+    listFetch.mockResolvedValue([]);
     const summary = vi.spyOn(commissionsApi, 'fetchCommissionSummary').mockResolvedValue({ people: [], summary: { salesCount: 0 }, period: { key: '2026-10' } } as never);
     const rules = vi.spyOn(commissionsApi, 'fetchCommissionRules').mockResolvedValue([]);
     const mine = vi.spyOn(commissionsApi, 'fetchMyCommissions').mockResolvedValue({ period: { key: '2026-10' }, person: { pending: { ARS: 0, USD: 0 } } } as never);

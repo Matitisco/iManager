@@ -5,45 +5,59 @@ import { LIST_REFRESH_INTERVAL_MS, LIST_SYNC_CHANNEL, LIST_SYNC_STORAGE_KEY, cre
 describe('list refresh gate', () => {
   afterEach(() => { vi.useRealTimers(); });
 
-  it('runs the first request immediately and coalesces the ones that follow', () => {
+  it('drops recent events and measures the gate from completion, with immediate mutation reconciliation', async () => {
     vi.useFakeTimers();
-    const refresh = vi.fn();
-    const gate = createRefreshGate(refresh, LIST_REFRESH_INTERVAL_MS);
+    let finish!: () => void;
+    const refresh = vi.fn<() => void | Promise<void>>().mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const gate = createRefreshGate(refresh);
     gate.request();
-    gate.request();
+    vi.advanceTimersByTime(20_000);
     gate.request();
     expect(refresh).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(LIST_REFRESH_INTERVAL_MS); });
-    expect(refresh).toHaveBeenCalledTimes(2);
+    finish(); await Promise.resolve();
+    gate.request();
+    vi.advanceTimersByTime(14_999);
+    gate.request();
+    expect(refresh).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1);
     gate.request();
     expect(refresh).toHaveBeenCalledTimes(2);
-    act(() => { vi.advanceTimersByTime(LIST_REFRESH_INTERVAL_MS); });
+    gate.request(true);
     expect(refresh).toHaveBeenCalledTimes(3);
+    gate.cancel();
+    gate.request(true);
+    expect(refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it('queues one immediate mutation while a refresh is in flight', async () => {
+    let finish!: () => void;
+    const refresh = vi.fn<() => void | Promise<void>>().mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const gate = createRefreshGate(refresh);
+    gate.request(); gate.request(true); gate.request(true);
+    finish(); await Promise.resolve();
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });
 
 describe('useListRefresh', () => {
   afterEach(() => { vi.useRealTimers(); localStorage.clear(); });
 
-  it('refetches on section change, focus and a visible tab, and ignores a hidden tab', () => {
+  it('ignores navigation/focus bursts and refreshes after a long absence', () => {
     vi.useFakeTimers();
     const refresh = vi.fn();
     renderHook(() => useListRefresh(true, refresh, 'store-1'));
+    act(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); window.dispatchEvent(new Event('focus')); });
+    expect(refresh).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(LIST_REFRESH_INTERVAL_MS); });
+    expect(refresh).not.toHaveBeenCalled();
     act(() => { window.dispatchEvent(new HashChangeEvent('hashchange')); });
     expect(refresh).toHaveBeenCalledTimes(1);
-    act(() => { window.dispatchEvent(new Event('focus')); });
-    expect(refresh).toHaveBeenCalledTimes(1);
-    act(() => { vi.advanceTimersByTime(LIST_REFRESH_INTERVAL_MS); });
-    expect(refresh).toHaveBeenCalledTimes(2);
-
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
-    expect(refresh).toHaveBeenCalledTimes(2);
+    act(() => { vi.advanceTimersByTime(31_000); document.dispatchEvent(new Event('visibilitychange')); });
+    expect(refresh).toHaveBeenCalledTimes(1);
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
-    act(() => { document.dispatchEvent(new Event('visibilitychange')); });
+    act(() => { document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
     expect(refresh).toHaveBeenCalledTimes(2);
-    act(() => { vi.advanceTimersByTime(LIST_REFRESH_INTERVAL_MS); });
-    expect(refresh).toHaveBeenCalledTimes(3);
   });
 
   it('does not refetch while disabled', () => {

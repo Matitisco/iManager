@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 
 export const LIST_SYNC_CHANNEL = 'imanager-lists';
 export const LIST_SYNC_STORAGE_KEY = 'imanager-lists-sync';
-export const LIST_REFRESH_INTERVAL_MS = 2000;
+export const LIST_REFRESH_INTERVAL_MS = 15000;
 
 export type ListSyncMessage = { storeId: string; at: number };
 
@@ -56,59 +56,58 @@ export function subscribeListSync(onMessage: (message: ListSyncMessage) => void)
   return () => window.removeEventListener('storage', onStorage);
 }
 
-export function createRefreshGate(refresh: () => void, minIntervalMs = LIST_REFRESH_INTERVAL_MS) {
-  let lastStarted = Number.NEGATIVE_INFINITY;
-  let timer: ReturnType<typeof setTimeout> | undefined;
+export function createRefreshGate(refresh: () => void | Promise<void>, minIntervalMs = LIST_REFRESH_INTERVAL_MS, initiallyFresh = false) {
+  let lastFinished = initiallyFresh ? Date.now() : Number.NEGATIVE_INFINITY;
+  let running = false;
+  let queued = false;
+  let cancelled = false;
   const run = () => {
-    timer = undefined;
-    lastStarted = Date.now();
-    refresh();
+    running = true;
+    const finish = () => {
+      running = false;
+      lastFinished = Date.now();
+      if (queued && !cancelled) { queued = false; run(); }
+    };
+    try {
+      const result = refresh();
+      if (result) void Promise.resolve(result).then(finish, finish);
+      else finish();
+    } catch { finish(); }
   };
   return {
-    request() {
-      const wait = minIntervalMs - (Date.now() - lastStarted);
-      if (wait <= 0) {
-        if (timer !== undefined) clearTimeout(timer);
-        run();
-        return;
-      }
-      if (timer !== undefined) return;
-      timer = setTimeout(run, wait);
+    request(immediate = false) {
+      if (cancelled) return;
+      if (running) { if (immediate) queued = true; return; }
+      if (immediate || Date.now() - lastFinished >= minIntervalMs) run();
     },
-    cancel() {
-      if (timer !== undefined) clearTimeout(timer);
-      timer = undefined;
-    },
+    cancel() { cancelled = true; queued = false; },
   };
 }
 
-export function useListRefresh(enabled: boolean, refresh: () => void, storeId: string | null) {
+export function useListRefresh(enabled: boolean, refresh: () => void | Promise<void>, storeId: string | null) {
   const refreshRef = useRef(refresh);
-  const storeRef = useRef(storeId);
   refreshRef.current = refresh;
-  storeRef.current = storeId;
-
   useEffect(() => {
     if (!enabled) return;
-    const gate = createRefreshGate(() => refreshRef.current());
+    // Initial loads already revalidate this scope. Navigation/focus must not start a second batch.
+    const gate = createRefreshGate(() => refreshRef.current(), LIST_REFRESH_INTERVAL_MS, true);
     const onFocus = () => gate.request();
     const onVisible = () => {
       if (document.visibilityState === 'visible') gate.request();
     };
-    const onSection = () => gate.request();
     const unsubscribe = subscribeListSync((message) => {
-      if (storeRef.current && message.storeId !== storeRef.current) return;
-      gate.request();
+      if (storeId && message.storeId !== storeId) return;
+      gate.request(true);
     });
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('hashchange', onSection);
+    window.addEventListener('hashchange', onFocus);
     return () => {
       gate.cancel();
       unsubscribe();
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('hashchange', onSection);
+      window.removeEventListener('hashchange', onFocus);
     };
-  }, [enabled]);
+  }, [enabled, storeId]);
 }

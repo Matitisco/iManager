@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { useRef } from 'react';
 import type { AuthUserLike } from '../types/auth-user';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { CommissionSummary, CommissionDetail, CommissionRule, CommissionRuleInput, CommissionPaymentInput, CommissionSeller } from '../types/commissions';
@@ -9,7 +10,7 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
   const scope = `${user?.uid}:${session?.store?.id}:${session?.membership?.role}:${JSON.stringify(session?.membership?.sections)}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
-  const [data, setData] = useState<{ scope: string; summaries: Record<string, CommissionSummary>; details: Record<string, CommissionDetail>; rules: CommissionRule[]; sellers: CommissionSeller[] }>({ scope, summaries: {}, details: {}, rules: [], sellers: [] });
+  const [data, setData] = useStableState<{ scope: string; summaries: Record<string, CommissionSummary>; details: Record<string, CommissionDetail>; rules: CommissionRule[]; sellers: CommissionSeller[] }>({ scope, summaries: {}, details: {}, rules: [], sellers: [] });
   const current = data.scope === scope ? data : { scope, summaries: {}, details: {}, rules: [], sellers: [] };
   const auth = () => {
     if (!user || status !== 'ready' || !session?.store || session.onboardingRequired) throw new Error('El backend todavía no está listo. Reintentá en unos segundos.');

@@ -93,7 +93,7 @@ describe('blue dollar widget', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('keeps the last quote and retries from the error state', async () => {
+  it('keeps the last quote and silently retries after a refresh failure', async () => {
     const user = userEvent.setup();
     const today = argentinaDay(new Date());
     localStorage.setItem(BLUE_STORAGE_KEY, JSON.stringify({
@@ -114,16 +114,15 @@ describe('blue dollar widget', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderWidget();
 
-    expect(await screen.findByTestId('blue-retry')).toBeInTheDocument();
-    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'error');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1280));
     expect(screen.getByTestId('blue-widget')).toHaveTextContent(formatMoney(1300));
-    expect(screen.getByTestId('blue-widget')).toHaveTextContent('No pudimos actualizar. Mostramos el dato de las 21:40');
-
+    expect(screen.queryByText(/No pudimos actualizar/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('blue-retry')).not.toBeInTheDocument();
     fetchMock.mockImplementation(async () => json(dolar));
-    await user.click(screen.getByTestId('blue-retry'));
+    await user.click(screen.getByTestId('blue-refresh'));
     expect(await screen.findByText(/Act\. 21:40 · DolarApi/)).toBeInTheDocument();
-    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
   });
 
   it('does not refetch a fresh cached quote until asked', async () => {
@@ -139,8 +138,8 @@ describe('blue dollar widget', () => {
     await waitFor(() => expect(fetchMock).not.toHaveBeenCalled());
 
     await user.click(screen.getByTestId('blue-refresh'));
-    expect(screen.getByText('Actualizando...')).toBeInTheDocument();
-    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'loading');
+    expect(screen.queryByText('Actualizando...')).not.toBeInTheDocument();
+    expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
     release?.();
     expect(await screen.findByText(/Act\. 21:40 · DolarApi/)).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -185,22 +184,17 @@ describe('blue dollar widget', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderWidget('chip');
 
-    expect(await screen.findByTestId('blue-retry')).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     const widget = screen.getByTestId('blue-widget');
-    expect(widget).toHaveAttribute('data-state', 'error');
-    expect(widget).toHaveAttribute('data-quote', 'stale');
+    expect(widget).toHaveAttribute('data-state', 'ready');
     expect(widget).toHaveTextContent(formatMoney(1300));
-    expect(widget).toHaveTextContent('21:40');
-    expect(widget).not.toHaveTextContent(formatMoney(1280));
-    expect(screen.getByTestId('blue-toast')).toHaveTextContent('No pudimos actualizar el dólar. Mostramos el de las 21:40.');
-
-    await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
-    expect(screen.getByTestId('blue-alert')).toHaveTextContent('Mostramos el dato de las 21:40');
-
-    fetchMock.mockImplementation(async () => json(dolar));
-    await user.click(screen.getByTestId('blue-retry'));
-    await waitFor(() => expect(widget).toHaveAttribute('data-state', 'ready'));
+    expect(widget).toHaveTextContent(formatMoney(1280));
     expect(screen.queryByTestId('blue-toast')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
+    expect(screen.queryByTestId('blue-alert')).not.toBeInTheDocument();
+    fetchMock.mockImplementation(async () => json(dolar));
+    await user.click(screen.getByTestId('blue-refresh-now'));
+    expect(widget).toHaveAttribute('data-state', 'ready');
   });
 
   it('says there is no quote when the phone chip never received one', async () => {
@@ -209,7 +203,8 @@ describe('blue dollar widget', () => {
     renderWidget('chip');
     expect(await screen.findByText('sin dato')).toBeInTheDocument();
     expect(screen.getByTestId('blue-widget')).toHaveAttribute('data-quote', 'none');
-    expect(screen.getByTestId('blue-toast')).toHaveTextContent('No pudimos actualizar el dólar.');
+    expect(screen.queryByTestId('blue-toast')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dólar blue' }));
     expect(screen.getByTestId('blue-alert')).toHaveTextContent('No hay cotización');
     expect(screen.queryByTestId('blue-status')).not.toBeInTheDocument();

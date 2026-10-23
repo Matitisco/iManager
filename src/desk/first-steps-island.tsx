@@ -39,7 +39,6 @@ function useFirstSteps() {
   const {
     gettingStarted: state,
     updateGettingStarted,
-    refreshGettingStarted,
     inventory,
     sales,
     appSession,
@@ -49,10 +48,6 @@ function useFirstSteps() {
   const [installation, setInstallation] = useState(false);
   const role = appSession?.membership?.role;
   const closeInstall = useCallback(() => setInstallation(false), []);
-
-  useEffect(() => {
-    void refreshGettingStarted?.();
-  }, [refreshGettingStarted, inventory.length, sales.length]);
 
   useEffect(() => {
     if (!updateGettingStarted || !canSeeFirstSteps(role)) return;

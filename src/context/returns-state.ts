@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { useCallback, useEffect, useRef } from 'react';
 import { canOpenSection } from '../desk/sections';
 import {
   advanceRma as advanceRmaApi,
@@ -25,11 +26,12 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
   const sections = session?.membership?.sections;
   const canReturns = Boolean(session?.store) && canOpenSection('sales', sections, role);
   const scope = `${user?.uid}:${session?.store?.id}:${role}:${JSON.stringify(sections)}`;
+  const resolved = useRef('');
   const current = useRef(scope);
   current.current = scope;
-  const [returns, setReturns] = useState<ReturnCaseView[] | null>(canReturns ? null : []);
-  const [creditNotes, setCreditNotes] = useState<CreditNoteView[] | null>(canReturns ? null : []);
-  const [returnsError, setReturnsError] = useState('');
+  const [returns, setReturns] = useStableState<ReturnCaseView[] | null>(canReturns ? null : []);
+  const [creditNotes, setCreditNotes] = useStableState<CreditNoteView[] | null>(canReturns ? null : []);
+  const [returnsError, setReturnsError] = useStableState('');
   const ready = !!user && status === 'ready' && !!session?.store && !session.onboardingRequired;
 
   const reloadReturns = useCallback(async () => {
@@ -45,18 +47,19 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
     try {
       const [claims, notes] = await Promise.all([fetchReturns(user), fetchCreditNotes(user)]);
       if (current.current === ticket) {
+        resolved.current = scope;
         setReturns(claims);
         setCreditNotes(notes);
         setReturnsError('');
       }
     } catch (error) {
       if (current.current === ticket) {
-        setReturns([]);
-        setCreditNotes([]);
-        setReturnsError(error instanceof Error ? error.message : 'No se pudieron cargar las devoluciones');
+        setReturns(old => old ?? []);
+        setCreditNotes(old => old ?? []);
+        if (resolved.current !== scope) setReturnsError(error instanceof Error ? error.message : 'No se pudieron cargar las devoluciones');
       }
     }
-  }, [user, ready, scope, canReturns]);
+  }, [user?.uid, ready, scope, canReturns]);
 
   useEffect(() => {
     setReturns(canReturns ? null : []);

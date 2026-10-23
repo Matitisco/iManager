@@ -1,4 +1,5 @@
-.skeleton { display: block; height: 12px; width: 100%; border-radius: 6px; background: #ecedef; animation: skeleton-pulse 1.8s ease-in-out infinite; }
+.skeleton { display: block; height: 12px; width: 100%; border-radius: 6px; background: #ecedef; visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
 .skeleton-field { height: 42px; border-radius: 12px; }
-@keyframes skeleton-pulse { 50% { opacity: .55; } }
-@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+@keyframes skeleton-reveal { to { visibility: visible; } }
+/* A list owns its delay; nested shapes become visible with the parent. */
+.list-skel .skeleton { visibility: inherit; animation: none; }
