@@ -56,7 +56,7 @@ El antes no tiene estados de expansión/compacto: sus equivalentes son el menú 
 ## Verificación
 
 - `npm run lint` y `npm --prefix backend run lint`: TypeScript sin errores; los scripts lint del repo son `tsc --noEmit`.
-- Suite frontend completa: 219 archivos / 1.944 pruebas, 204,72 s con dos workers. Repetición final posterior a dividir la matriz de Análisis y sumar pruebas de Tab: resultado en `produccion-suite-final.log`.
+- Suite frontend completa final: 219 archivos / 1.970 pruebas aprobadas, 188,65 s con dos workers (`produccion-suite-final.log`); incluye la matriz de Análisis dividida y las pruebas adicionales de Tab. Una corrida previa también pasó con 1.944 pruebas en 204,72 s.
 - Shell y acordeón finales: 66 pruebas aprobadas, incluyendo las 24 transiciones independientes de Análisis, URL de Resumen periódico, contadores, permisos, exclusividad, Enter/Espacio y Tab. Se dividió la matriz para evitar el timeout de un solo test con doce transiciones; sin ampliar timeouts globales.
 - Reportes: las 25 pruebas pasaron con un worker. El timeout previo no se reprodujo con carga controlada. Las pruebas de Devoluciones y Patrones usan las rutas del menú; el vacío se comprueba semánticamente por su encabezado.
 - E2E locales: ocho flujos distintos aprobados entre humo de onboarding/equipo/venta, menú móvil dueño/empleado, resumen periódico y contadores de escritorio/móvil. Tres flujos adicionales de Comisiones, Catálogo de escritorio y navegación legacy aprobados. Cada runner usa un worker y la DB dedicada falsa `imanager_sidenav_tests` (:5433).
