@@ -303,7 +303,8 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           </div>
           <OfflineScope>
           <NavChrome pending={pending} sidenav>
-          <RoutePresentation.Provider key={viewport.entry.id} value={viewport.entry.values}>
+          {/* Equipo and its member routes share loaded data; scroll still belongs to each entry. */}
+          <RoutePresentation.Provider key={tab === 'settings' ? `settings:${operationScope}` : viewport.entry.id} value={viewport.entry.values}>
           <div>
             {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}

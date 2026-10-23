@@ -1,0 +1,4 @@
+- [x] Reproducir con miembros y datos falsos; instrumentar requests, contenido visible y commits.
+- [x] Conservar Configuración durante navegación interna y desacoplar respuestas.
+- [x] Agregar regresiones y ejecutar TypeScript y tests relacionados.
+- [x] Medir después y documentar evidencia para el PR.

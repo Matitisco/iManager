@@ -287,12 +287,18 @@ export function SettingsScreen() {
     const version = ++loadVersion.current;
     if (!user || !appSession?.store?.id || !seeTeam) return;
     setTeamError('');
-    void Promise.all([listMembers(user, appSession.store.id), listInvitations(user)])
-      .then(([nextMembers, nextInvites]) => {
+    const onError = (err: unknown) => {
+      if (version === loadVersion.current) setTeamError(toUserMessage(err, 'No se pudo cargar el equipo'));
+    };
+    void listMembers(user, appSession.store.id)
+      .then(nextMembers => {
         if (version !== loadVersion.current) return;
-        setMembers(nextMembers); setMembersLoaded(true); setInvites(nextInvites);
+        setMembers(nextMembers); setMembersLoaded(true);
       })
-      .catch(err => { if (version === loadVersion.current) setTeamError(toUserMessage(err, 'No se pudo cargar el equipo')); });
+      .catch(onError);
+    void listInvitations(user)
+      .then(nextInvites => { if (version === loadVersion.current) setInvites(nextInvites); })
+      .catch(onError);
   }, [user, appSession?.store?.id, seeTeam]);
 
   useEffect(() => {
@@ -350,9 +356,14 @@ export function SettingsScreen() {
   </>;
   const selected = place.memberId ? members.find(member => member.id === place.memberId) ?? null : null;
 
+  if (place.memberId && seeTeam && !membersLoaded && !teamError) {
+    return <div className="dscreen team-permissions"><ListSkeleton variant="lines" rows={2} /><div className="team-perm-columns"><ListSkeleton variant="rows" rows={6} /><ListSkeleton variant="rows" rows={6} /></div></div>;
+  }
+
   if (place.memberId && selected) {
     return (
       <MemberPermissions
+        key={selected.id}
         member={selected}
         onBack={closeMember}
         onRemoved={load}
