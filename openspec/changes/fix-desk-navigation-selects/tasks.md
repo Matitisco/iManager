@@ -2,3 +2,4 @@
 - [x] Aislar estilos de auditoría y separar bloques de Más.
 - [x] Migrar selects visibles del desk/modales y actualizar pruebas relacionadas.
 - [x] Verificar TypeScript, pruebas y Playwright local con datos falsos.
+- [x] Conservar el avance de foco del escáner hacia el combobox Proveedor y verificar su regresión TAC/wedge.
