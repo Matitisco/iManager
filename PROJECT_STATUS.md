@@ -1,5 +1,7 @@
 # iManager - Project Status
 
+- Patrones sin pastillas (2026-10-23): Proveedor, Compra y Modelo apilados con títulos existentes, selección independiente, enlaces y caché conservados. TypeScript frontend/backend, 107 pruebas relacionadas y QA local falsa a 1440/390 aprobados, sin overflow ni errores de página. Otros selectores reportados sin cambios en `docs/qa-patrones/notas.md`; capturas en `/workspace/qa-patrones/`.
+
 - Shell Historial/Más y selects (2026-10-23): audit-layout deja de modificar tipografía/ancho del sidenav; Más separa perfil/menú con 16px y restaura la tarjeta. Selects visibles de Historial, Equipos/proveedor, reclamos/venta, catálogos e importación usan DeskSelect. Onboarding conserva sus cinco nativos fuera del desk. TypeScript frontend/backend, 305 pruebas relacionadas, importación E2E y métricas en 22 rutas × 1440/390; Más a 390/360/375 con/sin banner y grupos abiertos/cerrados. Evidencia en `docs/qa-sidenav2/notas.md` y `/workspace/qa-sidenav2/`.
 
 - Corrección sidenav de dos niveles (2026-10-23): Comercial conserva Ventas/Canjes/Devoluciones; Patrones pasa a Análisis con ruta/título propios y permiso Ventas; Resumen periódico queda como hermano con título propio; Catálogo móvil unifica resumen y equipos. Vacío de Patrones explícito y fallos visibles con caché previa; enlaces antiguos canonicalizados sin pasos extra de historial. TypeScript frontend/backend, 194 pruebas relacionadas y QA Chrome local 1440/390 con datos falsos; detalles en `docs/qa-sidenav2/notas.md`, capturas en `/workspace/qa-sidenav2/`.

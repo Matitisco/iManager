@@ -52,7 +52,7 @@ beforeEach(() => {
   ctx.appSession = { store: { id: 'store' }, membership: { role: 'OWNER', sections: null } };
   ctx.backendStatus = 'ready';
   api.fetchReturns.mockResolvedValue([]);
-  api.fetchReturnPatterns.mockResolvedValue([group, coolGroup]);
+  api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'supplier' ? [group, coolGroup] : []));
   api.fetchSupplierPurchase.mockResolvedValue({ id: 'purchase', name: null, purchasedAt: '2026-09-05', notes: null, devices: 1, problemCount: 1, claimCount: 1, totalCost: 900, currency: 'USD', summary: { devices: 1, problems: 1 }, items: [
     { id: 'eq', model: 'iPhone 11', capacity: '64GB', imei: '356789104523871', status: 'EN_REVISION', cost: 900, currency: 'USD', problem: true, problemLabel: 'En revisión' },
   ] });
@@ -79,7 +79,7 @@ describe('Patrones de Devoluciones', () => {
     it.each(['supplier', 'purchase', 'model'] as const)('shows a clear empty state when every %s group has zero problems', async groupBy => {
       layout.phone = phone;
       api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup]);
-      mount(<ReturnsPatterns groupBy={groupBy} requestedGroup={zeroGroup.key} />);
+      mount(<ReturnsPatterns groupBy={groupBy} request={{ group: zeroGroup.key }} />);
       await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
       expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
       expect(screen.queryByRole('region')).not.toBeInTheDocument();
@@ -87,23 +87,35 @@ describe('Patrones de Devoluciones', () => {
     });
   });
 
-  it('opens with its own header and switches all three server groupings without mixing rows', async () => {
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group]));
+  it.each([false, true])('shows all three server groupings as independent sections with phone layout = %s', async phone => {
+    layout.phone = phone;
+    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group, coolGroup]));
     mount();
     expect(screen.getByRole('heading', { name: 'Patrones', level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Devoluciones' })).not.toBeInTheDocument();
-    await screen.findByTestId('pattern-supplier');
-    expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'supplier');
+    for (const [name, by, key] of [['Proveedor', 'supplier', 'supplier'], ['Compra', 'purchase', 'purchase'], ['Modelo', 'model', 'model']] as const) {
+      const section = within(screen.getByRole('region', { name }));
+      expect(await section.findByTestId(`pattern-${key}`)).toHaveClass('on');
+      expect(section.getByRole('heading', { name })).toBeInTheDocument();
+      expect(api.fetchReturnPatterns).toHaveBeenCalledWith(ctx.user, by);
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('group', { name: 'Agrupar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Compra' }));
-    await screen.findByTestId('pattern-purchase');
-    expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'purchase');
-    expect(screen.queryByTestId('pattern-supplier')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Modelo' }));
-    await screen.findByTestId('pattern-model');
-    expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'model');
-    expect(screen.queryByText('Ver proveedor')).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
+    const supplier = within(screen.getByRole('region', { name: 'Proveedor' }));
+    await userEvent.click(supplier.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
+    expect(supplier.getByTestId('pattern-cool')).toHaveClass('on');
+    expect(screen.getByTestId('pattern-purchase')).toHaveClass('on');
+    expect(screen.getByTestId('pattern-model')).toHaveClass('on');
+  });
+
+  it('shows the existing empty state in every section when there are no problems', async () => {
+    api.fetchReturnPatterns.mockResolvedValue([]);
+    mount();
+    await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
+    for (const name of ['Proveedor', 'Compra', 'Modelo']) {
+      expect(within(screen.getByRole('region', { name })).getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
+    }
   });
 
   it('uses server hot/percent, renders the complete claim reason and real status colors', async () => {
@@ -167,14 +179,14 @@ describe('Patrones de Devoluciones', () => {
     mount();
     await screen.findByTestId('pattern-cool');
     expect(screen.queryByRole('group', { name: 'Vista' })).not.toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Agrupar' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Agrupar' })).not.toBeInTheDocument();
     expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
     expect(screen.getByTestId('pattern-supplier')).not.toHaveClass('on');
     expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
   });
 
   it.each(['supplier', 'purchase'] as const)('falls back to the first visible group when the linked %s has no problems', async groupBy => {
-    api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup, group, coolGroup]);
+    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === groupBy ? [zeroGroup, group, coolGroup] : []));
     history.replaceState(null, '', returnPatternsHash(groupBy, zeroGroup.key));
     mount();
     expect(await screen.findByTestId('pattern-supplier')).toHaveClass('on');
@@ -200,11 +212,12 @@ describe('Patrones de Devoluciones', () => {
     expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
   });
 
-  it('reopens supplier patterns even when the URL already matches a locally changed view', async () => {
+  it('reopens the linked supplier after changing the expanded row', async () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'supplier'));
     mount();
     await screen.findByTestId('pattern-supplier');
-    await userEvent.click(screen.getByRole('button', { name: 'Compra' }));
+    await userEvent.click(screen.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
+    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
     act(() => showSupplierPatterns('supplier'));
     await screen.findByTestId('pattern-supplier');
     expect(screen.getByTestId('pattern-supplier')).toHaveClass('on');
@@ -245,28 +258,25 @@ describe('Patrones de Devoluciones', () => {
     expect(screen.queryByTestId('patterns-empty')).not.toBeInTheDocument();
   });
 
-  it('ignores a late supplier response after switching to purchase', async () => {
+  it('keeps completed sections visible when another grouping responds late', async () => {
     const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockReturnValueOnce(pending.promise).mockResolvedValueOnce([purchaseGroup]);
-    history.replaceState(null, '', returnPatternsHash());
+    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? pending.promise : Promise.resolve(by === 'purchase' ? [purchaseGroup] : []));
     mount();
-    await userEvent.click(screen.getByRole('button', { name: 'Compra' }));
     await screen.findByTestId('pattern-purchase');
-    await act(async () => pending.resolve([group]));
     expect(screen.queryByTestId('pattern-supplier')).not.toBeInTheDocument();
+    await act(async () => pending.resolve([group]));
+    expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
     expect(screen.getByTestId('pattern-purchase')).toBeInTheDocument();
   });
 
-  it('keeps a completed grouping while revalidating instead of flashing skeletons', async () => {
-    api.fetchReturnPatterns.mockResolvedValueOnce([group]).mockResolvedValueOnce([purchaseGroup]);
-    history.replaceState(null, '', returnPatternsHash());
-    mount();
+  it('keeps all completed sections while revalidating without flashing skeletons', async () => {
+    const view = mount();
     await screen.findByTestId('pattern-supplier');
-    await userEvent.click(screen.getByRole('button', { name: 'Compra' }));
-    await screen.findByTestId('pattern-purchase');
+    await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
     const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockReturnValueOnce(pending.promise);
-    await userEvent.click(screen.getByRole('button', { name: 'Proveedor' }));
+    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? pending.promise : Promise.resolve([]));
+    ctx.inventory = [];
+    view.rerender(tree());
     expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
     expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
     await act(async () => pending.resolve([group]));
@@ -275,7 +285,7 @@ describe('Patrones de Devoluciones', () => {
   it('does not reuse a previous store snapshot or its late response', async () => {
     const oldStore = deferred<ReturnPatternView[]>();
     const newStore = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockReturnValueOnce(oldStore.promise).mockReturnValueOnce(newStore.promise);
+    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? (ctx.appSession.store.id === 'store' ? oldStore.promise : newStore.promise) : Promise.resolve([]));
     history.replaceState(null, '', returnPatternsHash());
     const view = mount();
     ctx.appSession = { ...ctx.appSession, store: { id: 'other-store' } };

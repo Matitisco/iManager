@@ -1,5 +1,5 @@
-.pat-filters { align-items: center; }
-.pat-filters .pat-by { display: flex; flex-wrap: wrap; gap: 6px; }
+.pat-sections { gap: 24px; }
+.pat-section { min-width: 0; }
 .pat-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
 .pat-grid > .card { margin: 0; }
 .pat-list { overflow: hidden; }
@@ -27,8 +27,6 @@
 .pat-limit { font-size: 12px; color: var(--secondary); padding: 12px 0; }
 .pat-loading { min-height: 405px; }
 @media (max-width: 760px) {
-  .desk-app .pat-filters { flex-wrap: wrap; gap: 8px; overflow: visible; }
-  .desk-app .pat-filters .pat-by { flex-basis: 100%; margin-left: 0; }
   .pat-grid { grid-template-columns: minmax(0, 1fr); }
   .pat-bar { width: 48px; }
   .pat-open { border-top: 1px solid var(--border); padding-top: 0; }

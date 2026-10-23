@@ -9,7 +9,7 @@ import { SupplierPurchaseDetail } from '../overlays/supplier-purchases';
 import { DeskIcon, Pill, useDesk } from '../ui';
 import './returns-patterns.css';
 
-export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternGroupBy; requestedGroup?: string }) {
+export function ReturnsPatterns({ groupBy, request }: { groupBy: PatternGroupBy; request?: { group?: string } }) {
   const { user, appSession, backendStatus, returns, inventory, repairOrders } = useAppContext();
   const { open } = useDesk();
   const phone = usePhoneLayout();
@@ -24,13 +24,13 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
   const seeOrigin = sectionAllowed('suppliers', sections, role);
   const ready = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && allowed;
   const rows = cache[groupBy];
-  const preferredKey = selection?.by === groupBy ? selection.key : requestedGroup;
+  const preferredKey = selection?.by === groupBy ? selection.key : request?.group;
   const selected = preferredKey === null ? undefined : rows?.find(row => row.key === preferredKey) ?? rows?.[0];
   const selectedKey = selected?.key;
 
   useEffect(() => {
     setSelection(null);
-  }, [groupBy, requestedGroup]);
+  }, [groupBy, request]);
 
   useEffect(() => {
     if (!user || !ready) return;
