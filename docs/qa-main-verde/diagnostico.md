@@ -30,3 +30,11 @@ Capturas en `/workspace/qa-main-verde/`: `before-1440.png`, `before-390.png`, `a
 Validación local: TypeScript frontend/backend; 1.923 pruebas frontend; 606 unitarias backend; 412 integraciones backend antes de agregar las dos regresiones de zona horaria; 15 checks PWA; suites PWA completas de los tres navegadores. Se ejecutaron los 312 casos E2E y se repitieron los fallidos y relacionados con dos workers, sin cambiar timeouts ni agregar skips. Los logs y resultados están en la misma carpeta de QA. Las omisiones por plataforma ya existían.
 
 La CI de PR y la corrida completa de main posterior al merge se registran en el PR y en la entrega final.
+
+## Seguimiento posterior al primer merge
+
+El PR #535 (`6fb919b`) pasó la CI rápida en 3m48s. La corrida completa [40001630845](https://github.com/Matitisco/iManager/actions/runs/40001630845) pasó los ocho shards E2E, backend, frontend y PWA de iPhone/Android. Escritorio detectó un aviso duplicado después de actualizar. La repetición local con el Chromium de Playwright falló 2/8 veces; el diagnóstico mostró `version.json` igual al build cargado y el guard de la actualización anterior en sessionStorage.
+
+Causa: un `controllerchange` tardío del nuevo worker se interpretaba como otra versión aunque el bundle actual ya estuviera cargado. Se consulta la versión al cambiar de controlador; si coincide, no se anuncia otra actualización. Una versión distinta o desconocida conserva las guardas y la confirmación existentes. La limpieza del efecto descarta respuestas tardías. Regresiones de componente cubren la versión actual, una versión nueva y el desmontaje durante la consulta. No se altera la expectativa E2E fallida ni se agregan skips/reintentos/timeouts.
+
+Validación del seguimiento: TypeScript frontend/backend; 17 pruebas relacionadas; suite frontend completa, 218 archivos / 1.944 pruebas; PWA completa, 57 aprobadas y 36 omisiones de plataforma preexistentes; 12/12 repeticiones del fallo con Chromium de Playwright. Sin cambios del E2E fallido ni de sus límites.
