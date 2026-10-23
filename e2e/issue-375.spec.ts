@@ -214,7 +214,7 @@ async function seed(page: Page, request: APIRequestContext, testInfo: TestInfo) 
   await product('iPhone 14', '128GB', '9901', 590);
 
   await page.reload();
-  await expect(page.getByTestId('nav-group-stock')).toBeVisible();
+  await expect(page.locator('aside.side').or(page.getByTestId('mobile-tab-bar'))).toBeVisible();
   return { clientId: juan.client.id };
 }
 

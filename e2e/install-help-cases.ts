@@ -148,8 +148,7 @@ export function installHelpTests(production = false, platforms: readonly ('andro
           await expect(page.getByRole('heading', { level: 1, name: 'Inventario', exact: true })).toBeVisible();
           await page.clock.runFor(400); await expect(banner).toHaveCount(0);
           for (const screen of ['sales', 'reports', 'more']) {
-            if (screen === 'reports') await page.getByTestId('sidebar-tab-more').click();
-            await page.getByTestId(`sidebar-tab-${screen}`).click();
+            await openDeskSection(page, screen);
             await page.clock.fastForward(31_000); await page.clock.runFor(400);
             await expect(banner).toHaveCount(0);
           }

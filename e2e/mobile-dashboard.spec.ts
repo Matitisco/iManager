@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, createSaleViaApi, createTradeInViaApi, acceptInvitationViaUi, updateStoreViaApi } from './utils';
 
@@ -158,8 +159,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
-    await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('more-screen').getByRole('button', { name: /Canjes/ }).click();
+    await openDeskSection(page, 'tradeins');
     await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await page.getByTestId('dashboard-bell').click();

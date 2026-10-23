@@ -58,7 +58,7 @@ test.describe('mobile tab indicator', () => {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/mobile-390-before.png` });
 
     await page.addStyleTag({ content: '.mtab-indicator { transition-duration: 1200ms !important; }' });
-    await openDeskSection(bar, 'sales');
+    await bar.getByTestId('sidebar-tab-sales').click();
     await expect(page).toHaveURL(/#\/comercial\/ventas/);
     await expect(indicator).toBeVisible();
     const started = await indicatorState(page);
