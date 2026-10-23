@@ -15,3 +15,11 @@ it('consulta días inclusivos argentinos y conserva la señal de cancelación', 
   expect(params.get('rangeKey')).toBe('custom');
   expect(api.apiRequest).toHaveBeenCalledWith(user, path, expect.objectContaining({ signal }));
 });
+
+it('consulta Total sin límites de fecha', async () => {
+  api.apiRequest.mockResolvedValue({ overview: {} });
+  const user = { uid: 'u', email: null, displayName: null, getIdToken: vi.fn() };
+  await fetchReportsOverview(user);
+  const path = api.apiRequest.mock.lastCall?.[1] as string;
+  expect(path).toBe('/api/reports/overview?rangeKey=all_time');
+});

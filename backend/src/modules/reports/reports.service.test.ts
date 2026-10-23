@@ -52,6 +52,9 @@ import {
 } from "./reports.service.js";
 
 describe("normalizeReportsOverviewInput", () => {
+  it("clears stale boundaries for Total", () => {
+    expect(normalizeReportsOverviewInput({ rangeKey: "all_time", startDate: "2026-10-01", endDate: "2026-10-22" })).toEqual({ rangeKey: "all_time", startDate: null, endDate: null });
+  });
   it("rejects custom ranges without both dates", () => {
     const error = (() => {
       try {
@@ -318,6 +321,26 @@ describe("getReportsOverview", () => {
       { start: "2026-10-02", label: "02/10/2026", revenue: 200, unitsSold: 1 },
     ]);
     expect(overview.comparison.revenueChange).toBeNull();
+  });
+
+  it("aggregates all historical sales by Argentine month with no date condition or previous query", async () => {
+    saleFindManyMock.mockResolvedValue([
+      { amount: 100, paymentMethod: "EFECTIVO", status: "COMPLETADA", soldAt: new Date("2025-12-01T02:59:59Z"), inventoryItem: { cost: 20 } },
+      { amount: 200, paymentMethod: "TARJETA", status: "COMPLETADA", soldAt: new Date("2026-01-01T03:00:00Z"), inventoryItem: { cost: 40 } },
+      { amount: 900, paymentMethod: "EFECTIVO", status: "PENDIENTE", soldAt: new Date("2026-02-01T12:00:00Z") },
+    ]);
+    const overview = await getReportsOverview("store-1", normalizeReportsOverviewInput({ rangeKey: "all_time" }));
+    expect(saleFindManyMock).toHaveBeenCalledTimes(1);
+    expect(saleFindManyMock.mock.calls[0][0].where).toEqual({ storeId: "store-1", voidedAt: null });
+    expect(overview.summary).toMatchObject({ revenue: 300, grossProfit: 240, unitsSold: 2, marginRate: 80 });
+    expect(overview.salesSeries).toEqual([
+      { start: "2025-11-01", label: "01/11/2025", revenue: 100, unitsSold: 1 },
+      { start: "2025-12-01", label: "01/12/2025", revenue: 0, unitsSold: 0 },
+      { start: "2026-01-01", label: "01/01/2026", revenue: 200, unitsSold: 1 },
+    ]);
+    expect(overview.paymentMethods.reduce((sum, method) => sum + method.revenue, 0)).toBe(300);
+    expect(overview.comparison).toMatchObject({ available: false, revenueChange: null, grossProfitChange: null, unitsChange: null });
+    expect(overview.filters).toEqual({ rangeKey: "all_time", startDate: null, endDate: null });
   });
 
   it("does not invent a previous period for the full history", async () => {

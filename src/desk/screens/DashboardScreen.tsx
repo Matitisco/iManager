@@ -1,14 +1,13 @@
 import { useAppContext } from '../../context/AppContext';
 import { FirstStepsIsland } from '../first-steps-island';
-import { DashboardContent } from './DashboardContent';
-import { NewAccountDashboard } from './NewAccountDashboard';
+import { DashboardContent, DashboardSkeleton } from './DashboardContent';
 
 export function DashboardScreen() {
-  const { appSession, gettingStarted } = useAppContext();
-  const newAccount = appSession?.store?.onboardingStartedAt || gettingStarted?.eligible;
+  const { appSession, backendStatus, sessionConfirmed, gettingStartedLoaded } = useAppContext();
+  if (backendStatus === 'checking' || sessionConfirmed === false || !appSession?.membership?.role || gettingStartedLoaded === false) return <DashboardSkeleton />;
   return (
     <>
-      {newAccount ? <NewAccountDashboard /> : <DashboardContent />}
+      <DashboardContent />
       <FirstStepsIsland />
     </>
   );

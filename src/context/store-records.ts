@@ -97,6 +97,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const [clientCategories, setClientCategories] = useState<ClientCategory[]>(() => remembered?.clientCategories ?? []);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [listsResolvedFor, setListsResolvedFor] = useState<string | null>(() => remembered ? `${user?.uid ?? ''}:${activeStoreAtStart ?? ''}` : null);
+  const [listsFetch, setListsFetch] = useState<{ scope: string; failed: boolean } | null>(null);
   const scopeRef = useRef('');
   const generation = useRef(0);
   const readTickets = useRef(new Map<string, number>());
@@ -225,7 +226,10 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       } catch (error) {
         if (cancelled) return;
         console.error('Backend list load failed.', error);
-        setListsResolvedFor(key);
+        if (scopeRef.current === currentScope) {
+          setListsResolvedFor(key);
+          setListsFetch({ scope: currentScope, failed: true });
+        }
         return;
       }
       if (cancelled) return;
@@ -267,6 +271,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       }
       if (tradesCurrent() && Array.isArray(tradesResult)) setTradeIns(tradesResult);
       setListsResolvedFor(key);
+      setListsFetch({ scope: currentScope, failed: [inventoryResult, salesResult, clientsResult, tradesResult].some(result => result === null) });
     };
     const finished = trackInitialRead();
     void load().finally(finished);
@@ -395,6 +400,9 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
   return {
     inventory, setInventory: scopedSetter(setInventory), listsLoaded,
+    // Cached lists may render immediately elsewhere. Dashboard waits for this batch.
+    listsSettled: listsFetch?.scope === currentScope,
+    listsLoadFailed: listsFetch?.scope === currentScope && listsFetch.failed,
     repairOrders, setRepairOrders: scopedSetter(setRepairOrders), repairOrdersError, setRepairOrdersError: scopedSetter(setRepairOrdersError),
     sales, setSales: scopedSetter(setSales),
     tradeIns, setTradeIns: scopedSetter(setTradeIns),

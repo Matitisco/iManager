@@ -13,6 +13,7 @@ export function useGettingStartedState(
 ) {
   const [progress, setProgress] = useState<GettingStartedProgress | null>(null);
   const scope = `${user?.uid ?? ""}:${storeId ?? ""}`;
+  const [settledScope, setSettledScope] = useState<string | null>(null);
   const current = useRef(scope);
   const requestVersion = useRef(0);
   const progressScope = useRef("");
@@ -25,10 +26,13 @@ export function useGettingStartedState(
       if (current.current === scope && requestVersion.current === version) {
         progressScope.current = scope;
         setProgress(next);
+        setSettledScope(scope);
       }
     } catch (cause) {
-      if (current.current === scope && requestVersion.current === version)
+      if (current.current === scope && requestVersion.current === version) {
+        setSettledScope(scope);
         console.warn("No se pudieron cargar tus primeros pasos.", cause);
+      }
     }
   }, [user, storeId, scope]);
   const update = useCallback(
@@ -39,6 +43,7 @@ export function useGettingStartedState(
       if (current.current === scope && requestVersion.current === version) {
         progressScope.current = scope;
         setProgress(next);
+        setSettledScope(scope);
       }
     },
     [user, storeId, scope],
@@ -51,6 +56,7 @@ export function useGettingStartedState(
   }, [refresh]);
   return {
     gettingStarted: progressScope.current === scope ? progress : null,
+    gettingStartedLoaded: settledScope === scope,
     refreshGettingStarted: refresh,
     updateGettingStarted: update,
   };

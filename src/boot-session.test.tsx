@@ -110,13 +110,13 @@ afterEach(() => {
 });
 
 describe('apertura de sesión', () => {
-  it('abre el shell con la caché y sin la pantalla de sesión segura', async () => {
+  it('abre el shell con la caché y reserva el Dashboard hasta confirmar sesión y consultas', async () => {
     signedIn();
     sessionFetch.mockReturnValue(new Promise(() => undefined));
     render(<App />);
-    expect(await screen.findByText('Hola, Ana')).toBeInTheDocument();
-    expect(screen.getByText('Venta guardada')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-trades')).toHaveTextContent('Canjes en curso1');
+    expect(await screen.findByTestId('dashboard-initial-loading')).toBeInTheDocument();
+    expect(screen.queryByText('Venta guardada')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dashboard-trades')).not.toBeInTheDocument();
     expect(screen.queryByText('Resolviendo sesión segura')).not.toBeInTheDocument();
     expect(screen.queryByText('Todavía no registraste ventas')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();

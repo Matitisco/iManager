@@ -66,10 +66,13 @@ describe('caché de listas por tienda', () => {
     const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
 
     expect(result.current.listsLoaded).toBe(true);
+    expect(result.current.listsSettled).toBe(false);
     expect(result.current.sales.map((item) => item.clientName)).toEqual(['Venta guardada']);
 
     await act(async () => { resolveSales([sale('fresh', 'Venta nueva')]); });
     await waitFor(() => expect(result.current.sales.map((item) => item.clientName)).toEqual(['Venta nueva']));
+    expect(result.current.listsSettled).toBe(true);
+    expect(result.current.listsLoadFailed).toBe(false);
     await waitFor(() => expect(readStoreLists('store-1')?.sales.map((item) => item.clientName)).toEqual(['Venta nueva']));
   });
 
@@ -84,6 +87,23 @@ describe('caché de listas por tienda', () => {
     await act(async () => { resolveSales([]); });
     await waitFor(() => expect(result.current.listsLoaded).toBe(true));
     expect(result.current.sales).toEqual([]);
+  });
+
+  it('espera todas las listas de red aunque haya caché y distingue una consulta fallida', async () => {
+    seed('store-1', 'Cache');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let resolveTrades!: (rows: []) => void;
+    vi.mocked(fetchBackendTradeIns).mockReturnValue(new Promise(resolve => { resolveTrades = resolve; }));
+    vi.mocked(fetchBackendInventory).mockRejectedValueOnce(new Error('offline'));
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: session, backendStatus: 'ready' }));
+    expect(result.current.listsLoaded).toBe(true);
+    expect(result.current.listsSettled).toBe(false);
+    await waitFor(() => expect(error).toHaveBeenCalled());
+    expect(result.current.listsSettled).toBe(false);
+    await act(async () => resolveTrades([]));
+    await waitFor(() => expect(result.current.listsSettled).toBe(true));
+    expect(result.current.listsLoadFailed).toBe(true);
+    error.mockRestore();
   });
 
   it('borra la caché de la tienda que se deja', async () => {

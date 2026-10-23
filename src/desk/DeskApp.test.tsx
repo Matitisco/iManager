@@ -90,7 +90,7 @@ describe('sidebar unread counts', () => {
     context.sectionChangesError = 'No se pudieron cargar las novedades.';
     window.location.hash = '#/dashboard';
     render(<DeskApp />);
-    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-initial-loading')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText(context.sectionChangesError)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
@@ -292,7 +292,7 @@ describe('sidebar unread counts', () => {
     expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
     await act(async () => { window.dispatchEvent(new Event('online')); });
     await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
-    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-initial-loading')).toBeInTheDocument();
   });
 
   it('shows the offline banner across the phone layout when onLine flips without an event, and clears it on Clientes while onLine stays false', async () => {

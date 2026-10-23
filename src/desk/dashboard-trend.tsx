@@ -1,8 +1,8 @@
 import { useId } from 'react';
 import type { ReportsOverview } from '../services/reports-api';
-import { dashboardTrend, type DashboardRange } from './dashboard-period';
+import { dashboardTrend, type DashboardPeriod } from './dashboard-period';
 
-export function DashboardTrend({ series, range, phone, format }: { series: ReportsOverview['salesSeries']; range: DashboardRange; phone: boolean; format: (amount: number) => string }) {
+export function DashboardTrend({ series, range, phone, format }: { series: ReportsOverview['salesSeries']; range: DashboardPeriod; phone: boolean; format: (amount: number) => string }) {
   const id = useId();
   const { buckets } = dashboardTrend(series, range);
   const width = phone ? 320 : 760;

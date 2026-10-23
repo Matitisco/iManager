@@ -18,7 +18,7 @@ vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 const views = { inventory: InventoryScreen, sales: SalesScreen, tradeins: TradeInsScreen, clients: ClientsScreen };
 const originalMedia = window.matchMedia;
 const versions = ['1', '2'].map(id => ({ id, updatedAt: '2026-10-22T12:00:00.000Z' }));
-const day = new Date().toISOString().slice(0, 10);
+const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 beforeEach(() => {
   vi.clearAllMocks();
