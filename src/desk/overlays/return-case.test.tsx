@@ -161,20 +161,28 @@ describe('rediseño aprobado de reclamos', () => {
       await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Borrador');
       await userEvent.click(trigger);
       const history = screen.getByRole('dialog', { name: 'Historial · RMA-0001' });
-      expect(history).toHaveClass('return-history-sheet', 'hist-screen');
+      expect(history.className).toBe('sheet sheet-frame return-history-sheet');
       expect(history.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
+      expect(within(history).queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
+      expect(history.querySelector('.wback')).not.toBeInTheDocument();
+      const header = history.querySelector<HTMLElement>('.sheet-h')!;
+      const closeHistory = within(header).getByRole('button', { name: 'Cerrar' });
+      expect(closeHistory).toHaveClass('modal-x');
       expect(within(history).getAllByRole('listitem')).toHaveLength(2);
       expect(within(history).getAllByRole('listitem')[0]).toHaveTextContent('Revisar batería.');
       expect(history.querySelector('time')).toHaveAttribute('datetime', '2026-10-22T15:00:00Z');
       expect(within(history).getByText('Ingresó el reclamo.')).toBeInTheDocument();
       if (phone) {
-        expect(within(history).queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
-        expect(within(history).getByRole('button', { name: 'Volver' })).toHaveClass('wback');
-        await userEvent.click(within(history).getByRole('button', { name: 'Volver' }));
+        expect(history.querySelector('.sheet-grab')).toBeInTheDocument();
+        expect(history.querySelector('.sheet-foot')).not.toBeInTheDocument();
+        await userEvent.click(closeHistory);
       } else {
-        await userEvent.keyboard('{Escape}');
+        expect(history.querySelector('.sheet-grab')).not.toBeInTheDocument();
+        const footer = history.querySelector<HTMLElement>('.sheet-foot')!;
+        await userEvent.click(within(footer).getByRole('button', { name: 'Cerrar' }));
       }
       expect(screen.queryByRole('dialog', { name: 'Historial · RMA-0001' })).not.toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' })).toBe(parent);
       expect(within(parent).getByLabelText('Nota de seguimiento')).toHaveValue('Borrador');
       await waitFor(() => expect(trigger).toHaveFocus());
       expect(close).not.toHaveBeenCalled();
