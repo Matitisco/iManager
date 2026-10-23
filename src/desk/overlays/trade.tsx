@@ -3,6 +3,7 @@ import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { parseDeviceCode } from '../../lib/device-scan';
+import { useModelAutofill } from '../scan/use-model-autofill';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { createWedgeBuffer } from '../../lib/keyboard-wedge';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -41,6 +42,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
   const [clientId, setClientId] = useState(trade.clientId || '');
   const [buyer, setBuyer] = useState(trade.clientName || clients.find((client) => client.id === trade.clientId)?.name || '');
   const [received, setReceived] = useState(trade.deviceReceived || '');
+  const { editModel: editReceived, fillModel: fillReceived } = useModelAutofill(received, setReceived);
   const [imei, setImei] = useState(trade.deviceReceivedImei || '');
   const [given, setGiven] = useState(trade.deviceGiven || '');
   const [take, setTake] = useState(money.inputValue(trade.takeValue, trade.currency) || '0');
@@ -88,9 +90,9 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
         onValue={(value) => { setBuyer(value); setClientId(''); clearBad(setBad, 'client'); }}
         onPick={(client) => { setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }} />
       <div className="frow">
-        <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { setReceived(event.target.value); clearBad(setBad, 'received'); }} /></Field>
+        <Field label="Equipo que recibís" error={bad.received}><input value={received} onChange={(event) => { editReceived(event.target.value); clearBad(setBad, 'received'); }} /></Field>
         <div className="scan-imei">
-          <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+          <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { const value = event.target.value.replace(/\D/g, '').slice(0, 15); setImei(value); fillReceived(value); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
             const pushed = wedge.current.push(event.key);
             if (pushed.type !== 'scan') return;
             event.preventDefault();
@@ -98,7 +100,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
             if (!parsed.imei) return;
             confirmScan();
             setImei(parsed.imei);
-            if (parsed.model && !received.trim()) setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' '));
+            fillReceived(parsed.imei, [parsed.model, parsed.capacity].filter(Boolean).join(' '));
           }} /></Field>
           <ScanCameraButton onClick={() => setCamera(true)} />
         </div>
@@ -113,7 +115,7 @@ function LegacyTradeForm({ trade, run, busy, error }: FormProps & { trade: Trade
       <QualityField label="Calidad del recibido" value={grade} onChange={setGrade} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
     </Sheet>
-    {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={(parsed) => { setCamera(false); if (!parsed.imei) return; confirmScan(); setImei(parsed.imei); if (parsed.model && !received.trim()) setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }} /> : null}
+    {camera ? <CameraScanner onClose={() => setCamera(false)} onManual={() => setCamera(false)} onUse={(parsed) => { setCamera(false); if (!parsed.imei) return; confirmScan(); setImei(parsed.imei); fillReceived(parsed.imei, [parsed.model, parsed.capacity].filter(Boolean).join(' ')); }} /> : null}
     </>
   );
 }

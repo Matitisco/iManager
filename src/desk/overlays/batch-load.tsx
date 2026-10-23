@@ -1,5 +1,6 @@
+import { autofillImeiSpecs } from '../../lib/report-unknown-tac';
 import { toActionMessage } from '../../lib/user-message';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { extractImeiLoose, parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
 import { imeiPassesLuhn } from '../../lib/imei';
@@ -79,6 +80,7 @@ export function BatchLoad() {
   const { close, toast } = useDesk();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const [shared, setShared] = useState<Shared>(EMPTY_SHARED);
+  const modelTouched = useRef(false);
   const [editing, setEditing] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [camera, setCamera] = useState(false);
@@ -116,9 +118,10 @@ export function BatchLoad() {
       setError('El código no trae un IMEI de 15 dígitos.');
       return;
     }
+    autofillImeiSpecs(imei);
     setError(null);
     setEntry('');
-    setShared((current) => current.model.trim() || !parsed.model ? current : {
+    setShared((current) => modelTouched.current || current.model.trim() || !parsed.model ? current : {
       ...current,
       model: parsed.model ?? '',
       capacity: parsed.capacity ?? current.capacity,
@@ -222,7 +225,7 @@ export function BatchLoad() {
             </div>
             {editing ? (
               <>
-                <Field label="Modelo"><input aria-label="Modelo de la serie" list="batch-models" value={shared.model} placeholder="Ej. iPhone 13" onChange={(event) => setShared((current) => ({ ...current, model: event.target.value }))} /></Field>
+                <Field label="Modelo"><input aria-label="Modelo de la serie" list="batch-models" value={shared.model} placeholder="Ej. iPhone 13" onChange={(event) => { modelTouched.current = true; setShared((current) => ({ ...current, model: event.target.value })); }} /></Field>
                 <datalist id="batch-models">{MODELS.map((item) => <option key={item} value={item} />)}</datalist>
                 <Segs options={BASE_CAPS.map((item) => ({ id: item, label: item }))} value={shared.capacity} onChange={(capacity) => setShared((current) => ({ ...current, capacity }))} allowClear />
                 <Field label="Color"><input aria-label="Color de la serie" value={shared.color} placeholder="Ej. Medianoche" onChange={(event) => setShared((current) => ({ ...current, color: event.target.value }))} /></Field>

@@ -1,4 +1,6 @@
 import { parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
+import { lookupPartNumber } from '../../lib/apple-part-numbers';
+import { autofillImeiSpecs } from '../../lib/report-unknown-tac';
 
 export type ScanFieldKey = 'model' | 'capacity' | 'color' | 'imei' | 'serial' | 'partNumber';
 
@@ -31,6 +33,7 @@ export function draftFromCode(
   parsed: ParsedDeviceCode,
   carry?: Partial<Pick<ScanDraft, 'battery' | 'condition' | 'price' | 'cost' | 'notes'>>,
 ): ScanDraft {
+  if (parsed.imei) autofillImeiSpecs(parsed.imei);
   return {
     imei: parsed.imei ?? '',
     serial: parsed.serial ?? '',
@@ -60,7 +63,16 @@ export function draftFromImei(imei: string): ScanDraft {
 }
 
 export function boxLabel(draft: ScanDraft) {
-  return draft.detected.partNumber || draft.detected.serial || draft.detected.model;
+  return draft.detected.partNumber || draft.detected.serial;
+}
+
+export function editScanField(draft: ScanDraft, key: ScanFieldKey, value: string): ScanDraft {
+  const next = { ...draft, [key]: value, touched: { ...draft.touched, [key]: true } };
+  const specs = key === 'imei' ? autofillImeiSpecs(value) : null;
+  if (key !== 'imei' || draft.touched.model || (draft.model.trim() && !draft.detected.model)) return next;
+  const model = lookupPartNumber(draft.partNumber)?.model ?? specs?.model;
+  if (!model) return next;
+  return { ...next, model, detected: { ...next.detected, model: true } };
 }
 
 export function detectedWasEdited(draft: ScanDraft) {

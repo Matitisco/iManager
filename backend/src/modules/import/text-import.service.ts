@@ -62,7 +62,8 @@ const responseSchema = z.object({
 });
 
 export function normalizeTextModel(raw: string, catalog: string[] = INVENTORY_MODELS): { model: string; matched: boolean } {
-  const fold = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const samsung = /^samsung\s+galaxy\b/i.test(raw.trim());
+  const fold = (value: string) => value.toLowerCase().replace(samsung ? /[^a-z0-9+]/g : /[^a-z0-9]/g, '');
   const expanded = raw.trim().replace(/^(?:iphone\s*)?(\d{1,2})\s*(pm|pro\s*max)$/i, 'iPhone $1 Pro Max').replace(/^(?:iphone\s*)?(\d{1,2})\s*p$/i, 'iPhone $1 Pro').replace(/^(\d{1,2})(\s+(?:pro(?:\s+max)?|mini|plus))?$/i, 'iPhone $1$2');
   const canonical = catalog.find((model) => fold(model) === fold(expanded));
   return { model: canonical ?? expanded, matched: Boolean(canonical) };

@@ -1,3 +1,5 @@
+import { SAMSUNG_MODELS } from './samsung-models.js';
+
 /** Shared suggestion catalog for equipment forms and server-side import normalization. */
 export const INVENTORY_MODELS = [
   'iPhone SE', 'iPhone X', 'iPhone XR', 'iPhone XS', 'iPhone XS Max',
@@ -6,4 +8,6 @@ export const INVENTORY_MODELS = [
     ...([12, 13].includes(n) ? [`iPhone ${n} mini`] : []),
     ...([14, 15, 16].includes(n) ? [`iPhone ${n} Plus`] : []),
   ]),
+  'iPhone 16e', 'iPhone Air',
+  ...SAMSUNG_MODELS,
 ];
