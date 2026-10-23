@@ -49,6 +49,14 @@
   .desk-app:has(.dashboard-screen) .steps-panel { bottom: max(102px, calc(env(safe-area-inset-bottom, 0px) + 70px)); }
 }
 @media (max-width: 760px) {
+  .dashboard-screen .dstats { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 12px; }
+  .dashboard-screen .dstat { display: grid; grid-template-rows: 18px 1fr 22px; gap: 8px; padding: 14px; }
+  .dashboard-screen .dstat .eb { margin: 0; line-height: 18px; }
+  .dashboard-screen .dstat .big { min-width: 0; margin: 0; align-self: center; font-size: clamp(18px, 5vw, 24px); line-height: 1.2; white-space: nowrap; }
+  .dashboard-screen .dstat .big .mut { font-size: 11px; }
+  .dashboard-screen .dashboard-kpi-value { white-space: nowrap; }
+  .dashboard-kpi-footer { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-width: 0; }
+  .dashboard-kpi-footer .budget { flex: 1; margin: 0; }
   .dashboard-month-nav { display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--border); background: var(--card); border-radius: 14px; min-height: 42px; margin-bottom: 14px; padding: 0 4px; }
   .dashboard-month-nav button { min-width: 40px; min-height: 40px; display: grid; place-items: center; font-size: 15px; font-weight: 600; }
   .dashboard-month-nav button:nth-child(2) { flex: 1; }
