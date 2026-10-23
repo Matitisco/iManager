@@ -1,7 +1,7 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { DeskContext } from './desk-context';
-import { pageTabs, sectionPending, pendingDescription, type PendingInput } from './nav';
+import { groupOf, pageTabs, sectionPending, pendingDescription, type PendingInput } from './nav';
 import type { DeskTab } from './types';
 
 const PendingContext = createContext<PendingInput | null>(null);
@@ -17,15 +17,20 @@ function GroupTabsOn({ pending, tab, go, labels, showPending = true }: { pending
   const sections = appSession?.membership?.sections;
   const role = appSession?.membership?.role;
   const tabs = pageTabs(tab, sections, role);
+  const summaryTab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (tab === 'periodicSummary') summaryTab.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [tab]);
   if (tabs.length < 2) return null;
   return (
-    <div className="wchips nav-tabs" role="tablist" aria-label="Secciones del grupo">
+    <div className={`wchips nav-tabs${groupOf(tab) === 'analisis' ? ' periodic-report-tabs' : ''}`} role="tablist" aria-label="Secciones del grupo">
       {tabs.map((item) => {
         const count = sectionPending(item.id, pending);
         const on = item.id === tab;
         return (
           <button
             key={item.id}
+            ref={item.id === 'periodicSummary' ? summaryTab : undefined}
             type="button"
             role="tab"
             aria-selected={on}

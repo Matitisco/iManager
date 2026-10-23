@@ -44,6 +44,7 @@ describe('sidebar unread counts', () => {
     context.sectionChangesError = '';
     context.sectionChanges = {};
     context.viewSection = undefined;
+    context.loadCommissions = undefined;
     window.matchMedia = originalMatchMedia;
     context.appSession.membership.role = 'OWNER';
     context.appSession.membership.sections = null;
@@ -85,6 +86,45 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it.each([390, 1440])('conserva el resumen periódico en todas las transiciones de Análisis a %spx', async width => {
+    if (width === 390) usePhone();
+    context.loadCommissions = vi.fn(async () => undefined);
+    const paths = {
+      reports: 'reportes', commissions: 'comisiones', history: 'historial', periodicSummary: 'resumen-periodico',
+    };
+    window.location.hash = '#/analisis/reportes';
+    render(<DeskApp />);
+    for (const [source, path] of Object.entries(paths)) {
+      for (const [target, targetPath] of Object.entries(paths)) {
+        if (source === target) continue;
+        goHash(`#/analisis/${path}`);
+        expect(screen.getByTestId('group-tab-periodicSummary')).toHaveTextContent('Resumen periódico');
+        fireEvent.click(screen.getByTestId(`group-tab-${target}`));
+        await waitFor(() => expect(screen.getByTestId(`group-tab-${target}`)).toHaveAttribute('aria-selected', 'true'));
+        expect(window.location.hash).toBe(`#/analisis/${targetPath}`);
+        expect(screen.getAllByRole('tab', { selected: true })).toHaveLength(1);
+        expect(screen.getByTestId('group-tab-periodicSummary')).toBeInTheDocument();
+        expect(Boolean(document.querySelector('.periodic-summary'))).toBe(target === 'periodicSummary');
+      }
+    }
+    // El mismo hash debe restaurar el contenido después de desmontar la aplicación.
+    goHash('#/analisis/resumen-periodico');
+    cleanup();
+    render(<DeskApp />);
+    expect(screen.getByTestId('group-tab-periodicSummary')).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('.periodic-summary')).toBeInTheDocument();
+  });
+
+  it.each([false, true])('protege la ruta del resumen con el permiso Reportes (habilitado=%s)', granted => {
+    context.appSession.membership.role = 'STAFF';
+    context.appSession.membership.sections = granted ? ['reports'] : [];
+    window.location.hash = '#/analisis/resumen-periodico';
+    render(<DeskApp />);
+    expect(Boolean(screen.queryByTestId('no-section-access'))).toBe(!granted);
+    expect(Boolean(screen.queryByTestId('group-tab-periodicSummary'))).toBe(granted);
+    expect(Boolean(document.querySelector('.periodic-summary'))).toBe(granted);
+  });
 
   it('shows the dashboard without an alert when loading section changes fails', () => {
     context.sectionChangesError = 'No se pudieron cargar las novedades.';

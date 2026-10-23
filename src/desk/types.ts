@@ -18,6 +18,7 @@ export type DeskTab =
   | 'returns'
   | 'expenses'
   | 'reports'
+  | 'periodicSummary'
   | 'history'
   | 'notifications'
   | 'settings'

@@ -437,7 +437,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'cash' && <CashScreen />}
             {tab === 'expenses' && <ExpensesScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
-            {tab === 'reports' && <ReportsScreen />}
+            {(tab === 'reports' || tab === 'periodicSummary') && <ReportsScreen />}
             {tab === 'history' && <HistoryScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'billing' && <BillingScreen key={appSession?.store?.id} />}
