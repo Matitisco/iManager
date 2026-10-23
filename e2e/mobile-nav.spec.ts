@@ -119,8 +119,12 @@ test.describe('phone navigation', () => {
       await page.goto('/#/returns?view=patterns');
       await expect(page).toHaveURL(/#\/analisis\/patrones$/);
       await expect(page.getByRole('heading', { name: 'Patrones', exact: true })).toBeVisible();
-      await expect(page.getByTestId('patterns-empty')).toBeVisible();
-      await expect(page.getByRole('group', { name: 'Agrupar' })).toBeVisible();
+      for (const name of ['Proveedor', 'Compra', 'Modelo']) {
+        const section = page.getByRole('region', { name, exact: true });
+        await expect(section.getByRole('heading', { name })).toBeVisible();
+        await expect(section.getByTestId('patterns-empty')).toBeVisible();
+      }
+      await expect(page.getByRole('group', { name: 'Agrupar' })).toHaveCount(0);
       if (width === 390) await page.getByTestId('sidebar-tab-more').click();
       const menu = page.getByRole('navigation', { name: 'Navegación principal' });
       for (const group of ['comercial', 'stock', 'atencion', 'finanzas', 'analisis', 'cuenta']) {
