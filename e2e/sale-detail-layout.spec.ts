@@ -136,7 +136,7 @@ for (const device of [
           else await page.getByRole('row').filter({ hasText: code }).click();
         } else if (path === 'dashboard') {
           const recent = page.getByTestId('dashboard-sales');
-          await recent.getByRole('button').filter({ hasText: code }).first().click();
+          await recent.getByRole(device.phone ? 'button' : 'row').filter({ hasText: code }).first().click();
         } else await page.getByRole('button', { name: /Venta registrada/ }).click();
         const detail = page.getByRole('dialog', { name: code });
         await expectSharedLayout(page, detail, tradeActions, true);

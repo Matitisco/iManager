@@ -20,7 +20,7 @@ describe('cuenta nueva', () => {
     renderDashboard();
     await screen.findAllByText('$ 0');
     expect(screen.getByRole('heading', { name: '¿Qué hay para hoy?' })).toBeVisible();
-    expect(document.querySelectorAll('.dashboard-kpi')).toHaveLength(4);
+    expect(document.querySelectorAll('.dstat')).toHaveLength(4);
     expect(screen.getByText('Todavía no hay ventas este mes')).toBeVisible();
     expect(screen.getByText('Sin ventas este mes')).toBeVisible();
     expect(screen.getByText('Todavía no registraste ventas')).toBeVisible();
@@ -36,7 +36,7 @@ describe('cuenta nueva', () => {
     renderDashboard();
     await screen.findAllByText('$ 0');
     const stock = screen.getByRole('button', { name: /Stock disponible/ });
-    expect(stock).toHaveTextContent('1de 2');
+    expect(stock).toHaveTextContent('1 de 2');
     expect(screen.getByRole('meter', { name: 'Stock disponible' })).toHaveAttribute('aria-valuenow', '1');
     expect(within(stock).queryByLabelText(/Variación/)).toBeNull();
   });

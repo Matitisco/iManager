@@ -172,7 +172,7 @@ test('lays the row action sheet over the phone footer and keeps the desktop menu
   await expect(page.locator('.side')).toBeVisible();
 
   const desktopTargets: { id: string; heading: string | RegExp; row: string }[] = [
-    { id: 'dashboard', heading: /Qué hay para/, row: '[data-testid="dashboard-sales"] .dashboard-sale-row' },
+    { id: 'dashboard', heading: /Qué hay para/, row: '[data-testid="dashboard-sales"] tbody tr' },
     { id: 'inventory', heading: 'Inventario', row: '.dtable tbody tr' },
     { id: 'sales', heading: 'Ventas', row: '.dtable tbody tr' },
     { id: 'tradeins', heading: 'Canjes', row: '.dtable tbody tr' },

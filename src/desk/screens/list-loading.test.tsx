@@ -80,8 +80,9 @@ describe('listas en carga', () => {
     phone();
     context.listsLoaded = false;
     desk(<DashboardContent />);
-    expect(screen.getByTestId('dashboard-sales-loading')).toHaveClass('rows');
-    expect(screen.getByTestId('dashboard-trades')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('dashboard-sales-loading').querySelectorAll('.phone-row')).toHaveLength(4);
+    expect(screen.queryByTestId('dashboard-trades')).toBeNull();
+    expect(screen.getByRole('link', { name: /Contanos/ })).toBeVisible();
     expect(screen.queryByText('Todavía no registraste ventas')).not.toBeInTheDocument();
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();
   });

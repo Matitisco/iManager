@@ -61,23 +61,46 @@ describe('Dashboard aprobado', () => {
   it('usa overview para los cuatro KPI, porcentajes y gráficos, sin el flujo anterior', async () => {
     renderScreen();
     expect(await screen.findByText('$ 12,69M')).toBeVisible();
-    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('$ 3,42M27%');
+    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('$ 3,42M 27%');
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('15');
     expect(screen.getByRole('button', { name: /Stock disponible/ })).toHaveTextContent('0');
     expect(screen.getAllByLabelText(/Variación.*18%/)).toHaveLength(2);
     expect(screen.getByRole('img', { name: 'Ventas del período' })).toBeVisible();
     expect(screen.getByText('Efectivo')).toBeVisible();
     expect(screen.queryByText('Flujo sugerido')).toBeNull();
-    expect(document.querySelectorAll('.dashboard-kpi')).toHaveLength(4);
+    expect(document.querySelectorAll('.dstat')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: 'Mes anterior' })).toBeNull();
     expect(api.fetchReportsOverview).toHaveBeenCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
     expect(api.listMembers).toHaveBeenCalledWith(context.user, 'store-1');
   });
 
+  it.each([false, true])('Contanos reutiliza el bento oscuro y abre WhatsApp sin subtítulo (celular: %s)', async phone => {
+    if (phone) phoneMedia();
+    let resolve!: (data: ReportsOverview) => void;
+    api.fetchReportsOverview.mockReturnValueOnce(new Promise(done => { resolve = done; }));
+    renderScreen();
+    const contact = screen.getByRole('link', { name: /¿Encontraste un error o tenés una idea\?\s*Contanos/ });
+    expect(contact).toHaveClass('commission-hero', 'v3-contact');
+    expect(contact).toHaveAttribute('href', 'https://wa.me/5491141722188');
+    expect(contact).toHaveAttribute('target', '_blank');
+    expect(contact).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(contact.textContent).toBe('¿Encontraste un error o tenés una idea?Contanos');
+    expect(contact.querySelectorAll('p, small, .sub')).toHaveLength(0);
+    expect(contact.querySelector('.btn2.l svg path')).toHaveAttribute('fill', 'currentColor');
+    expect(contact.parentElement?.lastElementChild).toBe(contact);
+    if (!phone) expect(contact.previousElementSibling).toHaveTextContent('Saldos a cobrar');
+    const loading = screen.getByTestId('dashboard-sales-loading');
+    expect(loading.querySelectorAll(phone ? '.phone-row' : 'tbody tr')).toHaveLength(phone ? 4 : 5);
+    expect(screen.queryByText(/Cargando…|Reintentar/)).toBeNull();
+    await act(async () => resolve(report));
+    expect(screen.getByRole('link', { name: /Contanos/ })).toBe(contact);
+    expect(screen.queryByTestId('dashboard-sales-loading')).toBeNull();
+  });
+
   it('oculta las finanzas sin consultar overview cuando falta permiso', async () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     renderScreen();
-    expect(screen.queryByRole('button', { name: /Ventas del mes|Margen bruto/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ventas|Margen bruto/ })).toBeNull();
     expect(screen.queryByText('Tendencia de ventas')).toBeNull();
     expect(screen.queryByText('Medios de pago')).toBeNull();
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
@@ -99,7 +122,7 @@ describe('Dashboard aprobado', () => {
     api.fetchReportsOverview.mockRejectedValue(new Error('403'));
     renderScreen();
     expect(await screen.findAllByText('No se pudo consultar el período')).toHaveLength(2);
-    expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('—');
     expect(screen.queryByText(/Reintentar|Cargando…/)).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -107,10 +130,10 @@ describe('Dashboard aprobado', () => {
   it.each([NETWORK_ERROR_MESSAGE, 'Failed to fetch'])('oculta fallos de red sin mensajes ni vacíos sustitutos: %s', async (message) => {
     api.fetchReportsOverview.mockRejectedValue(new TypeError(message));
     renderScreen();
-    await waitFor(() => expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveAttribute('aria-busy', 'false'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveAttribute('aria-busy', 'false'));
     expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Todavía no hay ventas|Sin ventas/)).toBeNull();
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
-    expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('—');
   });
 
   it('oculta los mensajes del período mientras el backend está desconectado', () => {
@@ -132,12 +155,12 @@ describe('Dashboard aprobado', () => {
     await user.click(screen.getByRole('button', { name: 'Total' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, undefined, undefined, expect.any(AbortSignal));
-    expect(screen.getByRole('button', { name: /Ventas totales/ })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('$ 12,69M')).toBeNull();
     expect(screen.queryByText('Histórica')).toBeNull();
     expect(screen.queryByLabelText(/Variación/)).toBeNull();
     await act(async () => reject(new TypeError('Failed to fetch')));
-    expect(screen.getByRole('button', { name: /Ventas totales/ })).toHaveTextContent('—');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('—');
     expect(screen.getByText('Histórica')).toBeVisible();
     expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Cargando…|Reintentar/)).toBeNull();
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty, .dtop .sub')).toBeNull();
@@ -176,7 +199,7 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales'] };
     view.rerender(dashboardView());
     await act(async () => resolvers[1](report));
-    expect(screen.queryByRole('button', { name: /Ventas del mes/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Ventas/ })).toBeNull();
   });
 
   it('en celular conserva CTA, mes y ventas clicables con accesos reales', async () => {
@@ -195,16 +218,16 @@ describe('Dashboard aprobado', () => {
     expect(recent).toHaveTextContent('Ana Pérez');
     expect(recent).toHaveTextContent('Pixel 8 128GB');
     expect(within(recent).queryByRole('table')).toBeNull();
-    expect(recent.querySelector('.dashboard-sale-avatar')).toHaveTextContent('AP');
+    expect(recent.querySelector('.sale-who .av-c')).toBeInTheDocument();
+    expect(recent).toHaveTextContent('#V-0004 · 22/10/2026');
+    expect(recent).toHaveTextContent('Efectivo');
     expect(recent).toHaveTextContent('$ 650.000');
     await user.click(within(recent).getByRole('button', { name: /Ana Pérez.*Pixel 8/ }));
     expect(open).toHaveBeenCalledWith({ type: 'sale', id: 'sale-1' });
     await user.click(within(recent).getByRole('button', { name: 'Más acciones' }));
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ type: 'ctx', kind: 'sale', id: 'sale-1' }));
-    await user.click(screen.getByTestId('dashboard-trades'));
-    expect(go).toHaveBeenCalledWith('tradeins');
-    await user.click(screen.getByRole('button', { name: /Saldos a cobrar/ }));
-    expect(go).toHaveBeenCalledWith('clients');
+    expect(screen.queryByTestId('dashboard-trades')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Saldos a cobrar/ })).toBeNull();
     await user.click(screen.getByTestId('dashboard-bell'));
     expect(go).toHaveBeenCalledWith('notifications');
     await user.click(screen.getByRole('button', { name: 'Mes anterior' }));
@@ -232,7 +255,7 @@ describe('Dashboard aprobado', () => {
     context.gettingStartedLoaded = true; rerender();
     expect(api.fetchReportsOverview).not.toHaveBeenCalled();
     const noPartial = () => {
-      for (const label of [/Stock disponible/, /Canjes en curso/, /Saldos a cobrar/, /Equipos vendidos/, /Ventas del mes/]) {
+      for (const label of [/Stock disponible/, /Canjes en curso/, /Saldos a cobrar/, /Equipos vendidos/, /^Ventas/]) {
         const card = screen.getByRole('button', { name: label });
         expect(card).toHaveAttribute('aria-busy', 'true');
         expect(card.textContent).not.toMatch(/\d/);
@@ -250,7 +273,7 @@ describe('Dashboard aprobado', () => {
     noPartial();
     await act(async () => resolve(report));
     expect(await screen.findByText('$ 12,69M')).toBeVisible();
-    expect(screen.getByRole('button', { name: /Stock disponible/ })).toHaveTextContent('1de 1');
+    expect(screen.getByRole('button', { name: /Stock disponible/ })).toHaveTextContent('1 de 1');
     expect(screen.getByText('Cliente listo')).toBeVisible();
   });
 
@@ -266,7 +289,7 @@ describe('Dashboard aprobado', () => {
     expect(await screen.findByText('Histórica')).toBeVisible();
     expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, undefined, undefined, expect.any(AbortSignal));
     expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
-    expect(screen.getByRole('button', { name: /Ventas totales/ })).toHaveTextContent('$ 12,69M');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 12,69M');
     expect(screen.queryByLabelText(/Variación/)).toBeNull();
   });
 
@@ -282,25 +305,33 @@ describe('Dashboard aprobado', () => {
     ];
     renderScreen(); await screen.findByText('$ 12,69M');
     const recent = screen.getByTestId('dashboard-sales');
-    const rows = Array.from(recent.querySelectorAll('.dashboard-sale-row'));
-    expect(rows.map(row => row.querySelector('.dashboard-sale-person > b')?.textContent)).toEqual(['Última', 'Pendiente', 'Anulada', 'Primera']);
+    const rows = Array.from(recent.querySelectorAll('tbody tr'));
+    expect(rows.map(row => row.querySelector('td:nth-child(2)')?.textContent)).toEqual(['Última', 'Pendiente', 'Anulada', 'Primera']);
     expect(rows[2]).toHaveClass('is-void');
     expect(screen.queryByText(/Fuera/)).toBeNull();
-    const row = within(recent).getByRole('button', { name: /Última/ });
+    const row = within(recent).getByRole('row', { name: /Última/ });
     await user.click(row);
     expect(open).toHaveBeenCalledWith({ type: 'sale', id: 'last' });
     fireEvent.contextMenu(row, { clientX: 10, clientY: 10 });
     expect(open).toHaveBeenCalledWith(expect.objectContaining({ type: 'ctx', kind: 'sale', id: 'last' }));
   });
 
-  it.each([false, true])('conserva el límite de ventas recientes de #512 (celular: %s)', async phone => {
+  it.each([false, true])('muestra cinco ventas en tabla o cuatro phone-rows (celular: %s)', async phone => {
     if (phone) phoneMedia();
     context.sales = Array.from({ length: 7 }, (_, index) => makeSale(`s-${index}`, `2026-10-${22 - index}`, `Cliente ${index}`));
     renderScreen();
     await screen.findByText('$ 12,69M');
     const recent = screen.getByTestId('dashboard-sales');
-    expect(recent.querySelectorAll('.dashboard-sale-row')).toHaveLength(phone ? 4 : 5);
-    expect(within(recent).queryByRole('table')).toBeNull();
+    expect(recent.querySelectorAll(phone ? '.phone-row' : 'tbody tr')).toHaveLength(phone ? 4 : 5);
+    expect(within(recent).getByRole('heading', { name: 'Ventas' })).toBeVisible();
+    expect(within(recent).getByRole('button', { name: 'Ver todas' })).toBeVisible();
+    if (phone) {
+      expect(within(recent).queryByRole('table')).toBeNull();
+      expect(recent.querySelector('.phone-rows')).toBeInTheDocument();
+    } else {
+      expect(within(recent).getByRole('table')).toHaveClass('dtable', 'compact');
+      expect(within(recent).getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Venta', 'Cliente', 'Equipo', 'Total', 'Estado']);
+    }
     expect(within(recent).queryByText('Cliente 5')).toBeNull();
   });
 
@@ -315,7 +346,7 @@ describe('Dashboard aprobado', () => {
     const trades = screen.getByTestId('dashboard-trades');
     const balances = screen.getByRole('button', { name: /Saldos a cobrar/ });
     const stable = [stock, trades, balances].map(card => card.textContent);
-    expect(stable).toEqual(['Stock disponible1de 2', 'Canjes en curso1', 'Saldos a cobrar$ 250']);
+    expect(stable).toEqual(['Stock disponible1 de 2', 'Canjes en curso1', 'Saldos a cobrar$ 250']);
     let resolve!: (data: ReportsOverview) => void;
     api.fetchReportsOverview.mockReturnValueOnce(new Promise(done => { resolve = done; }));
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
@@ -333,8 +364,8 @@ describe('Dashboard aprobado', () => {
       salesSeries: [{ label: '', start: '2026-10-22', revenue: 1000, unitsSold: 1 }],
       paymentMethods: [{ label: 'Tarjeta', revenue: 1000, count: 1, share: 100 }],
     }));
-    expect(screen.getByRole('button', { name: /Ventas del período/ })).toHaveTextContent('$ 1.000');
-    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('$ 25025%');
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 1.000');
+    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('$ 250 25%');
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('1');
     expect(screen.getByText('Tarjeta')).toBeVisible();
     expect(screen.queryByText('Efectivo')).toBeNull();
@@ -374,7 +405,7 @@ describe('Dashboard aprobado', () => {
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     await user.click(screen.getByRole('button', { name: 'Total' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
-    await screen.findByRole('button', { name: /Ventas totales/ });
+    await screen.findByRole('button', { name: /^Ventas/ });
     const calls = api.fetchReportsOverview.mock.calls.length;
     context.gettingStarted = { eligible: true };
     view.rerender(dashboardView());
@@ -396,12 +427,12 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     context.gettingStartedLoaded = false;
     const view = renderScreen();
-    expect(document.querySelectorAll('.dashboard-kpi')).toHaveLength(2);
-    expect(document.querySelector('.dashboard-chart-row')).toBeNull();
+    expect(document.querySelectorAll('.dstat')).toHaveLength(2);
+    expect(document.querySelector('.v3-stretch')).toBeNull();
     context.gettingStartedLoaded = true;
     view.rerender(dashboardView());
-    expect(document.querySelectorAll('.dashboard-kpi')).toHaveLength(2);
-    expect(document.querySelector('.dashboard-chart-row')).toBeNull();
+    expect(document.querySelectorAll('.dstat')).toHaveLength(2);
+    expect(document.querySelector('.v3-stretch')).toBeNull();
     expect(api.fetchReportsOverview).not.toHaveBeenCalled();
   });
 
