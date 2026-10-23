@@ -124,3 +124,16 @@ describe('inventory column filters', () => {
     expect(compareInventoryColor('', 'Azul', 'desc')).toBeGreaterThan(0);
   });
 });
+
+it('filtra proveedor por identidad junto con los demás criterios e incluye su estado en la clave', () => {
+  const selected = filters({ supplierId: 's1', conditions: ['Usado'], statuses: ['DISPONIBLE'], colors: ['Azul'], battery: '80', priceMax: '150000', equipo: 'Pixel' });
+  expect(matchesInventoryColumns(product({ supplierId: 's1' }), selected)).toBe(true);
+  expect(matchesInventoryColumns(product({ supplierId: 's2', supplierName: 'Mismo nombre' }), selected)).toBe(false);
+  expect(matchesInventoryColumns(product(), selected)).toBe(false);
+  expect(matchesInventoryColumns(product({ supplierId: 's1', status: 'VENDIDO' }), selected)).toBe(false);
+  expect(matchesInventoryColumns(product({ supplierId: 's1', condition: 'NUEVO' }), selected)).toBe(false);
+  expect(matchesInventoryColumns(product(), EMPTY_COLUMN_FILTERS)).toBe(true);
+  expect(columnFilterActive(selected, 'supplierId')).toBe(true);
+  expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'supplierId')).toBe(false);
+  expect(columnFilterKey(selected)).not.toBe(columnFilterKey({ ...selected, supplierId: 's2' }));
+});

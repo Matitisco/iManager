@@ -212,6 +212,32 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-status { grid-column: 2; grid-row: 1; justify-self: end; }
 .inv-status .spill { flex-shrink: 0; max-width: none; }
 .inv-title { grid-column: 1 / -1; grid-row: 2; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.desk-app .archive-note.sup-mark { display: flex; align-items: center; gap: 5px; max-width: 100%; }
+.sup-mark svg { flex: none; color: var(--section); }
+.dcell .archive-note.sup-mark { max-width: 320px; }
+.inv-title .archive-note.sup-mark { margin-top: 3px; }
+.inventory-supplier-filter { max-width: min(240px, 100%); padding: 0 32px 0 14px; flex: none; }
+.inventory-supplier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-supplier-filter:has(select:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.inventory-supplier-filter select { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; border: 0; font: inherit; cursor: pointer; }
+.inventory-supplier-filter > svg { position: absolute; right: 12px; pointer-events: none; }
+.dch > .inventory-supplier-filter { margin-left: auto; margin-right: 14px; }
+.inventory-selection-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.inventory-selection-tools .bulk-select-filter { margin: 0; }
+.inventory-selection-tools > .bulk-bar:not(.mobile) { width: 100%; }
+.inventory-selection-tools:has(.inventory-supplier-filter) { margin-bottom: 12px; }
+.eq-sheet .kv.sup-origin { align-items: center; }
+.eq-sheet .sup-origin button { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; text-align: right; font: inherit; overflow-wrap: anywhere; }
+.eq-sheet .sup-origin button em { font-style: normal; color: var(--section); font-size: 18px; line-height: 1; font-weight: 400; }
+.eq-purchase-problems { display: flow-root; min-height: 56px; }
+.eq-purchase-skeleton { display: block; height: 44px; margin: 4px 0 8px; border-radius: 12px; }
+.eq-sheet .sup-flag { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; margin: 4px 0 8px; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; font-weight: 600; text-align: left; }
+.eq-sheet .sup-flag .chev { flex: none; color: var(--secondary); font-size: 18px; line-height: 1; }
+@media (max-width: 760px) {
+  .inventory-selection-tools .inventory-supplier-filter { max-width: calc(100% - 120px); }
+  .eq-purchase-problems { min-height: 76px; }
+  .eq-purchase-skeleton { height: 62px; }
+}
 .inv-meta { grid-column: 1; grid-row: 3; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .inv-meta small { overflow-wrap: anywhere; }
 .inv-price { grid-column: 2; grid-row: 3; text-align: right; align-self: end; white-space: nowrap; }

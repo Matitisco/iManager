@@ -199,6 +199,7 @@ export function ReturnDetail({ id }: { id: string }) {
       : <Actions primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
     <ReturnSummary current={current} />
+    {current.supplierName ? <div className="kv" data-testid="return-supplier"><span>Proveedor</span><b>{current.supplierName}</b></div> : null}
     <div className="return-reason"><b>Motivo</b><p>{current.reason}</p></div>
     {voided ? <Pill status="ANULADO" /> : unresolved ? <Choices label="Estado" value={status} onChange={setStatus} disabled={busy} options={[
       { id: 'ABIERTO', label: 'Abierto' }, { id: 'EN_DIAGNOSTICO', label: 'En diagnóstico' },

@@ -129,6 +129,7 @@ export type InventoryColumnFilters = {
   priceMin: string;
   priceMax: string;
   needsCompletion: boolean;
+  supplierId: string;
 };
 
 export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
@@ -141,6 +142,7 @@ export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
   priceMin: '',
   priceMax: '',
   needsCompletion: false,
+  supplierId: '',
 };
 
 export function columnFilterKey(filters: InventoryColumnFilters) {
@@ -150,6 +152,7 @@ export function columnFilterKey(filters: InventoryColumnFilters) {
     [...filters.qualities].sort().join('|'),
     [...filters.statuses].sort().join('|'),
     [...filters.colors].sort((left, right) => left.localeCompare(right, 'es')).join('|'),
+    filters.supplierId || '',
     filters.battery,
     filters.priceMin.trim(),
     filters.priceMax.trim(),
@@ -162,6 +165,7 @@ export function columnFiltersActive(filters: InventoryColumnFilters) {
 }
 
 export function columnFilterActive(filters: InventoryColumnFilters, column: keyof InventoryColumnFilters) {
+  if (column === 'supplierId') return Boolean(filters.supplierId);
   if (column === 'equipo') return filters.equipo.trim() !== '';
   if (column === 'conditions') return filters.conditions.length > 0;
   if (column === 'qualities') return filters.qualities.length > 0;
@@ -178,6 +182,7 @@ export function matchesInventoryStatuses(status: string, selected: string[]) {
 }
 
 export function matchesInventoryColumns(item: Product, filters: InventoryColumnFilters) {
+  if (filters.supplierId && item.supplierId !== filters.supplierId) return false;
   const equipo = filters.equipo.trim().toLowerCase();
   if (equipo) {
     const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();

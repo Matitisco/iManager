@@ -82,3 +82,17 @@ export async function restoreBackendInventoryItem(user: AuthUserLike, itemId: st
   if (!data.inventoryItem) throw new Error('Respuesta inválida al restaurar el equipo');
   return data.inventoryItem;
 }
+
+/** Secondary purchase summary; list metadata remains the source for the equipment itself. */
+export interface InventoryItemDetail extends Product {
+  purchaseSummary: { problems: number; devices: number } | null;
+}
+
+export async function fetchBackendInventoryItem(user: AuthUserLike, id: string): Promise<InventoryItemDetail> {
+  const data = await apiRequest<{ inventoryItem: InventoryItemDetail }>(user, `/api/inventory/${id}`, {
+    fallback: 'No se pudo abrir el equipo',
+    errorFrom: 'friendly',
+  });
+  if (!data.inventoryItem) throw new Error('Respuesta inválida al abrir el equipo');
+  return data.inventoryItem;
+}
