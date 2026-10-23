@@ -1,7 +1,8 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TeamMember } from '../../services/members-api';
+import { listInvitations } from '../../services/invitations-api';
 import { DeskProvider } from '../ui';
 import { SettingsScreen } from './AccountScreens';
 
@@ -103,6 +104,21 @@ describe('Member permissions', () => {
   beforeEach(() => {
     membersApi.updateMemberSections.mockReset();
     context.reloadSession.mockClear();
+  });
+
+  it.each(['pending', 'failed'])('abre un enlace directo sin esperar invitaciones (%s)', async state => {
+    history.replaceState(null, '', '#/cuenta/configuracion/equipo/m2');
+    let resolveMembers!: (value: TeamMember[]) => void;
+    let rejectInvites!: (error: Error) => void;
+    membersApi.listMembers.mockReturnValueOnce(new Promise(resolve => { resolveMembers = resolve; }));
+    vi.mocked(listInvitations).mockReturnValueOnce(new Promise((_resolve, reject) => { rejectInvites = reject; }));
+    renderSettings();
+    expect(screen.queryByTestId('team-screen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cargando…')).not.toBeInTheDocument();
+    if (state === 'failed') await act(async () => rejectInvites(new Error('No se pudieron cargar las invitaciones')));
+    await act(async () => resolveMembers([member()]));
+    expect(screen.getByRole('heading', { name: 'Luis' })).toBeVisible();
+    expect(screen.getByRole('switch', { name: 'Ventas' })).toBeChecked();
   });
 
   it('opens a member, keeps the previous access on cancel and stays open when save fails', async () => {

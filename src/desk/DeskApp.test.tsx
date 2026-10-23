@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../services/operations-api';
 import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
+import { listMembers, updateMemberSections, type TeamMember } from '../services/members-api';
+import { listInvitations } from '../services/invitations-api';
 import { DeskApp } from './DeskApp';
 import { MOBILE_TAB_INDICATOR_TRANSITION, clampIndicatorFrame, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
 
@@ -29,7 +31,8 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock('../context/AppContext', () => ({ useAppContext: () => context }));
-vi.mock('../services/members-api', () => ({ listMembers: vi.fn(async () => []) }));
+vi.mock('../services/members-api', () => ({ listMembers: vi.fn(async () => []), updateMemberSections: vi.fn(), removeMember: vi.fn() }));
+vi.mock('../services/invitations-api', () => ({ listInvitations: vi.fn(async () => []), revokeInvitation: vi.fn() }));
 vi.mock('../services/catalogs-api', () => ({ fetchCatalogs: vi.fn(async () => null), saveCatalog: vi.fn() }));
 
 describe('sidebar unread counts', () => {
@@ -99,6 +102,45 @@ describe('sidebar unread counts', () => {
     expect(screen.getByTestId(`sidebar-tab-${id}`)).toHaveAttribute('aria-current', 'page');
     expect(document.querySelectorAll('.sn-nav [aria-current="page"]')).toHaveLength(1);
     if (id === 'patterns') expect(screen.queryByText('Nuevo reclamo')).not.toBeInTheDocument();
+  });
+
+  it.each([390, 1440])('reutiliza el equipo al abrir, guardar y volver de permisos a %spx', async width => {
+    if (width === 390) usePhone();
+    const member: TeamMember = { id: 'm2', userId: 'u2', role: 'STAFF', isDefault: false, createdAt: '2026-10-01', sections: ['sales'], user: { id: 'u2', displayName: 'Luis', email: 'luis@example.test', avatarUrl: null } };
+    const other = { ...member, id: 'm3', userId: 'u3', sections: ['reports'], user: { ...member.user, id: 'u3', displayName: 'Sofía' } };
+    context.user = { uid: 'owner' };
+    vi.mocked(listMembers).mockResolvedValue([member, other]);
+    vi.mocked(listMembers).mockClear();
+    vi.mocked(listInvitations).mockClear();
+    vi.mocked(updateMemberSections).mockResolvedValue({ ...member, sections: ['sales', 'reports'] });
+    window.location.hash = '#/cuenta/configuracion/equipo';
+    const view = render(<DeskApp />);
+    try {
+      fireEvent.click(await screen.findByTestId('settings-member-m2'));
+      expect(await screen.findByRole('heading', { name: 'Luis' })).toBeVisible();
+      fireEvent.click(screen.getByRole('switch', { name: 'Reportes' }));
+      fireEvent.click(screen.getByRole('button', { name: width === 390 ? 'Guardar' : 'Guardar permisos' }));
+      fireEvent.click(await screen.findByTestId('settings-member-m2'));
+      expect(await screen.findByRole('switch', { name: 'Reportes' })).toBeChecked();
+      expect(listMembers).toHaveBeenCalledTimes(1);
+      expect(listInvitations).toHaveBeenCalledTimes(1);
+      // Changing the member must discard the previous editor's local draft.
+      fireEvent.click(screen.getByRole('switch', { name: 'Inventario' }));
+      goHash('#/cuenta/configuracion/equipo/m3');
+      expect(await screen.findByRole('heading', { name: 'Sofía' })).toBeVisible();
+      expect(screen.getByRole('switch', { name: 'Inventario' })).not.toBeChecked();
+      expect(screen.getByRole('switch', { name: 'Ventas' })).not.toBeChecked();
+      // A new user scope must fetch again and cannot render the old member.
+      vi.mocked(listMembers).mockImplementationOnce(() => new Promise(() => {}));
+      context.user = { uid: 'other-owner' };
+      view.rerender(<DeskApp />);
+      expect(screen.queryByRole('heading', { name: 'Sofía' })).not.toBeInTheDocument();
+      expect(listMembers).toHaveBeenCalledTimes(2);
+    } finally {
+      view.unmount();
+      context.user = null;
+      vi.mocked(listMembers).mockResolvedValue([]);
+    }
   });
 
   const analysisRoutes = {
