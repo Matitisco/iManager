@@ -1,7 +1,7 @@
 import { ListSkeleton } from '../list-skeleton';
 import { track } from '../../lib/analytics';
 import { billingAccountSubtitle } from './BillingScreen';
-import { NETWORK_ERROR_MESSAGE, toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { listInvitations, revokeInvitation, type Invitation } from '../../services/invitations-api';
@@ -20,7 +20,7 @@ import { Link2, MessageCircle, X } from 'lucide-react';
 import { canEditMember } from '../team-permissions';
 import './team.css';
 import { canViewTeam } from '../sections';
-import { suppressLocalNetworkBanner, useOfflineBannerOwned } from '../offline-banner';
+import { suppressLocalNetworkBanner } from '../offline-banner';
 
 const SECTION_LABEL: Record<NoticeSection, string> = {
   inventory: 'Inventario',
@@ -54,7 +54,6 @@ export function NotificationsScreen() {
   const { operationNotifications, notificationsLoading, notificationsError, refreshNotifications, markNotificationRead, markAllNotificationsRead } = useAppContext();
   const { go, toast, openRecord, back } = useDesk();
   const phone = usePhoneLayout();
-  const offlineOwned = useOfflineBannerOwned();
   const [filter, setFilter] = useState('Todas');
   const [scope, setScope] = useState<'all' | 'unread'>('all');
   const [section, setSection] = useState('Todas');
@@ -86,7 +85,7 @@ export function NotificationsScreen() {
       if (recordId) openRecord(section, recordId, kind);
       else if (['inventory', 'sales', 'tradeins', 'clients'].includes(section)) go(section as 'inventory' | 'sales' | 'tradeins' | 'clients');
     } catch (error) {
-      toast(toUserMessage(error, 'No se pudo abrir la notificaci\u00f3n.'));
+      toast(toActionMessage(error, 'No se pudo abrir la notificaci\u00f3n.'));
     }
   };
 
@@ -95,7 +94,7 @@ export function NotificationsScreen() {
       await markAllNotificationsRead();
       toast('Todo le\u00eddo');
     } catch (error) {
-      toast(toUserMessage(error, 'No se pudieron marcar como le\u00eddas.'));
+      toast(toActionMessage(error, 'No se pudieron marcar como le\u00eddas.'));
     }
   };
 
@@ -118,9 +117,9 @@ export function NotificationsScreen() {
             { id: 'unread', label: 'Sin leer' },
           ]} value={filter} onChange={setFilter} />
         </div>
-        {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" style={{ maxWidth: 860 }} data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
+        {notificationsError && !suppressLocalNetworkBanner(notificationsError) ? <div className="wempty" role="alert" style={{ maxWidth: 860 }}>{notificationsError}</div> : null}
         {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="rows" testId="notifications-loading" /> : null}
-        {!notificationsLoading && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
+        {!notificationsLoading && !notificationsError && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
           <div className="card" style={{ maxWidth: 860 }}>
             {visible.map((note) => {
               const seen = !!note.readAt;
@@ -148,7 +147,7 @@ export function NotificationsScreen() {
       </div>
       <GroupTabs />
       <div className="notif-tools">
-        <span className="notif-count">{unread.total ? `${unread.total} sin leer` : 'Estás al día'}</span>
+        <span className="notif-count">{!notificationsError && (unread.total ? `${unread.total} sin leer` : 'Estás al día')}</span>
         <span className="notif-acts">
           {unread.total > 0 ? (
             <button className="wlink" type="button" disabled={notificationsLoading} onClick={() => void markAll()}>
@@ -172,9 +171,9 @@ export function NotificationsScreen() {
       <div className="notif-sections" data-testid="notifications-sections">
         <ChipRow options={sectionChips} value={section} onChange={setSection} />
       </div>
-      {notificationsError && !suppressLocalNetworkBanner(notificationsError, offlineOwned) ? <div className="wempty" role="alert" data-testid={notificationsError === NETWORK_ERROR_MESSAGE ? 'offline-banner' : undefined}>{notificationsError}</div> : null}
+      {notificationsError && !suppressLocalNetworkBanner(notificationsError) ? <div className="wempty" role="alert">{notificationsError}</div> : null}
       {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="cards" testId="notifications-loading" /> : visible.length === 0 ? (
-        quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
+        notificationsError ? null : quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
       ) : (
         <div className="notif-groups" data-testid="notification-groups">
           {grouped.map((group) => (
@@ -321,10 +320,10 @@ export function SettingsScreen() {
   const revoke = (id: string) => {
     if (!user) return;
     setBusyInvite(id); setTeamError('');
-    void revokeInvitation(user, id).then(() => { setInvites(current => current.filter(item => item.id !== id)); setRevokeId(null); toast('Invitación cancelada'); }).catch(err => setTeamError(toUserMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
+    void revokeInvitation(user, id).then(() => { setInvites(current => current.filter(item => item.id !== id)); setRevokeId(null); toast('Invitación cancelada'); }).catch(err => setTeamError(toActionMessage(err, 'No se pudo cancelar la invitación'))).finally(() => setBusyInvite(null));
   };
   const teamContent = <>
-    {teamError ? <p className="ferr" role="alert">{teamError}</p> : null}
+    {teamError && !isNetworkErrorMessage(teamError) ? <p className="ferr" role="alert">{teamError}</p> : null}
     <div className="team-grid" data-testid="settings-team">
       <div className="sec"><span>Equipo</span><span className="secr" data-testid="settings-member-count">{membersLoaded ? countLabel(members.length, 'miembro', 'miembros') : '…'}</span></div>
       <div className="card team-card">

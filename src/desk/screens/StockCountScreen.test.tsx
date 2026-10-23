@@ -8,6 +8,7 @@ import { DeskProvider } from '../ui';
 import { StockCountScreen } from './StockCountScreen';
 
 const toast = vi.fn();
+const go = vi.fn();
 const reloadInventory = vi.fn(async () => undefined);
 const user = { uid: 'owner-1' };
 
@@ -50,7 +51,7 @@ function deferred<T>() {
 
 function desk(node: ReactNode) {
   return render(
-    <DeskProvider value={{ tab: 'stockCount', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+    <DeskProvider value={{ tab: 'stockCount', go, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
       {node}
     </DeskProvider>,
   );
@@ -137,6 +138,7 @@ beforeEach(() => {
   context.reloadInventory = reloadInventory;
   reloadInventory.mockClear();
   toast.mockClear();
+  go.mockClear();
   api.fetchStockCounts.mockResolvedValue([]);
   api.fetchCurrentStockCount.mockResolvedValue(null);
   api.fetchStockCountPreview.mockResolvedValue({ excludedNoImei: 3, scope: 'Disponible', counters: 'Todo el equipo con Inventario' } satisfies StockCountPreview);
@@ -177,7 +179,8 @@ describe('control de stock #318', () => {
     api.fetchStockCount.mockResolvedValue({ ...closed, buckets: { ...closed.buckets, missing } });
     const act = actor();
     await result();
-    expect(screen.queryByText(`Equipo ${mobile ? 4 : 5} · 128GB`)).not.toBeInTheDocument();
+    expect(screen.getByText('Equipo 4 · 128GB')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 5 · 128GB')).not.toBeInTheDocument();
     await act.click(screen.getByRole('button', { name: 'Ver los 8' }));
     expect(screen.getByText('Equipo 7 · 128GB')).toBeInTheDocument();
     await act.click(screen.getByRole('button', { name: 'Coinciden 1' }));
@@ -188,6 +191,16 @@ describe('control de stock #318', () => {
     expect(within(steps).getAllByRole('listitem')).toHaveLength(3);
     expect(within(steps).getByText('Revisar').closest('li')).toHaveAttribute('aria-current', 'step');
     expect(screen.queryByText('Conteos físicos del local')).not.toBeInTheDocument();
+    if (mobile) {
+      const devices = screen.getByRole('region', { name: 'Sin escanear' });
+      expect(within(devices).getAllByText('352098117741188')).toHaveLength(5);
+      expect(devices).not.toHaveTextContent('Rosa');
+      await act.click(screen.getByRole('button', { name: 'Volver' }));
+      expect(go).toHaveBeenCalledWith('inventory');
+    } else {
+      expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
+      expect(screen.getByRole('region', { name: 'Sin escanear' })).toHaveTextContent('IMEI 352098117741188');
+    }
   });
 
   it('presenta el alcance con el inventario cargado sin incluir vendidos, archivados o equipos sin IMEI', async () => {
@@ -220,12 +233,19 @@ describe('control de stock #318', () => {
     const dialog = screen.getByRole('dialog', { name: 'Iniciar control' });
     expect(dialog).toHaveClass('stock-start-sheet');
     expect(within(dialog).getByText('Comparar con')).toBeInTheDocument();
-    expect(within(dialog).getByText('Conteo a ciegas')).toBeInTheDocument();
+    if (mobile) {
+      expect(dialog).not.toHaveTextContent('Conteo a ciegas');
+      expect(dialog).not.toHaveTextContent('El inventario no cambia al cerrar.');
+    } else {
+      expect(within(dialog).getByText('Conteo a ciegas')).toBeInTheDocument();
+      expect(dialog).toHaveTextContent('El inventario no cambia al cerrar.');
+    }
     expect(within(dialog).getByTestId('stock-preview-loading')).toBeInTheDocument();
     expect(dialog).not.toHaveTextContent(/Accesorios|Quiénes cuentan|reservados|en revisión|Faltan|iPhone|Cargando…/);
     preview.resolve({ excludedNoImei: 3, scope: 'Disponible', counters: 'Todo el equipo con Inventario' });
-    expect(await within(dialog).findByText('3 equipos sin IMEI quedan fuera.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Disponibles · 0')).toBeInTheDocument();
+    expect(await within(dialog).findByText('Disponibles · 0')).toBeInTheDocument();
+    if (mobile) expect(dialog).not.toHaveTextContent('3 equipos sin IMEI quedan fuera.');
+    else expect(dialog).toHaveTextContent('3 equipos sin IMEI quedan fuera.');
     await act.click(within(dialog).getByRole('button', { name: 'Iniciar conteo' }));
     expect(await screen.findByTestId('stock-scan-input')).toBeInTheDocument();
     expect(api.startStockCount).toHaveBeenCalledWith(user);

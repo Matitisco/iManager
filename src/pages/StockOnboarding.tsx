@@ -42,7 +42,7 @@ import {
   type RecognizedEquipment,
 } from "../lib/onboarding-stock";
 import { textRowError } from "../lib/text-import-review";
-import { toUserMessage } from "../lib/user-message";
+import { toActionMessage } from "../lib/user-message";
 import "./onboarding.css";
 
 type Step = "choose" | "paste" | "analyzing" | "partial" | "invalid" | "review";
@@ -147,7 +147,7 @@ function StockFlow({
     try {
       await action();
     } catch (cause) {
-      setError(toUserMessage(cause, "No se pudo guardar. Volvé a intentarlo."));
+      setError(toActionMessage(cause, "No se pudo guardar. Volvé a intentarlo."));
     } finally {
       setBusy(false);
     }
@@ -228,7 +228,7 @@ function StockFlow({
       );
     } catch (cause) {
       if (!active.signal.aborted) {
-        setError(toUserMessage(cause));
+        setError(toActionMessage(cause));
         setStep("paste");
       }
     } finally {
@@ -260,7 +260,7 @@ function StockFlow({
       const saved = result.imported + result.updated;
       const pending = result.errors.length;
       throw new Error(
-        `Guardamos ${esCount(saved, "equipo", "equipos")}. ${pending === 1 ? "Queda 1 para corregir" : `Quedan ${pending} para corregir`}: ${result.errors.map((item) => item.message).join(" · ")}`,
+        `Guardamos ${esCount(saved, "equipo", "equipos")}. ${pending === 1 ? "Queda 1 para corregir" : `Quedan ${pending} para corregir`}: ${result.errors.map((item) => toActionMessage(item.message)).join(" · ")}`,
       );
     }
     setRows([]);

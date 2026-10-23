@@ -8,7 +8,7 @@ import { DeskProvider } from './ui';
 import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
 import { fetchHistory, type HistoryEvent } from '../services/history-api';
-import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
+import { ACTION_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
 const paymentsApi = vi.hoisted(() => ({
   fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null }>),
@@ -223,7 +223,8 @@ describe('operation detail', () => {
       renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
       const dialog = screen.getByRole('dialog', { name: 'Anular canje' });
       await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
-      expect(await screen.findByText(NETWORK_ERROR_MESSAGE)).toBeVisible();
+      expect(await screen.findByText(ACTION_ERROR_MESSAGE)).toBeVisible();
+      expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
       expect(dialog).toBeVisible();
       expect(close).not.toHaveBeenCalled();
       expect(toast).not.toHaveBeenCalled();

@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { track } from '../../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, type User as FirebaseUser } from 'firebase/auth';
@@ -37,7 +38,7 @@ export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & 
   const [bad, setBad] = useState<Record<string, string>>({});
   return (
     <Sheet title={isPhone ? 'Tienda' : 'Datos de la tienda'} subtitle={isPhone ? 'Configuración' : undefined} className="cfg-sheet" onClose={close}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       {isPhone ? <h4 className="cfg-h">Información de la tienda</h4> : null}
       <Field label="Nombre" error={bad.name}><input value={name} onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       <Field label="CUIT"><input value={taxId} onChange={(event) => setTaxId(event.target.value)} /></Field>
@@ -115,7 +116,7 @@ export function WarrantyForm({ run, busy, error }: FormProps) {
   );
   return (
     <Sheet title={isPhone ? 'Garantías' : 'Garantías'} subtitle={isPhone ? 'Configuración' : 'Días que se precargan al vender o al crear una reparación.'} className="cfg-sheet" onClose={close}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       <p className="sheet-note">Cada venta y cada reparación puede cambiar sus propios días. Lo ya cargado no se modifica.</p>
       {field('used', 'Usados (días)', used, setUsed, 'warranty-used-days')}
       {field('sealed', 'Sellados (días)', sealed, setSealed, 'warranty-sealed-days')}
@@ -158,7 +159,7 @@ export function ContactForm({ run, busy, error }: FormProps) {
   };
   return (
     <Sheet title="Datos de contacto" subtitle="Podés completarlos ahora o más tarde desde Configuración." onClose={dismiss}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       <ContactFields phone={phone} email={email} instagram={instagram} instagramRequired bad={bad} onPhone={setPhone} onEmail={setEmail} onInstagram={setInstagram} onClear={(key) => clearBad(setBad, key)} />
       <Actions busy={busy} primary="Guardar" secondary="Ahora no" onSecondary={dismiss} onPrimary={() => {
         const contact = storeContactErrors({ email, instagram }, { instagramRequired: true });
@@ -215,7 +216,7 @@ export function ProfileForm({ run, busy, error }: FormProps) {
   const roleLabel = (role && ROLE_LABEL[role]) || '';
   return (
     <Sheet title="Perfil" subtitle={isPhone ? 'Configuración' : undefined} className="cfg-sheet" onClose={close}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       {isPhone ? (
         <div className="cfg-who">
           <div className="av-c k">{initials(shown)}</div>
@@ -253,7 +254,7 @@ export function PasswordForm({ run, busy, error }: FormProps) {
   }
   return (
     <Sheet className="cfg-sheet" title="Cambiar contraseña" subtitle="Usá al menos 8 caracteres." onClose={close}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       <Field label="Contraseña actual" error={bad.current}><input type="password" value={current} onChange={(event) => { setCurrent(event.target.value); clearBad(setBad, 'current'); }} /></Field>
       <Field label="Nueva contraseña" error={bad.next}><input type="password" value={next} onChange={(event) => { setNext(event.target.value); clearBad(setBad, 'next'); }} /></Field>
       <Field label="Repetir nueva" error={bad.repeat}><input type="password" value={repeat} onChange={(event) => { setRepeat(event.target.value); clearBad(setBad, 'repeat'); }} /></Field>
@@ -346,7 +347,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
       subtitle="Creá un link y compartilo. No se envía ningún email."
       onClose={close}
     >
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       <Field label="Email (opcional)" error={undefined}>
         <input type="email" inputMode="email" autoComplete="email" value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setUrl(''); }} />
       </Field>
@@ -404,14 +405,14 @@ export function InvitesList() {
   const [error, setError] = useState<string | null>(null);
   const load = () => {
     if (!user) return;
-    listInvitations(user).then(setRows).catch((err) => setError(getFriendlyErrorMessage(err, 'No se pudieron cargar las invitaciones.')));
+    listInvitations(user).then(setRows).catch((err) => setError(toUserMessage(err, 'No se pudieron cargar las invitaciones.')));
   };
   useEffect(() => { load(); }, [user]);
   const when = (value: string) => formatArDate(new Date(value));
   return (
     <Sheet className="cfg-sheet" title="Links de invitación" subtitle="Cada link sirve una sola vez y vence solo." onClose={close}>
-      {error && <div className="ferr">{error}</div>}
-      {rows.length === 0 ? <div className="wempty">No quedan invitaciones.</div> : rows.map((invite) => (
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
+      {rows.length === 0 ? error ? null : <div className="wempty">No quedan invitaciones.</div> : rows.map((invite) => (
         <div className="kv" key={invite.id}>
           <span>{ROLE_LABEL[invite.role] ?? 'Empleado'} · un solo uso · vence {when(invite.expiresAt)}</span>
           <button className="mbtn" type="button" hidden={appSession?.membership?.role !== 'OWNER' && invite.role !== 'STAFF'} onClick={() => {

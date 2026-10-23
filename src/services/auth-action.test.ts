@@ -67,6 +67,6 @@ describe('auth action sdk', () => {
   });
 
   it('re-exports spanish messages for sdk failures', () => {
-    expect(authActionErrorMessage({ code: 'auth/network-request-failed' })).toMatch(/conexión/i);
+    expect(authActionErrorMessage({ code: 'auth/network-request-failed' })).toBe('No se pudo completar. Probá de nuevo.');
   });
 });

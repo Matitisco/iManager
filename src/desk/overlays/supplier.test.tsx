@@ -131,9 +131,9 @@ describe('ficha de proveedor', () => {
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
   });
   it('shows a visible query error and retries', async () => {
-    fetchSupplier.mockRejectedValueOnce(new Error('Sin conexión'));
+    fetchSupplier.mockRejectedValueOnce(new Error('No se pudo cargar el detalle'));
     mount(<SupplierDetail id="supplier" />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Sin conexión');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el detalle');
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByTestId('supplier-detail')).toBeInTheDocument();
     expect(fetchSupplier).toHaveBeenCalledTimes(2);
@@ -260,4 +260,13 @@ describe('ficha de proveedor', () => {
     await act(async () => pending.resolve({ ...supplier, name: 'Respuesta vieja' }));
     expect(screen.queryByText('Respuesta vieja')).not.toBeInTheDocument();
   });
+});
+
+ it('renders no connection notice or replacement copy when the detail load fails offline', async () => {
+  fetchSupplier.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+  mount(<SupplierDetail id="supplier" />);
+  await waitFor(() => expect(screen.queryByTestId('supplier-loading')).not.toBeInTheDocument());
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByText(/No hay conexión|Sin conexión|No se pudo completar/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
 });

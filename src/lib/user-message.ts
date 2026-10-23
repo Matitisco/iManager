@@ -4,8 +4,22 @@ export const NETWORK_ERROR_MESSAGE = 'No hay conexión. Revisá tu internet y pr
 export const TIMEOUT_ERROR_MESSAGE = 'La solicitud tardó demasiado. Probá de nuevo.';
 export const SERVER_ERROR_MESSAGE = 'Ocurrió un error en el servidor. Probá de nuevo en unos minutos.';
 export const DEFAULT_ERROR_MESSAGE = 'No se pudo completar la acción. Probá de nuevo.';
+export const ACTION_ERROR_MESSAGE = 'No se pudo completar. Probá de nuevo.';
 
-/** Convert errors at the UI boundary, including browser and SDK rejections. */
+/** Network messages remain internal signals for reconnect/retry, never UI copy. */
+export function isNetworkErrorMessage(message: string | null | undefined): boolean {
+  return !!message && (message === NETWORK_ERROR_MESSAGE
+    || /no hay conexi[oó]n|sin conexi[oó]n|error de conexi[oó]n|failed to fetch|load failed|network\s*error|network request failed|failed to load resource|internet connection.*offline/i.test(message));
+}
+
+/** User-initiated failures stay visible without exposing connection status. */
+export function toActionMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
+  const message = toUserMessage(error, fallback);
+  return isNetworkErrorMessage(message) ? ACTION_ERROR_MESSAGE : message;
+}
+
+/** Normalize errors for internal state and recovery. Hide network load errors at
+ * render time; use toActionMessage for user-initiated failures. */
 export function toUserMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE): string {
   const record = error && typeof error === 'object' ? error as Record<string, unknown> : {};
   const status = record.status ?? record.statusCode;
@@ -28,7 +42,7 @@ export function toUserMessage(error: unknown, fallback = DEFAULT_ERROR_MESSAGE):
       return TIMEOUT_ERROR_MESSAGE;
     }
     if (name === 'NetworkError' || record.code === 'auth/network-request-failed'
-      || /failed to fetch|load failed|network\s*error|network request failed|failed to load resource/i.test(message)
+      || isNetworkErrorMessage(message)
       || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
       return NETWORK_ERROR_MESSAGE;
     }

@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage, toActionMessage } from '../../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { ChevronRight, CreditCard, Play } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
@@ -26,7 +27,7 @@ import { ListSkeleton } from '../list-skeleton';
 import { canManageStockCount } from '../stock-count-access';
 import { usePhoneLayout } from '../section-notices';
 import { GroupTabs } from '../group-tabs';
-import { Actions, Sheet, useDesk } from '../ui';
+import { Actions, BackButton, Sheet, useDesk } from '../ui';
 import { AuditDeviceIcon } from './audit-device-icon';
 import './stock-count.css';
 
@@ -158,7 +159,7 @@ export function StockCountScreen() {
         if (active) showClosed(latest);
       }
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : 'No se pudo cargar el control');
+      if (active) setError(toUserMessage(cause, 'No se pudo cargar el control'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [user]);
@@ -173,7 +174,7 @@ export function StockCountScreen() {
     setPreviewLoading(true);
     if (!user) return;
     fetchStockCountPreview(user).then((next) => setPreview(next)).catch((cause: unknown) => {
-      setError(cause instanceof Error ? cause.message : 'No se pudo preparar el control');
+      setError(toActionMessage(cause, 'No se pudo preparar el control'));
       setSheet(false);
     }).finally(() => setPreviewLoading(false));
   };
@@ -189,7 +190,7 @@ export function StockCountScreen() {
       setView('count');
       await loadList();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo iniciar el control');
+      setError(toActionMessage(cause, 'No se pudo iniciar el control'));
     } finally {
       setBusy(false);
     }
@@ -208,7 +209,7 @@ export function StockCountScreen() {
       setBlind(await scanStockCount(user, blind.id, value));
       setImei('');
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo sumar el IMEI');
+      setError(toActionMessage(cause, 'No se pudo sumar el IMEI'));
     } finally {
       setBusy(false);
       inputRef.current?.focus();
@@ -230,7 +231,7 @@ export function StockCountScreen() {
       showClosed(await closeStockCount(user, blind.id));
       await loadList();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo cerrar el control');
+      setError(toActionMessage(cause, 'No se pudo cerrar el control'));
     } finally {
       setBusy(false);
     }
@@ -250,7 +251,7 @@ export function StockCountScreen() {
         setBlind(current);
         setView('count');
       } catch (cause: unknown) {
-        setError(cause instanceof Error ? cause.message : 'No se pudo abrir el control');
+        setError(toUserMessage(cause, 'No se pudo abrir el control'));
       } finally {
         setLoading(false);
       }
@@ -260,7 +261,7 @@ export function StockCountScreen() {
     try {
       showClosed(await fetchStockCount(user, item.id));
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo abrir el control');
+      setError(toUserMessage(cause, 'No se pudo abrir el control'));
     } finally {
       setLoading(false);
     }
@@ -280,7 +281,7 @@ export function StockCountScreen() {
       desk.toast('Quedó registrado, sin cambiar el inventario.');
       await loadList();
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo guardar el control');
+      setError(toActionMessage(cause, 'No se pudo guardar el control'));
     } finally {
       setBusy(false);
     }
@@ -296,12 +297,13 @@ export function StockCountScreen() {
   }).format(new Date(value));
   const closedWho = closed?.subtitle.match(/ · contaron (.*?)(?: · \d+ escaneos?)?$/)?.[1];
   const groupLabel = FILTERS.find((item) => item.id === filter)?.label || 'Sin escanear';
-  const visibleLines = expanded ? lines : lines.slice(0, phone ? 4 : 5);
+  const visibleLines = expanded ? lines : lines.slice(0, 5);
   const availableCount = inventory.filter((item) => !item.archivedAt && item.status === 'DISPONIBLE' && extractImeiLoose(item.imei)).length;
 
   return (
     <div className={`dscreen stock-page${phone ? ' has-dock' : ''}`} data-testid="stock-count-page">
       <div className="dtop">
+        {phone ? <BackButton onClick={() => desk.go('inventory')} /> : null}
         <div className="dtitle">
           <h1>Control de stock</h1>
         </div>
@@ -309,10 +311,10 @@ export function StockCountScreen() {
         {view === 'list' && canManage && !hasOpen && !loading && counts.length > 0 ? <div className="dright"><button className="dbtn p stock-start" type="button" onClick={openStart} disabled={busy}><Play size={12} fill="currentColor" aria-hidden="true" />Iniciar control</button></div> : null}
       </div>
       <GroupTabs tab="stockCount" labels={phone ? { stockCount: 'Control' } : undefined} showPending={false} />
-      {error && !sheet ? <div className="ferr" role="alert">{error}</div> : null}
+      {error && !isNetworkErrorMessage(error) && !sheet ? <div className="ferr" role="alert">{error}</div> : null}
       {loading ? <ListSkeleton variant="cards" testId="stock-loading" /> : null}
 
-      {!loading && view === 'list' && counts.length === 0 ? (
+      {!loading && !error && view === 'list' && counts.length === 0 ? (
         <div className="stock-empty" data-testid="stock-empty">
           <div className="i"><ScanIcon size={28} /></div>
           <h2>Todavía no hiciste controles de stock</h2>
@@ -407,14 +409,14 @@ export function StockCountScreen() {
               {lines.length === 0 ? <div className="stock-line"><span>Nada en este grupo</span></div> : visibleLines.map((line) => (
                 <div className="stock-line" key={line.key}>
                   <span className="stock-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
-                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? [line.imei, line.color].filter(Boolean).join(' · ') : `IMEI ${line.imei}`}</small>{line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
+                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? line.imei : `IMEI ${line.imei}`}</small>{!phone && line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
                   {!phone ? <span className="stock-color">{line.color}</span> : null}
                   {!phone && line.price != null ? <b className="stock-price">{formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
                   {phone ? <ChevronRight className="stock-line-go" size={16} aria-hidden="true" /> : null}
                 </div>
               ))}
             </div>
-            {lines.length > (phone ? 4 : 5) ? <button className="stock-more" type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Ver menos' : `Ver los ${lines.length}`}</button> : null}
+            {lines.length > 5 ? <button className="stock-more" type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Ver menos' : `Ver los ${lines.length}`}</button> : null}
           </section>
         </>
       ) : null}
@@ -429,11 +431,13 @@ export function StockCountScreen() {
 
       {sheet ? (
         <Sheet className="compact stock-start-sheet" title="Iniciar control" onClose={() => setSheet(false)} busy={busy} footer={<Actions primary="Iniciar conteo" onPrimary={() => void begin()} onSecondary={() => setSheet(false)} busy={busy} />}>
-          {error ? <div className="ferr" role="alert">{error}</div> : null}
+          {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
           <div className="stock-scope"><span>Comparar con</span>{previewLoading || !preview || listsLoaded === false ? <ListSkeleton variant="lines" rows={1} testId="stock-preview-loading" /> : <b><i aria-hidden="true" />Disponibles · {availableCount}</b>}</div>
-          <div className="stock-blind"><CreditCard size={22} strokeWidth={1.8} aria-hidden="true" /><div><b>Conteo a ciegas</b><p>Escaneá los IMEI. Comparás al cerrar.</p></div><span className="stock-blind-radio" aria-hidden="true" /></div>
-          {preview && preview.excludedNoImei > 0 ? <p className="stock-start-excluded">{preview.excludedNoImei} {preview.excludedNoImei === 1 ? 'equipo sin IMEI queda fuera.' : 'equipos sin IMEI quedan fuera.'}</p> : null}
-          <p className="stock-start-note">El inventario no cambia al cerrar.</p>
+          {!phone ? <>
+            <div className="stock-blind"><CreditCard size={22} strokeWidth={1.8} aria-hidden="true" /><div><b>Conteo a ciegas</b><p>Escaneá los IMEI. Comparás al cerrar.</p></div><span className="stock-blind-radio" aria-hidden="true" /></div>
+            {preview && preview.excludedNoImei > 0 ? <p className="stock-start-excluded">{preview.excludedNoImei} {preview.excludedNoImei === 1 ? 'equipo sin IMEI queda fuera.' : 'equipos sin IMEI quedan fuera.'}</p> : null}
+            <p className="stock-start-note">El inventario no cambia al cerrar.</p>
+          </> : null}
         </Sheet>
       ) : null}
     </div>

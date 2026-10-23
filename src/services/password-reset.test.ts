@@ -48,7 +48,7 @@ describe('requestPasswordReset', () => {
 
 describe('passwordResetErrorMessage', () => {
   it('maps network, rate limit and invalid email to spanish', () => {
-    expect(passwordResetErrorMessage({ code: 'auth/network-request-failed' })).toMatch(/revisá tu internet/i);
+    expect(passwordResetErrorMessage({ code: 'auth/network-request-failed' })).toBe('No se pudo completar. Probá de nuevo.');
     expect(passwordResetErrorMessage({ code: 'auth/too-many-requests' })).toMatch(/demasiados intentos/i);
     expect(passwordResetErrorMessage({ code: 'auth/invalid-email' })).toMatch(/no es válido/i);
     expect(passwordResetErrorMessage({ code: 'auth/internal-error' })).toMatch(/no pudimos enviar el link/i);

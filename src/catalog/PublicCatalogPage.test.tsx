@@ -76,21 +76,28 @@ describe('public catalog without session', () => {
     expect(screen.getByText('US$ 590')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Ver 1 equipo' })).toBeInTheDocument();
   });
-  it('clears the offline banner and reloads when the connection returns', async () => {
+  it('renders no network notice or empty state and reloads when the connection returns', async () => {
     fetchCatalog.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce(catalog);
     render(<PublicCatalogPage slug="mi-tienda" />);
-    expect(await screen.findByTestId('offline-banner')).toHaveTextContent(NETWORK_ERROR_MESSAGE);
+    await waitFor(() => expect(screen.queryByTestId('public-catalog-loading')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+    expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText('Esta lista de precios no está disponible')).not.toBeInTheDocument();
+    expect(screen.queryByText('Estamos actualizando la lista')).not.toBeInTheDocument();
     await act(async () => window.dispatchEvent(new Event('online')));
     expect(await screen.findByText('US$ 920')).toBeInTheDocument();
     expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
   });
-  it('clears the banner when the phone is online again without an online event', async () => {
+  it('silently recovers when the phone is online again without an online event', async () => {
     let online = false;
     Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online });
     try {
       fetchCatalog.mockRejectedValueOnce(new TypeError('Load failed')).mockResolvedValue(catalog);
       render(<PublicCatalogPage slug="mi-tienda" />);
-      expect(await screen.findByTestId('offline-banner')).toBeInTheDocument();
+      await waitFor(() => expect(screen.queryByTestId('public-catalog-loading')).not.toBeInTheDocument());
+      expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+      expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
       online = true;
       await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
       expect(await screen.findByText('US$ 920')).toBeInTheDocument();

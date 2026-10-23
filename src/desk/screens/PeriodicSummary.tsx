@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchPeriodicSummary, type PeriodicSummary as Summary, type SummarySale, type SummaryReturn, type SummaryStock } from '../../services/periodic-summary-api';
@@ -41,7 +42,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const money = useMoney();
   const [selection, setSelection] = useState('latest-half');
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
-  const [result, setResult] = useState<{ key: string; data?: Summary; unavailable?: boolean }>({ key: '' });
+  const [result, setResult] = useState<{ key: string; data?: Summary; unavailable?: boolean; networkFailure?: boolean }>({ key: '' });
   const ready = !!user && backendStatus === 'ready' && sessionConfirmed !== false && !!appSession?.store && !appSession.onboardingRequired;
   const key = JSON.stringify([appSession?.store?.id, appSession?.user?.id, user?.uid, appSession?.membership, ready, selection]);
   const current = result.key === key ? result : undefined;
@@ -57,7 +58,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
     }).catch((cause: unknown) => {
       if (!active) return;
       console.warn('No se pudo cargar el resumen periódico.', cause);
-      setResult({ key, unavailable: true });
+      setResult({ key, unavailable: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)) });
     });
     return () => { active = false; controller.abort(); };
   }, [key, ready, user, selection]);
@@ -91,7 +92,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
         ] : []} onChange={selectPeriod} />
       </div>
     </div>
-    {unavailable || (!ready && backendStatus !== 'checking') ? <p className="periodic-note">Sin resumen para mostrar.</p> : null}
+    {!current?.networkFailure && backendStatus !== 'offline' && (unavailable || (!ready && backendStatus !== 'checking')) ? <p className="periodic-note">Sin resumen para mostrar.</p> : null}
     {!data && !unavailable && (ready || backendStatus === 'checking') ? <ListSkeleton variant="cards" rows={3} testId="periodic-summary-loading" /> : null}
     {data ? <>
       {blocked ? <p className="ferr" role="status">{money.warning ?? FX_WARNING}</p> : null}

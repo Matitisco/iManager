@@ -222,9 +222,9 @@ describe('StoreActivityPage', () => {
 
   it('uses the existing empty, retry and missing timeline states', async () => {
     window.history.replaceState(null, '', '/admin/actividad/embudo');
-    fetchFunnel.mockRejectedValueOnce(new Error('Sin conexión'));
+    fetchFunnel.mockRejectedValueOnce(new Error('No se pudo cargar el detalle'));
     render(<StoreActivityPage />);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Sin conexión');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el detalle');
     fetchFunnel.mockResolvedValue({ ...funnelPayload, steps: funnelPayload.steps.map(s => ({ ...s, count: 0 })) });
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByText('Todavía no hay datos de este período')).toHaveClass('wempty');

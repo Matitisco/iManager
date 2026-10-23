@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAppContext } from "../context/AppContext";
-import { toUserMessage } from "../lib/user-message";
+import { toActionMessage } from "../lib/user-message";
 import { onboardingTotals } from "../lib/onboarding-stock";
 import { deleteSampleStock } from "../services/getting-started-api";
 import { canViewTeam } from "./sections";
@@ -62,7 +62,7 @@ export function SampleStockBanner() {
                 setConfirm(false);
                 open({ type: "onboarding-stock" });
               })
-              .catch((cause) => setError(toUserMessage(cause)))
+              .catch((cause) => setError(toActionMessage(cause)))
               .finally(() => setBusy(false));
           }}
         />

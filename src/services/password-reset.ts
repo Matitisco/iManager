@@ -1,6 +1,6 @@
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../firebase';
-import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
+import { ACTION_ERROR_MESSAGE } from '../lib/user-message';
 
 export const PASSWORD_RESET_SENT_MESSAGE =
   'Si el email está registrado, te mandamos un link para cambiar la contraseña';
@@ -15,7 +15,7 @@ function authErrorCode(error: unknown): string {
 export function passwordResetErrorMessage(error: unknown): string {
   switch (authErrorCode(error)) {
     case 'auth/network-request-failed':
-      return NETWORK_ERROR_MESSAGE;
+      return ACTION_ERROR_MESSAGE;
     case 'auth/too-many-requests':
       return 'Demasiados intentos. Intentá de nuevo más tarde.';
     case 'auth/invalid-email':

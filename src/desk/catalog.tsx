@@ -1,4 +1,4 @@
-import { toUserMessage } from '../lib/user-message';
+import { toActionMessage } from '../lib/user-message';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { fetchCatalogs, saveCatalog, type CatalogKind, type CatalogOption, type CatalogPayload } from '../services/catalogs-api';
@@ -150,7 +150,7 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
       }));
       onClose();
     } catch (err) {
-      setError(toUserMessage(err, 'No se pudo guardar'));
+      setError(toActionMessage(err, 'No se pudo guardar'));
     } finally {
       setBusy(false);
     }

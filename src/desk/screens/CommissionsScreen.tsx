@@ -1,7 +1,7 @@
 import { ListSkeleton } from '../list-skeleton';
 import { ReasonSheet } from '../ReasonSheet';
 import { isVoidRow } from '../format';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from 'react';
@@ -41,7 +41,7 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
     if (!paymentToVoid || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
     try { await voidCommissionPayment(paymentToVoid.id, person.memberId, period, reason); setPaymentToVoid(null); onConfirmChange?.(false); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudo anular el pago')); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudo anular el pago')); }
     finally { submitting.current = false; setBusy(false); }
   };
   const [all, setAll] = useState(false);
@@ -116,7 +116,7 @@ export function CommissionsScreen() {
       tools={manage ? <IconButton label="Reglas" name="filtrar" onClick={() => setSheet('rule')} /> : undefined}
       desktop={<div className="dright">{periodPicker}{manage ? <><button type="button" className="dbtn s" onClick={() => setSheet('rule')}><ImanagerIcon name="filtrar" size={16} />Reglas</button><DeskCta onClick={() => setSheet('payment')}>Registrar pago</DeskCta></> : null}</div>} />
     {phone ? <div className="dbar">{periodPicker}{manage ? <MenuButton label={filter} options={['Todos', 'Pendientes', 'A descontar']} value={filter} onChange={setFilter} /> : null}</div> : null}
-    {error ? <div className="ferr" role="alert">{error} <button className="wlink" type="button" onClick={() => setRetry(x => x + 1)}>Reintentar</button></div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error} <button className="wlink" type="button" onClick={() => setRetry(x => x + 1)}>Reintentar</button></div> : null}
     {loading ? <ListSkeleton variant="cards" rows={3} testId="commissions-loading" /> : null}
     {!manage && mine && !loading ? <><CommissionHero person={mine.person} mine /><p className="commission-banner">Tu regla: {ruleLabel(mine.person.sales.find(sale => !sale.cancelled)?.rule)}.</p><CommissionLines person={mine.person} period={period} financials={false} /></> : null}
     {manage && summary && !loading ? <>

@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage, toActionMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { ChevronDown } from 'lucide-react';
 import { AuditDeviceIcon } from './audit-device-icon';
@@ -11,6 +12,7 @@ import { fetchArchivedClients } from '../../services/clients-api';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { fetchArchivedRepairs } from '../../services/repairs-api';
 import { fetchReturns } from '../../services/returns-api';
+import { fetchStockCount, type ClosedStockCount, type StockCountLine } from '../../services/stock-counts-api';
 import { rememberArchivedClients, rememberArchivedProducts, rememberArchivedRepairs, rememberArchivedReturns, rememberVoidedSales, rememberVoidedTrades } from '../archive-cache';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
@@ -114,7 +116,7 @@ export function HistoryScreen() {
     }).catch((err: unknown) => {
       if (!active) return;
       if (err instanceof ApiError && err.status === 403) setForbidden(true);
-      else setError(err instanceof Error ? err.message : 'No se pudo cargar el historial');
+      else setError(toUserMessage(err, 'No se pudo cargar el historial'));
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; if (generation.current === request) generation.current++; };
   }, [user, appSession?.store?.id, filters, attempt]);
@@ -141,7 +143,7 @@ export function HistoryScreen() {
       setEvents(current => [...new Map([...current, ...page.events].map(event => [event.id, event])).values()]);
       setCursor(page.nextCursor);
     } catch (err) {
-      if (generation.current === request) setPageError(err instanceof Error ? err.message : 'No se pudieron cargar más movimientos');
+      if (generation.current === request) setPageError(toUserMessage(err, 'No se pudieron cargar más movimientos'));
     } finally {
       if (generation.current === request) { pagePending.current = false; setLoadingMore(false); }
     }
@@ -153,15 +155,15 @@ export function HistoryScreen() {
 
   return <div className="dscreen history-screen" data-testid="history-screen">
     <ScreenTitle title="Historial" navigation={<GroupTabs showPending={false} />} desktop={<SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o IMEI" />} />
-    {phone ? <SearchBox value={query} onChange={setQuery} placeholder="Buscar equipo, cliente o IMEI" /> : null}
     <div className="dbar history-filters">
+      {phone ? <SearchBox value={query} onChange={setQuery} placeholder="Buscar" /> : null}
       <FilterChip label="Persona" emptyLabel="Todas las personas" value={actorId} onChange={setActorId} options={actors.map((actor) => ({ id: actor.userId, label: `${actor.name}${actor.removed ? ' (salió)' : ''}` }))} />
       <FilterChip label="Período" emptyLabel="Todo el historial" value={period} onChange={setPeriod} options={PERIODS.filter((item) => item.id).map((item) => ({ id: item.id, label: item.label }))} />
       <FilterChip label="Acción" emptyLabel="Todas las acciones" value={group} onChange={setGroup} options={GROUPS.filter(Boolean).map((item) => ({ id: item, label: item }))} />
       <FilterChip label="Sección" emptyLabel="Todas las secciones" value={section} onChange={setSection} options={SECTIONS.filter((item) => item.id && !isSectionHidden(item.id)).map((item) => ({ id: item.id, label: item.label }))} />
     </div>
     {loading ? <ListSkeleton variant={phone ? "cards" : "rows"} testId="history-loading" /> : null}
-    {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="dbtn s" type="button" onClick={() => setAttempt(current => current + 1)}>Reintentar</button></div> : null}
     {!loading && !error && events.length === 0 ? <div className="inv-empty-box" data-testid="history-empty">
       <b>{filtered ? 'Nada con esos filtros' : 'Todavía no hay movimientos'}</b>
       <p>{filtered ? 'Probá con otra persona, período o sección.' : 'Cuando el equipo registre, edite o archive, va a aparecer acá.'}</p>
@@ -176,17 +178,17 @@ export function HistoryScreen() {
           return <button key={event.id} type="button" className="history-row" data-entity={event.entityType} aria-label={`${event.actorName || 'Alguien'} · ${event.title} · ${record.title} · ${formatArTime(event.createdAt)}`} title={historySentence(event)} onClick={() => setSelected(event)}>
             <span className="history-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b></span>
             <span className="history-action">{event.title}</span>
-            <span className="history-record"><b>{record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span>{record.identifier || event.entitySubtitle}</span> : null}</span></span>
+            <span className="history-record"><b>{phone ? `${record.title} · ${event.actorName?.trim().split(/\s+/)[0] || 'Alguien'}` : record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span>{record.identifier || event.entitySubtitle}</span> : null}</span></span>
             <time className="history-time" dateTime={event.createdAt}>{formatArTime(event.createdAt)}</time>
             <svg className="history-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>;
         })}
       </div>
     </section>) : null}
-    {pageError ? <div className="ferr" role="alert">{pageError}</div> : null}
+    {pageError && !isNetworkErrorMessage(pageError) ? <div className="ferr" role="alert">{pageError}</div> : null}
     {loadingMore ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={2} testId="history-more-loading" /> : null}
     {!loading && !error && cursor ? <button className="dbtn s history-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>Cargar más</button> : null}
-    {selected ? <HistoryDetail event={selected} onClose={() => setSelected(null)} /> : null}
+    {selected ? <HistoryDetail key={selected.id} event={selected} onClose={() => setSelected(null)} /> : null}
   </div>;
 }
 
@@ -197,21 +199,91 @@ function HistoryAvatar({ name }: { name: string }) {
   return <span className={`av-c ${name === 'Sistema' ? 'k' : tone}`} aria-hidden="true">{initials(name || 'S')}</span>;
 }
 
+function HistoryStockDevices({ lines, label }: { lines: StockCountLine[]; label: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+  const measure = () => {
+    const node = scrollRef.current;
+    if (node) setMoreBelow(node.scrollHeight - node.clientHeight - node.scrollTop > 1);
+  };
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(node);
+    if (node.firstElementChild) observer?.observe(node.firstElementChild);
+    window.addEventListener('resize', measure);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [lines]);
+
+  return <div className={`history-stock-devices${moreBelow ? ' more-below' : ''}`}>
+    <div className="history-stock-scroll" ref={scrollRef} onScroll={measure} role="region" aria-label={`Equipos: ${label}`} tabIndex={0}>
+      <ul>{lines.map(line => <li key={line.key}>
+        <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
+        <div><b>{[line.model, line.capacity].filter(Boolean).join(' · ') || 'Sin modelo'}</b><small>{line.imei}</small></div>
+      </li>)}</ul>
+    </div>
+  </div>;
+}
+
 function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () => void }) {
   const desk = useDesk();
   const { user, appSession } = useAppContext();
+  const phone = usePhoneLayout();
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState('');
+  const [closed, setClosed] = useState<ClosedStockCount | null>(null);
+  const [bucket, setBucket] = useState<keyof ClosedStockCount['buckets']>('missing');
   const when = formatArDateTime(event.createdAt);
-  const today = when.slice(0, 10) === formatArDateTime(new Date()).slice(0, 10);
-  const rows = historyDetailRows(event);
-  const note = historyRecordNote(event);
+  const day = when.slice(0, 10);
+  const relativeDay = day === formatArDateTime(new Date()).slice(0, 10) ? 'Hoy'
+    : day === formatArDateTime(new Date(Date.now() - 86400000)).slice(0, 10) ? 'Ayer' : day;
+  const stockCount = event.entityType === 'stockcount' && event.action === 'stockcount.closed';
+  const countFields = [
+    { field: 'matched', label: 'Coinciden' },
+    { field: 'missing', label: 'Sin escanear' },
+    { field: 'surplus', label: 'Sin cargar' },
+    { field: 'sold', label: 'Figuran vendidos' },
+  ] as const;
+  const counts = stockCount ? countFields.flatMap(group => {
+    const change = event.changes.find(change => change.field === group.field && change.after?.trim());
+    return change ? [{ ...group, value: change.after }] : [];
+  }) : [];
+  const rows = historyDetailRows({ ...event, changes: event.changes.filter(change =>
+    !counts.some(count => count.field === change.field)
+    && !(counts.length && (change.field === 'counters' || change.field === 'when')),
+  ) }).map(change => ({
+    ...change,
+    hasBefore: Boolean(change.before?.trim() && change.before.trim() !== '—'),
+  }));
+  const hasBefore = rows.some(change => change.hasBefore);
+  const canReadControl = stockCount && !!user && !!event.entityId
+    && sectionAllowed('stockCount', appSession?.membership?.sections, appSession?.membership?.role);
+  useEffect(() => {
+    let active = true;
+    setClosed(null);
+    setBucket('missing');
+    if (canReadControl && user) {
+      fetchStockCount(user, event.entityId).then(count => {
+        if (active && count?.status === 'CLOSED' && count.buckets) setClosed(count);
+      }).catch(() => {
+        // Optional read-only detail: keep the event counters if unavailable.
+      });
+    }
+    return () => { active = false; };
+  }, [user, appSession?.store?.id, canReadControl, event.entityId]);
+  const lines = closed?.buckets[bucket] ?? [];
+  const groupLabel = countFields.find(group => group.field === bucket)?.label || 'Sin escanear';
+  const canOpenControl = canReadControl && !event.legacy && event.recordState === 'active';
+  const note = canOpenControl ? null : historyRecordNote(event);
   const record = historyRecord(event);
   const destinations = { inventory: 'inventory', sale: 'sales', trade: 'tradeins', client: 'clients', repair: 'service', supplier: 'suppliers', expense: 'expenses', return: 'returns' } as const;
   const tab = destinations[event.entityType as keyof typeof destinations];
-  const canOpen = !note && !!user && !!event.entityId && !!tab && sectionAllowed(tab, appSession?.membership?.sections, appSession?.membership?.role);
+  const canOpen = canOpenControl || (!note && !!user && !!event.entityId && !!tab && sectionAllowed(tab, appSession?.membership?.sections, appSession?.membership?.role));
   const openRecord = async () => {
     if (!canOpen || opening) return;
+    if (canOpenControl) { onClose(); desk.go('stockCount'); return; }
     setOpening(true);
     setOpenError('');
     const open = () => {
@@ -230,22 +302,28 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
               : event.entityType === 'return' ? fetchReturns(user, true).then(rememberArchivedReturns)
               : Promise.resolve();
     try { await load; open(); }
-    catch (err) { setOpenError(err instanceof Error ? err.message : 'No se pudo abrir el registro'); }
+    catch (err) { setOpenError(toActionMessage(err, 'No se pudo abrir el registro')); }
     finally { setOpening(false); }
   };
-  return <Sheet className="history-detail" title={event.title} titleAccessory={<span className="history-detail-meta">{event.sectionLabel} · <time dateTime={event.createdAt}><span className="history-detail-date">{when.replace(' ', ' · ')}</span><span className="history-detail-date-phone">{today ? `Hoy ${formatArTime(event.createdAt)}` : when.replace(' ', ' · ')}</span></time></span>} onClose={onClose} busy={opening} footer={<div className="history-detail-actions">
-    <button className="btn2 s" type="button" disabled={opening} onClick={onClose}>Cerrar</button>
+  return <Sheet variant="detail" className={`history-detail${lines.length ? ' history-detail-stock' : ''}`} title={event.title} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
+    {!phone ? <button className="btn2 s" type="button" disabled={opening} onClick={onClose}>Cerrar</button> : null}
     {canOpen ? <button className="btn2 p" type="button" disabled={opening} onClick={() => void openRecord()}>
-      {event.recordState === 'archived' ? 'Ver en archivados' : event.entityType === 'inventory' ? 'Ver equipo' : 'Ver registro'}
+      {canOpenControl ? 'Ver control' : event.recordState === 'archived' ? 'Ver en archivados' : event.entityType === 'inventory' ? 'Ver equipo' : 'Ver registro'}
     </button> : null}
   </div>}>
-    <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><div><b>{event.actorName || 'Alguien'}</b>{event.actorRoleLabel ? <p>{event.actorRoleLabel}</p> : null}</div></div>
-    <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div>
-    {rows.length ? <table className={`history-diff${rows.length === 1 && /precio/i.test(rows[0].label) ? ' single' : ''}`}><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
-      {rows.map((change, index) => <tr key={`${change.label}-${index}`}><th scope="row">{change.label}</th><td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before ?? '—'}</span></td><td><span className="history-diff-label" aria-hidden="true">Después</span><b>{change.after ?? '—'}</b></td></tr>)}
-    </tbody></table> : event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
+    <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b><time dateTime={event.createdAt}>{relativeDay} · {formatArTime(event.createdAt)}</time></div>
+    {!stockCount ? <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div> : null}
+    {counts.length ? <div className="history-detail-counts" role="group" aria-label="Resultado del control">{counts.map(count => <button key={count.field} type="button" className={count.field === bucket ? 'on' : undefined} aria-label={`${count.label} ${count.value}`} aria-pressed={count.field === bucket} onClick={() => setBucket(count.field)}><b>{count.value}</b><span>{count.label}</span></button>)}</div> : null}
+    {lines.length ? <HistoryStockDevices key={bucket} lines={lines} label={groupLabel} /> : null}
+    {rows.length ? <table className={`history-diff${hasBefore ? ' comparison' : ' values'}${rows.length === 1 && rows[0].hasBefore && /precio/i.test(rows[0].label) ? ' single' : ''}`}>{hasBefore ? <thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead> : null}<tbody>
+      {rows.map((change, index) => <tr key={`${change.label}-${index}`} className={change.hasBefore ? undefined : 'history-diff-after-only'}>
+        <th scope="row">{change.label}</th>
+        {change.hasBefore ? <td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before}</span></td> : null}
+        <td colSpan={!change.hasBefore && hasBefore ? 2 : 1}>{change.hasBefore ? <span className="history-diff-label" aria-hidden="true">Después</span> : null}<b>{change.after ?? '—'}</b></td>
+      </tr>)}
+    </tbody></table> : !counts.length && event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
     {event.reason?.trim() ? <p className="history-reason"><b>Motivo</b> {event.reason}</p> : null}
     {note ? <p className="history-missing">{note}</p> : null}
-    {openError ? <div className="ferr" role="alert">{openError}</div> : null}
+    {openError && !isNetworkErrorMessage(openError) ? <div className="ferr" role="alert">{openError}</div> : null}
   </Sheet>;
 }

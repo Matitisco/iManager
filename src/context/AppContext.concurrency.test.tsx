@@ -30,7 +30,7 @@ vi.mock('./returns-state', () => ({ useReturnsState: () => ({}) }));
 vi.mock('../services/settings-api', () => ({ updateStoreApi: vi.fn(), updateUserProfileApi: vi.fn() }));
 vi.mock('../services/onboarding-api', () => ({ completeBackendOnboarding: vi.fn() }));
 vi.mock('../services/invitations-api', () => ({ acceptInvitation: vi.fn() }));
-vi.mock('../services/backend-session', () => ({ fetchBackendSession: vi.fn() }));
+vi.mock('../services/backend-session', () => ({ getBackendBaseUrl: () => null, fetchBackendSession: vi.fn() }));
 vi.mock('../services/inventory-api', () => ({ fetchBackendInventory: vi.fn(), updateBackendInventoryItem: vi.fn(), createBackendInventoryItem: vi.fn(), deleteBackendInventoryItem: vi.fn() }));
 vi.mock('../services/clients-api', () => ({ fetchBackendClients: vi.fn(), fetchClientCategoriesApi: vi.fn(async () => []), updateBackendClient: vi.fn(), registerBackendClientPayment: vi.fn(), createBackendClient: vi.fn(), deleteBackendClient: vi.fn() }));
 vi.mock('../services/sales-api', () => ({ fetchBackendSales: vi.fn(), updateBackendSale: vi.fn(), deleteBackendSale: vi.fn() }));

@@ -23,6 +23,7 @@ const deleteRepairOrder = vi.fn();
 const state = vi.hoisted(() => ({
   user: { uid: 'owner' },
   repairOrders: [] as RepairOrder[],
+  repairOrdersError: null as string | null,
   clients: [] as { id: string; name: string; phone: string; dni: string; email: string; lastPurchaseDate: string; totalSpent: number; pendingBalance: number }[],
 }));
 
@@ -30,7 +31,7 @@ vi.mock('../../context/AppContext', () => ({
   useAppContext: () => ({
     user: state.user,
     repairOrders: state.repairOrders,
-    repairOrdersError: null,
+    repairOrdersError: state.repairOrdersError,
     clients: state.clients,
     addRepairOrder,
     changeRepairStatus,
@@ -825,4 +826,19 @@ it.each([false, true])('keeps archived orders red in Todos and hides them in act
     await user.click(screen.getByRole('button', { name: 'Recibido 0' }));
     expect(screen.queryByTestId(phone ? 'repair-card-373' : 'repair-row-373')).not.toBeInTheDocument();
   } finally { cleanup(); window.matchMedia = previous; }
+});
+
+ it.each([false, true])('never renders connection or empty-state copy in standalone Service (phone: %s)', phone => {
+  const previous = window.matchMedia;
+  window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  state.repairOrders = [];
+  state.repairOrdersError = 'No hay conexión. Revisá tu internet y probá de nuevo.';
+  try {
+    desk(<ServiceScreen />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(state.repairOrdersError)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('service-empty')).not.toBeInTheDocument();
+    expect(screen.queryByText('No encontré órdenes.')).not.toBeInTheDocument();
+  } finally { cleanup(); window.matchMedia = previous; state.repairOrdersError = null; }
 });

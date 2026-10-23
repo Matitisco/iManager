@@ -5,7 +5,7 @@ import { ReasonSheet } from '../ReasonSheet';
 import { isVoidRow } from '../format';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import type { CashCommand, CashFilters, CashHistory, CashMovement, CashRegister, CashSession } from '../../types/cash';
 import { formatArDateTime } from '../format';
 import { Actions, Field, PageHead, Segs, Sheet, useDesk } from '../ui';
@@ -72,17 +72,17 @@ export function CashScreen() {
   };
   const direct = async (command: CashCommand) => {
     setError('');
-    try { await save(command); } catch (err) { setError(toUserMessage(err, 'No se pudo guardar el cambio')); }
+    try { await save(command); } catch (err) { setError(toActionMessage(err, 'No se pudo guardar el cambio')); }
   };
   const rows = cashData?.registers.filter(row => listFilter === 'all' || Boolean(row.archivedAt) === archived) ?? [];
   return <div className="dscreen cash-screen" data-testid="cash-screen">
     <div className="cash-content" hidden={mode?.type === 'count'}>
     <PageHead title={box?.name ?? 'Cajas'} back={selected ? () => { setSelected(''); setFilters({ offset: 0 }); setDraftFilters({}); } : back} action={owner && !selected ? <button className="dbtn s" onClick={() => setMode({ type: 'create' })}>Nueva caja</button> : selected ? <button className="dbtn s" onClick={() => setSelected('')}>Todas las cajas</button> : undefined} />
-    {error ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="dbtn s" onClick={() => { void refresh(); }}>Reintentar</button></div> : null}
     {loading && !cashData ? <ListSkeleton variant="cards" rows={2} testId="cash-loading" /> : null}
     {!selected && cashData ? <>
       <Segs options={[{ id: 'all', label: 'Todos' }, { id: 'active', label: 'Activas' }, { id: 'archived', label: 'Archivadas' }]} value={listFilter} onChange={setListFilter} />
-      {!rows.length ? <div className="card cash-empty"><h3>{archived ? 'No hay cajas archivadas' : 'Creá tu primera caja'}</h3><p>Pesos y dólares llevan saldos y cierres separados. La primera caja de cada moneda y medio recibe los cobros automáticamente.</p>{owner && !archived ? <button className="dbtn" onClick={() => setMode({ type: 'create' })}>Crear caja</button> : null}</div> : <div className="cash-grid">{rows.map(row => <button className={`card cash-box${isVoidRow(row) ? ' is-void' : ''}`} key={row.id} onClick={() => { setSelected(row.id); setFilters({ offset: 0 }); setDraftFilters({}); }}>
+      {!rows.length && !error ? <div className="card cash-empty"><h3>{archived ? 'No hay cajas archivadas' : 'Creá tu primera caja'}</h3><p>Pesos y dólares llevan saldos y cierres separados. La primera caja de cada moneda y medio recibe los cobros automáticamente.</p>{owner && !archived ? <button className="dbtn" onClick={() => setMode({ type: 'create' })}>Crear caja</button> : null}</div> : <div className="cash-grid">{rows.map(row => <button className={`card cash-box${isVoidRow(row) ? ' is-void' : ''}`} key={row.id} onClick={() => { setSelected(row.id); setFilters({ offset: 0 }); setDraftFilters({}); }}>
         <span className="cash-box-top"><b>{row.name}</b><span className="cash-currency">{row.currency}</span></span>
         <span>{row.method === 'EFECTIVO' ? 'Efectivo' : 'Transferencia'}{row.isDefault ? ' · Predeterminada' : ''}</span>
         <strong>{row.balance === undefined ? 'Saldo protegido' : cashMoney(row.balance, row.currency)}</strong>
@@ -112,7 +112,7 @@ export function CashScreen() {
           <Field label="Categoría"><DeskSelect label="Categoría del historial" value={draftFilters.category ?? ''} options={[{ value: '', label: 'Todas' }, { value: '__none__', label: 'Sin categoría' }, ...(history?.categories ?? []).map(value => ({ value, label: value }))]} onChange={value => setDraftFilters(f => ({ ...f, category: value }))} /></Field>
           <button className="dbtn s" type="submit">Filtrar</button>
         </form>
-        {historyError ? <div className="ferr" role="alert">{historyError}<button className="dbtn s" onClick={() => setRevision(n => n + 1)}>Reintentar historial</button></div> : null}
+        {historyError && !isNetworkErrorMessage(historyError) ? <div className="ferr" role="alert">{historyError}<button className="dbtn s" onClick={() => setRevision(n => n + 1)}>Reintentar historial</button></div> : null}
         {historyLoading ? <ListSkeleton variant="rows" testId="cash-history-loading" /> : history ? <div className="card cash-history">{history.movements.length ? history.movements.map(movement => <div className={`cash-movement${isVoidRow(movement) ? ' is-void' : ''}`} key={movement.id}>
           <div><b>{kind[movement.kind] ?? movement.kind}{movement.voidedAt ? ' · Anulado' : ''}</b><small>{formatArDateTime(movement.createdAt)} · {movement.category || 'Sin categoría'}</small>{movement.note ? <p>{movement.note}</p> : null}{movement.exchangeRate ? <small>Cotización guardada: ARS {movement.exchangeRate} por USD</small> : null}</div>
           <strong className={movement.amount < 0 ? 'cash-negative' : ''}>{cashMoney(movement.amount, box.currency)}</strong>
@@ -167,11 +167,11 @@ function CashForm({ mode, boxes, busy, onClose, onSave }: { mode: Mode; boxes: C
     else if (mode.type === 'category') command = { path: `/movements/${mode.movement.id}/category`, method: 'PATCH', body: { category: category || null } };
     else if (mode.type === 'transfer') command = { path: '/transfers', method: 'POST', body: { fromId: mode.box.id, toId: target, amount: Number(amount), ...(boxes.find(row => row.id === target)?.currency !== mode.box.currency ? { exchangeRate: Number(rate) } : {}), note, requestKey: requestKey.current } };
     else command = { path: '/movements', method: 'POST', body: { registerId: mode.box.id, kind: mode.type, amount: Number(amount), ...(category ? { category } : {}), note, requestKey: requestKey.current } };
-    try { await onSave(command); } catch (err) { setError(toUserMessage(err, 'No se pudo guardar el cambio en caja')); }
+    try { await onSave(command); } catch (err) { setError(toActionMessage(err, 'No se pudo guardar el cambio en caja')); }
   };
   const archive = async (reason: string) => {
     if (!box || busy) return;
-    try { await onSave({ path: `/${box.id}`, method: 'PATCH', body: { archived: true, reason } }); } catch (err) { setError(toUserMessage(err, 'No se pudo archivar la caja')); }
+    try { await onSave({ path: `/${box.id}`, method: 'PATCH', body: { archived: true, reason } }); } catch (err) { setError(toActionMessage(err, 'No se pudo archivar la caja')); }
   };
   if (mode.type === 'void' || archiveConfirm) return <ReasonSheet
     title={mode.type === 'void' ? 'Anular movimiento' : 'Archivar caja'}
@@ -179,9 +179,9 @@ function CashForm({ mode, boxes, busy, onClose, onSave }: { mode: Mode; boxes: C
     note={mode.type === 'void' ? `Se devuelve el dinero con un movimiento de anulación y el original queda en el historial.${mode.movement.transferGroup ? ' Se anulan ambas partes de la transferencia o conversión.' : ''} La caja debe estar abierta hoy.` : 'La caja queda archivada con el mismo saldo. Completá el cierre antes de archivarla. Podés restaurarla.'}
     ok={mode.type === 'void' ? 'Anular movimiento' : 'Archivar'} danger busy={busy} error={error}
     onClose={() => { if (!busy) { if (archiveConfirm) setArchiveConfirm(false); else onClose(); } }}
-    onOk={reason => { if (mode.type === 'void') { setError(''); void onSave({ path: `/movements/${mode.movement.id}/void`, method: 'POST', body: { reason } }).catch(err => setError(toUserMessage(err, 'No se pudo anular el movimiento'))); } else { void archive(reason); } }}
+    onOk={reason => { if (mode.type === 'void') { setError(''); void onSave({ path: `/movements/${mode.movement.id}/void`, method: 'POST', body: { reason } }).catch(err => setError(toActionMessage(err, 'No se pudo anular el movimiento'))); } else { void archive(reason); } }}
   />;
-  return <Sheet title={titles[mode.type]} subtitle={box ? `${box.name} · ${box.currency}` : undefined} onClose={onClose} className="cash-sheet" footer={<>{error ? <div className="ferr" role="alert">{error}</div> : null}<Actions primary={mode.type === 'count' ? 'Guardar conteo' : 'Guardar'} busy={busy} onPrimary={() => { void submit(); }} onSecondary={onClose} /></>}>
+  return <Sheet title={titles[mode.type]} subtitle={box ? `${box.name} · ${box.currency}` : undefined} onClose={onClose} className="cash-sheet" footer={<>{error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}<Actions primary={mode.type === 'count' ? 'Guardar conteo' : 'Guardar'} busy={busy} onPrimary={() => { void submit(); }} onSecondary={onClose} /></>}>
     <form ref={formRef} className="cash-form" onSubmit={event => { event.preventDefault(); void submit(); }}>
       {mode.type === 'create' || mode.type === 'edit' ? <Field label="Nombre"><input required maxLength={120} value={name} onChange={e => setName(e.target.value)} disabled={busy} /></Field> : null}
       {mode.type === 'create' ? <><Field label="Moneda"><DeskSelect label="Moneda de la caja" value={currency} options={[{ value: 'ARS', label: 'ARS · Pesos' },{ value: 'USD', label: 'USD · Dólares' }]} onChange={v => setCurrency(v as 'ARS' | 'USD')} disabled={busy} /></Field><Field label="Medio de pago"><DeskSelect label="Medio de pago de la caja" value={method} options={[{ value: 'EFECTIVO', label: 'Efectivo' },{ value: 'TRANSFERENCIA', label: 'Transferencia' }]} onChange={v => setMethod(v as 'EFECTIVO' | 'TRANSFERENCIA')} disabled={busy} /></Field><Field label="Saldo inicial"><input type="number" inputMode="decimal" min="0" max="100000000" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" disabled={busy} /></Field><p className="cash-help">El saldo inicial es el fondo de caja; no cuenta como ingreso.</p></> : null}

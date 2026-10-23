@@ -10,6 +10,7 @@ import { GroupTabs } from './group-tabs';
 import { usePhoneLayout } from './section-notices';
 import { SelectionCheckbox, type RowSelection } from './bulk-selection';
 import { ModalLayerContext, useModalLayer } from './modal-layer';
+import './sheet-detail.css';
 
 import type { DeskUi } from './desk-context';
 import { DeskContext } from './desk-context';
@@ -382,7 +383,7 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string }) {
+export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer, variant = 'default' }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string; variant?: 'default' | 'detail' }) {
   const ref = useRef<HTMLDivElement>(null);
   const modal = useModalLayer({ ref, onClose, busy });
   const phone = usePhoneLayout();
@@ -393,7 +394,7 @@ export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy
   return (
     <ModalLayerContext.Provider value={modal.scope}>
     <div className="ov" onMouseDown={modal.requestClose}>
-      <div ref={ref} tabIndex={-1} className={`sheet sheet-frame${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={ref} tabIndex={-1} className={`sheet sheet-frame${variant === 'detail' ? ' sheet-detail' : ''}${wide ? ' wide' : ''}${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="sheet-h">
           <div className="sheet-title">

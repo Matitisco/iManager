@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, Product, Sale, TradeIn } from '../../types';
 import type { ReportsOverview } from '../../services/reports-api';
+import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
 import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { DashboardScreen } from './DashboardScreen';
@@ -101,6 +102,45 @@ describe('Dashboard aprobado', () => {
     expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
     expect(screen.queryByText(/Reintentar|Cargando…/)).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each([NETWORK_ERROR_MESSAGE, 'Failed to fetch'])('oculta fallos de red sin mensajes ni vacíos sustitutos: %s', async (message) => {
+    api.fetchReportsOverview.mockRejectedValue(new TypeError(message));
+    renderScreen();
+    await waitFor(() => expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveAttribute('aria-busy', 'false'));
+    expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Todavía no hay ventas|Sin ventas/)).toBeNull();
+    expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
+    expect(screen.getByRole('button', { name: /Ventas del mes/ })).toHaveTextContent('—');
+  });
+
+  it('oculta los mensajes del período mientras el backend está desconectado', () => {
+    context.backendStatus = 'offline';
+    renderScreen();
+    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(screen.queryByText('No se pudo consultar el período')).toBeNull();
+    expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
+  });
+
+  it('coordina la carga de Total y oculta un fallo de red sin recuperar cifras anteriores', async () => {
+    const user = userEvent.setup();
+    context.sales = [makeSale('old', '2024-01-01', 'Histórica')];
+    renderScreen();
+    await screen.findByText('$ 12,69M');
+    let reject!: (cause: Error) => void;
+    api.fetchReportsOverview.mockReturnValueOnce(new Promise((_, fail) => { reject = fail; }));
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: 'Total' }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, undefined, undefined, expect.any(AbortSignal));
+    expect(screen.getByRole('button', { name: /Ventas totales/ })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    expect(screen.queryByText('Histórica')).toBeNull();
+    expect(screen.queryByLabelText(/Variación/)).toBeNull();
+    await act(async () => reject(new TypeError('Failed to fetch')));
+    expect(screen.getByRole('button', { name: /Ventas totales/ })).toHaveTextContent('—');
+    expect(screen.getByText('Histórica')).toBeVisible();
+    expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Cargando…|Reintentar/)).toBeNull();
+    expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty, .dtop .sub')).toBeNull();
   });
 
   it('no consulta antes de resolver sesión/onboarding', () => {
