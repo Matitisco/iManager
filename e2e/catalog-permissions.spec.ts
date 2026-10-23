@@ -70,7 +70,7 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
   };
   try {
     await loginViaUi(review, owner);
-    await expect(review.getByTestId('sidebar-tab-inventory')).toBeVisible();
+    await expect(review.locator('.desk-app')).toBeVisible();
     await review.goto('/#/config');
     await review.getByTestId('settings-team').getByRole('button', { name: 'Equipo ›' }).click();
     await review.getByRole('button', { name: /Lucía Gómez/ }).click();
@@ -86,11 +86,12 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
     await context.clearCookies();
     await review.evaluate(() => localStorage.clear());
     await loginViaUi(review, staff);
-    await expect(review.getByTestId('sidebar-tab-inventory')).toBeVisible();
+    await expect(review.locator('.desk-app')).toBeVisible();
     // Review an already installed session, without the unrelated installation invitation.
     await review.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
     if (width === 390) {
       await review.getByTestId('sidebar-tab-more').click();
+      await review.getByTestId('nav-group-stock').locator('button[aria-expanded]').first().click();
       await expect(review.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
       await expect(review.getByTestId('mobile-tab-bar').getByText('Catálogo')).toHaveCount(0);
       await capture('376-m-mas', true);

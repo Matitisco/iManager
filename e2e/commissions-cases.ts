@@ -19,9 +19,9 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       const noExport = async () => { await expect(page.getByRole('button', { name: /exportar|descargar|csv|copiar filas/i })).toHaveCount(0); };
       const navigate = async (hash: string) => { await page.evaluate(hash => { window.location.hash = hash; }, hash); };
       await navigate(phone ? '#/mas' : '#/ven');
-      const entry = phone ? page.getByTestId('sidebar-tab-commissions') : page.getByTestId('nav-group-analisis');
+      const entry = page.getByTestId('nav-group-analisis').locator('button[aria-expanded]').first();
       await expect(entry).toBeVisible();
-      if (phone) { await expect(entry).toContainText('Vendedores y pagos'); await expect(entry).toContainText('2 personas con comisiones pendientes'); }
+      await expect(entry.getByLabel('2 personas con comisiones pendientes')).toBeVisible();
       await noExport(); await shot('01', phone ? 'entrada-mas' : 'entrada-sidebar');
       await openDeskSection(page, 'commissions');
       await expect(page.getByRole('heading', { level: 1, name: 'Comisiones', exact: true })).toBeVisible();

@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createSaleViaApi, createTradeInViaApi } from './utils';
@@ -140,7 +141,7 @@ test.describe('bulk action follow-up on desktop sales', () => {
       });
     }
     await page.reload();
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     const code = page.locator('b.keep', { hasText: '#V-0009' });
     await expect(code).toBeVisible();
     await expect(code).toHaveCSS('white-space', 'nowrap');

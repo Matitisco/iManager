@@ -340,19 +340,19 @@ describe('managed catalog pagination', () => {
     else expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
-  it('paginates the mobile Equipos tab and preserves the page when switching tabs', async () => {
+  it('paginates mobile Equipos and preserves the page when navigation changes the view', async () => {
     const media = window.matchMedia('(max-width: 760px)');
     vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ ...media, media: query, matches: query.includes('760') }));
     const user = userEvent.setup();
     renderScreen();
-    await screen.findByRole('button', { name: 'Equipos' });
-    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Equipos' }));
+    expect(screen.queryByRole('button', { name: 'Equipos' })).not.toBeInTheDocument();
+    const navigate = (view: string) => act(() => { window.location.hash = `#/stock/catalogo?view=${view}`; window.dispatchEvent(new HashChangeEvent('hashchange')); });
+    navigate('items');
     const list = await equipmentList();
     expect(list.querySelectorAll('.cat-equipment-row')).toHaveLength(16);
     await user.click(screen.getByRole('button', { name: 'Página 2' }));
-    await user.click(screen.getByRole('button', { name: 'Resumen' }));
-    await user.click(screen.getByRole('button', { name: 'Equipos' }));
+    navigate('summary');
+    navigate('items');
     expect(screen.getByText('17–32 de 118')).toBeInTheDocument();
   });
 });

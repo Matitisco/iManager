@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import ExcelJS from "exceljs";
 import { test, expect, type Page } from "@playwright/test";
 import {
@@ -291,7 +292,7 @@ export function onboardingCases(phone: boolean) {
     await page.reload();
     await expect(page.getByTestId("getting-started")).toBeVisible();
     if (phone) await page.getByTestId("sidebar-tab-more").click();
-    await page.getByTestId("sidebar-tab-help").click();
+    await openDeskSection(page, 'help');
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "▶ Ver video de bienvenida" }),
@@ -427,7 +428,7 @@ export function onboardingCases(phone: boolean) {
     await expect(page.getByTestId("stock-onboarding")).toHaveCount(0);
     await expect(page.getByTestId("getting-started")).toHaveCount(0);
     if (phone) await page.getByTestId("sidebar-tab-more").click();
-    await page.getByTestId("sidebar-tab-help").click();
+    await openDeskSection(page, 'help');
     await expect(page.getByTestId("getting-started")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "▶ Ver video de bienvenida" }),

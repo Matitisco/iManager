@@ -61,7 +61,7 @@ async function expectFits(page: Page) {
 
 async function openService(page: Page) {
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-service').click();
+  await openDeskSection(page, 'service');
   await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
 }
 
@@ -148,7 +148,7 @@ test.describe('service on a phone', () => {
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
     await expect(page.getByTestId('service-chips').getByRole('button', { name: 'Abiertas 2' })).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('service-chips').getByRole('button', { name: 'Recibido 1' })).toBeVisible();

@@ -32,7 +32,7 @@ test('@smoke completes onboarding and bootstraps the backend session', async ({ 
   await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
   await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
-  await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
+  await expect(page.getByTestId('nav-group-stock')).toBeVisible();
 
   const session = await fetchSession(request, email);
   expect(session.onboardingRequired).toBeFalsy();

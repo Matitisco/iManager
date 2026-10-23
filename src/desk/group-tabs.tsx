@@ -4,10 +4,11 @@ import { DeskContext } from './desk-context';
 import { groupOf, pageTabs, sectionPending, pendingDescription, type PendingInput } from './nav';
 import type { DeskTab } from './types';
 
+const SidenavContext = createContext(false);
 const PendingContext = createContext<PendingInput | null>(null);
 
-export function NavChrome({ pending, children }: { pending: PendingInput; children: ReactNode }) {
-  return <PendingContext.Provider value={pending}>{children}</PendingContext.Provider>;
+export function NavChrome({ pending, children, sidenav = false }: { pending: PendingInput; children: ReactNode; sidenav?: boolean }) {
+  return <SidenavContext.Provider value={sidenav}><PendingContext.Provider value={pending}>{children}</PendingContext.Provider></SidenavContext.Provider>;
 }
 
 type GroupTabsProps = { tab?: DeskTab; labels?: Partial<Record<DeskTab, string>>; showPending?: boolean };
@@ -50,8 +51,9 @@ function GroupTabsOn({ pending, tab, go, labels, showPending = true }: { pending
 
 /** Pestañas del grupo, arriba de la página. Sin el chrome del escritorio no se muestra. */
 export function GroupTabs({ tab, labels, showPending }: GroupTabsProps = {}) {
+  const sidenav = useContext(SidenavContext);
   const pending = useContext(PendingContext);
   const desk = useContext(DeskContext);
-  if (!pending || !desk) return null;
+  if (sidenav || !pending || !desk) return null;
   return <GroupTabsOn pending={pending} tab={tab || desk.tab} go={desk.go} labels={labels} showPending={showPending} />;
 }

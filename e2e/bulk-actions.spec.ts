@@ -22,7 +22,7 @@ for (const device of [
         imei: `3591234567890${String(index).padStart(2, '0')}`,
         model: `iPhone ${15 - (index % 4)}`, price: 950000 - index * 25000, color: index % 2 ? 'Azul' : 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%',
       });
-      await page.reload(); await page.getByTestId('sidebar-tab-inventory').click();
+      await page.reload(); await openDeskSection(page, 'inventory');
       const checks = page.getByRole('checkbox', { name: /^Seleccionar iPhone/ });
       if (device.mobile) {
         const card = page.locator('.phone-row').first();
@@ -76,7 +76,7 @@ for (const device of [
       }
       await expect(bar).toHaveCount(0);
       expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
-      await page.reload(); await page.getByTestId('sidebar-tab-inventory').click();
+      await page.reload(); await openDeskSection(page, 'inventory');
       if (device.mobile) {
         await expandListOptions(page);
         await page.getByTestId('inventory-status-filter').getByRole('button', { name: 'Estado' }).click();
@@ -92,9 +92,9 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
   const email = buildTestEmail(testInfo, 'bulk-operations');
   await bootstrapStoreViaApi(page, request, email, 'Operaciones masivas');
   await createClientViaApi(request, email, { name: 'Cliente independiente', dni: '12345678' });
-  await page.reload(); await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
+  await page.reload(); await expect(page.getByTestId('nav-group-comercial')).toBeVisible();
   for (let index = 0; index < 2; index++) {
-    await page.getByTestId('sidebar-tab-sales').click();
+    await openDeskSection(page, 'sales');
     await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Registrar venta', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -122,7 +122,7 @@ test('bulk cancels sales/trades with existing operation rules and deletes unrela
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await fetchTradeIns(request, email)).tradeIns.every((trade) => trade.confirmationStatus === 'CANCELLED')).toBe(true);
   expect((await fetchInventory(request, email)).inventory.filter((item) => item.model.startsWith('Recibido'))).toHaveLength(0);
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByRole('checkbox', { name: 'Seleccionar Cliente independiente', exact: true }).check();
   await page.getByRole('button', { name: 'Archivar selección', exact: true }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Archivar selección', exact: true }).click();

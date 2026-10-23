@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 
@@ -53,7 +54,7 @@ test.describe('desktop inventory stays put', () => {
     const email = buildTestEmail(testInfo, 'inv-desk');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Inventario desk ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toHaveCount(0);
@@ -76,7 +77,7 @@ test.describe('inventory on a phone', () => {
     const email = buildTestEmail(testInfo, 'inv-phone');
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, `Inventario ${testInfo.parallelIndex}`);
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('inventory-empty')).toContainText('Todavía no cargaste equipos');
@@ -85,13 +86,7 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toHaveCount(0);
     await expect(page.getByTestId('inventory-status-filter')).toBeVisible();
-    const tabs = page.locator('.nav-tabs');
-    const chipStyle = await tabs.evaluate((node) => {
-      const style = getComputedStyle(node);
-      return { wrap: style.flexWrap, overflow: style.overflowX };
-    });
-    expect(chipStyle.wrap).toBe('nowrap');
-    expect(chipStyle.overflow).toBe('auto');
+    await expect(page.locator('.nav-tabs')).toHaveCount(0);
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/inventory-390-empty.png`, fullPage: true });
 
@@ -174,7 +169,7 @@ test.describe('inventory on a phone', () => {
     });
     await page.reload();
     await expect(page.getByTestId('blue-widget')).toHaveAttribute('data-state', 'ready');
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.getByTestId('inventory-total')).toHaveText('4 de 4');
     const card = page.getByText('iPhone 13 · 128GB').locator('xpath=ancestor::button[1]');
     await expect(card.getByText('IMEI 35 000000 000001 0')).toBeVisible();

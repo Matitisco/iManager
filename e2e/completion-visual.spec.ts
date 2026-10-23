@@ -91,7 +91,7 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await desktopTrade.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(desktopTrade).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   const desktopBadge = page.getByTestId('needs-completion');
   await expect(desktopBadge).toBeVisible();
   await expect(desktopBadge).toHaveText(/para completar/i);
@@ -104,7 +104,7 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   const phoneBadge = page.getByTestId('needs-completion');
   await expect(phoneBadge).toBeVisible();
   const phoneCard = page.locator('.inv-card').filter({ has: phoneBadge });

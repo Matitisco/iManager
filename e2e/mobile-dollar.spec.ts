@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi, updateStoreViaApi } from './utils';
 
@@ -130,7 +131,7 @@ test.describe('phone dollar', () => {
     await createInventoryItemViaApi(request, email, { imei: '350000000000010', model: 'iPhone 13', price: 650000, color: 'Medianoche', condition: 'USADO' });
     await page.reload();
     await expect(widget).toHaveAttribute('data-state', 'ready');
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.getByText('≈ US$ 500').first()).toBeVisible();
     await expect(page.getByText('Los precios en dólares son aproximados, con la cotización de la tienda.')).toBeVisible();
     await expectFits(page);

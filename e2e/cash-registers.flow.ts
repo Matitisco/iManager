@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test';
 import { isSectionHidden } from '../src/config/hiddenSections';
 import { enableHiddenSections } from './hidden-sections';
@@ -10,11 +11,7 @@ async function cashApi(request: APIRequestContext, email: string, path = '', dat
   return response.json();
 }
 async function openCash(page: Page) {
-  const target = page.getByTestId('sidebar-tab-cash');
-  const more = page.getByTestId('sidebar-tab-more');
-  await expect(target.or(more).first()).toBeVisible();
-  if (!(await target.isVisible())) await more.click();
-  await target.click();
+  await openDeskSection(page, 'cash');
   await expect(page.getByTestId('cash-screen')).toBeVisible();
 }
 async function chooseBox(page: Page, name: string) {

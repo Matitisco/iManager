@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import {
   acceptInvitationViaApi,
@@ -37,7 +38,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   const invitation = await createInvitationViaApi(request, ownerEmail, 'STAFF', staffEmail);
   await acceptInvitationViaApi(request, staffEmail, invitation.token);
 
-  await page.getByTestId('sidebar-tab-settings').click();
+  await openDeskSection(page, 'settings');
   await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
   const reports = page.getByRole('switch', { name: 'Reportes' });
   await expect(page.locator('.team-permissions h1')).toBeVisible();
@@ -62,9 +63,9 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   try {
     await mockDollar(staffDesk);
     await loginViaUi(staffDesk, staffEmail);
-    await expect(staffDesk.getByTestId('sidebar-tab-reports')).toBeVisible();
+    await expect(staffDesk.getByTestId('nav-group-analisis')).toBeVisible();
     await expect(staffDesk.locator('.side')).toBeVisible();
-    await staffDesk.getByTestId('sidebar-tab-reports').click();
+    await openDeskSection(staffDesk, 'reports');
     await expect(staffDesk.getByRole('heading', { name: 'Reportes' })).toBeVisible();
     await expect(staffDesk).toHaveURL(/#\/analisis\/reportes/);
     await shot(staffDesk, 'reports-1440');
@@ -80,7 +81,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
   if (!onPermissions) {
     await expect(more).toBeVisible();
     await more.click();
-    await page.getByTestId('sidebar-tab-settings').click();
+    await openDeskSection(page, 'settings');
     await page.getByTestId('settings-screen').getByRole('button', { name: /Empleado/ }).click();
   }
   await expect(permissions).toBeVisible();
@@ -99,7 +100,7 @@ test('an employee sees reportes on desktop and phone only after the switch is on
     await expect(bar.getByTestId('sidebar-tab-reports')).toHaveCount(0);
     await expect(staffPhone.locator('.side')).toHaveCount(0);
     await bar.getByTestId('sidebar-tab-more').click();
-    await staffPhone.getByTestId('sidebar-tab-reports').click();
+    await openDeskSection(staffPhone, 'reports');
     await expect(staffPhone.getByRole('heading', { name: 'Reportes' })).toBeVisible();
     await expect(staffPhone).toHaveURL(/#\/analisis\/reportes/);
     await shot(staffPhone, 'reports-390');

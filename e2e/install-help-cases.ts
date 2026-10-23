@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { data, me } from './pwa/fixtures.mjs';
@@ -143,7 +144,7 @@ export function installHelpTests(production = false, platforms: readonly ('andro
           await expect(banner).toContainText('iManager en tu inicio'); await expect(banner.getByRole('button', { name: 'Instalar app' })).toHaveCount(0);
           expect(await banner.evaluate((node) => node.closest('main.stage') !== null)).toBe(true);
           await fits(page); await shot(page, 'android-banner');
-          await page.getByTestId('sidebar-tab-inventory').click();
+          await openDeskSection(page, 'inventory');
           await expect(page.getByRole('heading', { level: 1, name: 'Inventario', exact: true })).toBeVisible();
           await page.clock.runFor(400); await expect(banner).toHaveCount(0);
           for (const screen of ['sales', 'reports', 'more']) {

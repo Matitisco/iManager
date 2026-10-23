@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -51,11 +52,11 @@ test('asks existing stores for instagram without blocking the app', async ({ pag
   await bootstrapStoreViaApi(page, request, email, `Con IG ${testInfo.parallelIndex}`);
   await createStoreViaApi(request, email, legacy);
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await expect(page.getByTestId('nav-group-stock')).toBeVisible();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-settings').click();
+  await openDeskSection(page, 'settings');
   await expect(page.getByTestId('settings-instagram-notice')).toBeVisible();
   await expect(page.getByTestId('settings-instagram-notice')).toContainText('seguir usando la app');
   await shot(page, 'settings-notice-1440');
@@ -74,7 +75,7 @@ test('asks existing stores for instagram without blocking the app', async ({ pag
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-settings').click();
+  await openDeskSection(page, 'settings');
   await expect(page.getByTestId('settings-instagram-notice')).toBeVisible();
   await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
   await expectFits(page);

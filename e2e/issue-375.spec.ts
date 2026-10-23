@@ -1,4 +1,4 @@
-import { expandListOptions } from './navigation';
+import { expandListOptions, openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type APIRequestContext, type Page, type TestInfo } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi } from './utils';
@@ -214,7 +214,7 @@ async function seed(page: Page, request: APIRequestContext, testInfo: TestInfo) 
   await product('iPhone 14', '128GB', '9901', 590);
 
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
+  await expect(page.getByTestId('nav-group-stock')).toBeVisible();
   return { clientId: juan.client.id };
 }
 
@@ -228,7 +228,7 @@ async function expectNoOverflow(page: Page) {
 }
 
 async function openSales(page: Page) {
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
   await expect(page.getByText('Juan Domínguez').first()).toBeVisible();
 }
@@ -283,7 +283,7 @@ test.describe('issue 375 ventas, garantía y ficha en escritorio', () => {
     await expect(form.getByTestId('sale-warranty-until')).toHaveText(/^Vence el \d{2}\/\d{2}\/\d{4}$/);
     await form.getByRole('button', { name: 'Cerrar' }).first().click();
 
-    await page.getByTestId('sidebar-tab-clients').click();
+    await openDeskSection(page, 'clients');
     await page.getByTestId(`client-row-${seeded.clientId}`).click();
     const detail = page.getByRole('dialog', { name: 'Juan Domínguez' });
     await expect(detail.getByTestId('client-purchases')).toBeVisible();
@@ -362,7 +362,7 @@ test.describe('issue 375 ventas, garantía y ficha en iPhone', () => {
     await form.getByRole('button', { name: 'Cerrar' }).first().click();
 
     await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('sidebar-tab-clients').click();
+    await openDeskSection(page, 'clients');
     await page.getByTestId(`client-row-${seeded.clientId}`).click();
     const detail = page.getByRole('dialog', { name: 'Juan Domínguez' });
     await detail.getByTestId('client-purchases').scrollIntoViewIfNeeded();

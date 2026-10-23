@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -57,7 +58,7 @@ async function expectFits(page: Page) {
 
 async function openSettings(page: Page) {
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-settings').click();
+  await openDeskSection(page, 'settings');
   await expect(page.getByRole('heading', { name: 'Configuración' })).toBeVisible();
 }
 
@@ -67,7 +68,7 @@ test.describe('desktop settings stays put', () => {
     const store = `Config desk ${testInfo.parallelIndex}`;
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, email, store);
-    await page.getByTestId('sidebar-tab-settings').click();
+    await openDeskSection(page, 'settings');
 
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-tab-bar')).toHaveCount(0);

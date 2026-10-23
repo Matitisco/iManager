@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 
@@ -58,7 +59,7 @@ test.describe('desktop stays on the sidebar', () => {
     await expect(page.locator('.side')).toBeVisible();
     await expect(page.getByTestId('mobile-tab-bar')).toHaveCount(0);
     await expect(page.getByTestId('mobile-dock')).toHaveCount(0);
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
@@ -82,20 +83,13 @@ test.describe('phone patterns', () => {
     await page.reload();
     await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toHaveCount(0);
-    const chips = page.locator('.wchips');
-    await expect(chips).toBeVisible();
-    const chipStyle = await chips.evaluate((node) => {
-      const style = getComputedStyle(node);
-      return { wrap: style.flexWrap, overflow: style.overflowX };
-    });
-    expect(chipStyle.wrap).toBe('nowrap');
-    expect(chipStyle.overflow).toBe('auto');
+    await expect(page.getByRole('tablist', { name: 'Secciones del grupo' })).toHaveCount(0);
     await expect(page.getByTestId('row-menu')).toBeVisible();
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/patterns-390-inventory.png`, fullPage: true });
@@ -176,7 +170,7 @@ test.describe('phone patterns', () => {
     await confirm.getByRole('button', { name: 'Cancelar' }).click();
 
     await page.getByTestId('sidebar-tab-more').click();
-    await page.getByTestId('sidebar-tab-service').click();
+    await openDeskSection(page, 'service');
     await expect(page.getByRole('heading', { name: 'Servicio técnico' })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
@@ -187,9 +181,9 @@ test.describe('phone patterns', () => {
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page).toHaveURL(/#\/mas/);
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-commissions')).toBeVisible();
+    await expect(page.getByTestId('sidebar-tab-commissions')).toBeAttached();
 
-    await page.getByTestId('sidebar-tab-inventory').click();
+    await openDeskSection(page, 'inventory');
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(page.getByTestId('mobile-dock')).toBeVisible();
     await expectFits(page);

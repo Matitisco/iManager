@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, fetchInventory } from './utils';
@@ -15,8 +16,7 @@ const analysis: ImportAnalysis = {
 };
 const API = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:3100';
 async function openImport(page: Page, phone: boolean) {
-  if (!(await page.getByTestId('sidebar-tab-inventory').isVisible())) await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   const button = phone ? page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }) : page.getByRole('button', { name: 'Importar', exact: true });
   await button.click();
   return page.getByRole('dialog', { name: 'Importar equipos' });

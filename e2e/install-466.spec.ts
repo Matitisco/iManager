@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test as base, devices, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { data, me } from './pwa/fixtures.mjs';
@@ -58,7 +59,7 @@ async function native(page: Page, outcome: 'accepted' | 'dismissed' = 'accepted'
 async function more(page: Page) { await page.getByTestId('sidebar-tab-more').click(); await expect(page.getByTestId('more-screen')).toBeVisible(); }
 async function help(page: Page, mobile = true) {
   if (mobile) await more(page);
-  await page.getByTestId('sidebar-tab-help').click();
+  await openDeskSection(page, 'help');
   await expect(page.getByText('Siempre disponible, aunque hayas ocultado la invitación')).toBeVisible();
   // Navigation scroll behavior belongs to #450; frame this screen from its top for evidence.
   await page.locator('main.stage').evaluate(node => { node.scrollTop = 0; });

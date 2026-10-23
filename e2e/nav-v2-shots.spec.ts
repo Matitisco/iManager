@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 
 const progress = {
@@ -131,16 +132,9 @@ async function openSales(page: Page) {
   await expect(page.getByText(/Matias Tiscornia|Tomás Rey/).first()).toBeVisible();
   await page.goto('/#/comercial/ventas');
   await expect(page.getByRole('heading', { name: 'Ventas', level: 1 })).toBeVisible();
-  await expect(page.getByTestId('group-tab-tradeins')).toHaveText('Canjes · 2');
+  await expect(page.getByRole('tablist', { name: 'Secciones del grupo' })).toHaveCount(0);
   await expect(page.locator('.ferr')).toHaveCount(0);
   await expect(page.getByText('$ 1.535').first()).toBeVisible();
-}
-
-async function closeGroups(page: Page, ids: string[]) {
-  for (const id of ids) {
-    const group = page.getByTestId(`nav-group-${id}`);
-    if (await group.getAttribute('aria-expanded') === 'true') await group.click();
-  }
 }
 
 async function shoot(page: Page, name: string, fit = false) {
@@ -163,96 +157,54 @@ async function shoot(page: Page, name: string, fit = false) {
   await page.screenshot({ path: `docs/pr-shots/${name}.png`, animations: 'disabled' });
 }
 
-test.describe('navegación v2', () => {
+test.describe('navegación con acordeón exclusivo', () => {
   test.beforeEach(async ({ page }) => {
     persona = 'owner';
     await installApi(page);
   });
 
-  test('escritorio del propietario', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 960 });
+  test('escritorio del propietario y teclado', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await openSales(page);
-    await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
-    await closeGroups(page, ['stock', 'atencion', 'finanzas', 'analisis']);
-    await expect(page.getByTestId('nav-group-stock')).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('nav-group-stock')).toContainText('2');
-    await expect(page.getByTestId('nav-group-atencion')).toContainText('7');
-    await expect(page.getByTestId('nav-group-comercial')).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByTestId('sidebar-tab-tradeins')).toContainText('2');
-    await expect(page.getByTestId('sidebar-tab-notifications')).toContainText('2');
-    await shoot(page, 'nav-v2-01-propietario-1440');
-
-    for (const id of ['stock', 'atencion', 'finanzas', 'analisis']) {
-      await page.getByTestId(`nav-group-${id}`).click();
-    }
-    await expect(page.getByTestId('sidebar-tab-followups')).toContainText('3');
-    await expect(page.getByTestId('sidebar-tab-service')).toContainText('4');
-    await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-expenses')).toBeVisible();
-    await page.setViewportSize({ width: 1440, height: 1320 });
-    await shoot(page, 'nav-v2-02-todo-abierto-1440');
-    await page.getByTestId('group-tab-tradeins').click();
-    await expect(page).toHaveURL(/#\/comercial\/canjes$/);
+    const nav = page.getByRole('navigation', { name: 'Navegación principal' });
+    const stock = nav.getByRole('button', { name: 'Stock', exact: true });
+    await expect(stock).toHaveAttribute('aria-expanded', 'false');
+    await stock.focus(); await page.keyboard.press('Enter');
+    await expect(stock).toHaveAttribute('aria-expanded', 'true');
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveCount(1);
+    await expect(page.getByRole('heading', { name: 'Ventas', level: 1 })).toBeVisible();
+    await shoot(page, 'sidenav-stock-1440');
+    const analysis = nav.getByRole('button', { name: 'Análisis', exact: true });
+    await analysis.focus(); await page.keyboard.press('Space');
+    await expect(stock).toHaveAttribute('aria-expanded', 'false');
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveCount(1);
+    await expect(nav.getByRole('button', { name: 'Resumen periódico' })).toBeVisible();
+    await shoot(page, 'sidenav-analisis-1440');
+    await openDeskSection(page, 'tradeins');
     await expect(page.getByRole('heading', { name: 'Canjes', level: 1 })).toBeVisible();
-    await page.goto('/#/canjes');
-    await expect(page).toHaveURL(/#\/comercial\/canjes$/);
     await page.goto('/#/inv');
     await expect(page).toHaveURL(/#\/stock\/equipos$/);
   });
 
   test('escritorio del empleado', async ({ page }) => {
     persona = 'staff';
-    await page.setViewportSize({ width: 1440, height: 960 });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await openSales(page);
     await expect(page.getByTestId('sidebar-tab-commissions')).toHaveText('Mis comisiones');
-    await expect(page.getByTestId('nav-group-analisis')).toHaveCount(0);
-    await expect(page.getByTestId('nav-group-finanzas')).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-tab-publicCatalog')).toHaveCount(0);
-    await closeGroups(page, ['stock', 'atencion']);
-    await expect(page.getByTestId('nav-group-stock')).toContainText('2');
-    await expect(page.getByTestId('nav-group-atencion')).toContainText('7');
-    await shoot(page, 'nav-v2-03-empleado-1440');
+    for (const id of ['analisis', 'finanzas']) await expect(page.getByTestId(`nav-group-${id}`)).toHaveCount(0);
+    for (const id of ['publicCatalog', 'expenses', 'followups', 'reports', 'periodicSummary']) await expect(page.getByTestId(`sidebar-tab-${id}`)).toHaveCount(0);
+    await shoot(page, 'sidenav-empleado-1440');
   });
 
-  test('más y la barra en el teléfono', async ({ page }) => {
+  test('más recupera el grupo activo y conserva la barra inferior', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openSales(page);
-    await expect(page.getByTestId('page-back')).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-tab-sales')).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-more')).toBeVisible();
-    await shoot(page, 'nav-v2-m-03-tabbar');
-
     await page.getByTestId('sidebar-tab-more').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Más', exact: true })).toBeVisible();
-    await expect(page.getByTestId('more-item-sales')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-expenses')).toBeVisible();
-    await expect(page.getByTestId('sidebar-tab-history')).toBeVisible();
-    await shoot(page, 'nav-v2-m-01-mas-propietario', true);
-
-    persona = 'staff';
-    await page.reload();
-    await page.goto('/#/mas');
-    await expect(page.getByTestId('sidebar-tab-commissions')).toHaveText(/Mis comisiones/);
-    await expect(page.getByText('Análisis')).toHaveCount(0);
-    await expect(page.getByText('Finanzas')).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-tab-publicCatalog')).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-tab-stockCount')).toBeVisible();
-    await shoot(page, 'nav-v2-m-02-mas-empleado', true);
-
-    persona = 'owner';
-    await page.reload();
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/#/stock/equipos');
-    await expect(page.getByRole('heading', { name: 'Inventario', level: 1 })).toBeVisible();
-    await expect(page.getByTestId('page-back')).toHaveCount(0);
-    await expect(page.getByTestId('sidebar-tab-inventory')).toHaveAttribute('aria-current', 'page');
-    const status = page.getByTestId('inventory-status-filter');
-    await status.getByRole('button', { name: 'Estado' }).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Disponible' }).click();
-    await expect(status.getByRole('button', { name: 'Disponible' })).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('menuitemcheckbox', { name: 'Disponible' })).toHaveCount(0);
+    await expect(page.getByTestId('nav-group-comercial').locator('button[aria-expanded]').first()).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('more-item-sales')).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByTestId('mobile-tab-bar')).toBeVisible();
+    await shoot(page, 'sidenav-mas-390');
+    await openDeskSection(page, 'stockCount');
+    await expect(page.getByRole('heading', { name: 'Control de stock', level: 1 })).toBeVisible();
   });
 });

@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
@@ -33,7 +34,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await page.getByTestId('onboarding-submit').click();
   await page.getByRole('button', { name: 'Saltar por ahora' }).click();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
   await page.getByLabel('Modelo').fill(model);
   await page.getByLabel('Precio de venta').fill('100');
@@ -48,7 +49,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Datos de la tienda' })).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('$ 120.000').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Configuración' }).click();
@@ -59,7 +60,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('heading', { name: 'Datos de la tienda' })).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('$ 70.000').first()).toBeVisible();
 
   await page.getByRole('button', { name: 'Configuración' }).click();
@@ -69,7 +70,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await page.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByTestId('fx-warning')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByTestId('fx-warning')).toBeVisible();
   await expect(page.getByText('US$ 100').first()).toBeVisible();
   await expect(page.getByText('$ 70.000')).toHaveCount(0);

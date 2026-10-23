@@ -20,17 +20,14 @@ for (const device of [
     await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', cost: 600, price: 920 });
     await createInventoryItemViaApi(request, email, { imei: '359123456789013', model: 'iPhone 14', capacity: '256GB', color: 'Azul', condition: 'USADO', grade: 'A', batteryHealth: '88%', cost: 400, price: 590 });
     await page.reload();
-    const openCatalog = async () => {
-      if (device.mobile) {
-        await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
-        await expect(page.getByTestId('sidebar-tab-publicCatalog')).toBeVisible();
-      }
-      await openDeskSection(page, 'publicCatalog');
-    };
+    const openCatalog = () => openDeskSection(page, 'publicCatalog');
     await openCatalog(); await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
     const slug = link.split('/c/')[1];
-    if (device.mobile) await page.getByTestId('catalog-screen').getByRole('button', { name: 'Equipos', exact: true }).click();
+    if (device.mobile) {
+      await page.getByTestId('sidebar-tab-more').click();
+      await page.getByTestId('sidenav-view-publicCatalog-items').click();
+    }
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 14 256GB' }).check();
@@ -89,7 +86,10 @@ for (const device of [
     const afterHide = await publicPayload();
     expect(afterHide.items.map((item: { model: string }) => item.model)).toEqual(['iPhone 14']);
     await loadPublic(link); await expect(lead.getByText('US$ 920')).toHaveCount(0);
-    if (device.mobile) await page.getByRole('button', { name: 'Resumen', exact: true }).click();
+    if (device.mobile) {
+      await page.getByTestId('sidebar-tab-more').click();
+      await page.getByTestId('sidenav-view-publicCatalog-summary').click();
+    }
     await page.screenshot({ path: shots ? `${shots}/issue-341-${device.name}-manage.png` : testInfo.outputPath('manage.png'), fullPage: true });
     if (device.mobile) await page.getByRole('button', { name: 'Editar ›' }).click();
     else await page.getByRole('button', { name: 'Reglas y precio', exact: true }).click();

@@ -6,7 +6,7 @@ test('sets cosmetic quality on a used device and clears it when the device becom
   const email = buildTestEmail(testInfo, 'quality');
   const model = `iPhone Calidad ${Date.now()}`;
   await bootstrapStoreViaApi(page, request, email, `Calidad ${testInfo.parallelIndex}`);
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Registrar equipo' }).click();
 
   const dialog = page.getByRole('dialog', { name: 'Registrar equipo' });
@@ -58,7 +58,7 @@ test('shows quality on a phone card and on a sale of a used device', async ({ pa
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   const card = page.getByText(model).locator('xpath=ancestor::button[1]');
   await expect(card.getByText('Calidad B')).toBeVisible();
 
@@ -69,7 +69,7 @@ test('shows quality on a phone card and on a sale of a used device', async ({ pa
   await expect(page.getByText(model)).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   const sale = page.getByRole('dialog', { name: 'Registrar venta' });
   await sale.getByRole('combobox', { name: 'Equipo' }).fill(model);

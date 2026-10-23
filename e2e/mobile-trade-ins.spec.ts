@@ -61,7 +61,7 @@ async function expectFits(page: Page) {
 
 async function openTradeIns(page: Page) {
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-tradeins').click();
+  await openDeskSection(page, 'tradeins');
   await expect(page.getByRole('heading', { name: 'Canjes' })).toBeVisible();
 }
 
@@ -194,7 +194,7 @@ test.describe('trade-ins on a phone', () => {
 
     await page.getByTestId('sidebar-tab-more').click();
     await expect(page.getByRole('heading', { name: 'Más' })).toBeVisible();
-    await page.getByTestId('sidebar-tab-tradeins').click();
+    await openDeskSection(page, 'tradeins');
 
     await page.getByRole('button', { name: 'Filtros' }).click();
     const filters = page.getByRole('dialog', { name: 'Filtros' });
@@ -394,7 +394,7 @@ test.describe('trade-ins on a phone', () => {
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       await staff.getByTestId('sidebar-tab-more').click();
-      await staff.getByTestId('sidebar-tab-tradeins').click();
+      await openDeskSection(staff, 'tradeins');
       await expect(staff.getByTestId('page-back')).toHaveCount(0);
       const card = staff.getByTestId('tradeins-timeline').getByText(received).locator('xpath=ancestor::button[1]');
       await expect(card).toBeVisible();

@@ -21,12 +21,15 @@ for (const device of [
     expect((await request.patch(`${api}/api/stores/current`, { headers: authHeaders(email), data: { instagram: 'e2etienda', phone: '+54 9 11 55551234', address: 'Av. Corrientes 1234', currency: 'USD', exchangeMode: 'manual', manualBuy: 1280, manualSell: 1300 } })).ok()).toBeTruthy();
     await createInventoryItemViaApi(request, email, { imei: '359123456789012', model: 'iPhone 15 Pro', capacity: '128GB', color: 'Titanio negro', condition: 'USADO', grade: 'A+', batteryHealth: '95%', cost: 600, price: 920 });
     await loginViaUi(page, email);
-    await expect(page.getByTestId('sidebar-tab-inventory')).toBeVisible();
+    await expect(page.locator('.desk-app')).toBeVisible();
     if (device.mobile) await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
     await openDeskSection(page, 'publicCatalog');
     await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
-    if (device.mobile) await page.getByTestId('catalog-screen').getByRole('button', { name: 'Equipos', exact: true }).click();
+    if (device.mobile) {
+      await page.getByTestId('sidebar-tab-more').click();
+      await page.getByTestId('sidenav-view-publicCatalog-items').click();
+    }
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
     await page.getByRole('button', { name: 'Mostrar', exact: true }).click();
@@ -62,7 +65,7 @@ for (const device of [
     await page.context().setOffline(true);
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await expect(page.getByText('No hay conexión. Revisá tu internet y probá de nuevo.')).toHaveCount(0);
-    await page.getByTestId('sidebar-tab-clients').click();
+    await openDeskSection(page, 'clients');
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
     await expect(page.getByTestId('offline-banner')).toHaveCount(0);
     await page.context().setOffline(false);

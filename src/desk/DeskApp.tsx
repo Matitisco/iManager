@@ -2,7 +2,6 @@ import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
 import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
 import { NoSectionAccess } from './screens/NoSectionAccess';
 import { CashScreen } from './screens/CashScreen';
-import { CircleHelp } from 'lucide-react';
 import { HelpScreen } from './screens/HelpScreen';
 import { SampleStockBanner } from './getting-started';
 import { PublicCatalogScreen } from './screens/PublicCatalogScreen';
@@ -30,7 +29,7 @@ import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
-import { DeskIcon, DeskProvider } from './ui';
+import { DeskProvider } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
 import { canManageCommissions } from './sections';
@@ -41,7 +40,7 @@ import { ReturnsScreen } from './screens/ReturnsScreen';
 import { StockCountScreen } from './screens/StockCountScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
 import { RoutePresentation, useMobileActionClearance, useRouteViewport } from './route-viewport';
-import { canonicalHash, ROUTE, tabFromHash } from './hash-route';
+import { canonicalHash, ROUTE, tabFromHash, writeHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import { NavChrome } from './group-tabs';
 import {
@@ -49,14 +48,10 @@ import {
   barOwns,
   desktopNav,
   EMPTY_PENDING,
-  groupOf,
   groupPending,
   pendingDescription,
   mobileBar,
-  moreTestId,
   sectionAllowed,
-  sectionPending,
-  type NavIcon,
   type PendingInput,
 } from './nav';
 import { fetchFollowUps } from '../services/accounts-api';
@@ -64,116 +59,22 @@ import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
+import { SidenavNavigation, SidenavGlyph, useNavigationHash } from './sidenav-navigation';
+import type { ReactNode } from 'react';
 
-function countWords(count: number, words: string) {
-  return `${count} ${words}`;
-}
-
-function sectionAside(id: DeskTab, pending: PendingInput, catalogCount: number) {
-  if (id === 'publicCatalog') return countWords(catalogCount, catalogCount === 1 ? 'visible' : 'visibles');
-  if (id === 'commissions') return pendingDescription([id], pending) || '0 personas con comisiones pendientes';
-  if (id === 'tradeins') return pendingDescription([id], pending) || undefined;
-  if (id === 'service') return countWords(pending.openRepairs, pending.openRepairs === 1 ? 'abierta' : 'abiertas');
-  if (id === 'notifications') return countWords(pending.notifications, 'sin leer');
-  if (id === 'followups' && pending.followUps > 0) return countWords(pending.followUps, 'para hoy');
-  return pendingDescription([id], pending) || undefined;
-}
-
-function NavGlyph({ name, size }: { name: NavIcon; size: number }) {
-  if (name === 'help') return <CircleHelp size={size} />;
-  return <DeskIcon name={name} size={size} />;
-}
-
-function MoreRow({ id, label, subtitle, icon, aside, onOpen }: {
-  id: DeskTab;
-  label: string;
-  subtitle: string;
-  icon: NavIcon;
-  aside?: string;
-  onOpen: (id: DeskTab) => void;
+function MoreScreen({ name, store, role, navigation, onOpen }: {
+  name: string; store: string; role: string; navigation: ReactNode; onOpen: (id: DeskTab) => void;
 }) {
-  return (
-    <button className="member" type="button" data-testid={moreTestId(id)} onClick={() => onOpen(id)}>
-      <span className="ico-row"><NavGlyph name={icon} size={18} /></span>
-      <span className="info">
-        <span className="name">{label}</span>
-        <span className="role">{subtitle}</span>
-        {aside ? <span className="more-pending">{aside}</span> : null}
-      </span>
+  return <div className="dscreen mmore" data-testid="more-screen">
+    <div className="whead"><h1>Más</h1></div>
+    <InstallCard />
+    <button className="mprofile" type="button" data-testid="more-profile" onClick={() => onOpen('settings')}>
+      <div className="av-c k">{initials(name)}</div>
+      <span className="info"><b>{name}</b><small>{store} · {role}</small></span>
       <span className="chev" aria-hidden="true">›</span>
     </button>
-  );
-}
-
-function MoreScreen({
-  name, store, role, nav, pending, catalogCount, onOpen,
-}: {
-  name: string;
-  store: string;
-  role: string;
-  nav: ReturnType<typeof desktopNav>;
-  pending: PendingInput;
-  catalogCount: number;
-  onOpen: (id: DeskTab) => void;
-}) {
-  return (
-    <div className="dscreen mmore" data-testid="more-screen">
-      <div className="whead">
-        <div>
-          <h1>Más</h1>
-        </div>
-      </div>
-      <InstallCard />
-      <button className="mprofile" type="button" data-testid="more-profile" onClick={() => onOpen('settings')}>
-        <div className="av-c b">{initials(name)}</div>
-        <span className="info">
-          <b>{name}</b>
-          <small>{store} · {role}</small>
-        </span>
-        <span className="chev" aria-hidden="true">›</span>
-      </button>
-      {nav.main.map((block) => block.kind === 'link' ? (
-        <div className="card" key={block.item.id}>
-          <MoreRow {...block.item} aside={sectionAside(block.item.id, pending, catalogCount)} onOpen={onOpen} />
-        </div>
-      ) : (
-        <div key={block.id}>
-          <div className="mlabel">{block.label}</div>
-          <div className="card">
-            {block.items.map((item) => (
-              <MoreRow key={item.id} {...item} aside={sectionAside(item.id, pending, catalogCount)} onOpen={onOpen} />
-            ))}
-          </div>
-        </div>
-      ))}
-      <div className="mlabel">Cuenta</div>
-      <div className="card">
-        {nav.cuenta.map((item) => (
-          <MoreRow key={item.id} {...item} aside={sectionAside(item.id, pending, catalogCount)} onOpen={onOpen} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SideLink({ item, on, count, description, onOpen }: {
-  item: { id: DeskTab; label: string; icon: NavIcon };
-  on: boolean;
-  count: number;
-  description?: string;
-  onOpen: (id: DeskTab) => void;
-}) {
-  const ref = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (on) ref.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [on]);
-  return (
-    <button ref={ref} className={`ditem${on ? ' on' : ''}`} type="button" aria-current={on ? 'page' : undefined} data-testid={`sidebar-tab-${item.id}`} onClick={() => onOpen(item.id)}>
-      <span className="dic"><NavGlyph name={item.icon} size={18} /></span>
-      <span>{item.label}</span>
-      {count > 0 ? <span className="dcount" title={description} aria-label={description}>{count}</span> : null}
-    </button>
-  );
+    {navigation}
+  </div>;
 }
 
 function FxBanner() {
@@ -183,7 +84,7 @@ function FxBanner() {
 }
 
 export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, gettingStarted, tradeIns, inventory, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus, sessionConfirmed } = useAppContext();
+  const { appSession, gettingStarted, tradeIns, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus, sessionConfirmed } = useAppContext();
   useEffect(() => { void prefetchMainRoutes(); }, []);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
@@ -351,7 +252,11 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     notifications: unread.total,
     commissions: pendingCommissions,
   };
-  const activeGroup = groupOf(tab);
+  const hash = useNavigationHash();
+  const lastDestination = useRef(hash);
+  if (tabFromHash(hash) !== 'more') lastDestination.current = hash;
+  const activeHash = tab === 'more' ? lastDestination.current : hash;
+  const navigation = <SidenavNavigation nav={nav} pending={pending} activeHash={activeHash} mobile={phone} onOpen={(next, target) => target ? writeHash(target) : go(next)} />;
   const moreActive = !barOwns(tab, slots);
 
   return (
@@ -380,32 +285,10 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
               <small title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
             </div>
           </div>
-          <div className="dnav">
-            <div className="dgroup">
-              {nav.main.map((block) => block.kind === 'link' ? (
-                <SideLink key={block.item.id} item={block.item} on={tab === block.item.id} count={sectionPending(block.item.id, pending)} description={pendingDescription([block.item.id], pending)} onOpen={go} />
-              ) : (
-                <div key={block.id} data-testid={`nav-group-${block.id}`}>
-                  <SideLink
-                    item={{ id: block.items[0].id, label: block.label, icon: block.icon }}
-                    on={activeGroup === block.id}
-                    count={groupPending(block.items.map((item) => item.id), pending)}
-                    description={pendingDescription(block.items.map((item) => item.id), pending)}
-                    onOpen={go}
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="dlabel">Cuenta</div>
-            <div className="dgroup">
-              {nav.cuenta.map((item) => (
-                <SideLink key={item.id} item={item} on={tab === item.id} count={sectionPending(item.id, pending)} description={pendingDescription([item.id], pending)} onOpen={go} />
-              ))}
-            </div>
-          </div>
+          {navigation}
           <BlueDollar />
           <button className="duser" type="button" onClick={() => go('settings')}>
-            <div className="av-c b">{initials(name)}</div>
+            <div className="av-c k">{initials(name)}</div>
             <div className="info"><b>{name}</b><small>{ROLE_LABEL[appSession?.membership?.role ?? 'STAFF']}</small></div>
           </button>
         </aside>
@@ -418,7 +301,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
           <SampleStockBanner />
           </div>
           <OfflineScope>
-          <NavChrome pending={pending}>
+          <NavChrome pending={pending} sidenav>
           <RoutePresentation.Provider key={viewport.entry.id} value={viewport.entry.values}>
           <div>
             {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
@@ -447,9 +330,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 name={name}
                 store={appSession?.store?.name || 'Tienda'}
                 role={ROLE_LABEL[role ?? 'STAFF']}
-                nav={nav}
-                pending={pending}
-                catalogCount={inventory.filter(item => item.catalogIncluded).length}
+                navigation={navigation}
                 onOpen={go}
               />
             )}
@@ -469,7 +350,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
                 pending: groupPending(slot.activeIds, pending),
                 pendingDescription: pendingDescription(slot.activeIds, pending),
                 testId: slot.testId,
-                icon: <NavGlyph name={slot.icon} size={22} />,
+                icon: <SidenavGlyph name={slot.icon} size={22} />,
                 onClick: () => go(slot.target),
               })),
               {

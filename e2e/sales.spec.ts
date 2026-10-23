@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { expect, test } from '@playwright/test';
 
 import {
@@ -24,9 +25,9 @@ test('@smoke creates a sale from available inventory and persists client and sto
     cost: 1200,
   });
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
+  await expect(page.getByTestId('nav-group-comercial')).toBeVisible();
 
-  await page.getByTestId('sidebar-tab-clients').click();
+  await openDeskSection(page, 'clients');
   await page.getByRole('button', { name: 'Nuevo cliente' }).click();
   const clientDialog = page.getByRole('dialog', { name: 'Nuevo cliente' });
   await clientDialog.getByLabel('Nombre y apellido').fill(clientName);
@@ -34,7 +35,7 @@ test('@smoke creates a sale from available inventory and persists client and sto
   await page.getByRole('button', { name: 'Guardar cliente' }).click();
   await expect(page.getByRole('button', { name: 'Guardar cliente' })).toBeHidden();
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await expect(dialog.getByRole('option')).toHaveCount(0);

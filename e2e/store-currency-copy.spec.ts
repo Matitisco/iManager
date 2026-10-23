@@ -31,7 +31,7 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await updateStoreViaApi(request, email, { currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1200 });
   await createClientViaApi(request, email, { name: clientName });
   await page.reload();
-  await expect(page.getByTestId('sidebar-tab-sales')).toBeVisible();
+  await expect(page.getByTestId('nav-group-comercial')).toBeVisible();
 
   await openDeskSection(page, 'tradeins');
   await page.getByRole('button', { name: 'Nuevo canje' }).click();
@@ -53,7 +53,7 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await expect(page.getByRole('cell', { name: /Dif\. US\$ 875/ })).toBeVisible();
   await shot(page, 'canjes-1440x900');
 
-  await page.getByTestId('sidebar-tab-notifications').click();
+  await openDeskSection(page, 'notifications');
   await expect(page.getByRole('button', { name: /toma US\$ 200/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /compró por US\$ 1\.075/ })).toBeVisible();
   await shot(page, 'notificaciones-1440x900');
@@ -61,7 +61,7 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-notifications').click();
+  await openDeskSection(page, 'notifications');
   await expect(page.getByRole('heading', { name: 'Notificaciones' })).toBeVisible();
   await expect(page.getByTestId('notification-groups')).toContainText('toma US$ 200');
   await expect(page.getByTestId('notification-groups')).toContainText('compró por US$ 1.075');

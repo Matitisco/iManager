@@ -11,7 +11,7 @@ async function post(request: APIRequestContext, email: string, path: string, dat
   return response.json();
 }
 async function salesTab(page: Page) {
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   await expect(page.getByTestId('sales-screen')).toBeVisible();
 }
 
