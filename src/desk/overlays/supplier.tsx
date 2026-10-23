@@ -5,6 +5,8 @@ import { useAppContext } from '../../context/AppContext';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchSupplier, type SupplierDetail as SupplierFile } from '../../services/suppliers-api';
 import { canSeeFinancials } from '../sections';
+import { sectionAllowed } from '../nav';
+import { showSupplierPatterns } from '../returns-navigation';
 import { Mail, Phone, Plus, FileText } from 'lucide-react';
 import { SupplierPurchases, SupplierPurchaseSheet, SupplierPurchaseDetail } from './supplier-purchases';
 import { DeskOverlays } from '../DeskOverlays';
@@ -71,6 +73,7 @@ export function SupplierDetail({ id }: { id: string }) {
   const desk = useDesk();
   const { close, open, toast } = desk;
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
+  const seePatterns = sectionAllowed('returns', appSession?.membership?.sections, appSession?.membership?.role);
   const [detail, setDetail] = useState<SupplierFile | null>(null);
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
@@ -160,7 +163,7 @@ export function SupplierDetail({ id }: { id: string }) {
             {detail.email ? <div><dt><Mail size={18} aria-label="Email" /></dt><dd title={detail.email}>{detail.email}</dd></div> : null}
           </dl> : null}
           {detail.notes ? <p className="supplier-note">{detail.notes}</p> : null}
-          {detail.problemCount > 0 ? <p className="sup-status" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}</p> : null}
+          {detail.problemCount > 0 ? seePatterns ? <button className="sup-status" data-testid="supplier-problems" type="button" aria-label={`Ver patrones de ${detail.name}`} onClick={() => { close(); showSupplierPatterns(detail.id); }}>{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}<span className="chev" aria-hidden="true"> ›</span></button> : <p className="sup-status" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}</p> : null}
           {detail.deletedAt ? <p className="supplier-note">Archivado. Los equipos conservan el origen.</p> : null}
           {detail.purchases.length > 0 ? <section className="supplier-purchases" aria-label="Compras">
             <div className="sup-sec"><h4>Compras</h4>{detail.purchases.length > 3 ? <button className="wlink" type="button" onClick={() => setSecondary('purchases')}>Ver todas ({detail.purchases.length})</button> : null}</div>

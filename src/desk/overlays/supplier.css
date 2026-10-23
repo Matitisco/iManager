@@ -83,3 +83,5 @@
   .sup-second > .sheet-scroll { padding: 16px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
   .sup-second .supplier-purchase { background: var(--card); }
 }
+.desk-app button.sup-status { display: block; width: 100%; text-align: left; background: var(--lime-soft); }
+.desk-app button.sup-status:hover { text-decoration: underline; text-underline-offset: 3px; }

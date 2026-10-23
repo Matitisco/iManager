@@ -7,11 +7,12 @@ import { useMoney } from '../exchange';
 import { equipmentTitle, formatShortDate } from '../format';
 import { usePhoneLayout } from '../section-notices';
 import { DeskIcon, Sheet, useDesk } from '../ui';
+import './supplier.css';
 
 const deviceCount = (count: number) => `${count} ${count === 1 ? 'equipo' : 'equipos'}`;
 const purchaseLabel = (purchase: SupplierPurchase) => purchase.name || formatShortDate(purchase.purchasedAt);
 
-type PurchaseReference = Pick<SupplierPurchase, 'id' | 'name' | 'purchasedAt'> & Partial<SupplierPurchase>;
+type PurchaseReference = Pick<SupplierPurchase, 'id'> & Partial<SupplierPurchase>;
 
 function usePurchaseTotal(seeCosts: boolean) {
   const money = useMoney();
@@ -59,7 +60,8 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
     return () => { active = false; };
   }, [user, storeId, supplierId, purchase.id]);
 
-  return <SupplierPurchaseSheet title={purchase.name || `Compra del ${formatShortDate(purchase.purchasedAt)}`} subtitle={[info.devices != null ? deviceCount(info.devices) : '', total].filter(Boolean).join(' · ') || undefined} onClose={onClose}>
+  const purchasedAt = purchase.purchasedAt || info.purchasedAt;
+  return <SupplierPurchaseSheet title={purchase.name || info.name || (purchasedAt ? `Compra del ${formatShortDate(purchasedAt)}` : 'Compra')} subtitle={[info.devices != null ? deviceCount(info.devices) : '', total].filter(Boolean).join(' · ') || undefined} onClose={onClose}>
     {!detail && !failed ? <div className="supplier-purchase sup-card supplier-items" data-testid="supplier-purchase-loading" role="status" aria-label="Cargando" aria-busy="true">
       {Array.from({ length: Math.min(purchase.devices ?? 5, 10) }, (_, index) => <div className="supplier-item" key={index} aria-hidden="true">
         <span className="supplier-item-icon"><Skeleton style={{ width: 16 }} /></span>

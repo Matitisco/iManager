@@ -1,0 +1,39 @@
+.pat-filters { align-items: center; }
+.pat-filters .pat-by { margin-left: auto; }
+.pat-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+.pat-grid > .card { margin: 0; }
+.pat-list { overflow: hidden; }
+.pat-group + .pat-group { border-top: 1px solid var(--border); }
+.desk-app .pat-row { gap: 12px; border-bottom: 0; }
+.pat-row.on { background: var(--lime-soft); }
+.desk-app .pat-name { padding: 0; text-align: left; }
+.pat-row .pat-val { display: flex; align-items: center; align-self: stretch; gap: 12px; flex: none; padding: 0; }
+.pat-name:hover .name { text-decoration: underline; text-underline-offset: 3px; }
+.pat-name:focus-visible, .pat-val:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 4px; }
+.pat-bar { width: 72px; height: 6px; border-radius: 99px; background: var(--row); overflow: hidden; }
+.pat-row.on .pat-bar { background: var(--card); }
+.pat-bar i { display: block; height: 100%; border-radius: inherit; background: var(--section); }
+.pat-row.hot .pat-bar i { background: var(--primary); }
+.pat-pct { min-width: 38px; text-align: right; font-size: 14px; font-weight: 800; }
+.pat-detail { padding: 18px 18px 6px; min-width: 0; }
+.pat-detail .dch { align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+.pat-detail .dch h3 { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.pat-detail .dch p { margin: 2px 0 0; font-size: 13px; color: var(--secondary); font-weight: 500; }
+.pat-detail .wlink { flex: none; }
+.pat-note { margin: 12px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; font-weight: 600; }
+.pat-claims { margin: 8px -18px 0; }
+.pat-claims .member { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.pat-claims .member:last-child { border-bottom: 0; }
+.pat-limit { font-size: 12px; color: var(--secondary); padding: 12px 0; }
+.pat-loading { min-height: 405px; }
+@media (max-width: 760px) {
+  .desk-app .pat-filters { flex-wrap: wrap; gap: 8px; overflow: visible; }
+  .desk-app .pat-filters .pat-by { flex-basis: 100%; margin-left: 0; }
+  .pat-grid { grid-template-columns: minmax(0, 1fr); }
+  .pat-bar { width: 48px; }
+  .pat-open { border-top: 1px solid var(--border); padding-top: 0; }
+  .pat-open .pat-note { margin: 0 16px 8px; }
+  .pat-open .pat-claims { margin: 0; }
+  .pat-open .pat-claims .member { padding: 12px 16px; }
+  .pat-open .pat-limit { padding: 12px 16px; }
+}
