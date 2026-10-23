@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { useCallback, useEffect, useRef } from 'react';
 import type { AuthUserLike } from '../types/auth-user';
 import type { BillingDetails, BillingPlanKey } from '../types/billing';
 import { cancelBilling, checkoutBilling, fetchBilling, quoteBilling } from '../services/billing-api';
 
 export function useBillingState(user: AuthUserLike | null, storeId?: string, role?: string) {
-  const [billingDetails, setBillingDetails] = useState<BillingDetails | null>(null);
+  const [billingDetails, setBillingDetails] = useStableState<BillingDetails | null>(null);
   const scope = `${user?.uid ?? ''}:${storeId ?? ''}:${role ?? ''}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
@@ -18,7 +19,7 @@ export function useBillingState(user: AuthUserLike | null, storeId?: string, rol
     const result = await fetchBilling(user, refresh, replaceAbandoned);
     if (scopeRef.current === scope) setBillingDetails(result);
     return result;
-  }, [user, storeId, role, scope]);
+  }, [user?.uid, storeId, role, scope]);
   return {
     billingDetails, loadBilling,
     quoteSubscription: (key: BillingPlanKey, email: string) => quoteBilling(requireOwner(), key, email),

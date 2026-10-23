@@ -54,7 +54,7 @@ async function actionSheetBox(page: Page) {
       ctxWidth: ctxBox.width,
       height: window.innerHeight,
       width: document.documentElement.clientWidth,
-      scrim: getComputedStyle(overlay).backgroundColor,
+      scrim: getComputedStyle(overlay, '::before').backgroundColor,
       radius: `${style.borderTopLeftRadius} ${style.borderBottomLeftRadius}`,
       sheetIndex: hit.findIndex((node) => node === ctx || ctx.contains(node)),
       tabIndex: hit.findIndex((node) => node === tabNode || tabNode.contains(node)),
@@ -124,7 +124,7 @@ describe('row action sheet', () => {
           top: ctxBox.top,
           bottom: ctxBox.bottom,
           height: window.innerHeight,
-          scrim: getComputedStyle(overlay).backgroundColor,
+          scrim: getComputedStyle(overlay, '::before').backgroundColor,
           radius: `${style.borderTopLeftRadius} ${style.borderBottomLeftRadius}`,
           tab: document.querySelector('.mtab'),
         };

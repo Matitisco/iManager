@@ -10,11 +10,14 @@ export function OfflineScope({ children }: { children: ReactNode; forced?: boole
   useEffect(() => {
     // Health probes publish reconnection events even when the browser misses
     // `online` (iPhone) or navigator.onLine stays true (DevTools Offline).
-    const onOnline = () => { void pingHealth(); };
+    const onOnline = () => { if (document.visibilityState !== 'hidden') void pingHealth(); };
     window.addEventListener('online', onOnline);
-    const health = window.setInterval(onOnline, 2000);
+    document.addEventListener('visibilitychange', onOnline);
+    onOnline();
+    const health = window.setInterval(onOnline, 5000);
     return () => {
       window.removeEventListener('online', onOnline);
+      document.removeEventListener('visibilitychange', onOnline);
       window.clearInterval(health);
     };
   }, []);

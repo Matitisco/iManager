@@ -18,3 +18,16 @@ html.ios-standalone body { padding-left: env(safe-area-inset-left, 0px); padding
 html.ios-standalone [data-testid="auth-screen"], html.ios-standalone [data-testid="onboarding-screen"] { padding-top: env(safe-area-inset-top, 0px); }
 html.ios-standalone .desk-app { width: 100%; }
 html.ios-standalone .mtab { left: calc(10px + env(safe-area-inset-left, 0px)); right: calc(10px + env(safe-area-inset-right, 0px)); }
+
+/* Submission indicators wait through fast requests. */
+.animate-spin { visibility: hidden; animation-delay: 300ms; }
+.animate-spin { animation: submission-reveal 0s linear 300ms forwards, spin 1s linear 300ms infinite; }
+@keyframes submission-reveal { to { visibility: visible; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

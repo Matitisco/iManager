@@ -7,7 +7,8 @@ import { isNetworkErrorMessage, toActionMessage } from './lib/user-message';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { hideBootSplash, whenBootContentReady } from './lib/boot-splash';
 import { AppProvider, useAppContext } from './context/AppContext';
 import { Login } from './pages/Login';
 import { StoreActivityPage } from './pages/StoreActivity';
@@ -37,21 +38,15 @@ function extractInviteToken(): string | null {
 function BlockingScreen({
   title,
   message,
-  busy = false,
 }: {
   title: string;
   message: string;
-  busy?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6">
       <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-sm p-8 text-center">
         <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
-          {busy ? (
-            <div className="h-7 w-7 rounded-full border-4 border-gray-200 border-t-black animate-spin" />
-          ) : (
-            <div className="h-3 w-3 rounded-full bg-black" />
-          )}
+          <div className="h-3 w-3 rounded-full bg-black" />
         </div>
         <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
         <p className="mt-3 text-sm leading-6 text-gray-600">{message}</p>
@@ -61,7 +56,7 @@ function BlockingScreen({
 }
 
 function AppContent() {
-  const { user, loading, appSession, backendStatus, backendMessage, acceptStoreInvitation, logout } = useAppContext();
+  const { user, loading, appSession, listsSettled, backendStatus, backendMessage, acceptStoreInvitation, logout } = useAppContext();
   const authAction = useAuthActionLink();
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
   const [closedVersion, setClosedVersion] = useState(0);
@@ -90,6 +85,19 @@ function AppContent() {
     }
   };
 
+  const bootFinished = useRef(false);
+  const opensJourney = appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly;
+  const waitingForLists = !bootFinished.current && backendStatus === 'ready' && !!appSession?.store && !!appSession.membership && !appSession.onboardingRequired && !opensJourney && listsSettled === false;
+  const waitingForSession = loading || waitingForLists || (!!user && backendStatus === 'checking')
+    || (!!user && backendStatus === 'offline' && !appSession);
+  useEffect(() => {
+    if (waitingForSession || bootFinished.current) return;
+    const reveal = () => { bootFinished.current = true; hideBootSplash(); };
+    const root = document.getElementById('root');
+    if (root) return whenBootContentReady(root, reveal);
+    reveal();
+  }, [waitingForSession]);
+
   const finishAuthAction = async (result: 'password' | null) => {
     if (result === 'password') {
       markPasswordResetNotice();
@@ -105,15 +113,13 @@ function AppContent() {
     authAction.dismiss();
   };
 
+  if (waitingForSession) return null;
+
   if (authAction.link) {
     return <AuthActionPage link={authAction.link} onDone={finishAuthAction} />;
   }
 
   if (inviteToken) return <InviteScreen token={inviteToken} state={inviteState} onLeave={clearInvite} onAccept={() => { void handleAcceptInvite(); }} accepting={inviteAccepting} error={inviteError || (user && backendStatus !== 'offline' && !isNetworkErrorMessage(backendMessage) && ['error', 'unconfigured'].includes(backendStatus) ? backendMessage || 'No pudimos preparar tu cuenta. Reintentá en unos segundos.' : '')} ready={backendStatus === 'ready'} />;
-
-  if (loading && !user) {
-    return <div className="min-h-screen bg-gray-50" />;
-  }
 
   if (!user || backendStatus === 'unauthorized') {
     const storeName = sessionClosedStore();

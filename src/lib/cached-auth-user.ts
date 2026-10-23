@@ -8,6 +8,8 @@ export function cachedAuthUser(boot: BootSession): AuthUserLike {
     email: boot.email,
     displayName: boot.displayName,
     photoURL: boot.photoURL,
+    get providerData() { return getAuthAdapter().getCurrentUser()?.providerData; },
+    get emailVerified() { return getAuthAdapter().getCurrentUser()?.emailVerified; },
     getIdToken: async () => {
       const current = getAuthAdapter().getCurrentUser();
       const restored = current?.uid === boot.uid

@@ -1,3 +1,4 @@
+import { useStableState } from '../lib/stable-state';
 import { toActionMessage } from '../lib/user-message';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
@@ -38,18 +39,19 @@ const CatalogContext = createContext<CatalogState & {
 
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
   const { user, appSession } = useAppContext();
-  const [payload, setPayload] = useState<CatalogPayload | null>(null);
+  const [payload, setPayload] = useStableState<CatalogPayload | null>(null);
   const [tick, setTick] = useState(0);
   const canEdit = !!appSession && appSession.membership?.role !== 'STAFF';
 
+  useEffect(() => { setPayload(null); }, [user?.uid, appSession?.store?.id, appSession?.membership?.role, JSON.stringify(appSession?.membership?.sections)]);
   useEffect(() => {
     if (!user || !appSession?.store?.id || appSession.onboardingRequired) return;
     let cancelled = false;
     fetchCatalogs(user)
       .then((data) => { if (!cancelled) setPayload(data); })
-      .catch(() => { if (!cancelled) setPayload(null); });
+      .catch(() => { /* Keep the last catalog during revalidation failures. */ });
     return () => { cancelled = true; };
-  }, [user, appSession?.store?.id, appSession?.onboardingRequired, appSession?.membership?.role, JSON.stringify(appSession?.membership?.sections), tick]);
+  }, [user?.uid, appSession?.store?.id, appSession?.onboardingRequired, appSession?.membership?.role, JSON.stringify(appSession?.membership?.sections), tick]);
 
   const value = useMemo(() => ({
     options: payload?.options ?? [],
