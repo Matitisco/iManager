@@ -220,10 +220,12 @@ export function useEscape(onClose: () => void) {
   }, [onClose]);
 }
 
-export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
-  const top = rect.bottom + 160 < window.innerHeight ? rect.bottom + 4 : Math.max(12, rect.top - 150);
-  const left = Math.min(window.innerWidth - 236, Math.max(12, clientX - 20));
-  return { x: left, y: top };
+export function menuPosition(clientX: number, clientY: number, button?: DOMRect) {
+  return {
+    x: clientX,
+    y: clientY,
+    ...(button ? { anchorTop: button.top, anchorBottom: button.bottom, anchorRight: button.right } : {}),
+  };
 }
 
 function usePress(onMenu: ((point: { x: number; y: number }) => void) | undefined, onActivate: () => void) {
@@ -255,7 +257,7 @@ function usePress(onMenu: ((point: { x: number; y: number }) => void) | undefine
         timer.current = null;
         node.classList.remove('holding');
         firedAt.current = Date.now();
-        onMenu?.(menuPosition(x, y, node.getBoundingClientRect()));
+        onMenu?.(menuPosition(x, y));
       }, 480);
     },
     onPointerMove(event: React.PointerEvent<HTMLElement>) {
@@ -271,7 +273,7 @@ function usePress(onMenu: ((point: { x: number; y: number }) => void) | undefine
       stop();
       if (!onMenu) return;
       firedAt.current = Date.now();
-      onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
+      onMenu(menuPosition(event.clientX, event.clientY));
     },
     onDragStart() { stop(); },
     onClick(event: React.MouseEvent) {

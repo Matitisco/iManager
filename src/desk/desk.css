@@ -700,6 +700,9 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .ctx button:hover { background: #F3F4F6; }
 .ctx button.danger { color: var(--err); }
 .ctx svg { flex-shrink: 0; }
+@media (min-width: 761px) {
+  .ctx { max-width: var(--ctx-max-width, calc(100vw - 24px)); max-height: var(--ctx-max-height, calc(100dvh - 24px)); overflow-y: auto; }
+}
 .toast {
   position: fixed;
   top: 20px;

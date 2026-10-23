@@ -1,8 +1,9 @@
 import { useModalLayer } from './modal-layer';
-import { archivedReturn } from './archive-cache';
+import { archivedReturn, voidedSale } from './archive-cache';
 import { StockOnboarding } from '../pages/StockOnboarding';
 import { DepositForm, RepairDepositSheet } from './overlays/deposits';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { placeMenu } from './menu-position';
 import { useAppContext } from '../context/AppContext';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { archivedMatchOf } from '../services/api-client';
@@ -10,7 +11,7 @@ import { restoreBackendClient } from '../services/clients-api';
 import { restoreBackendInventoryItem } from '../services/inventory-api';
 import { ReasonSheet } from './ReasonSheet';
 export { ReasonSheet } from './ReasonSheet';
-import { isActiveTradeOperation } from './format';
+import { isActiveTradeOperation, isVoidRow } from './format';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
 import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
@@ -41,10 +42,49 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const { sales = [], returns = [] } = useAppContext();
   const claim = overlay.kind === 'return' ? returns?.find(row => row.id === overlay.id) ?? archivedReturn(overlay.id) : null;
   const cancelledReturn = Boolean(claim && (claim.deletedAt || claim.status === 'ANULADO'));
-  const cancelledSale = overlay.kind === 'sale' && sales.find(sale => sale.id === overlay.id)?.status === 'CANCELADA';
+  const sale = overlay.kind === 'sale' ? sales.find(row => row.id === overlay.id) ?? voidedSale(overlay.id) : null;
+  const cancelledSale = Boolean(sale && isVoidRow(sale));
   const phone = usePhoneLayout();
   useEscape(close);
   const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    if (phone) { menu.removeAttribute('style'); return; }
+    const viewport = window.visualViewport;
+    const place = () => {
+      const bounds = {
+        offsetLeft: viewport?.offsetLeft ?? 0,
+        offsetTop: viewport?.offsetTop ?? 0,
+        width: viewport?.width ?? window.innerWidth,
+        height: viewport?.height ?? window.innerHeight,
+      };
+      menu.style.setProperty('--ctx-max-width', `${Math.max(0, bounds.width - 24)}px`);
+      menu.style.setProperty('--ctx-max-height', `${Math.max(0, bounds.height - 24)}px`);
+      // offset dimensions exclude the existing pop animation's scale transform.
+      const position = placeMenu({ anchor: overlay, viewport: bounds, size: {
+        width: menu.offsetWidth,
+        height: Math.max(menu.offsetHeight, menu.scrollHeight + menu.offsetHeight - menu.clientHeight),
+      } });
+      menu.style.setProperty('--ctx-max-height', `${position.maxHeight}px`);
+      menu.style.left = `${position.left}px`;
+      menu.style.top = `${position.top}px`;
+      menu.style.transformOrigin = position.transformOrigin;
+      menu.style.visibility = 'visible';
+    };
+    place();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place);
+    observer?.observe(menu);
+    window.addEventListener('resize', place);
+    viewport?.addEventListener('resize', place);
+    viewport?.addEventListener('scroll', place);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', place);
+      viewport?.removeEventListener('resize', place);
+      viewport?.removeEventListener('scroll', place);
+    };
+  }, [phone, overlay, cancelledSale, cancelledReturn, canManageSensitive]);
   useModalLayer({ ref: menuRef, onClose: close, enabled: overlay.kind === 'return' });
   useEffect(() => {
     if (overlay.kind !== 'return') return;
@@ -65,7 +105,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const edit = overlay.kind === 'return' ? 'edit-return' : overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'ot' ? 'edit-ot' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
-      <div ref={menuRef} tabIndex={overlay.kind === 'return' ? -1 : undefined} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={menuRef} tabIndex={overlay.kind === 'return' ? -1 : undefined} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { visibility: 'hidden' }} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div className="ctxh">{claim ? `${claim.code} · ${claim.clientName || 'Sin cliente'}` : overlay.label}</div>
         {!cancelledSale ? <button type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}

@@ -1,4 +1,5 @@
 import type { ScanDraft } from './scan/draft';
+import type { MenuAnchor } from './menu-position';
 
 export type DeskTab =
   | 'billing'
@@ -52,7 +53,7 @@ export type Overlay =
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
   | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string }
-  | { type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string; x: number; y: number; onSelect?: () => void }
+  | ({ type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string; onSelect?: () => void } & MenuAnchor)
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }
   | { type: 'supplier'; id: string }
   | { type: 'new-supplier' }
