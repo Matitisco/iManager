@@ -464,6 +464,15 @@ describe('Reports breakdown and new sections', () => {
     expect(screen.queryByTestId('net-profit')).not.toBeInTheDocument();
   });
 
+  it.each([true, false])('places owner net profit after charts and before the list (expenses loaded: %s)', (loaded) => {
+    context.appSession = { membership: { role: 'OWNER' } };
+    context.expensesLoaded = loaded;
+    const { container } = render(<ReportsScreen />);
+    const card = screen.getByTestId(loaded ? 'net-profit' : 'net-profit-loading');
+    expect(container.querySelector('.repgrid')?.nextElementSibling).toBe(card);
+    expect(card.nextElementSibling).toBe(screen.getByRole('heading', { name: 'Ventas del período' }).parentElement);
+  });
+
   it('resta los gastos del período en la ganancia neta del dueño', async () => {
     context.appSession = { membership: { role: 'OWNER' } };
     context.expensesLoaded = true;
