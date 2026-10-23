@@ -501,7 +501,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         </div>
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
-      <DatePicker required boundary="sheet" label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
+      <DatePicker required boundary="sheet" panel={phone ? 'inline' : 'float'} label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
       <Field label="Garantía" error={bad.warranty}><span /></Field>
       <div className="sgs warranty-presets" role="group" aria-label="Garantía">
         {(['30', '60', '90'] as const).map((days) => (

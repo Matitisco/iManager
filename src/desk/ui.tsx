@@ -226,7 +226,7 @@ export function menuPosition(clientX: number, clientY: number, rect: DOMRect) {
   return { x: left, y: top };
 }
 
-function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate: () => void) {
+function usePress(onMenu: ((point: { x: number; y: number }) => void) | undefined, onActivate: () => void) {
   const timer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const firedAt = useRef(0);
@@ -243,6 +243,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
   }, []);
   return {
     onPointerDown(event: React.PointerEvent<HTMLElement>) {
+      if (!onMenu) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       origin.current = { x: event.clientX, y: event.clientY };
       target.current = event.currentTarget;
@@ -254,7 +255,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
         timer.current = null;
         node.classList.remove('holding');
         firedAt.current = Date.now();
-        onMenu(menuPosition(x, y, node.getBoundingClientRect()));
+        onMenu?.(menuPosition(x, y, node.getBoundingClientRect()));
       }, 480);
     },
     onPointerMove(event: React.PointerEvent<HTMLElement>) {
@@ -268,6 +269,7 @@ function usePress(onMenu: (point: { x: number; y: number }) => void, onActivate:
     onContextMenu(event: React.MouseEvent<HTMLElement>) {
       event.preventDefault();
       stop();
+      if (!onMenu) return;
       firedAt.current = Date.now();
       onMenu(menuPosition(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect()));
     },
@@ -308,7 +310,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   className?: string;
   testId?: string;
   onActivate: () => void;
-  onMenu: (point: { x: number; y: number }) => void;
+  onMenu?: (point: { x: number; y: number }) => void;
   draggable?: boolean;
   grabbed?: boolean;
   onDragStart?: (event: React.DragEvent<HTMLElement>) => void;
@@ -334,7 +336,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
       <div className={`press-host${visible ? ' bulk-row' : ''}${selection?.checked ? ' bulk-selected' : ''}`}>
         {checkbox}
         <button className={rowClass} type="button" data-testid={testId} disabled={selection?.disabled} {...bind} {...drag}>{children}</button>
-        {selection?.active ? null : <RowMenu onMenu={onMenu} />}
+        {selection?.active || !onMenu ? null : <RowMenu onMenu={onMenu} />}
       </div>
     );
   }
@@ -447,7 +449,7 @@ export function Segs({ options, value, onChange, onEdit, allowClear }: { options
   );
 }
 
-export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, danger, more }: {
+export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, danger, more, busyLabel = 'Guardando…' }: {
   primary: string;
   onPrimary: () => void;
   secondary?: string;
@@ -455,12 +457,13 @@ export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondar
   busy?: boolean;
   danger?: boolean;
   more?: React.ReactNode;
+  busyLabel?: string;
 }) {
   return (
     <div className="sacts sheet-actions">
       <button type="button" className="btn2 s sheet-secondary" onClick={onSecondary} disabled={busy}>{secondary}</button>
       {more ? <SheetActionMenu>{more}</SheetActionMenu> : null}
-      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'} sheet-primary`} onClick={onPrimary} disabled={busy}>{busy ? 'Guardando…' : primary}</button>
+      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'} sheet-primary`} onClick={onPrimary} disabled={busy}>{busy ? busyLabel : primary}</button>
     </div>
   );
 }

@@ -33,11 +33,10 @@ describe('cambio de estado de reclamo', () => {
     mount(<ReturnDetail id="claim" />);
     await userEvent.click(screen.getByRole('button', { name: 'En diagnóstico' }));
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
-    await userEvent.type(screen.getByLabelText('Nota (opcional)'), ' Revisar batería ');
+    await userEvent.type(screen.getByLabelText('Nota de seguimiento'), ' Revisar batería ');
     expect(ctx.updateReturn).not.toHaveBeenCalled();
-    expect(within(screen.getByTestId('return-events')).getByText('Ingresó el reclamo.')).toBeInTheDocument();
-    expect(screen.getByTestId('return-events').querySelector('time')).toHaveAttribute('datetime', '2026-10-21T15:00:00Z');
-    expect(screen.getByTestId('return-events').querySelector('time')).toHaveTextContent('21/10/2026');
+    expect(screen.queryByTestId('return-events')).not.toBeInTheDocument();
+    expect(screen.getByTestId('return-next-step')).toHaveTextContent('En diagnóstico');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(ctx.updateReturn).toHaveBeenCalledWith('claim', { status: 'EN_DIAGNOSTICO', diagnosis: null, note: 'Revisar batería' }));
     expect(close).toHaveBeenCalledOnce();
@@ -50,7 +49,7 @@ describe('cambio de estado de reclamo', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(close).toHaveBeenCalledOnce();
     expect(ctx.advanceRma).not.toHaveBeenCalled();
-    await userEvent.type(screen.getByLabelText('Nota (opcional)'), 'Confirmó el proveedor');
+    await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Confirmó el proveedor');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(ctx.advanceRma).toHaveBeenCalledWith('claim', 'APROBADO', null, 'Confirmó el proveedor'));
   });
@@ -58,7 +57,7 @@ describe('cambio de estado de reclamo', () => {
     mount(<ReturnDetail id="claim" />);
     await userEvent.click(screen.getByRole('button', { name: 'Resuelto' }));
     await userEvent.click(screen.getByRole('button', { name: 'Reintegro' }));
-    await userEvent.type(screen.getByLabelText('Nota (opcional)'), 'Se acordó devolver el importe');
+    await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Se acordó devolver el importe');
     expect(ctx.resolveReturn).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(ctx.resolveReturn).toHaveBeenCalledWith('claim', {
@@ -70,14 +69,14 @@ describe('cambio de estado de reclamo', () => {
     ctx.updateReturn.mockReturnValue(new Promise((_, no) => { reject = no; }));
     mount(<ReturnDetail id="claim" />);
     await userEvent.click(screen.getByRole('button', { name: 'En diagnóstico' }));
-    await userEvent.type(screen.getByLabelText('Nota (opcional)'), 'Pendiente');
+    await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Pendiente');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Resuelto' })).toBeDisabled();
-    expect(screen.getByLabelText('Nota (opcional)')).toBeDisabled();
+    expect(screen.getByLabelText('Nota de seguimiento')).toBeDisabled();
     reject(new Error('Sin conexión'));
     await screen.findByRole('alert');
-    expect(screen.getByLabelText('Nota (opcional)')).toHaveValue('Pendiente');
+    expect(screen.getByLabelText('Nota de seguimiento')).toHaveValue('Pendiente');
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
     expect(close).not.toHaveBeenCalled();
   });
@@ -92,7 +91,7 @@ describe('cambio de estado de reclamo', () => {
     expect(screen.getByText('Anulado')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Restaurar' })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText('Nota (opcional)')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Nota de seguimiento')).not.toBeInTheDocument();
   });
 });
 describe('editar y anular reclamo', () => {
@@ -143,4 +142,85 @@ describe('editar y anular reclamo', () => {
     mount(<ReturnDelete id="claim" />);
     expect(screen.getByText(/Se conservan los movimientos registrados/)).toBeInTheDocument();
   });
+});
+
+describe('rediseño aprobado de reclamos', () => {
+  it.each([false, true])('opens complete history in a second layer and preserves the draft (phone: %s)', async phone => {
+    const media = window.matchMedia;
+    window.matchMedia = query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() });
+    try {
+      ctx.returns = [{ ...claim, events: [claim.events[0], { status: 'EN_DIAGNOSTICO', note: 'Revisar batería.', createdAt: '2026-10-22T15:00:00Z' }] }];
+      mount(<ReturnDetail id="claim" />);
+      const parent = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
+      const trigger = within(parent).getByRole('button', { name: 'Ver historial (2)' });
+      expect(trigger).toHaveAttribute('title', 'Historial');
+      expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(trigger.textContent).toBe('');
+      expect(trigger.querySelector('[data-desk-icon="clock"]')).toBeInTheDocument();
+      expect(parent).not.toHaveTextContent(/Ingresó el reclamo|Revisar batería\./);
+      await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Borrador');
+      await userEvent.click(trigger);
+      const history = screen.getByRole('dialog', { name: 'Historial · RMA-0001' });
+      expect(history).toHaveClass('return-history-sheet', 'hist-screen');
+      expect(history.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
+      expect(within(history).getAllByRole('listitem')).toHaveLength(2);
+      expect(within(history).getAllByRole('listitem')[0]).toHaveTextContent('Revisar batería.');
+      expect(history.querySelector('time')).toHaveAttribute('datetime', '2026-10-22T15:00:00Z');
+      expect(within(history).getByText('Ingresó el reclamo.')).toBeInTheDocument();
+      if (phone) {
+        expect(within(history).queryByRole('button', { name: 'Cerrar' })).not.toBeInTheDocument();
+        expect(within(history).getByRole('button', { name: 'Volver' })).toHaveClass('wback');
+        await userEvent.click(within(history).getByRole('button', { name: 'Volver' }));
+      } else {
+        await userEvent.keyboard('{Escape}');
+      }
+      expect(screen.queryByRole('dialog', { name: 'Historial · RMA-0001' })).not.toBeInTheDocument();
+      expect(within(parent).getByLabelText('Nota de seguimiento')).toHaveValue('Borrador');
+      await waitFor(() => expect(trigger).toHaveFocus());
+      expect(close).not.toHaveBeenCalled();
+    } finally { window.matchMedia = media; }
+  });
+  it('keeps Fecha first and sends no diagnosis when opening a claim', async () => {
+    mount(<ReturnForm />);
+    const sheet = screen.getByRole('dialog', { name: 'Nuevo reclamo' });
+    const body = sheet.querySelector('.sheet-scroll')!;
+    expect(body.firstElementChild).toHaveClass('dp-field');
+    expect(screen.getByLabelText('Fecha del reclamo')).toHaveAttribute('type', 'text');
+    expect(sheet.querySelector('input[type="date"]')).toBeNull();
+    expect(screen.queryByLabelText('Diagnóstico')).not.toBeInTheDocument();
+    expect([...body.querySelectorAll('.fl')].map(field => field.textContent)).toEqual([expect.stringContaining('Fecha'), expect.stringContaining('Venta'), expect.stringContaining('Motivo')]);
+  });
+  it('loads the real status when records arrive after the sheet opens', async () => {
+    const rows = ctx.returns;
+    // The context intentionally distinguishes pending data from an empty list.
+    ctx.returns = null as unknown as ReturnCaseView[];
+    const view = mount(<ReturnDetail id="claim" />);
+    expect(screen.queryByText(/Cargando/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
+    ctx.returns = [{ ...rows[0], status: 'EN_DIAGNOSTICO', diagnosis: 'Batería' }];
+    view.rerender(<div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: false }}><ReturnDetail id="claim" /></DeskProvider></div>);
+    expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Diagnóstico')).toHaveValue('Batería');
+  });
+  it('uses the danger sheet action and identifies the claim and client in confirmation', () => {
+    mount(<ReturnDelete id="claim" />);
+    expect(screen.getByText('RMA-0001 · Lucía')).toHaveClass('rd-who');
+    expect(screen.getByRole('button', { name: 'Anular' })).toHaveClass('btn2', 'danger', 'sheet-primary');
+  });
+});
+
+it('keeps the mobile claim calendar inline inside the scrolling form', async () => {
+  const media = window.matchMedia;
+  window.matchMedia = query => ({ matches: true, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() });
+  try {
+    mount(<ReturnForm />);
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir calendario: fecha' }));
+    const panel = screen.getByRole('dialog', { name: 'Elegir fecha del reclamo' }).parentElement!;
+    expect(panel).toHaveClass('dp-calendar', 'dp-inline');
+    expect(panel).not.toHaveClass('inline');
+    expect(panel.closest('.sheet-scroll')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByLabelText('Fecha del reclamo')).toHaveFocus();
+    expect(close).not.toHaveBeenCalled();
+  } finally { window.matchMedia = media; }
 });

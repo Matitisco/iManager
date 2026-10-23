@@ -124,7 +124,7 @@ export function DatePicker({ label, value, onChange, invalid, describedBy, requi
 
   const select = (date: Date | null) => { onChange(date ? dateValue(date) : ''); close(); };
   const popup = <AnimatePresence>
-    {open && !disabled && <ModalLayerContext.Provider value={modal.scope}><motion.div ref={calendar} id={`${id}-calendar`} tabIndex={-1} className={`dp-calendar${panel === 'inline' ? ' inline' : ''}`} style={panel === 'inline' ? undefined : position}
+    {open && !disabled && <ModalLayerContext.Provider value={modal.scope}><motion.div ref={calendar} id={`${id}-calendar`} tabIndex={-1} className={`dp-calendar${panel === 'inline' ? ' dp-inline' : ''}`} style={panel === 'inline' ? undefined : position}
       initial={{ opacity: 0, y: reducedMotion ? 0 : 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }} transition={{ duration: reducedMotion ? 0 : .15 }}>
       <Calendar label={ariaLabel ?? label} value={value} onSelect={select} />
     </motion.div></ModalLayerContext.Provider>}

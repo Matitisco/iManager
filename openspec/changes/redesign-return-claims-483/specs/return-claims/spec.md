@@ -25,3 +25,21 @@ El sistema SHALL ofrecer Editar y Anular desde click derecho, long-press y ⋯. 
 #### Scenario: Permisos y tienda
 - **WHEN** alguien sin permiso sensible intenta anular o modificar una resolución, o usa un ID de otra tienda
 - **THEN** el backend rechaza la operación sin cambios
+
+### Requirement: Alta y fecha responsive
+El sistema SHALL mostrar Fecha, Venta, resumen de IMEI/garantía/importe y Motivo en ese orden; SHALL crear el reclamo con diagnóstico null. SHALL reutilizar DatePicker con calendario flotante desktop e inline móvil sin la clase utilitaria `.inline`.
+
+#### Scenario: Abrir calendario móvil
+- **WHEN** se abre el calendario en Nuevo reclamo a 390 px
+- **THEN** el calendario ocupa el ancho del campo dentro del scroll y no tapa el encabezado ni las acciones fijas
+
+### Requirement: Historial en segunda capa
+El sistema SHALL mostrar únicamente un reloj accesible de 44 px para abrir historial. Los eventos de `current.events` SHALL mostrarse completos en un segundo modal de 480 px en escritorio y pantalla completa móvil con Volver; el detalle principal SHALL contener únicamente el siguiente paso y su nota.
+
+#### Scenario: Volver al borrador
+- **WHEN** se abre y cierra el historial después de editar una nota sin guardar
+- **THEN** se conserva la nota y el estado elegidos, sin persistir cambios y devolviendo el foco al reloj
+
+#### Scenario: Acciones de reclamo anulado
+- **WHEN** se muestra una fila anulada con movimientos financieros previos
+- **THEN** el importe visible es «—», la píldora dice Anulado y no hay menú de acciones

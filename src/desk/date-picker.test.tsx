@@ -70,6 +70,9 @@ it('keeps the reports inline variant in the form and closes the previous picker'
   const { container } = render(<Range />);
   await userEvent.click(screen.getByRole('button', { name: 'Abrir calendario: desde' }));
   expect(container).toContainElement(screen.getByRole('dialog', { name: 'Elegir desde' }));
+  const panel = screen.getByRole('dialog', { name: 'Elegir desde' }).parentElement!;
+  expect(panel).toHaveClass('dp-calendar', 'dp-inline');
+  expect(panel).not.toHaveClass('inline');
   await userEvent.click(screen.getByRole('button', { name: 'Abrir calendario: hasta' }));
   expect(screen.queryByRole('dialog', { name: 'Elegir desde' })).not.toBeInTheDocument();
   expect(screen.getByRole('dialog', { name: 'Elegir hasta' })).toBeInTheDocument();

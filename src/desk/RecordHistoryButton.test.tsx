@@ -39,6 +39,11 @@ describe('historial apilado compartido', () => {
     expect(screen.queryByText(/Ocultar historial|Ver todo|Sin movimientos recientes/)).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Borrador'), ' modificado');
     const trigger = screen.getByRole('button', { name: 'Historial' });
+    expect(trigger).toHaveClass('icon-only');
+    expect(trigger).toHaveTextContent('');
+    expect(trigger.textContent).toBe('');
+    expect(trigger).toHaveAttribute('title', 'Historial');
+    expect(trigger.querySelector('[data-desk-icon=clock]')).toBeInTheDocument();
     await userEvent.click(trigger);
     const modal = await screen.findByRole('dialog', { name: 'Historial' });
     expect(modal.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
