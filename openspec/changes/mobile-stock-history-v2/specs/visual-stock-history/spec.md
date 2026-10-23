@@ -35,7 +35,15 @@ El sistema MUST presentar el detalle del evento mediante Sheet compartido y toke
 
 #### Scenario: Cierre de control B con datos actuales
 - **WHEN** un cierre de control incluye contadores matched, missing, surplus y sold
-- **THEN** muestra Coinciden, Sin escanear, Sin cargar y Figuran vendidos, con Sin escanear en negro y solo los valores guardados; no inventa equipos, IMEI ni grupos ausentes cuando el evento carece de listas.
+- **THEN** muestra Coinciden, Sin escanear, Sin cargar y Figuran vendidos como selectores, con Sin escanear activo en negro inicialmente y valores exclusivamente del evento.
+
+#### Scenario: Lista de equipos del control cerrado B
+- **WHEN** el evento stockcount.closed tiene entityId y la consulta de solo lectura al control cerrado devuelve sus buckets
+- **THEN** el detalle MUST mostrar los equipos del grupo seleccionado en una tarjeta con borde, ícono compartido, modelo · capacidad en negrita e IMEI debajo; seleccionar otro contador cambia la lista y el activo negro, conservando encabezado/footer fijos, scroll interno y degradé inferior mientras quedan equipos por ver.
+
+#### Scenario: Control no disponible en B
+- **WHEN** la consulta está pendiente, falla, no devuelve datos o no hay permiso de Inventario
+- **THEN** el detalle MUST conservar los contadores del evento sin textos de carga, error ni Reintentar, sin fabricar equipos ni IMEI; las respuestas de detalles cerrados o anteriores MUST descartarse.
 
 #### Scenario: Acciones por viewport
 - **WHEN** se abre el detalle de un registro accesible

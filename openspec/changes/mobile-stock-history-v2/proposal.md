@@ -6,4 +6,4 @@ Regla global del detalle: las filas sin Antes real omiten también la etiqueta D
 
 ## Ampliación aprobada — detalle de evento modal-v3
 
-Aplicar las referencias `modal-{a,b,c}-{1440,390}` y `modal-v3/src/modal.css` al detalle del Historial, también en escritorio. A compara precio; B presenta los contadores guardados del control; C presenta los valores nuevos sin Antes/Después. Mantener datos y destinos existentes y usar Sheet y tokens compartidos. Sin backend, Prisma, E2E nuevos, build, commit ni push.
+Aplicar las referencias `modal-{a,b,c}-{1440,390}` y `modal-v3/src/modal.css` al detalle del Historial, también en escritorio. A compara precio; B presenta los contadores guardados del evento y la lista seleccionable de equipos del control cerrado mediante la API existente; C presenta los valores nuevos sin Antes/Después. Mantener datos y destinos existentes y usar Sheet y tokens compartidos. Sin backend, Prisma, E2E nuevos, build, commit ni push.

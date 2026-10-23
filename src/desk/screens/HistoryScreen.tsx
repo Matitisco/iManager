@@ -12,6 +12,7 @@ import { fetchArchivedClients } from '../../services/clients-api';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { fetchArchivedRepairs } from '../../services/repairs-api';
 import { fetchReturns } from '../../services/returns-api';
+import { fetchStockCount, type ClosedStockCount, type StockCountLine } from '../../services/stock-counts-api';
 import { rememberArchivedClients, rememberArchivedProducts, rememberArchivedRepairs, rememberArchivedReturns, rememberVoidedSales, rememberVoidedTrades } from '../archive-cache';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { fetchVoidedTradeIns } from '../../services/trade-ins-api';
@@ -187,7 +188,7 @@ export function HistoryScreen() {
     {pageError && !isNetworkErrorMessage(pageError) ? <div className="ferr" role="alert">{pageError}</div> : null}
     {loadingMore ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={2} testId="history-more-loading" /> : null}
     {!loading && !error && cursor ? <button className="dbtn s history-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>Cargar más</button> : null}
-    {selected ? <HistoryDetail event={selected} onClose={() => setSelected(null)} /> : null}
+    {selected ? <HistoryDetail key={selected.id} event={selected} onClose={() => setSelected(null)} /> : null}
   </div>;
 }
 
@@ -198,25 +199,53 @@ function HistoryAvatar({ name }: { name: string }) {
   return <span className={`av-c ${name === 'Sistema' ? 'k' : tone}`} aria-hidden="true">{initials(name || 'S')}</span>;
 }
 
+function HistoryStockDevices({ lines, label }: { lines: StockCountLine[]; label: string }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [moreBelow, setMoreBelow] = useState(false);
+  const measure = () => {
+    const node = scrollRef.current;
+    if (node) setMoreBelow(node.scrollHeight - node.clientHeight - node.scrollTop > 1);
+  };
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    measure();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(node);
+    if (node.firstElementChild) observer?.observe(node.firstElementChild);
+    window.addEventListener('resize', measure);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
+  }, [lines]);
+
+  return <div className={`history-stock-devices${moreBelow ? ' more-below' : ''}`}>
+    <div className="history-stock-scroll" ref={scrollRef} onScroll={measure} role="region" aria-label={`Equipos: ${label}`} tabIndex={0}>
+      <ul>{lines.map(line => <li key={line.key}>
+        <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
+        <div><b>{[line.model, line.capacity].filter(Boolean).join(' · ') || 'Sin modelo'}</b><small>{line.imei}</small></div>
+      </li>)}</ul>
+    </div>
+  </div>;
+}
+
 function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () => void }) {
   const desk = useDesk();
   const { user, appSession } = useAppContext();
   const phone = usePhoneLayout();
   const [opening, setOpening] = useState(false);
   const [openError, setOpenError] = useState('');
+  const [closed, setClosed] = useState<ClosedStockCount | null>(null);
+  const [bucket, setBucket] = useState<keyof ClosedStockCount['buckets']>('missing');
   const when = formatArDateTime(event.createdAt);
   const day = when.slice(0, 10);
   const relativeDay = day === formatArDateTime(new Date()).slice(0, 10) ? 'Hoy'
     : day === formatArDateTime(new Date(Date.now() - 86400000)).slice(0, 10) ? 'Ayer' : day;
   const stockCount = event.entityType === 'stockcount' && event.action === 'stockcount.closed';
-  // The audit contains counts, not the result's device buckets. Never infer a list
-  // from current inventory or fetch a different snapshot just to fill the design.
   const countFields = [
     { field: 'matched', label: 'Coinciden' },
     { field: 'missing', label: 'Sin escanear' },
     { field: 'surplus', label: 'Sin cargar' },
     { field: 'sold', label: 'Figuran vendidos' },
-  ];
+  ] as const;
   const counts = stockCount ? countFields.flatMap(group => {
     const change = event.changes.find(change => change.field === group.field && change.after?.trim());
     return change ? [{ ...group, value: change.after }] : [];
@@ -229,8 +258,24 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     hasBefore: Boolean(change.before?.trim() && change.before.trim() !== '—'),
   }));
   const hasBefore = rows.some(change => change.hasBefore);
-  const canOpenControl = stockCount && !event.legacy && event.recordState === 'active' && !!user && !!event.entityId
+  const canReadControl = stockCount && !!user && !!event.entityId
     && sectionAllowed('stockCount', appSession?.membership?.sections, appSession?.membership?.role);
+  useEffect(() => {
+    let active = true;
+    setClosed(null);
+    setBucket('missing');
+    if (canReadControl && user) {
+      fetchStockCount(user, event.entityId).then(count => {
+        if (active && count?.status === 'CLOSED' && count.buckets) setClosed(count);
+      }).catch(() => {
+        // Optional read-only detail: keep the event counters if unavailable.
+      });
+    }
+    return () => { active = false; };
+  }, [user, appSession?.store?.id, canReadControl, event.entityId]);
+  const lines = closed?.buckets[bucket] ?? [];
+  const groupLabel = countFields.find(group => group.field === bucket)?.label || 'Sin escanear';
+  const canOpenControl = canReadControl && !event.legacy && event.recordState === 'active';
   const note = canOpenControl ? null : historyRecordNote(event);
   const record = historyRecord(event);
   const destinations = { inventory: 'inventory', sale: 'sales', trade: 'tradeins', client: 'clients', repair: 'service', supplier: 'suppliers', expense: 'expenses', return: 'returns' } as const;
@@ -260,7 +305,7 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     catch (err) { setOpenError(toActionMessage(err, 'No se pudo abrir el registro')); }
     finally { setOpening(false); }
   };
-  return <Sheet variant="detail" className="history-detail" title={event.title} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
+  return <Sheet variant="detail" className={`history-detail${lines.length ? ' history-detail-stock' : ''}`} title={event.title} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
     {!phone ? <button className="btn2 s" type="button" disabled={opening} onClick={onClose}>Cerrar</button> : null}
     {canOpen ? <button className="btn2 p" type="button" disabled={opening} onClick={() => void openRecord()}>
       {canOpenControl ? 'Ver control' : event.recordState === 'archived' ? 'Ver en archivados' : event.entityType === 'inventory' ? 'Ver equipo' : 'Ver registro'}
@@ -268,7 +313,8 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   </div>}>
     <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b><time dateTime={event.createdAt}>{relativeDay} · {formatArTime(event.createdAt)}</time></div>
     {!stockCount ? <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div> : null}
-    {counts.length ? <div className="history-detail-counts" role="group" aria-label="Resultado del control">{counts.map(count => <div key={count.field} className={count.field === 'missing' ? 'on' : undefined}><b>{count.value}</b><span>{count.label}</span></div>)}</div> : null}
+    {counts.length ? <div className="history-detail-counts" role="group" aria-label="Resultado del control">{counts.map(count => <button key={count.field} type="button" className={count.field === bucket ? 'on' : undefined} aria-label={`${count.label} ${count.value}`} aria-pressed={count.field === bucket} onClick={() => setBucket(count.field)}><b>{count.value}</b><span>{count.label}</span></button>)}</div> : null}
+    {lines.length ? <HistoryStockDevices key={bucket} lines={lines} label={groupLabel} /> : null}
     {rows.length ? <table className={`history-diff${hasBefore ? ' comparison' : ' values'}${rows.length === 1 && rows[0].hasBefore && /precio/i.test(rows[0].label) ? ' single' : ''}`}>{hasBefore ? <thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead> : null}<tbody>
       {rows.map((change, index) => <tr key={`${change.label}-${index}`} className={change.hasBefore ? undefined : 'history-diff-after-only'}>
         <th scope="row">{change.label}</th>

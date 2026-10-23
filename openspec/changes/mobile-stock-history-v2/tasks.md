@@ -16,3 +16,11 @@ Validación de la fase móvil anterior: TypeScript frontend/backend y 122 prueba
 - [x] Verificar Vitest de componentes/layout y typecheck frontend/backend; registrar resultados.
 
 Validación modal-v3: typecheck frontend/backend aprobado. 149 pruebas en 10 archivos Vitest aprobadas (HistoryScreen, history-copy, RecordHistoryButton, Sheet detail/compatibilidad, capas modales, StockCountScreen, patrones móviles, GroupTabs y DeskApp); última pasada de Historial/layout: 38/38. Geometría del componente real verificada en 1440×900, 1440×480, 390×844 y 320×568: ancho, máximo de altura, centrado/bottom sheet, acción de 48/50 px y scroll sin desplazar encabezado/footer. Previews de A/B/C generadas con fixtures en 1440/390 e inspeccionadas en `/tmp/imanager-history-detail/`; el archivo temporal se retiró. Sin E2E ejecutados/agregados, backend, Prisma, build, commit ni push.
+
+## Variante B completa — equipos del control cerrado
+
+- [x] Consultar el control cerrado con el cliente existente, descartando respuestas tardías y sin mensajes de carga/error ni reintento.
+- [x] Convertir los contadores del evento en selectores y mostrar la lista por grupo con ícono compartido, tarjeta, scroll y degradé condicional.
+- [x] Cubrir grupos, contadores históricos, carga, ausencia de datos, permisos y respuestas tardías con Vitest de componentes; ejecutar typecheck y pruebas relevantes.
+
+Validación variante B: typecheck frontend/backend y 116 pruebas en 7 archivos Vitest aprobados (HistoryScreen, StockCountScreen, history-copy, RecordHistoryButton, patrones móviles, Sheet detail y capas modales). Cobertura con fetchStockCount mockeado para grupos, selección inicial, contadores del evento distintos de las longitudes, IMEI/modelo reales, carga sin texto, errores 403/404/lectura, datos ausentes/vacíos, permiso de solo Historial, cierre/cambio de evento y degradé al hacer scroll hasta el final. Sin cambios de backend, build, E2E, commit ni push.
