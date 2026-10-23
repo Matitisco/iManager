@@ -204,7 +204,11 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   const [openError, setOpenError] = useState('');
   const when = formatArDateTime(event.createdAt);
   const today = when.slice(0, 10) === formatArDateTime(new Date()).slice(0, 10);
-  const rows = historyDetailRows(event);
+  const rows = historyDetailRows(event).map(change => ({
+    ...change,
+    hasBefore: Boolean(change.before?.trim() && change.before.trim() !== '—'),
+  }));
+  const hasBefore = rows.some(change => change.hasBefore);
   const note = historyRecordNote(event);
   const record = historyRecord(event);
   const destinations = { inventory: 'inventory', sale: 'sales', trade: 'tradeins', client: 'clients', repair: 'service', supplier: 'suppliers', expense: 'expenses', return: 'returns' } as const;
@@ -241,8 +245,12 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
   </div>}>
     <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><div><b>{event.actorName || 'Alguien'}</b>{event.actorRoleLabel ? <p>{event.actorRoleLabel}</p> : null}</div></div>
     <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div>
-    {rows.length ? <table className={`history-diff${rows.length === 1 && /precio/i.test(rows[0].label) ? ' single' : ''}`}><thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead><tbody>
-      {rows.map((change, index) => <tr key={`${change.label}-${index}`}><th scope="row">{change.label}</th><td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before ?? '—'}</span></td><td><span className="history-diff-label" aria-hidden="true">Después</span><b>{change.after ?? '—'}</b></td></tr>)}
+    {rows.length ? <table className={`history-diff${rows.length === 1 && /precio/i.test(rows[0].label) ? ' single' : ''}`}><thead><tr><th>Campo</th>{hasBefore ? <th>Antes</th> : null}<th>Después</th></tr></thead><tbody>
+      {rows.map((change, index) => <tr key={`${change.label}-${index}`} className={change.hasBefore ? undefined : 'history-diff-after-only'}>
+        <th scope="row">{change.label}</th>
+        {change.hasBefore ? <td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before}</span></td> : null}
+        <td colSpan={!change.hasBefore && hasBefore ? 2 : 1}><span className="history-diff-label" aria-hidden="true">Después</span><b>{change.after ?? '—'}</b></td>
+      </tr>)}
     </tbody></table> : event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
     {event.reason?.trim() ? <p className="history-reason"><b>Motivo</b> {event.reason}</p> : null}
     {note ? <p className="history-missing">{note}</p> : null}
