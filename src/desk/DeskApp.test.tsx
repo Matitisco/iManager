@@ -223,9 +223,11 @@ describe('sidebar unread counts', () => {
     expect(screen.getByRole('heading', { name: 'Control de stock' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: width === 390 ? 'Control' : 'Control de stock' })).toHaveAttribute('aria-selected', 'true');
     expect(window.location.hash).toBe('#/stock/control');
-    expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    if (width === 390) fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    else {
+      expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole('tab', { name: 'Equipos' }));
+    }
     expect(await screen.findByRole('heading', { name: 'Inventario' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Equipos' })).toHaveAttribute('aria-selected', 'true');
     expect(window.location.hash).toBe('#/stock/equipos');

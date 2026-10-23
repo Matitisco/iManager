@@ -1,0 +1,105 @@
+/* Shared compact detail presentation; the regular Sheet keeps its own layout. */
+.desk-app {
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-1-half: 6px;
+  --space-2: 8px;
+  --space-2-half: 10px;
+  --space-3: 12px;
+  --space-3-half: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --radius-control: 12px;
+  --radius-panel: 14px;
+  --radius-dialog: 20px;
+  --radius-sheet: 24px;
+  --radius-round: 999px;
+  --surface-muted: #F6F6F7;
+  --surface-icon: #F3F4F6;
+  --surface-handle: #D1D5DB;
+  --border-subtle: #F1F1F3;
+  --text-muted: #9CA3AF;
+  --text-icon: #4B5563;
+  --font-body: 15px;
+  --font-body-small: 14.5px;
+  --font-label: 12px;
+  --font-label-small: 11px;
+  --font-value: 17px;
+  --font-stat: 18px;
+  --font-caption: 12.5px;
+  --font-meta: 13px;
+  --font-title: 22px;
+  --font-title-phone: 20px;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --detail-width: 480px;
+  --dialog-shadow: 0 20px 60px rgba(0, 0, 0, .18);
+}
+.desk-app .sheet.sheet-detail {
+  width: var(--detail-width);
+  max-height: calc(100dvh - 96px);
+  border-radius: var(--radius-dialog);
+  background: var(--card);
+  box-shadow: var(--dialog-shadow);
+  padding: 0;
+}
+.desk-app .sheet-detail > .sheet-h {
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-6) var(--space-4);
+  border: 0;
+}
+.desk-app .sheet-detail .sheet-title h3 {
+  margin: 0;
+  font-size: var(--font-title);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -.01em;
+}
+.desk-app .sheet-detail .modal-x { background: var(--surface-icon); }
+.desk-app .sheet-detail > .sheet-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0 var(--space-6) var(--space-5);
+}
+.sheet-detail > .sheet-scroll > * { flex-shrink: 0; }
+.desk-app .sheet-detail > .sheet-foot {
+  padding: var(--space-4) var(--space-6) var(--space-6);
+  border-color: var(--border-subtle);
+  background: var(--card);
+}
+.sheet-detail-actions { display: flex; justify-content: flex-end; gap: var(--space-2-half); }
+.desk-app .sheet-detail-actions > .btn2 {
+  flex: none;
+  height: 48px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-control);
+  font-size: var(--font-body);
+  font-weight: var(--font-weight-medium);
+  box-shadow: none;
+}
+.desk-app .sheet-detail-actions > .btn2.s { background: var(--card); border: 1px solid var(--border); }
+.desk-app .sheet-detail-actions > .btn2.p { background: var(--primary); color: var(--card); padding-inline: var(--space-7); }
+@media (max-width: 760px) {
+  .desk-app .sheet.sheet-detail {
+    width: 100%;
+    max-height: 85dvh;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  }
+  .sheet-detail > .sheet-grab {
+    width: 38px;
+    height: 5px;
+    margin: var(--space-2-half) auto 0;
+    background: var(--surface-handle);
+    border-radius: var(--radius-round);
+  }
+  .desk-app .sheet-detail > .sheet-h { padding: var(--space-3) var(--space-5) var(--space-3-half); }
+  .desk-app .sheet-detail .sheet-title h3 { font-size: var(--font-title-phone); }
+  .desk-app .sheet-detail > .sheet-scroll { padding: 0 var(--space-5) var(--space-4); }
+  .desk-app .sheet-detail > .sheet-foot { padding: var(--space-3-half) var(--space-5) calc(var(--space-3-half) + env(safe-area-inset-bottom, 0px)); }
+  .sheet-detail-actions { flex-direction: column; }
+  .desk-app .sheet-detail-actions > .btn2.s { display: none; }
+  .desk-app .sheet-detail-actions > .btn2.p { width: 100%; height: 50px; border-radius: var(--radius-panel); }
+}

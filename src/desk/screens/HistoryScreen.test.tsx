@@ -31,12 +31,36 @@ function deferred() {
   return { promise, resolve };
 }
 beforeEach(() => {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
   fetch.mockReset(); fetch.mockResolvedValue({ events: [event()], nextCursor: null });
   vi.mocked(fetchHistoryActors).mockResolvedValue({ actors: [{ userId: 'lucia', name: 'Lucía Fernández', removed: false }] });
   ctx.appSession.membership = { role: 'OWNER', sections: null };
 });
 
 describe('Historial #372', () => {
+  it.each([false, true])('conserva la identidad completa y adapta la búsqueda y el registro (móvil=%s)', async phone => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    mount();
+    const trigger = await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
+    const search = screen.getByPlaceholderText(phone ? 'Buscar' : 'Buscar equipo, cliente o IMEI');
+    expect(screen.getAllByRole('textbox')).toHaveLength(1);
+    expect(trigger.querySelector('.history-record > b')).toHaveTextContent(phone ? 'iPhone 15 Pro · 256GB · Lucía' : 'iPhone 15 Pro · 256GB');
+    if (phone) {
+      expect(trigger.querySelector('.history-record > b')).not.toHaveTextContent('Fernández');
+      expect(search.closest('.history-filters')).toContainElement(screen.getByRole('combobox', { name: 'Período' }));
+    } else {
+      expect(trigger.querySelector('.history-record > b')).not.toHaveTextContent('Lucía');
+      expect(search.closest('.dtop')).toBeInTheDocument();
+    }
+    await userEvent.type(search, '5673');
+    await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ q: '5673', period: '30' })));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Período' }), '7');
+    await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ q: '5673', period: '7' })));
+    await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Lucía Fernández');
+    vi.restoreAllMocks();
+  });
+
   it('starts at 30 days, exposes Acción and preserves selected values and search', async () => {
     mount(); await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
     expect(fetch).toHaveBeenCalledWith(ctx.user, expect.objectContaining({ period: '30' }));
@@ -46,7 +70,7 @@ describe('Historial #372', () => {
     expect(screen.getByRole('combobox', { name: 'Acción' }).parentElement).toHaveTextContent('Edición');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Persona' }), 'lucia');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sección' }), 'inventory');
-    await userEvent.type(screen.getByPlaceholderText('Buscar equipo, cliente o IMEI'), '5673');
+    await userEvent.type(screen.getByRole('textbox'), '5673');
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ period: '30', group: 'Edición', actorUserId: 'lucia', section: 'inventory', q: '5673' })));
   });
 
@@ -69,7 +93,17 @@ describe('Historial #372', () => {
     await userEvent.click(trigger);
     const modal = screen.getByRole('dialog', { name: 'Cambió el precio' });
     expect(modal).toHaveTextContent('iPhone 15 Pro · 256GB'); expect(modal).toHaveTextContent('IMEI 356789012345673');
-    expect(modal).toHaveTextContent('Lucía Fernández'); expect(modal).toHaveTextContent('Empleada'); expect(modal).toHaveTextContent('Inventario · 22/10/2026 · 10:42');
+    expect(modal).toHaveTextContent('Lucía Fernández');
+    expect(modal.querySelector('.history-detail-person time')).toHaveTextContent(/(?:Hoy|Ayer|22\/10\/2026) · 10:42/);
+    expect(modal).not.toHaveTextContent('Empleada');
+    expect(modal).not.toHaveTextContent('Inventario ·');
+    expect(modal).toHaveClass('sheet-frame', 'sheet-detail');
+    expect(modal.querySelector('.sheet-h')).toHaveTextContent('Cambió el precio');
+    expect(modal.querySelector('.sheet-scroll')?.firstElementChild).toHaveClass('history-detail-person');
+    expect(modal.querySelector('.sheet-scroll')?.children[1]).toHaveClass('history-detail-record');
+    expect(modal.querySelector('.sheet-foot')).toContainElement(within(modal).getByRole('button', { name: 'Ver equipo' }));
+    expect(within(modal).getAllByRole('button', { name: 'Cerrar' })).toHaveLength(phone ? 1 : 2);
+    expect(modal.querySelector('.sheet-grab') !== null).toBe(phone);
     expect(within(modal).getByRole('columnheader', { name: 'Antes' })).toBeInTheDocument();
     expect(within(modal).getByRole('cell', { name: '$ 1.750.000' })).toBeInTheDocument();
     expect(modal).not.toHaveTextContent('Motivo');
@@ -92,9 +126,11 @@ describe('Historial #372', () => {
     const table = within(screen.getByRole('dialog')).getByRole('table');
     const status = within(table).getByRole('row', { name: /Estado Disponible Vendido/ });
     expect(within(status).getByText('Antes')).toBeInTheDocument();
+    expect(within(status).getByText('Después')).toBeInTheDocument();
     expect(status).not.toHaveClass('history-diff-after-only');
     const note = within(table).getByRole('row', { name: /Nota Revisar/ });
     expect(within(note).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(note).queryByText('Después')).not.toBeInTheDocument();
     expect(within(note).queryByText('—')).not.toBeInTheDocument();
     expect(within(note).getAllByRole('cell')).toHaveLength(1);
     expect(within(note).getByRole('cell', { name: 'Revisar' })).toHaveAttribute('colspan', '2');
@@ -111,18 +147,19 @@ describe('Historial #372', () => {
     vi.restoreAllMocks();
   });
 
-  it.each([null, '', ' \t\n ', '—'])('muestra solo Después cuando Antes es %j', async before => {
+  it.each([null, '', ' \t\n ', '—'])('muestra solo el valor nuevo, sin etiquetas, cuando Antes es %j', async before => {
     fetch.mockResolvedValue({ events: [event({ changes: [
       { field: 'notes', label: 'Nota', before, after: 'Revisar equipo' },
     ] })], nextCursor: null });
     mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
     const table = within(screen.getByRole('dialog')).getByRole('table');
     expect(within(table).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(table).queryByText('Después')).not.toBeInTheDocument();
     expect(within(table).queryByText('—')).not.toBeInTheDocument();
     const row = within(table).getByRole('row', { name: 'Nota Revisar equipo' });
     expect(row).toHaveClass('history-diff-after-only');
     expect(within(row).getAllByRole('cell')).toHaveLength(1);
-    expect(within(row).getByText('Después')).toBeInTheDocument();
+    expect(within(row).queryByText('Después')).not.toBeInTheDocument();
     expect(within(row).getByRole('cell', { name: 'Revisar equipo' })).toBeInTheDocument();
   });
 
@@ -140,13 +177,69 @@ describe('Historial #372', () => {
     const table = within(screen.getByRole('dialog', { name: 'Cerró un control de stock' })).getByRole('table');
     expect(within(table).queryByText('Antes')).not.toBeInTheDocument();
     expect(within(table).queryByText('—')).not.toBeInTheDocument();
-    for (const [label, value] of [['Esperados', '12'], ['Contados', '10'], ['Faltantes', '2']]) {
+    for (const [label, value] of [['Esperados', '12'], ['Contados', '10']]) {
       const row = within(table).getByRole('row', { name: `${label} ${value}` });
       expect(row).toHaveClass('history-diff-after-only');
+      expect(within(row).queryByText('Después')).not.toBeInTheDocument();
       expect(within(row).getAllByRole('cell')).toHaveLength(1);
       expect(within(row).getByRole('cell', { name: value })).toBeInTheDocument();
     }
+    const counter = within(screen.getByRole('dialog')).getByRole('group', { name: 'Resultado del control' });
+    expect(counter).toHaveTextContent('2Sin escanear');
+    expect(counter.children).toHaveLength(1);
     vi.restoreAllMocks();
+  });
+
+  it.each([false, true])('presenta el alta sin comparación ni etiquetas extra (phone=%s)', async phone => {
+    vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    fetch.mockResolvedValue({ events: [event({
+      action: 'inventory.created', title: 'Registró un equipo',
+      changes: [
+        { field: 'status', label: 'Estado', before: null, after: 'Disponible' },
+        { field: 'price', label: 'Precio', before: null, after: '$ 1.450.000' },
+      ],
+    })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Registró un equipo/ }));
+    const modal = screen.getByRole('dialog');
+    expect(within(modal).getByRole('row', { name: 'Estado Disponible' })).toBeInTheDocument();
+    expect(within(modal).getByRole('row', { name: 'Precio $ 1.450.000' })).toBeInTheDocument();
+    expect(within(modal).queryByText('Antes')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('Después')).not.toBeInTheDocument();
+    expect(within(modal).queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])('usa los cuatro contadores guardados sin fabricar equipos y navega al control (phone=%s)', async phone => {
+    vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    fetch.mockResolvedValue({ events: [event({
+      action: 'stockcount.closed', entityType: 'stockcount', title: 'Cerró un control de stock', entityLabel: 'Control de stock', entityIdentifier: null,
+      changes: [
+        { field: 'counters', label: 'Contaron', before: null, after: 'Lucía Fernández' },
+        { field: 'matched', label: 'Coinciden', before: null, after: '27' },
+        { field: 'missing', label: 'Faltan', before: null, after: '40' },
+        { field: 'surplus', label: 'Sobran', before: null, after: '0' },
+        { field: 'sold', label: 'Figuran vendidos', before: null, after: '1' },
+        { field: 'when', label: 'Hora', before: null, after: '10:42' },
+      ],
+    })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cerró un control/ }));
+    const modal = screen.getByRole('dialog');
+    const counters = within(modal).getByRole('group', { name: 'Resultado del control' });
+    expect([...counters.children].map(counter => counter.textContent)).toEqual(['27Coinciden', '40Sin escanear', '0Sin cargar', '1Figuran vendidos']);
+    expect(counters.querySelector('.on')).toHaveTextContent('40Sin escanear');
+    expect(within(modal).queryByRole('table')).not.toBeInTheDocument();
+    expect(within(modal).queryByText(/IMEI|iPhone/)).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledOnce();
+    await userEvent.click(within(modal).getByRole('button', { name: 'Ver control' }));
+    expect(go).toHaveBeenCalledWith('stockCount');
+    expect(openRecord).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('omite Ver control para quien solo tiene permiso de Historial', async () => {
+    ctx.appSession.membership = { role: 'STAFF', sections: ['history'] };
+    fetch.mockResolvedValue({ events: [event({ action: 'stockcount.closed', entityType: 'stockcount' })], nextCursor: null });
+    mount(); await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
+    expect(within(screen.getByRole('dialog')).queryByRole('button', { name: 'Ver control' })).not.toBeInTheDocument();
   });
 
   it.each(['Ocultar: 1 equipo', 'Precio: $ 1.800.000', '$ 1.750.000 → $ 1.800.000'])('keeps free text without manufacturing a before/after table: %s', async detail => {
