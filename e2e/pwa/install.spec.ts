@@ -192,7 +192,16 @@ async function deploy(page: Page, mode = 'all') {
   else await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 }
 
-test('new worker preserves modal input, shows update toast and reloads automatically when the modal closes', async ({ page }, info) => {
+async function applyVisibleUpdate(page: Page) {
+  const toast = page.getByTestId('pwa-update-toast');
+  await expect(toast).toBeVisible();
+  await expect(page.locator('#boot-splash')).toHaveCount(0);
+  const navigation = page.waitForEvent('load');
+  await toast.getByRole('button', { name: 'Actualizar', exact: true }).click();
+  await navigation;
+}
+
+test('new worker preserves modal input, shows update toast and waits for confirmation after the modal closes', async ({ page }, info) => {
   await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
   await session(page); await controlled(page);
   await page.evaluate(() => { window.location.hash = '#/clientes'; });
@@ -211,31 +220,30 @@ test('new worker preserves modal input, shows update toast and reloads automatic
   await toast.getByRole('button', { name: 'Actualizar' }).click();
   await expect(toast).toContainText('Guardá o cerrá el formulario');
   await expect(draft).toHaveValue('Lucía · borrador sin guardar');
-  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
-  await navigation;
+  await expect(draft).toHaveCount(0);
+  await applyVisibleUpdate(page);
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(toast).toHaveCount(0);
 });
 
-test('a new release reloads an idle tab without a hard refresh', async ({ page }) => {
+test('a new release keeps the foreground tab until the user updates', async ({ page }) => {
   await session(page); await controlled(page);
-  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
-  await deploy(page); await navigation;
+  await deploy(page);
+  await applyVisibleUpdate(page);
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(page.getByTestId('pwa-update-toast')).toHaveCount(0);
 });
 
-test('version.json reloads an idle tab when the worker never claims the open page', async ({ page }) => {
+test('version.json offers an update when the worker never claims the open page', async ({ page }) => {
   await session(page);
-  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
   await deploy(page, 'version');
-  await navigation;
+  await applyVisibleUpdate(page);
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(page.getByTestId('pwa-update-toast')).toHaveCount(0);
 });
 
-test('version.json keeps an open draft and reloads once the form closes', async ({ page }) => {
+test('version.json keeps the draft and offers an update after the form closes', async ({ page }) => {
   await session(page);
   await page.evaluate(() => { window.location.hash = '#/ven'; });
   await expect(page.getByRole('heading', { level: 1, name: 'Ventas', exact: true })).toBeVisible();
@@ -247,9 +255,9 @@ test('version.json keeps an open draft and reloads once the form closes', async 
   const toast = page.getByTestId('pwa-update-toast');
   await expect(toast).toContainText('Nueva versión disponible · Actualizar');
   await expect(draft).toHaveValue('Borrador de venta sin guardar');
-  const navigation = page.waitForEvent('framenavigated', (frame) => frame === page.mainFrame());
   await dialog.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
-  await navigation;
+  await expect(dialog).toBeHidden();
+  await applyVisibleUpdate(page);
   await expect(page.locator('.desk-app')).toBeVisible();
   await expect(toast).toHaveCount(0);
 });
@@ -258,7 +266,7 @@ test.describe('update after persistence', () => {
   // Keep the delayed POST in Playwright's router. WebKit can otherwise hand it
   // directly to the worker/server; worker-driven updates are covered above.
   test.use({ serviceWorkers: 'block' });
-  test('a pending update reloads automatically only after the client save finishes', async ({ page }) => {
+  test('a pending update preserves the save and applies only after confirmation', async ({ page }) => {
     await session(page);
     await page.evaluate(() => { window.location.hash = '#/clientes'; });
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
@@ -293,8 +301,10 @@ test.describe('update after persistence', () => {
     await page.waitForTimeout(300);
     await expect(dialog).toBeVisible(); await expect(toast).toBeVisible();
     expect(documentRequests).toBe(0);
-    const navigation = page.waitForEvent('load');
-    releaseSave(); await navigation;
+    releaseSave();
+    await expect(dialog).toBeHidden();
+    expect(documentRequests).toBe(0);
+    await applyVisibleUpdate(page);
     await expect(page.locator('.desk-app')).toBeVisible();
     await expect(toast).toHaveCount(0);
     await expect(page.getByText('Cliente guardado antes de actualizar', { exact: true }).first()).toBeVisible();

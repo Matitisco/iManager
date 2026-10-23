@@ -83,7 +83,7 @@ async function expectPhoneMenuCoversFooter(page: Page) {
       ctxWidth: ctxBox.width,
       height,
       width,
-      scrim: getComputedStyle(overlay).backgroundColor,
+      scrim: getComputedStyle(overlay, '::before').backgroundColor,
       sheetIndex: hit.findIndex((node) => node === ctx || ctx.contains(node)),
       tabIndex: hit.findIndex((node) => node === tab || tab.contains(node)),
     };
@@ -118,7 +118,7 @@ async function expectDesktopMenuFloats(page: Page) {
       bottom: ctxBox.bottom,
       height: window.innerHeight,
       viewport: document.documentElement.clientWidth,
-      scrim: getComputedStyle(overlay).backgroundColor,
+      scrim: getComputedStyle(overlay, '::before').backgroundColor,
       radius: `${style.borderTopLeftRadius} ${style.borderBottomLeftRadius}`,
     };
   });

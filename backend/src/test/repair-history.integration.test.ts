@@ -3,6 +3,7 @@ import { prisma } from "../plugins/prisma.js";
 import { createRepair, changeRepairStatus } from "../modules/repairs/repairs.service.js";
 import { listHistory, type HistoryEvent } from "../modules/audit/history.service.js";
 import { seedStoreContext, buildAuthHeaders } from "./db.js";
+import { repairHistoryRows } from "../modules/audit/repair-history.js";
 import { useIntegrationApp } from "./integration-helpers.js";
 
 const { getApp } = useIntegrationApp();
@@ -88,4 +89,24 @@ describe("repair record history", () => {
     expect(old.events[0]).toMatchObject({ actorName: "Sin autor registrado", action: "repair.created" });
     expect(old.events[0].changes).toEqual([{ field: "status", label: "Estado", before: null, after: "RECIBIDO" }]);
   });
+
+  it.each(["UTC", "America/Argentina/Buenos_Aires"])("keeps cursor and date boundaries in UTC when the connection uses %s", async zone => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const order = await prisma.repairOrder.create({ data: { storeId, device: "Zona horaria" } });
+    const at = new Date("2026-10-20T15:00:00.000Z");
+    await prisma.repairStatusEvent.createMany({ data: ["RECIBIDO", "EN_REPARACION", "ENTREGADO"].map((status, index) => ({
+      id: `timezone-${index + 1}`, storeId, orderId: order.id, status, createdAt: at,
+    })) });
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT set_config('TimeZone', ${zone}, true)`;
+      const query = { entityType: "repair", entityId: order.id };
+      const afterCursor = await repairHistoryRows(storeId, query, null, { createdAt: at, id: "repair-event:timezone-3" }, 50, tx);
+      expect(afterCursor.map(event => event.id)).toEqual(["repair-event:timezone-2", "repair-event:timezone-1"]);
+      expect(await repairHistoryRows(storeId, { ...query, from: new Date(at.getTime() + 1) }, null, null, 50, tx)).toEqual([]);
+      expect(await repairHistoryRows(storeId, { ...query, to: new Date(at.getTime() - 1) }, null, null, 50, tx)).toEqual([]);
+      expect(await repairHistoryRows(storeId, { ...query, from: at, to: at }, null, null, 50, tx)).toHaveLength(3);
+    });
+  });
+
 });

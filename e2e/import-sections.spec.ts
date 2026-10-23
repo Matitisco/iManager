@@ -89,7 +89,11 @@ for (const viewport of viewports) {
       expect(clientBody.errors).toEqual([]);
       await expect(clientsDialog.getByText('10 creados')).toBeVisible();
       await clientsDialog.locator('button.btn2', { hasText: 'Cerrar' }).click();
-      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(10);
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(8);
+      await expect(page.getByRole('navigation', { name: 'Paginación' })).toContainText('1–8 de 10');
+      await page.getByRole('button', { name: 'Página siguiente' }).click();
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(2);
+      await page.getByRole('button', { name: 'Página anterior' }).click();
 
       await openTab(page, 'sales');
       await expect(page.getByRole('heading', { level: 1, name: 'Ventas' })).toBeVisible();
@@ -124,7 +128,11 @@ for (const viewport of viewports) {
 
       await openTab(page, 'clients');
       await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
-      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(10);
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(8);
+      await expect(page.getByRole('navigation', { name: 'Paginación' })).toContainText('1–8 de 10');
+      await page.getByRole('button', { name: 'Página siguiente' }).click();
+      await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(2);
+      await page.getByRole('button', { name: 'Página anterior' }).click();
       await page.getByPlaceholder('Buscar por nombre, DNI o teléfono').fill('Lucía');
       await expect(page.getByText('Lucía Fernández').first()).toBeVisible();
       await expect(page.getByText('03/10/2026').first()).toBeVisible();

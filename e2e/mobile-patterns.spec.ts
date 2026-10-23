@@ -150,7 +150,7 @@ test.describe('phone patterns', () => {
         width: ctx.width,
         bottom: ctx.bottom,
         overlayBottom: overlay.bottom,
-        scrim: getComputedStyle(document.querySelector('.ov.ctxov')!).backgroundColor,
+        scrim: getComputedStyle(document.querySelector('.ov.ctxov')!, '::before').backgroundColor,
         height,
         viewport: document.documentElement.clientWidth,
         sheetIndex: hit.findIndex((node) => node === sheet || sheet.contains(node)),

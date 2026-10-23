@@ -2,7 +2,7 @@ name: CI
 
 # PRs run a fast gate (< 5 min): lint, backend unit/integration, frontend unit
 # tests (2 shards), PWA asset checks + PWA smoke and an E2E smoke (@smoke,
-# Chromium only). The full E2E suite (4 shards) and the full PWA suite
+# Chromium only). The full E2E suite (8 shards) and the full PWA suite
 # (iPhone WebKit + Android + desktop) run on every push to main and nightly.
 # Browser jobs use the lockfile-matched Playwright image: no apt or browser installs.
 on:
@@ -166,6 +166,10 @@ jobs:
       image: ${{ needs.changes.outputs.playwright-image }}
       options: --ipc=host
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: ${{ fromJSON(github.event_name == 'pull_request' && '["android-chromium"]' || '["desktop-chromium","iphone-webkit","android-chromium"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -176,12 +180,22 @@ jobs:
       - run: npm ci --prefer-offline --no-audit --no-fund
       - name: Test PWA assets, worker and serving
         run: npm run test:pwa
+        if: matrix.project == 'android-chromium'
       - name: PWA smoke (Android Chromium)
         if: env.FULL != 'true'
         run: npm run test:pwa:e2e -- --project=android-chromium --grep @smoke
       - name: Full PWA suite (iPhone WebKit, Android and desktop Chromium)
         if: env.FULL == 'true'
-        run: npm run test:pwa:e2e
+        run: npm run test:pwa:e2e -- --project=${{ matrix.project }}
+      - name: Upload PWA report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-report-${{ matrix.project }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   e2e:
     needs: changes
@@ -197,8 +211,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # PR: one smoke job. main / nightly: the full suite in 4 shards.
-        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0]' || '[1,2,3,4]') }}
+        # PR: one smoke job. main / nightly: the full suite in 8 shards.
+        shard: ${{ fromJSON(github.event_name == 'pull_request' && '[0]' || '[1,2,3,4,5,6,7,8]') }}
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:16
@@ -237,7 +251,7 @@ jobs:
         run: npm run test:e2e -- --grep @smoke
       - name: Full E2E shard
         if: env.FULL == 'true'
-        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/8
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

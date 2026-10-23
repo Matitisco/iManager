@@ -8,6 +8,8 @@ export async function openDeskSection(page: Page, id: string) {
   if (!Object.hasOwn(ROUTE, id)) throw new Error(`Unknown section: ${id}`);
   const tab = id as DeskTab;
   const sidebar = page.locator('aside.side');
+  // Reloads can resolve before React restores the authenticated shell.
+  await expect(sidebar.or(page.getByTestId('mobile-tab-bar'))).toBeVisible();
   if (await sidebar.isVisible()) {
     const direct = sidebar.getByTestId(`sidebar-tab-${id}`);
     if (await direct.isVisible()) {

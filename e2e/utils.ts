@@ -449,3 +449,13 @@ export async function selectDeskOption(page: Page, control: Locator, label: stri
   await page.getByRole('option', { name: label, exact: true }).click();
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
+
+/** Shared repair timeline now lives in a second dialog, opened by the clock action. */
+export async function expectRepairHistory(page: Page, detail: Locator, count: number, statuses: string[] = []) {
+  await detail.getByRole('button', { name: 'Historial', exact: true }).click();
+  const history = page.getByRole('dialog', { name: 'Historial', exact: true });
+  await expect(history.locator('.record-history-timeline > li')).toHaveCount(count);
+  for (const status of statuses) await expect(history).toContainText(status);
+  await history.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
+  await expect(history).toBeHidden();
+}

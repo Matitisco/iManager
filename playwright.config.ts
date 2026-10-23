@@ -24,7 +24,7 @@ export default defineConfig({
   },
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['list']],
+  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : [['list']],
   globalSetup: path.resolve(repoRoot, 'e2e/global-setup.ts'),
   use: {
     baseURL: DEFAULT_FRONTEND_URL,

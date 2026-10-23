@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { expect, type Page, type APIRequestContext, type TestInfo } from '@playwright/test';
@@ -15,9 +16,7 @@ export async function reports(page: Page, request: APIRequestContext, testInfo: 
   await createSaleViaApi(request, email, { date, clientName: 'Ana Pérez', deviceLabel: 'iPhone 13 128 GB', amount: 300000, amountCurrency: 'ARS', paymentMethod: 'EFECTIVO' });
   await createSaleViaApi(request, email, { date, clientName: 'Luis Gómez', deviceLabel: 'iPhone 14 128 GB', amount: 450000, amountCurrency: 'ARS', paymentMethod: 'TRANSFERENCIA' });
   await page.reload();
-  const reportsTab = page.getByTestId('sidebar-tab-reports');
-  if (!(await reportsTab.isVisible())) await page.getByTestId('sidebar-tab-more').click();
-  await reportsTab.click();
+  await openDeskSection(page, 'reports');
   await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
   await expect(page.locator('.gtk')).toHaveCount(2);
   return page.getByRole('combobox', { name: 'Columna de desglose' });

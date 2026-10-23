@@ -1,3 +1,4 @@
+import { openDeskSection } from './navigation';
 import { selectDeskOption } from './utils';
 import { expect, test, type Page } from '@playwright/test';
 import {
@@ -70,10 +71,8 @@ async function expectFits(page: Page) {
 }
 
 async function openReports(page: Page) {
-  const more = page.getByTestId('sidebar-tab-more');
-  if (await more.isVisible()) await more.click();
-  await page.getByTestId('sidebar-tab-reports').click();
-  await expect(page.getByRole('heading', { name: 'Reportes' })).toBeVisible();
+  await openDeskSection(page, 'reports');
+  await expect(page.getByRole('heading', { name: 'Reportes', exact: true })).toBeVisible();
 }
 
 function reportTabs(page: Page) {

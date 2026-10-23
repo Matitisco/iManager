@@ -102,7 +102,7 @@ test.describe('notifications on a phone', () => {
     await expect(page.getByTestId('notifications-sections').getByRole('button', { name: 'Ventas 0' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Marcar todas como leídas' })).toHaveCount(0);
     await expect(page.locator('.side')).toHaveCount(0);
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/notifications-390-empty.png` });
 
@@ -150,7 +150,7 @@ test.describe('notifications on a phone', () => {
     await expect(page.getByRole('button', { name: 'Marcar todas como leídas' })).toBeVisible();
     await expect(page.getByText(/[1-9]\d* sin leer/)).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/notifications-390-list.png` });
 
