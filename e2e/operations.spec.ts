@@ -212,7 +212,7 @@ test('a cancellation notification survives reload, opens the archived received d
   await expect(detail).toBeHidden();
   await page.reload();
 
-  await page.getByRole('button', { name: 'Notificaciones' }).click();
+  await openDeskSection(page, 'notifications');
   const notification = page.getByRole('button', { name: new RegExp(`${received} archivado`) }).filter({ hasText: 'Inventario' });
   await expect(notification).toBeVisible();
   await notification.click();
@@ -221,7 +221,7 @@ test('a cancellation notification survives reload, opens the archived received d
   await archivedDetail.locator('.sheet-h .modal-x').click();
 
   await page.reload();
-  await page.getByRole('button', { name: 'Notificaciones' }).click();
+  await openDeskSection(page, 'notifications');
   await page.getByRole('button', { name: 'Sin leer', exact: true }).click();
   await expect(page.getByRole('button', { name: new RegExp(`${received} archivado`) }).filter({ hasText: 'Inventario' })).toHaveCount(0);
   const activeInventory = await fetchInventory(request, email);

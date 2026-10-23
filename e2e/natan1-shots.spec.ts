@@ -33,7 +33,7 @@ test('captures archive, history and void screens', async ({ page, request }, tes
   await acceptInvitationViaApi(request, 'lucia.gomez@example.com', invitation.token);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await expect(page.getByText('iPhone 13')).toBeVisible();
   await page.getByRole('row').filter({ hasText: 'iPhone 13' }).click({ button: 'right' });
   await page.locator('.ctx').getByRole('button', { name: 'Archivar', exact: true }).click();
@@ -50,12 +50,12 @@ test('captures archive, history and void screens', async ({ page, request }, tes
   await page.screenshot({ path: `${shots}/natan1-detalle-1440.png`, animations: 'disabled' });
   await page.keyboard.press('Escape');
 
-  await page.getByTestId('sidebar-tab-inventory').click();
+  await openDeskSection(page, 'inventory');
   await page.getByRole('button', { name: 'Archivados', exact: true }).click();
   await expect(page.getByText('iPhone 13')).toBeVisible();
   await page.screenshot({ path: `${shots}/natan1-inventario-archivados-1440.png`, animations: 'disabled' });
 
-  await page.getByTestId('sidebar-tab-settings').click();
+  await openDeskSection(page, 'settings');
   await page.getByTestId('settings-screen').getByRole('button', { name: /Lucia Gomez/ }).click();
   await expect(page.getByRole('switch', { name: 'Ver historial' })).toBeVisible();
   await page.screenshot({ path: `${shots}/natan1-permisos-1440.png`, animations: 'disabled' });
@@ -63,11 +63,11 @@ test('captures archive, history and void screens', async ({ page, request }, tes
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId('sidebar-tab-more').click();
-  await page.getByTestId('sidebar-tab-history').click();
+  await openDeskSection(page, 'history');
   await expect(page.getByRole('heading', { name: 'Historial' })).toBeVisible();
   await page.screenshot({ path: `${shots}/natan1-m-historial.png`, animations: 'disabled' });
 
-  await page.getByTestId('sidebar-tab-sales').click();
+  await openDeskSection(page, 'sales');
   const row = page.locator('.phone-row').filter({ hasText: 'Martín Acosta' });
   await expect(row).toBeVisible();
   await row.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });

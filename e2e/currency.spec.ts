@@ -42,7 +42,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await expect(page.getByRole('button', { name: 'Guardar equipo' })).toBeHidden();
   await expect(page.getByText('US$ 100').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Configuración' }).click();
+  await openDeskSection(page, 'settings');
   await page.getByRole('button', { name: storeName }).click();
   await page.getByLabel('Instagram', { exact: true }).fill('@moneda');
   await selectDeskOption(page, page.getByTestId('store-currency'), 'ARS');
@@ -52,7 +52,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await openDeskSection(page, 'inventory');
   await expect(page.getByText('$ 120.000').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Configuración' }).click();
+  await openDeskSection(page, 'settings');
   await page.getByRole('button', { name: storeName }).click();
   await selectDeskOption(page, page.getByTestId('store-exchange-mode'), 'Manual, la carga la tienda');
   await page.getByTestId('store-manual-buy').fill('500');
@@ -63,7 +63,7 @@ test('configures the store currency and converts a saved price', async ({ page }
   await openDeskSection(page, 'inventory');
   await expect(page.getByText('$ 70.000').first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Configuración' }).click();
+  await openDeskSection(page, 'settings');
   await page.getByRole('button', { name: storeName }).click();
   await page.getByTestId('store-manual-buy').fill('');
   await page.getByTestId('store-manual-sell').fill('');

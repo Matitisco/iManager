@@ -38,3 +38,11 @@ El PR #535 (`6fb919b`) pasó la CI rápida en 3m48s. La corrida completa [400016
 Causa: un `controllerchange` tardío del nuevo worker se interpretaba como otra versión aunque el bundle actual ya estuviera cargado. Se consulta la versión al cambiar de controlador; si coincide, no se anuncia otra actualización. Una versión distinta o desconocida conserva las guardas y la confirmación existentes. La limpieza del efecto descarta respuestas tardías. Regresiones de componente cubren la versión actual, una versión nueva y el desmontaje durante la consulta. No se altera la expectativa E2E fallida ni se agregan skips/reintentos/timeouts.
 
 Validación del seguimiento: TypeScript frontend/backend; 17 pruebas relacionadas; suite frontend completa, 218 archivos / 1.944 pruebas; PWA completa, 57 aprobadas y 36 omisiones de plataforma preexistentes; 12/12 repeticiones del fallo con Chromium de Playwright. Sin cambios del E2E fallido ni de sus límites.
+
+## Compatibilidad con la navegación de #536
+
+Mientras se cerraba el seguimiento PWA entró #536 (acordeón exclusivo). La corrida de su commit `00a9a6a` y la posterior a #537 (`0750c36`) detectaron regresiones E2E que aún pulsaban accesos dentro de grupos cerrados, esperaban el grupo Stock en la pantalla principal móvil, elegían Canjes mediante un nombre parcial o enviaban un locator de la barra al helper que requiere Page.
+
+Se adaptan siete archivos E2E a la navegación visible y al helper compartido, manteniendo comprobaciones de moneda, permisos, notificaciones/lecturas, Dashboard, instalación, historial, archivado y animación. No cambia la app ni se reducen timeouts o casos. Moneda, notificaciones, instalación y los recorridos de captura usan el mismo helper; el test del indicador conserva el clic directo sobre su botón visible de la barra.
+
+Validación de compatibilidad: 25 escenarios afectados aprobados con DB local ficticia; PWA completa 57 aprobadas; 98 pruebas de componentes relacionados; TypeScript frontend/backend. Los dos timeouts de transporte de la primera pasada local se repitieron individualmente y aprobaron, sin modificar esas esperas.
