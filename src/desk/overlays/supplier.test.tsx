@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupplierDetail as SupplierFile, SupplierListItem, SupplierPurchaseDetail } from '../../services/suppliers-api';
 import { DeskProvider } from '../ui';
 import { SupplierDetail, SupplierForm } from './supplier';
+import { returnsView } from '../returns-navigation';
 
 const ctx = vi.hoisted(() => ({
   inventory: [], sales: [], tradeIns: [], returns: [], reloadLedger: vi.fn(), reloadInventory: vi.fn(), addProduct: vi.fn(),
@@ -46,6 +47,7 @@ function deferred<T>() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  history.replaceState(null, '', '#/finanzas/proveedores');
   layout.phone = false;
   ctx.suppliers = [supplier];
   ctx.appSession.membership = { role: 'OWNER', sections: null };
@@ -56,6 +58,21 @@ beforeEach(() => {
   ctx.saveSupplier.mockResolvedValue(supplier);
   ctx.archiveSupplier.mockResolvedValue(undefined);
   ctx.restoreSupplier.mockResolvedValue(supplier);
+});
+
+it('links the supplier problem notice to its selected patterns and closes the file', async () => {
+  mount(<SupplierDetail id="supplier" />);
+  await userEvent.click(await screen.findByRole('button', { name: `Ver patrones de ${supplier.name}` }));
+  expect(close).toHaveBeenCalledOnce();
+  expect(returnsView(window.location.hash)).toEqual({ patterns: true, groupBy: 'supplier', group: 'supplier' });
+});
+
+it('keeps the problem notice informational when returns access is missing', async () => {
+  ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
+  mount(<SupplierDetail id="supplier" />);
+  await screen.findByTestId('supplier-detail');
+  expect(screen.getByTestId('supplier-problems').tagName).toBe('P');
+  expect(screen.queryByRole('button', { name: /Ver patrones/ })).not.toBeInTheDocument();
 });
 
 describe('formulario de proveedor', () => {

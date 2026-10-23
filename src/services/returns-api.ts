@@ -6,6 +6,41 @@ export type ReturnSettlement = 'REINTEGRO' | 'NOTA_CREDITO' | 'NINGUNO';
 export type ReturnDestination = 'STOCK' | 'PROVEEDOR' | 'CLIENTE';
 export type RmaStatus = 'ENVIADO' | 'EN_REVISION' | 'APROBADO' | 'RECHAZADO' | 'RECIBIDO';
 
+export type PatternGroupBy = 'supplier' | 'purchase' | 'model';
+
+export interface PatternClaimView {
+  id: string;
+  caseNumber: string;
+  deviceLabel: string;
+  imei: string;
+  reason: string;
+  status: string;
+  rmaStatus: string | null;
+  openedAt: string;
+  clientName: string;
+}
+
+export interface ReturnPatternView {
+  key: string;
+  label: string;
+  supplierId: string | null;
+  purchaseId: string | null;
+  devices: number;
+  problems: number;
+  claims: number;
+  percent: number;
+  hot: boolean;
+  topReason: { family: string; label: string; claims: number } | null;
+  claimsDetail: PatternClaimView[];
+  claimsTruncated: boolean;
+}
+
+export function fetchReturnPatterns(user: AuthUserLike, groupBy: PatternGroupBy) {
+  return apiRequest<{ patterns: ReturnPatternView[] }>(user, `/api/returns/patterns?groupBy=${groupBy}`, {
+    fallback: 'No se pudieron cargar los patrones',
+  }).then(data => data.patterns);
+}
+
 export interface CreditNoteView {
   id: string;
   clientId: string;
