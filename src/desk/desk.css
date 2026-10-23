@@ -2566,7 +2566,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 
 .returns-screen .gfilters { margin-bottom: 18px; }
 .returns-screen .gchip { height: 32px; font-size: 12px; background: transparent; border-color: transparent; }
-.returns-screen .gchip.on { background: var(--primary); }
+.returns-screen .gchip:not(.sm).on { background: var(--primary); }
 .returns-screen .ledger-list { box-shadow: none; }
 .return-row .ico-row { color: var(--secondary); }
 @media (max-width: 760px) {
