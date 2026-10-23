@@ -691,6 +691,8 @@ export function parseReportsDate(value: string | undefined) {
 }
 
 export function normalizeReportsOverviewInput(input: ReportsQueryInput): ReportsOverviewInput {
+  // Total never carries boundaries, even if a caller supplies stale dates.
+  if (input.rangeKey === "all_time") return { rangeKey: input.rangeKey, startDate: null, endDate: null };
   const startDate = parseReportsDate(input.startDate);
   const endDate = parseReportsDate(input.endDate);
 

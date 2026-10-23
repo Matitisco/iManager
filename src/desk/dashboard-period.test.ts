@@ -24,4 +24,18 @@ describe('períodos Dashboard', () => {
     const { unit, buckets } = dashboardTrend([point('2026-01-01', 10), point('2026-02-01', 20), point('2026-04-01', 30)], { start: '2026-01-15', end: '2026-04-22' });
     expect(unit).toBe('month'); expect(buckets.map(p => p.revenue)).toEqual([10, 20, 0, 30]);
   });
+  it('Total agrupa por mes preservando años, meses vacíos y el total', () => {
+    const { unit, buckets } = dashboardTrend([point('2025-12-01', 10), point('2026-02-01', 20)], null);
+    expect(unit).toBe('month');
+    expect(buckets.map(p => p.revenue)).toEqual([10, 0, 20]);
+    expect(buckets[0].label).toContain('25');
+    expect(buckets.at(-1)?.label).toContain('26');
+    expect(dashboardTrend([], null).buckets).toEqual([]);
+  });
+  it('limita a doce grupos el histórico largo sin perder importes', () => {
+    const { buckets } = dashboardTrend([point('2020-01-01', 10), point('2026-10-01', 20)], null);
+    expect(buckets.length).toBeLessThanOrEqual(12);
+    expect(buckets.reduce((sum, bucket) => sum + bucket.revenue, 0)).toBe(30);
+  });
+
 });

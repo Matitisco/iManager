@@ -16,6 +16,7 @@ const context = vi.hoisted(() => ({
   clients: [] as never[],
   operationDrafts: [] as never[],
   operationNotifications: [] as never[],
+  backendStatus: 'ready',
   user: { uid: 'user-1' },
   appSession: {
     user: { displayName: 'Ana' },
@@ -25,6 +26,7 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
+vi.mock('../../services/reports-api', () => ({ fetchReportsOverview: vi.fn(async () => ({ summary: { revenue: 0, grossProfit: 0, unitsSold: 0, marginRate: 0 }, comparison: { available: false }, salesSeries: [], paymentMethods: [] })) }));
 vi.mock('../../services/members-api', () => ({ listMembers: vi.fn(async () => []) }));
 
 function desk(child: ReactNode) {
@@ -84,10 +86,10 @@ describe('listas en carga', () => {
     expect(screen.queryByText('Sin canjes en curso')).not.toBeInTheDocument();
   });
 
-  it('muestra el vacío del dashboard solo cuando la respuesta llegó vacía', () => {
+  it('muestra el vacío del dashboard solo cuando la respuesta llegó vacía', async () => {
     context.listsLoaded = true;
     desk(<DashboardContent />);
-    expect(screen.getByText('Todavía no registraste ventas')).toBeInTheDocument();
+    expect(await screen.findByText('Todavía no registraste ventas')).toBeInTheDocument();
     expect(screen.getByTestId('dashboard-trades')).toHaveTextContent('Canjes en curso0');
     expect(screen.queryByTestId('dashboard-sales-loading')).not.toBeInTheDocument();
   });

@@ -90,7 +90,7 @@ describe('sidebar unread counts', () => {
     context.sectionChangesError = 'No se pudieron cargar las novedades.';
     window.location.hash = '#/dashboard';
     render(<DeskApp />);
-    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-initial-loading')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByText(context.sectionChangesError)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reintentar' })).not.toBeInTheDocument();
@@ -295,7 +295,7 @@ describe('sidebar unread counts', () => {
       expect(screen.queryByText(NETWORK_ERROR_MESSAGE)).not.toBeInTheDocument();
     await act(async () => { window.dispatchEvent(new Event('online')); });
     await waitFor(() => expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument());
-    expect(screen.getByText(/Qué hay para/)).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-initial-loading')).toBeInTheDocument();
   });
 
   it('keeps all phone sections quiet while onLine stays false', async () => {

@@ -40,4 +40,31 @@ describe('selector de rango Dashboard', () => {
     await user.click(document.body);
     expect(screen.queryByRole('dialog')).toBeNull(); expect(apply).not.toHaveBeenCalled();
   });
+  it('Total se confirma sin fechas, restaura su selección y permite volver a un rango', async () => {
+    const user = userEvent.setup();
+    const view = setup();
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: 'Total' }));
+    expect(apply).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Total' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '1 de octubre de 2026' })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(apply).toHaveBeenCalledWith(null);
+    view.rerender(<DashboardDateRange range={null} onApply={apply} phone={false} />);
+    await user.click(screen.getByRole('button', { name: 'Elegir período, Total' }));
+    expect(screen.getByRole('button', { name: 'Total' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: '10 de octubre de 2026' }));
+    await user.click(screen.getByRole('button', { name: '12 de octubre de 2026' }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(apply).toHaveBeenLastCalledWith({ start: '2026-10-10', end: '2026-10-12' });
+  });
+  it('muestra Total en móvil y vuelve al mes anterior con la flecha', async () => {
+    const user = userEvent.setup();
+    render(<DashboardDateRange range={null} onApply={apply} phone />);
+    expect(screen.getByRole('button', { name: 'Total' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Mes siguiente' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: 'Mes anterior' }));
+    expect(apply).toHaveBeenLastCalledWith({ start: '2026-09-01', end: '2026-09-30' });
+  });
+
 });

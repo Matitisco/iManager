@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
 import { DeskProvider } from '../ui';
@@ -28,7 +28,7 @@ describe('cuenta nueva', () => {
     expect(screen.getByRole('button', { name: /Saldos a cobrar/ })).toHaveTextContent('$ 0');
     expect(screen.queryByText('Flujo sugerido')).toBeNull();
     expect(screen.queryByText('0%')).toBeNull();
-    expect(screen.getAllByLabelText('Sin base de comparación')).toHaveLength(3);
+    expect(screen.queryByLabelText(/Variación|Sin base de comparación/)).toBeNull();
     expect(screen.getAllByRole('button', { name: 'Registrar venta' })).toHaveLength(1);
   });
   it('conserva stock disponible, total y barra sin variación', async () => {
@@ -38,7 +38,7 @@ describe('cuenta nueva', () => {
     const stock = screen.getByRole('button', { name: /Stock disponible/ });
     expect(stock).toHaveTextContent('1de 2');
     expect(screen.getByRole('meter', { name: 'Stock disponible' })).toHaveAttribute('aria-valuenow', '1');
-    expect(stock.querySelector('.dashboard-delta')).toBeNull();
+    expect(within(stock).queryByLabelText(/Variación/)).toBeNull();
   });
   it.each([['OWNER', 'Propietario'], ['MANAGER', 'Socio']])('conserva el rol %s en avatares', async (role, label) => {
     context.appSession.membership.role = role;

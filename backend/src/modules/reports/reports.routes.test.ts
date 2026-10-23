@@ -107,6 +107,16 @@ describe("reportsRoutes", () => {
     await app.close();
   });
 
+
+  it("accepts Total without date boundaries", async () => {
+    const app = buildApp();
+    await app.register(reportsRoutes);
+    const response = await app.inject({ method: "GET", url: "/overview?rangeKey=all_time" });
+    expect(response.statusCode).toBe(200);
+    expect(getReportsOverviewMock).toHaveBeenCalledWith("store-1", { rangeKey: "all_time", startDate: null, endDate: null });
+    await app.close();
+  });
+
   it("accepts the overview when the employee has reports listed", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["reports", "inventory"] };

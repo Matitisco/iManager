@@ -2,19 +2,20 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useModalLayer } from './modal-layer';
-import { dashboardDay, dashboardMonth, dashboardMonthLabel, dashboardRangeLabel, dayDate, shiftDashboardMonth, shiftDay, type DashboardRange } from './dashboard-period';
+import { dashboardDay, dashboardMonth, dashboardMonthLabel, dashboardRangeLabel, dayDate, shiftDashboardMonth, shiftDay, type DashboardPeriod } from './dashboard-period';
 
-const PRESETS = ['Hoy', '7 días', 'Este mes', 'Mes anterior'] as const;
-function presetRange(label: typeof PRESETS[number], today: string): DashboardRange {
+const PRESETS = ['Hoy', '7 días', 'Este mes', 'Mes anterior', 'Total'] as const;
+function presetRange(label: typeof PRESETS[number], today: string): DashboardPeriod {
+  if (label === 'Total') return null;
   if (label === 'Hoy') return { start: today, end: today };
   if (label === '7 días') return { start: shiftDay(today, -6), end: today };
   return label === 'Este mes' ? dashboardMonth(today.slice(0, 7), today) : shiftDashboardMonth(dashboardMonth(today.slice(0, 7), today), -1, today);
 }
 
-export function DashboardDateRange({ range, onApply, phone }: { range: DashboardRange; onApply: (range: DashboardRange) => void; phone: boolean }) {
+export function DashboardDateRange({ range, onApply, phone }: { range: DashboardPeriod; onApply: (range: DashboardPeriod) => void; phone: boolean }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(range);
-  const [month, setMonth] = useState(range.start.slice(0, 7));
+  const [month, setMonth] = useState((range?.start ?? dashboardDay()).slice(0, 7));
   const [pickingEnd, setPickingEnd] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -35,7 +36,7 @@ export function DashboardDateRange({ range, onApply, phone }: { range: Dashboard
 
   const show = () => {
     if (open) { close(); return; }
-    setDraft(range); setMonth(range.start.slice(0, 7)); setPickingEnd(false); setOpen(true);
+    setDraft(range); setMonth((range?.start ?? dashboardDay()).slice(0, 7)); setPickingEnd(false); setOpen(true);
   };
   const changeMonth = (amount: number) => {
     const date = dayDate(`${month}-01`);
@@ -43,7 +44,7 @@ export function DashboardDateRange({ range, onApply, phone }: { range: Dashboard
     setMonth(date.toISOString().slice(0, 7));
   };
   const select = (value: string) => {
-    if (!pickingEnd) { setDraft({ start: value, end: value }); setPickingEnd(true); }
+    if (!pickingEnd || !draft) { setDraft({ start: value, end: value }); setPickingEnd(true); }
     else { setDraft({ start: value < draft.start ? value : draft.start, end: value < draft.start ? draft.start : value }); setPickingEnd(false); }
   };
   const keyDate = (event: KeyboardEvent<HTMLButtonElement>, value: string) => {
@@ -61,8 +62,8 @@ export function DashboardDateRange({ range, onApply, phone }: { range: Dashboard
   const popup = open ? <div ref={panel} id={id} className={`dashboard-range-panel${phone ? ' phone' : ''}`} role="dialog" aria-modal="true" aria-label="Elegir período" tabIndex={-1}>
     <div className="dashboard-presets">{PRESETS.map(label => {
       const value = presetRange(label, today);
-      const active = draft.start === value.start && draft.end === value.end;
-      return <button key={label} type="button" aria-pressed={active} className={active ? 'on' : ''} onClick={() => { setDraft(value); setMonth(value.start.slice(0, 7)); setPickingEnd(false); }}>{label}</button>;
+      const active = draft?.start === value?.start && draft?.end === value?.end;
+      return <button key={label} type="button" aria-pressed={active} className={active ? 'on' : ''} onClick={() => { setDraft(value); setMonth((value?.start ?? today).slice(0, 7)); setPickingEnd(false); }}>{label}</button>;
     })}</div>
     <div className="dashboard-calendar-heading">
       <button type="button" aria-label="Mes anterior del calendario" onClick={() => changeMonth(-1)}><ChevronLeft size={16} /></button>
@@ -74,8 +75,8 @@ export function DashboardDateRange({ range, onApply, phone }: { range: Dashboard
       {Array.from({ length: offset }, (_, i) => <span key={`blank-${i}`} />)}
       {Array.from({ length: count }, (_, i) => {
         const value = `${month}-${String(i + 1).padStart(2, '0')}`;
-        const selected = value >= draft.start && value <= draft.end;
-        return <button key={value} type="button" data-day={value} disabled={value > today} aria-label={dayDate(value).toLocaleDateString('es-AR', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })} aria-pressed={selected} aria-current={value === today ? 'date' : undefined} className={[selected ? 'in-range' : '', value === draft.start ? 'range-start' : '', value === draft.end ? 'range-end' : ''].join(' ')} onClick={() => select(value)} onKeyDown={event => keyDate(event, value)}>{i + 1}</button>;
+        const selected = !!draft && value >= draft.start && value <= draft.end;
+        return <button key={value} type="button" data-day={value} disabled={value > today} aria-label={dayDate(value).toLocaleDateString('es-AR', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' })} aria-pressed={selected} aria-current={value === today ? 'date' : undefined} className={[selected ? 'in-range' : '', value === draft?.start ? 'range-start' : '', value === draft?.end ? 'range-end' : ''].join(' ')} onClick={() => select(value)} onKeyDown={event => keyDate(event, value)}>{i + 1}</button>;
       })}
     </div>
     <div className="dashboard-range-footer"><b aria-live="polite">{dashboardRangeLabel(draft)}</b><button type="button" className="dbtn p" onClick={() => { onApply(draft); close(); }}>Aplicar</button></div>
@@ -83,9 +84,9 @@ export function DashboardDateRange({ range, onApply, phone }: { range: Dashboard
   const host = document.querySelector('.desk-app');
   return <>
     {phone ? <div className="dashboard-month-nav">
-      <button type="button" aria-label="Mes anterior" onClick={() => onApply(shiftDashboardMonth(range, -1))}><ChevronLeft size={18} /></button>
-      <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined} onClick={show}>{range.start.endsWith('-01') && range.end === dashboardMonth(range.start.slice(0, 7)).end ? dashboardMonthLabel(range.start) : dashboardRangeLabel(range)}</button>
-      <button type="button" aria-label="Mes siguiente" disabled={range.start.slice(0, 7) >= today.slice(0, 7)} onClick={() => onApply(shiftDashboardMonth(range, 1))}><ChevronRight size={18} /></button>
+      <button type="button" aria-label="Mes anterior" onClick={() => onApply(shiftDashboardMonth(range ?? dashboardMonth(), -1))}><ChevronLeft size={18} /></button>
+      <button ref={trigger} type="button" aria-expanded={open} aria-controls={open ? id : undefined} onClick={show}>{range && range.start.endsWith('-01') && range.end === dashboardMonth(range.start.slice(0, 7)).end ? dashboardMonthLabel(range.start) : dashboardRangeLabel(range)}</button>
+      <button type="button" aria-label="Mes siguiente" disabled={!range || range.start.slice(0, 7) >= today.slice(0, 7)} onClick={() => onApply(shiftDashboardMonth(range ?? dashboardMonth(), 1))}><ChevronRight size={18} /></button>
     </div> : <button ref={trigger} type="button" className="dashboard-calendar-fab" aria-label={`Elegir período, ${dashboardRangeLabel(range)}`} aria-expanded={open} aria-controls={open ? id : undefined} onClick={show}><CalendarDays size={21} /></button>}
     {host ? createPortal(popup, host) : popup}
   </>;

@@ -15,12 +15,12 @@ export interface ReportsOverview {
   paymentMethods: Array<{ label: string; revenue: number; count: number; share: number }>;
 }
 
-export async function fetchReportsOverview(user: AuthUserLike, startDate: string, endDate: string, signal?: AbortSignal) {
-  const query = new URLSearchParams({
+export async function fetchReportsOverview(user: AuthUserLike, startDate?: string, endDate?: string, signal?: AbortSignal) {
+  const query = new URLSearchParams(startDate && endDate ? {
     rangeKey: 'custom',
     startDate: `${startDate}T00:00:00.000-03:00`,
     endDate: `${endDate}T23:59:59.999-03:00`,
-  });
+  } : { rangeKey: 'all_time' });
   const { overview } = await apiRequest<{ overview: ReportsOverview }>(user, `/api/reports/overview?${query}`, {
     fallback: 'No se pudo consultar el período', signal,
   });

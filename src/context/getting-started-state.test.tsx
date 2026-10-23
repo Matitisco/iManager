@@ -50,3 +50,30 @@ it('keeps a manual installation save error visible in Help', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Ya la instalé' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar');
 });
+
+it('expone la resolución inicial incluso con error y la reinicia por tienda', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.mocked(getGettingStarted).mockRejectedValue(new Error('offline'));
+  const { result, rerender } = renderHook(({ storeId }) => useGettingStartedState(context.user, storeId), { initialProps: { storeId: 's' } });
+  expect(result.current.gettingStartedLoaded).toBe(false);
+  await waitFor(() => expect(result.current.gettingStartedLoaded).toBe(true));
+  expect(result.current.gettingStarted).toBeNull();
+  vi.mocked(getGettingStarted).mockReturnValue(new Promise(() => {}));
+  rerender({ storeId: 'other' });
+  expect(result.current.gettingStartedLoaded).toBe(false);
+  expect(result.current.gettingStarted).toBeNull();
+  expect(warn).toHaveBeenCalled();
+});
+
+it('un guardado confirmado también resuelve el progreso inicial y descarta su lectura anterior', async () => {
+  let resolveRead!: (value: Awaited<ReturnType<typeof getGettingStarted>>) => void;
+  vi.mocked(getGettingStarted).mockReturnValue(new Promise(resolve => { resolveRead = resolve; }));
+  const progress = { eligible: true, storeNamed: true } as Awaited<ReturnType<typeof getGettingStarted>>;
+  vi.mocked(updateGettingStarted).mockResolvedValue(progress);
+  const { result } = renderHook(() => useGettingStartedState(context.user, 's'));
+  expect(result.current.gettingStartedLoaded).toBe(false);
+  await act(async () => { await result.current.updateGettingStarted({ visible: true }); });
+  expect(result.current.gettingStartedLoaded).toBe(true);
+  await act(async () => resolveRead({ ...progress, eligible: false }));
+  expect(result.current.gettingStarted).toEqual(progress);
+});
