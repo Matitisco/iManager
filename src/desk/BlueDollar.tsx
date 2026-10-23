@@ -83,7 +83,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
     ? 'Cotización cargada por la tienda.'
     : `Fuente: DolarApi (cotización ${settings.exchangeSource === 'mep' ? 'MEP' : settings.exchangeSource}).`;
   const house = manual ? 'Dólar' : exchangeHouseLabel(settings.exchangeSource);
-  const skeletonStat = phase === 'loading' && (compact || !quote);
+  const skeletonStat = phase === 'loading' && !quote;
 
   const detail = open ? (
         <div className="ov dolar-ov" data-testid="blue-overlay" onMouseDown={() => setOpen(false)}>
@@ -147,16 +147,11 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
   ) : null;
 
   if (variant === 'chip') {
-    const notice = !manual && phase === 'error'
-      ? (quote
-        ? `No pudimos actualizar el dólar. Mostramos el de las ${clock || 'la última vez'}.`
-        : 'No pudimos actualizar el dólar.')
-      : '';
     return (
       <>
-        <div className={`dolar chip ${phase}`} data-testid="blue-widget" data-state={phase} data-variant="chip" data-mode={manual ? 'manual' : 'auto'} data-quote={quote ? (phase === 'error' ? 'stale' : 'live') : 'none'}>
+        <div className={`dolar chip ${phase === 'error' && !manual ? 'ready' : phase}`} data-testid="blue-widget" data-state={phase} data-variant="chip" data-mode={manual ? 'manual' : 'auto'} data-quote={quote ? (phase === 'error' ? 'stale' : 'live') : 'none'}>
           <button className="dolar-hit" type="button" aria-label={title} onClick={() => setOpen(true)}>
-            {phase === 'error' ? <AlertTriangle size={14} aria-hidden="true" /> : <i className="dolar-dot" aria-hidden="true" />}
+            {phase === 'error' && manual ? <AlertTriangle size={14} aria-hidden="true" /> : <i className="dolar-dot" aria-hidden="true" />}
             <b className="dolar-chip-name">{house}</b>
             {phase === 'loading' ? (
               <>
@@ -183,17 +178,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
             )}
             {phase === 'error' && !manual ? null : <span className="dolar-chip-go" aria-hidden="true">›</span>}
           </button>
-          {phase === 'error' && !manual ? (
-            <button className="dolar-retry" type="button" data-testid="blue-retry" onClick={() => refresh()}>Reintentar</button>
-          ) : null}
         </div>
-        {notice ? (
-          <div className="dolar-toast" data-testid="blue-toast" role="status">
-            <AlertTriangle size={16} aria-hidden="true" />
-            <span>{notice}</span>
-            <button type="button" onClick={() => refresh()}>Reintentar</button>
-          </div>
-        ) : null}
         {detail}
       </>
     );
@@ -201,7 +186,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
 
   return (
     <>
-      <div className={`dolar ${phase}`} data-testid="blue-widget" data-state={phase}>
+      <div className={`dolar ${phase === 'error' && !manual ? 'ready' : phase}`} data-testid="blue-widget" data-state={phase}>
         <button className="dolar-hit" type="button" onClick={() => setOpen(true)}>
           <span className="dolar-top">
             <i className="dolar-dot" aria-hidden="true" />
@@ -228,16 +213,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
             <RefreshCw size={15} />
           </button>
         )}
-        {phase === 'error' ? (
-          <p className="dolar-foot" onClick={() => setOpen(true)}>
-            {manual
-              ? 'Cargá la cotización en Configuración. '
-              : clock ? `No pudimos actualizar. Mostramos el dato de las ${clock} · ` : 'No pudimos actualizar. '}
-            {manual ? null : (
-              <button type="button" data-testid="blue-retry" onClick={(event) => { event.stopPropagation(); refresh(); }}>Reintentar</button>
-            )}
-          </p>
-        ) : null}
+        {phase === 'error' && manual ? <p className="dolar-foot">Cargá la cotización en Configuración.</p> : null}
       </div>
       {detail}
     </>

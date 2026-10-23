@@ -1,3 +1,4 @@
+import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
 import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
 import { NoSectionAccess } from './screens/NoSectionAccess';
 import { CashScreen } from './screens/CashScreen';
@@ -211,7 +212,6 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     return () => { active = false; };
   }, [user, sections, role, appSession?.store?.id]);
 
-  const [entered, setEntered] = useState(false);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [pendingRecordOpen, setPendingRecordOpen] = useState<{ tab: DeskTab; overlay: Overlay } | null>(null);
   const overlayScope = useRef('');
@@ -258,7 +258,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     // Role arrives after the first paint. Read the hash again so a navigation
     // that landed before this listener was attached still opens that screen.
     apply(false);
-    const onHash = () => { apply(true); setEntered(true); };
+    const onHash = () => { apply(true); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [sections, role, operationScope]);
@@ -275,9 +275,13 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
 
   useEffect(() => {
     const id = appSession?.store?.id;
-    if (!id || isStaff || !hasStoreContactOffer(id)) return;
-    setOverlay((current) => current ?? { type: 'contact' });
-  }, [appSession?.store?.id, isStaff]);
+    if (!id || isStaff || sessionConfirmed === false || !hasStoreContactOffer(id)) return;
+    let timer = 0;
+    const offer = () => { timer = window.setTimeout(() => setOverlay((current) => current ?? { type: 'contact' }), 150); };
+    if (document.getElementById(BOOT_SPLASH_ID)) window.addEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer, { once: true });
+    else offer();
+    return () => { window.clearTimeout(timer); window.removeEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer); };
+  }, [appSession?.store?.id, isStaff, sessionConfirmed]);
 
   const go = (next: DeskTab) => {
     const requested = `#/${ROUTE[next]}`;
@@ -407,14 +411,16 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         </aside>
         )}
         <main ref={viewport.stageRef} className="stage">
+          <div className="stage-notices">
           <InstallApp enabled={installEnabled && backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && !overlay && !pendingRecordOpen && !toastOn} dashboard={tab === 'dashboard'} />
           <FxBanner />
           <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
           <SampleStockBanner />
+          </div>
           <OfflineScope>
           <NavChrome pending={pending}>
           <RoutePresentation.Provider key={viewport.entry.id} value={viewport.entry.values}>
-          <div className={entered ? 'enter-f' : undefined}>
+          <div>
             {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
             {tab === 'help' && <HelpScreen />}
             {tab === 'dashboard' && <DashboardScreen />}

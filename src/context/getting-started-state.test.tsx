@@ -77,3 +77,17 @@ it('un guardado confirmado también resuelve el progreso inicial y descarta su l
   await act(async () => resolveRead({ ...progress, eligible: false }));
   expect(result.current.gettingStarted).toEqual(progress);
 });
+
+it('retains progress identity and does not reload for a new object with the same uid', async () => {
+  const progress = { eligible: true, storeNamed: true } as Awaited<ReturnType<typeof getGettingStarted>>;
+  vi.mocked(getGettingStarted).mockImplementation(async () => ({ ...progress }));
+  const { result, rerender } = renderHook(({ user }) => useGettingStartedState(user, 's'), { initialProps: { user: context.user } });
+  await waitFor(() => expect(result.current.gettingStartedLoaded).toBe(true));
+  const before = result.current.gettingStarted;
+  rerender({ user: { ...context.user } });
+  expect(getGettingStarted).toHaveBeenCalledTimes(1);
+  await act(async () => { window.dispatchEvent(new Event('focus')); });
+  expect(getGettingStarted).toHaveBeenCalledTimes(2);
+  expect(result.current.gettingStarted).toBe(before);
+  expect(result.current.gettingStartedLoaded).toBe(true);
+});

@@ -1,7 +1,8 @@
+import { useStableState } from '../lib/stable-state';
 import { cacheEpoch, clearStoreLists, readStoreLists, readStoreListsAsync, writeStoreLists, type StoreLists } from '../lib/boot-cache';
 import { toUserMessage } from '../lib/user-message';
 import { useOfflineRecovery } from '../lib/offline-recovery';
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import type { Client, ClientCategory, CustomColumn, CustomColumnEntity, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
@@ -78,33 +79,38 @@ function rememberedLists(storeId: string | null) {
 
 export function useStoreRecords({ user, appSession, backendStatus }: StoreRecordsInput) {
   const activeStoreAtStart = appSession?.store?.id ?? null;
-  const remembered = rememberedLists(activeStoreAtStart);
-  const [inventory, setInventory] = useState<Product[]>(() => remembered?.inventory ?? []);
-  const [repairOrders, setRepairOrders] = useState<RepairOrder[]>([]);
-  const [repairOrdersError, setRepairOrdersError] = useState<string | null>(null);
-  const [repairRetry, setRepairRetry] = useState(0);
-  const [sales, setSales] = useState<Sale[]>(() => remembered?.sales ?? []);
-  const [tradeIns, setTradeIns] = useState<TradeIn[]>(() => remembered?.tradeIns ?? []);
-  const [clients, setClients] = useState<Client[]>(() => remembered?.clients ?? []);
-  const [operationOptions, setOperationOptions] = useState<Partial<Record<OperationSource, OperationOptions>>>({});
-  const [operationDrafts, setOperationDrafts] = useState<TradeIn[]>([]);
-  const [operationNotifications, setOperationNotifications] = useState<OperationNotification[]>([]);
-  const [notificationsLoading, setNotificationsLoading] = useState(false);
-  const [notificationsError, setNotificationsError] = useState<string | null>(null);
-  const [notificationRetry, setNotificationRetry] = useState(0);
+  const [remembered] = useStableState(() => rememberedLists(activeStoreAtStart));
+  const [inventory, setInventory] = useStableState<Product[]>(() => remembered?.inventory ?? []);
+  const [repairOrders, setRepairOrders] = useStableState<RepairOrder[]>([]);
+  const [repairOrdersError, setRepairOrdersError] = useStableState<string | null>(null);
+  const [repairRetry, setRepairRetry] = useStableState(0);
+  const [sales, setSales] = useStableState<Sale[]>(() => remembered?.sales ?? []);
+  const [tradeIns, setTradeIns] = useStableState<TradeIn[]>(() => remembered?.tradeIns ?? []);
+  const [clients, setClients] = useStableState<Client[]>(() => remembered?.clients ?? []);
+  const [operationOptions, setOperationOptions] = useStableState<Partial<Record<OperationSource, OperationOptions>>>({});
+  const [operationDrafts, setOperationDrafts] = useStableState<TradeIn[]>([]);
+  const [operationNotifications, setOperationNotifications] = useStableState<OperationNotification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useStableState(false);
+  const [notificationsError, setNotificationsError] = useStableState<string | null>(null);
+  const [notificationRetry, setNotificationRetry] = useStableState(0);
   useOfflineRecovery(repairOrdersError, () => setRepairRetry(value => value + 1));
   useOfflineRecovery(notificationsError, () => setNotificationRetry(value => value + 1));
-  const [clientCategories, setClientCategories] = useState<ClientCategory[]>(() => remembered?.clientCategories ?? []);
-  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
-  const [listsResolvedFor, setListsResolvedFor] = useState<string | null>(() => remembered ? `${user?.uid ?? ''}:${activeStoreAtStart ?? ''}` : null);
-  const [listsFetch, setListsFetch] = useState<{ scope: string; failed: boolean } | null>(null);
+  const [clientCategories, setClientCategories] = useStableState<ClientCategory[]>(() => remembered?.clientCategories ?? []);
+  const [customColumns, setCustomColumns] = useStableState<CustomColumn[]>([]);
+  const [listsResolvedFor, setListsResolvedFor] = useStableState<string | null>(() => remembered ? `${user?.uid ?? ''}:${activeStoreAtStart ?? ''}` : null);
+  const [listsFetch, setListsFetch] = useStableState<{ scope: string; failed: boolean } | null>(null);
   const scopeRef = useRef('');
   const generation = useRef(0);
   const readTickets = useRef(new Map<string, number>());
   const pendingWrites = useRef(0);
   const initialReads = useRef(0);
+  const [, setInitialPending] = useStableState(0);
   const scopeEpoch = useRef({ key: '', epoch: 0 });
   const shownStore = useRef(activeStoreAtStart);
+  const shownUser = useRef(user?.uid);
+  const notificationsResolved = useRef('');
+  const repairsResolved = useRef('');
+  const recordOwner = useRef(`${user?.uid ?? ''}:${activeStoreAtStart ?? ''}`);
 
   const activeStoreId = appSession?.store?.id ?? null;
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
@@ -141,14 +147,22 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
 
   const trackInitialRead = () => {
     initialReads.current += 1;
-    return () => { if (scopeRef.current === currentScope) initialReads.current -= 1; };
+    setInitialPending(initialReads.current);
+    return () => {
+      if (scopeRef.current === currentScope) {
+        initialReads.current -= 1;
+        setInitialPending(initialReads.current);
+      }
+    };
   };
 
   const listKey = `${user?.uid ?? ''}:${activeStoreId ?? ''}`;
   const sessionOpen = Boolean(user) && !appSession?.onboardingRequired && (backendStatus === 'ready' || backendStatus === 'checking');
-  if (shownStore.current !== activeStoreId) {
+  if (shownStore.current !== activeStoreId || shownUser.current !== user?.uid) {
+    const sameUser = shownUser.current === user?.uid;
+    shownUser.current = user?.uid;
     shownStore.current = activeStoreId;
-    const next = rememberedLists(activeStoreId);
+    const next = sameUser ? rememberedLists(activeStoreId) : null;
     setInventory(next?.inventory ?? []);
     setSales(next?.sales ?? []);
     setTradeIns(next?.tradeIns ?? []);
@@ -159,6 +173,11 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const listsLoaded = !sessionOpen || listsResolvedFor === listKey;
 
   useEffect(() => {
+    if (recordOwner.current !== listKey) {
+      recordOwner.current = listKey;
+      setRepairOrders([]);
+      setRepairOrdersError(null);
+    }
     setOperationOptions({});
     setOperationDrafts([]);
     setOperationNotifications([]);
@@ -207,7 +226,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   }, [activeStoreId, listKey, listsResolvedFor, inventory, sales, tradeIns, clients, clientCategories]);
 
   useEffect(() => {
-    if (!user || !sessionOpen) return;
+    if (!user || !sessionOpen || !backendReady) return;
     let cancelled = false;
     const key = listKey;
     const inventoryCurrent = beginRead('inventory');
@@ -216,10 +235,10 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     const tradesCurrent = beginRead('tradeIns');
     const storeId = activeStoreId;
     const seeCosts = canAccess('reports');
-    const wantInventory = backendStatus === 'checking' || loadInventoryEnabled;
-    const wantSales = backendStatus === 'checking' || loadSalesEnabled;
-    const wantClients = backendStatus === 'checking' || backendClientsEnabled;
-    const wantTrades = backendStatus === 'checking' || loadTradeInsEnabled;
+    const wantInventory = loadInventoryEnabled;
+    const wantSales = loadSalesEnabled;
+    const wantClients = backendClientsEnabled;
+    const wantTrades = loadTradeInsEnabled;
     const load = async () => {
       try {
         await user.getIdToken();
@@ -249,7 +268,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
         wantClients
           ? Promise.all([
             fetchBackendClients(user),
-            fetchClientCategoriesApi(user).catch(() => [] as ClientCategory[]),
+            fetchClientCategoriesApi(user).catch(() => null),
           ]).catch((error: unknown) => {
             console.error('Backend clients load failed.', error);
             return null;
@@ -267,16 +286,16 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       if (salesCurrent() && Array.isArray(salesResult)) setSales(salesResult);
       if (clientsCurrent() && clientsResult) {
         setClients(clientsResult[0]);
-        setClientCategories(clientsResult[1]);
+        if (clientsResult[1]) setClientCategories(clientsResult[1]);
       }
       if (tradesCurrent() && Array.isArray(tradesResult)) setTradeIns(tradesResult);
       setListsResolvedFor(key);
-      setListsFetch({ scope: currentScope, failed: [inventoryResult, salesResult, clientsResult, tradesResult].some(result => result === null) });
+      setListsFetch({ scope: currentScope, failed: listsResolvedFor !== key && [inventoryResult, salesResult, clientsResult, tradesResult].some(result => result === null) });
     };
     const finished = trackInitialRead();
     void load().finally(finished);
     return () => { cancelled = true; };
-  }, [currentScope, sessionOpen, listKey, activeStoreId, backendStatus, loadInventoryEnabled, loadSalesEnabled, backendClientsEnabled, loadTradeInsEnabled, user]);
+  }, [currentScope, sessionOpen, listKey, activeStoreId, backendStatus, loadInventoryEnabled, loadSalesEnabled, backendClientsEnabled, loadTradeInsEnabled, user?.uid]);
 
   useEffect(() => {
     if (!user) return;
@@ -286,21 +305,21 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       try {
         const rows = await fetchBackendRepairs(user);
         if (cancelled || !current()) return;
+        repairsResolved.current = currentScope;
         setRepairOrders(rows);
         setRepairOrdersError(null);
       } catch (error) {
         if (cancelled || !current()) return;
-        setRepairOrdersError(toUserMessage(error, 'No se pudieron cargar las órdenes de servicio.'));
+        if (repairsResolved.current !== currentScope) setRepairOrdersError(toUserMessage(error, 'No se pudieron cargar las órdenes de servicio.'));
       }
     };
     if (loadRepairsEnabled) {
-      setRepairOrders([]);
       setRepairOrdersError(null);
       const finished = trackInitialRead();
       void load().finally(finished);
     }
     return () => { cancelled = true; };
-  }, [currentScope, activeStoreId, loadRepairsEnabled, user, repairRetry]);
+  }, [currentScope, activeStoreId, loadRepairsEnabled, user?.uid, repairRetry]);
 
   useEffect(() => {
     if (!user || !backendReady || !canAccess('notifications')) {
@@ -311,22 +330,23 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     }
     let cancelled = false;
     const current = beginRead('notifications');
-    setNotificationsLoading(true);
+    setNotificationsLoading(notificationsResolved.current !== currentScope);
     setNotificationsError(null);
     fetchNotifications(user).then(({ notifications }) => {
       if (cancelled || !current() || !canAccess('notifications')) return;
+      notificationsResolved.current = currentScope;
       setOperationNotifications(notifications.filter((notification) => {
         return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
           && canAccess(notification.section as OperationSource);
       }));
     }).catch((error: unknown) => {
       if (cancelled) return;
-      setNotificationsError(toUserMessage(error));
+      if (notificationsResolved.current !== currentScope) setNotificationsError(toUserMessage(error));
     }).finally(() => {
       if (!cancelled) setNotificationsLoading(false);
     });
     return () => { cancelled = true; };
-  }, [currentScope, user, notificationRetry]);
+  }, [currentScope, user?.uid, notificationRetry]);
 
   const noteLocalMutation = useCallback(() => {
     if (scopeRef.current !== currentScope) return;
@@ -337,9 +357,10 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const refreshLists = useCallback(async () => {
     if (!user || !backendReady || scopeRef.current !== currentScope || pendingWrites.current > 0) return;
     const jobs: Promise<void>[] = [];
+    let failed = false;
     const guard = (key: string, label: string, run: (current: () => boolean) => Promise<void>) => {
       const current = beginRead(key);
-      jobs.push(run(current).catch((error: unknown) => { console.error(label, error); }));
+      jobs.push(run(current).catch((error: unknown) => { failed = true; console.error(label, error); }));
     };
     // Replace rows in place. Clearing first would drop an open form's source record.
     if (loadInventoryEnabled) guard('inventory', 'Backend inventory refresh failed.', async (current) => {
@@ -366,6 +387,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     if (loadRepairsEnabled) guard('repairs', 'Backend repairs refresh failed.', async (current) => {
       const items = await fetchBackendRepairs(user);
       if (current()) {
+        repairsResolved.current = currentScope;
         setRepairOrders(items);
         setRepairOrdersError(null);
       }
@@ -375,7 +397,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       : (['sales', 'inventory', 'clients'] as const).filter((source) => canAccess(source));
     if (draftSources.length) guard('drafts', 'Backend drafts refresh failed.', async (current) => {
       const settled = await Promise.allSettled(draftSources.map((source) => fetchOperationDrafts(user, source)));
-      if (!current() || settled.every((item) => item.status === 'rejected')) return;
+      if (!current() || settled.some((item) => item.status === 'rejected')) return;
       const merged = new Map<string, TradeIn>();
       for (const item of settled) {
         if (item.status === 'fulfilled') {
@@ -387,6 +409,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     if (canAccess('notifications')) guard('notifications', 'Backend notifications refresh failed.', async (current) => {
       const { notifications } = await fetchNotifications(user);
       if (!current() || !canAccess('notifications')) return;
+      notificationsResolved.current = currentScope;
       setOperationNotifications(notifications.filter((notification) => {
         return ['inventory', 'sales', 'tradeins', 'clients'].includes(notification.section)
           && canAccess(notification.section as OperationSource);
@@ -394,14 +417,15 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
       setNotificationsError(null);
     });
     await Promise.all(jobs);
-  }, [backendClientsEnabled, backendReady, currentScope, loadInventoryEnabled, loadRepairsEnabled, loadSalesEnabled, loadTradeInsEnabled, user]);
+    if (!failed && scopeRef.current === currentScope) setListsFetch({ scope: currentScope, failed: false });
+  }, [backendClientsEnabled, backendReady, currentScope, loadInventoryEnabled, loadRepairsEnabled, loadSalesEnabled, loadTradeInsEnabled, user?.uid]);
 
-  useListRefresh(Boolean(user) && backendReady, () => { void refreshLists(); }, activeStoreId);
+  useListRefresh(Boolean(user) && backendReady && listsFetch?.scope === currentScope, refreshLists, activeStoreId);
 
   return {
     inventory, setInventory: scopedSetter(setInventory), listsLoaded,
     // Cached lists may render immediately elsewhere. Dashboard waits for this batch.
-    listsSettled: listsFetch?.scope === currentScope,
+    listsSettled: listsFetch?.scope === currentScope && initialReads.current === 0,
     listsLoadFailed: listsFetch?.scope === currentScope && listsFetch.failed,
     repairOrders, setRepairOrders: scopedSetter(setRepairOrders), repairOrdersError, setRepairOrdersError: scopedSetter(setRepairOrdersError),
     sales, setSales: scopedSetter(setSales),
@@ -409,6 +433,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     clients, setClients: scopedSetter(setClients), clientCategories, setClientCategories: scopedSetter(setClientCategories),
     operationOptions, setOperationOptions: scopedSetter(setOperationOptions), operationDrafts, setOperationDrafts: scopedSetter(setOperationDrafts),
     operationNotifications, setOperationNotifications: scopedSetter(setOperationNotifications),
+    notificationsLoaded: notificationsResolved.current === currentScope,
     notificationsLoading, setNotificationsLoading: scopedSetter(setNotificationsLoading), notificationsError, setNotificationsError: scopedSetter(setNotificationsError),
     customColumns, setCustomColumns: scopedSetter(setCustomColumns),
     scopeRef, currentScope, canAccess, backendReady,

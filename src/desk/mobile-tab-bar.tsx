@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type TransitionEvent } from 'react';
 
-export const MOBILE_TAB_INDICATOR_MS = 220;
+export const MOBILE_TAB_INDICATOR_MS = 160;
 export const MOBILE_TAB_INDICATOR_TRANSITION = `transform ${MOBILE_TAB_INDICATOR_MS}ms ease-out, width ${MOBILE_TAB_INDICATOR_MS}ms ease-out`;
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';

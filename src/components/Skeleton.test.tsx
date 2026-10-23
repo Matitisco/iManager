@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FieldSkeleton, Skeleton } from './Skeleton';
@@ -23,4 +24,14 @@ describe('shared loading placeholders', () => {
     expect(container.textContent).toBe('');
     expect(screen.getByRole('status').children).toHaveLength(3);
   });
+});
+
+it('keeps skeleton shapes static and hidden for the first 180 ms, including list containers', async () => {
+  const css = readFileSync('src/components/skeleton.css', 'utf8');
+  const deskCss = readFileSync('src/desk/desk.css', 'utf8');
+  // jsdom does not advance CSS animations; verify the shared browser rule contract.
+  expect(css).toMatch(/visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards/);
+  expect(deskCss).toMatch(/\.list-skel \{[^}]*visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards/);
+  expect(css).not.toMatch(/infinite|skeleton-pulse/);
+  expect(deskCss).not.toMatch(/animation: list-skel.*infinite/);
 });

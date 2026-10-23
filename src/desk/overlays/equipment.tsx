@@ -1,4 +1,4 @@
-import { FieldSkeleton } from '../../components/Skeleton';
+import { Skeleton, FieldSkeleton } from '../../components/Skeleton';
 import { formatShortDate } from '../format';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -29,7 +29,8 @@ import { ScanReviewSheet, scanProduct } from './scan-review';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, type FormProps } from './shared';
 import { archivedProduct } from '../archive-cache';
 import { RecordHistoryButton } from '../RecordHistoryButton';
-import { restoreBackendInventoryItem } from '../../services/inventory-api';
+import { SupplierPurchaseDetail } from './supplier-purchases';
+import { fetchBackendInventoryItem, type InventoryItemDetail, restoreBackendInventoryItem } from '../../services/inventory-api';
 import { deviceCoverageLines } from '../../lib/warranty';
 import { CoverageBlock } from '../warranty';
 
@@ -40,7 +41,7 @@ function batteryText(value: string) {
 }
 
 export function EquipmentDetail({ id }: { id: string }) {
-  const { inventory, updateProduct, sales = [], repairOrders = [], user, reloadInventory } = useAppContext();
+  const { inventory, updateProduct, sales = [], repairOrders = [], user, appSession, reloadInventory } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
@@ -51,6 +52,25 @@ export function EquipmentDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const phone = usePhoneLayout();
   const statuses = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [purchaseResult, setPurchaseResult] = useState<{ key: string; summary: InventoryItemDetail['purchaseSummary'] } | null>(null);
+  const purchaseKey = JSON.stringify([user?.uid, appSession?.store?.id, id, item?.supplierId, item?.stockPurchaseId, item?.status]);
+  const hasPurchase = Boolean(item?.stockPurchaseId && item?.supplierId && item?.purchasedAt);
+  useEffect(() => {
+    let active = true;
+    setPurchaseOpen(false);
+    if (user && hasPurchase) {
+      void fetchBackendInventoryItem(user, id).then(detail => {
+        if (active) setPurchaseResult({ key: purchaseKey, summary: detail.purchaseSummary });
+      }).catch(() => {
+        if (active) setPurchaseResult({ key: purchaseKey, summary: null });
+      });
+    }
+    return () => { active = false; };
+  }, [user, purchaseKey, hasPurchase, id]);
+  const summary = purchaseResult?.key === purchaseKey ? purchaseResult.summary : null;
+  const summaryPending = Boolean(user && hasPurchase && purchaseResult?.key !== purchaseKey);
+  const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   if (!item) return null;
   const saveStatus = async () => {
     setBusy(true);
@@ -69,6 +89,7 @@ export function EquipmentDetail({ id }: { id: string }) {
     }
   };
   return (
+    <>
     <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
       {isInStock(item.status) || (canManageSensitive && !item.archivedAt) ? <SheetActionMenu>{isInStock(item.status) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button> : null}{canManageSensitive && !item.archivedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity) })}>Archivar</button> : null}</SheetActionMenu> : null}
@@ -95,13 +116,22 @@ export function EquipmentDetail({ id }: { id: string }) {
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
       <div className="kv"><span>Batería</span><b>{batteryText(item.batteryHealth)}</b></div>
-      <div className="kv" data-testid="equipment-supplier"><span>Proveedor</span><b>{item.supplierName || 'Sin proveedor cargado.'}</b></div>
+      {item.supplierName ? <div className="kv sup-origin" data-testid="equipment-supplier"><span>Proveedor</span><b>{item.supplierId ? <button type="button" disabled={busy} onClick={() => open({ type: 'supplier', id: item.supplierId! })}>{item.supplierName}<em aria-hidden="true">›</em></button> : item.supplierName}</b></div> : null}
+      {hasPurchase ? <>
+        <div className="kv sup-origin" data-testid="equipment-purchase"><span>Compra</span><b><button type="button" disabled={busy} onClick={() => setPurchaseOpen(true)}>{item.purchaseName || formatShortDate(item.purchasedAt)}</button></b></div>
+        <div className="eq-purchase-problems" aria-busy={summaryPending}>
+          {summaryPending ? <Skeleton className="eq-purchase-skeleton" /> : null}
+          {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} equipos de esta compra tuvieron problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
+        </div>
+      </> : null}
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
       {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
     </Sheet>
+    {purchaseOpen && hasPurchase ? <SupplierPurchaseDetail supplierId={item.supplierId!} purchase={{ id: item.stockPurchaseId!, name: item.purchaseName ?? null, purchasedAt: item.purchasedAt!, ...(summary ? { devices: summary.devices, problemCount: summary.problems } : {}) }} seeCosts={seeCosts} onClose={() => setPurchaseOpen(false)} /> : null}
+    </>
   );
 }
 

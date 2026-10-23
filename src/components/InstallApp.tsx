@@ -62,7 +62,7 @@ export function InstallApp({ enabled = true, dashboard = true }: { enabled?: boo
     {/* No exit boundary: route/form/visibility changes must remove this immediately. */}
     {eligible && ready ? <motion.aside
       className="pwa-install" role="region" aria-labelledby="pwa-install-title" data-testid="install-app"
-      initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .18 }}>
+      initial={false}>
       <div className="pwa-heading">
         <img src="/icons/icon-180.png" width="44" height="44" alt="" />
         <div><h2 id="pwa-install-title">iManager en tu inicio</h2><p>Abrí tu tienda con un toque, en pantalla completa.</p></div>

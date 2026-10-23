@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import {
   BLUE_REFRESH_MS,
   exchangeHouseLabel,
@@ -174,9 +175,11 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     ? { buy: settings.manualBuy, sell: settings.manualSell, updatedAt: '' }
     : null;
   const cached = settings.exchangeMode === 'auto' ? readCachedQuote(settings.exchangeSource) : null;
-  const [quote, setQuote] = useState<QuoteView | null>(manualQuote ?? (cached ? { buy: cached.quote.buy, sell: cached.quote.sell, updatedAt: cached.quote.updatedAt } : null));
-  const [days, setDays] = useState<Record<string, BlueDay>>(cached?.days ?? {});
-  const [phase, setPhase] = useState<Phase>(settings.exchangeMode === 'manual' ? (manualQuote ? 'ready' : 'error') : (cached ? 'ready' : 'loading'));
+  const [quote, setQuote] = useStableState<QuoteView | null>(manualQuote ?? (cached ? { buy: cached.quote.buy, sell: cached.quote.sell, updatedAt: cached.quote.updatedAt } : null));
+  const [days, setDays] = useStableState<Record<string, BlueDay>>(cached?.days ?? {});
+  const [phase, setPhase] = useStableState<Phase>(settings.exchangeMode === 'manual' ? (manualQuote ? 'ready' : 'error') : (cached ? 'ready' : 'loading'));
+  const quoteRef = useRef(quote);
+  quoteRef.current = quote;
   const request = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   const source = settings.exchangeSource;
@@ -187,7 +190,7 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     activeRequest.current?.abort();
     const controller = new AbortController();
     activeRequest.current = controller;
-    if (mode === 'visible') setPhase('loading');
+    if (mode === 'visible' && !quoteRef.current) setPhase('loading');
     try {
       const result = await refreshExchangeQuote(source, controller.signal);
       if (request.current !== id) return;
@@ -196,7 +199,7 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
       setPhase('ready');
     } catch {
       if (request.current !== id) return;
-      setPhase('error');
+      setPhase(quoteRef.current ? 'ready' : 'error');
     } finally {
       if (activeRequest.current === controller) activeRequest.current = null;
     }
@@ -231,7 +234,7 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     };
   }, [settings.exchangeMode, settings.manualBuy, settings.manualSell, source, load, manualQuote?.buy, manualQuote?.sell]);
 
-  const convertible = phase === 'ready' && quote != null && quote.sell > 0;
+  const convertible = quote != null && quote.sell > 0;
   const warning = convertible ? null : (phase === 'loading' ? null : FX_WARNING);
   const money = useMemo(
     () => buildMoney(settings.currency, convertible ? quote!.sell : null, warning),

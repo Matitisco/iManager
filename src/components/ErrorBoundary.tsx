@@ -1,3 +1,4 @@
+import { hideBootSplash } from '../lib/boot-splash';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { isNetworkErrorMessage, toUserMessage } from '../lib/user-message';
 
@@ -22,6 +23,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
+    if (!isNetworkErrorMessage(toUserMessage(error))) hideBootSplash();
   }
 
   public render() {

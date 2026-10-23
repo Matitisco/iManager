@@ -13,7 +13,7 @@ import { NoticeTag, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
-import { conditionLabel, conditionName, equipmentTitle, formatImei, statusLabel } from '../format';
+import { conditionLabel, conditionName, equipmentTitle, formatImei, formatShortDate, statusLabel } from '../format';
 import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from '../quality';
 import {
   CONDITION_FILTERS,
@@ -33,7 +33,7 @@ import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { Actions, Battery, ChipRow, DeskCta, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, DeskIcon, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
 function StatusMenu({ options, pressed, onToggle }: {
@@ -107,7 +107,8 @@ function activeColumnCount(filters: InventoryColumnFilters) {
     + Number(Boolean(filters.battery))
   + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
   + Number(Boolean(filters.equipo.trim()))
-  + Number(filters.needsCompletion);
+  + Number(filters.needsCompletion)
+  + Number(Boolean(filters.supplierId));
 }
 
 function withStatus(statuses: string[], id: string, checked: boolean) {
@@ -116,7 +117,7 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, deleteProduct, operationDrafts = [], listsLoaded } = useAppContext();
+  const { inventory, suppliers, deleteProduct, operationDrafts = [], listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell } = useDisplayQuote();
@@ -242,10 +243,13 @@ export function InventoryScreen() {
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
         <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
       </div>
-      <BulkActions key={scope} selection={selection} total={listed.length}
-        label={(item) => equipmentTitle(item.model, item.capacity)}
-        action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
-      />
+      <div className="inventory-selection-tools">
+        <BulkActions key={scope} selection={selection} total={listed.length}
+          label={(item) => equipmentTitle(item.model, item.capacity)}
+          action={{ label: 'Archivar selección', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
+        />
+        {phone ? <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} /> : null}
+      </div>
       {phone && source.length > 0 ? (
         <>
           <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span></div>
@@ -279,6 +283,7 @@ export function InventoryScreen() {
         {source.length > 0 ? (
           <div className="dch pad">
             <h3>Equipos</h3>
+            <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} />
             <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span>
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
@@ -416,7 +421,7 @@ export function InventoryScreen() {
                   <td>
                     <div className="dcell">
                       <div className="dthumb"><ImanagerIcon name="equipo" size={24} /></div>
-                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{item.supplierName ? <small className="archive-note">Proveedor: {item.supplierName}</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
+                      <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}<SupplierMark item={item} />{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
                   <td>{(item.color ?? '').trim() || '—'}</td>
@@ -478,6 +483,8 @@ export function InventoryScreen() {
                 </label>
               ))}
             </div>
+            <p className="sec">Proveedor</p>
+            <SupplierFilter suppliers={suppliers} value={draftFilters.supplierId || ''} onChange={(supplierId) => setDraftFilters((current) => ({ ...current, supplierId }))} />
             <p className="sec">Condición</p>
             <div className="inv-checks">
               {conditionOptions.map((option) => (
@@ -584,7 +591,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
       <span className="inv-status">{item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">
         <b>{equipmentTitle(item.model, item.capacity)}</b>
-        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}{item.supplierName ? <small className="archive-note">Proveedor: {item.supplierName}</small> : null}{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}
+        {item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}<SupplierMark item={item} />{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}
       </span>
       <span className="inv-meta">
         <small>{condition || '—'}</small>
@@ -622,4 +629,29 @@ function InventoryEmpty({ showActions, onImport, onSeries, onCreate }: { showAct
       <p className="inv-count">0 resultados</p>
     </div>
   );
+}
+
+function SupplierMark({ item }: { item: Product }) {
+  const date = formatShortDate(item.purchasedAt);
+  const label = [item.supplierName?.trim(), date !== '—' ? date.slice(0, 5) : ''].filter(Boolean).join(' · ');
+  if (!label) return null;
+  return <small className="archive-note sup-mark" data-testid="inventory-origin"><DeskIcon name="store" size={12} /><span>{label}</span></small>;
+}
+
+function SupplierFilter({ suppliers, value, onChange }: {
+  suppliers: { id: string; name: string }[] | null | undefined;
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  // Keep the saved selection while the shared supplier catalog is still loading.
+  const options = [...(suppliers ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  return <div className={`dsel inventory-supplier-filter${value ? ' on' : ''}`}>
+    <span className="inventory-supplier-label" aria-hidden="true">{options.find(row => row.id === value)?.name || 'Proveedor'}</span>
+    <select aria-label="Proveedor" value={value} onChange={(event) => onChange(event.target.value)}>
+      <option value="">{value ? 'Todos los proveedores' : 'Proveedor'}</option>
+      {value && !options.some(row => row.id === value) ? <option value={value}>Proveedor</option> : null}
+      {options.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
+    </select>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+  </div>;
 }

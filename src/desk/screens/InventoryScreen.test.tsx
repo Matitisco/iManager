@@ -6,6 +6,7 @@ import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
 import type { OperationNotification } from '../../services/operations-api';
+import { RoutePresentation } from '../route-viewport';
 import { DeskProvider } from '../ui';
 import { InventoryScreen } from './InventoryScreen';
 
@@ -14,6 +15,7 @@ const context = vi.hoisted(() => ({
   sectionChanges: {} as SectionChanges,
   viewSection: vi.fn(async () => undefined),
   inventory: [] as Product[],
+  suppliers: [] as { id: string; name: string }[],
   appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string } } | null,
   operationNotifications: [] as OperationNotification[],
   markNotificationRead: vi.fn(async () => undefined),
@@ -782,5 +784,78 @@ describe('Inventory para completar', () => {
     const status = screen.getByRole('dialog', { name: 'Filtrar estado' });
     await user.click(within(status).getByRole('checkbox', { name: 'Para completar' }));
     expect(screen.queryByText('Listo · 128 GB')).not.toBeInTheDocument();
+  });
+});
+
+describe('origen y filtro de proveedores #308', () => {
+  const originalMatchMedia = window.matchMedia;
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.suppliers = [{ id: 'andes', name: 'Importadora Andes' }, { id: 'cuyo', name: 'Tech Cuyo' }, { id: 'empty', name: 'Mayorista sin stock' }];
+    context.inventory = [
+      item('1', { supplierId: 'andes', supplierName: 'Importadora Andes', purchasedAt: '2026-09-05', stockPurchaseId: 'buy', condition: 'USADO' }),
+      item('2', { supplierId: 'cuyo', supplierName: 'Tech Cuyo' }),
+      item('3'),
+    ];
+    context.operationNotifications = [];
+  });
+  afterEach(() => { window.matchMedia = originalMatchMedia; context.suppliers = []; });
+
+  it.each([false, true])('marca proveedor · fecha sin placeholders; móvil=%s', (phone) => {
+    if (phone) usePhone();
+    renderScreen();
+    expect(screen.getAllByTestId('inventory-origin')).toHaveLength(2);
+    expect(screen.getByText('Importadora Andes · 05/09')).toBeInTheDocument();
+    expect(screen.getAllByText('Tech Cuyo').some(node => node.closest('.sup-mark'))).toBe(true);
+    expect(screen.queryByText(/Proveedor:|Sin proveedor/)).not.toBeInTheDocument();
+    const mark = screen.getByText('Importadora Andes · 05/09').closest('.sup-mark');
+    expect(mark?.querySelector('svg')).toBeInTheDocument();
+    expect(mark?.closest(phone ? '.inv-title' : '.dcell')).toBeInTheDocument();
+  });
+
+  it.each([false, true])('lista proveedores existentes y combina condición/estado/búsqueda; móvil=%s', async (phone) => {
+    if (phone) usePhone();
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const supplier = screen.getByRole('combobox', { name: 'Proveedor' });
+    expect(within(supplier).getAllByRole('option').map(node => node.textContent)).toEqual(['Proveedor', 'Importadora Andes', 'Mayorista sin stock', 'Tech Cuyo']);
+    if (phone) expect(supplier.closest('.inventory-selection-tools')).toContainElement(screen.getByRole('button', { name: 'Seleccionar' }));
+    else expect(supplier.closest('.dch')).toContainElement(screen.getByRole('heading', { name: 'Equipos' }));
+    await user.selectOptions(supplier, 'andes');
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 3');
+    expect(screen.getByText('Modelo 1 · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Modelo 2 · 128 GB')).not.toBeInTheDocument();
+    if (phone) {
+      await user.click(screen.getByRole('button', { name: 'Filtros' }));
+      const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+      expect(within(sheet).getByRole('combobox', { name: 'Proveedor' })).toHaveValue('andes');
+      await user.click(within(sheet).getByRole('checkbox', { name: 'Nuevo' }));
+      await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Filtrar condición' }));
+      await user.click(screen.getByRole('checkbox', { name: 'Nuevo' }));
+    }
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('0 de 3');
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
+    expect(supplier).toHaveValue('');
+  });
+
+  it('resetea la paginación al filtrar y conserva selección al volver a la entrada de navegación', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    context.inventory = Array.from({ length: 18 }, (_, i) => item(String(i + 1), { supplierId: i < 9 ? 'andes' : 'cuyo' }));
+    const values = new Map<string, unknown>();
+    const mount = () => render(<RoutePresentation.Provider value={values}><DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}><InventoryScreen /></DeskProvider></RoutePresentation.Provider>);
+    const first = mount();
+    await user.click(screen.getByRole('button', { name: 'Página 3' }));
+    expect(screen.getByText('17–18 de 18')).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Proveedor' }), 'andes');
+    expect(screen.getByText('1–8 de 9')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('9 de 18');
+    first.unmount();
+    mount();
+    expect(screen.getByRole('combobox', { name: 'Proveedor' })).toHaveValue('andes');
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('9 de 18');
+    expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute('aria-current', 'page');
   });
 });

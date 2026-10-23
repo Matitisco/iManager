@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStableState } from '../lib/stable-state';
+import { useCallback, useEffect, useRef } from 'react';
 import { canOpenSection } from '../desk/sections';
 import {
   archiveExpense as archiveExpenseApi,
@@ -27,13 +28,15 @@ export function useLedgerState(user: AuthUserLike | null, session: AppSession | 
   const owner = role === 'OWNER';
   const canSuppliers = Boolean(session?.store) && canOpenSection('inventory', sections, role);
   const scope = `${user?.uid}:${session?.store?.id}:${role}:${JSON.stringify(sections)}`;
+  const supplierResolved = useRef('');
+  const expenseResolved = useRef('');
   const current = useRef(scope);
   current.current = scope;
-  const [suppliers, setSuppliers] = useState<SupplierListItem[] | null>(canSuppliers ? null : []);
-  const [expenses, setExpenses] = useState<ExpenseView[] | null>(owner ? null : []);
-  const [expensesLoaded, setExpensesLoaded] = useState(!owner);
-  const [supplierError, setSupplierError] = useState('');
-  const [expenseError, setExpenseError] = useState('');
+  const [suppliers, setSuppliers] = useStableState<SupplierListItem[] | null>(canSuppliers ? null : []);
+  const [expenses, setExpenses] = useStableState<ExpenseView[] | null>(owner ? null : []);
+  const [expensesLoaded, setExpensesLoaded] = useStableState(!owner);
+  const [supplierError, setSupplierError] = useStableState('');
+  const [expenseError, setExpenseError] = useStableState('');
   const ready = !!user && status === 'ready' && !!session?.store && !session.onboardingRequired;
 
   const reloadLedger = useCallback(async () => {
@@ -43,13 +46,14 @@ export function useLedgerState(user: AuthUserLike | null, session: AppSession | 
       try {
         const rows = await fetchSuppliers(user);
         if (current.current === ticket) {
+          supplierResolved.current = scope;
           setSuppliers(rows);
           setSupplierError('');
         }
       } catch (error) {
         if (current.current === ticket) {
-          setSuppliers([]);
-          setSupplierError(error instanceof Error ? error.message : 'No se pudieron cargar los proveedores');
+          setSuppliers(old => old ?? []);
+          if (supplierResolved.current !== scope) setSupplierError(error instanceof Error ? error.message : 'No se pudieron cargar los proveedores');
         }
       }
     } else if (current.current === ticket) {
@@ -59,22 +63,23 @@ export function useLedgerState(user: AuthUserLike | null, session: AppSession | 
       try {
         const rows = await fetchExpenses(user);
         if (current.current === ticket) {
+          expenseResolved.current = scope;
           setExpenses(rows);
           setExpensesLoaded(true);
           setExpenseError('');
         }
       } catch (error) {
         if (current.current === ticket) {
-          setExpenses([]);
+          setExpenses(old => old ?? []);
           setExpensesLoaded(true);
-          setExpenseError(error instanceof Error ? error.message : 'No se pudieron cargar los gastos');
+          if (expenseResolved.current !== scope) setExpenseError(error instanceof Error ? error.message : 'No se pudieron cargar los gastos');
         }
       }
     } else if (current.current === ticket) {
       setExpenses([]);
       setExpensesLoaded(true);
     }
-  }, [user, ready, scope, canSuppliers, owner]);
+  }, [user?.uid, ready, scope, canSuppliers, owner]);
 
   useEffect(() => {
     setSuppliers(canSuppliers ? null : []);

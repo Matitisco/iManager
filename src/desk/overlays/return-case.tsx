@@ -116,6 +116,7 @@ function ReturnSummary({ current, reason = false }: { current: ReturnCaseView; r
     <b>{current.clientName || 'Sin cliente'}</b>
     <span>{current.deviceLabel || 'Sin equipo'}</span>
     <small>{[current.imei ? `IMEI ${current.imei}` : '', formatShortDate(current.openedOn)].filter(Boolean).join(' · ')}</small>
+    {reason && current.supplierName ? <div className="kv" data-testid="return-supplier"><span>Proveedor</span><b>{current.supplierName}</b></div> : null}
     {reason ? <p className="rs-reason">{current.reason}</p> : null}
   </div>;
 }

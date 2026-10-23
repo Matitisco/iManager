@@ -101,3 +101,14 @@ describe('section view state', () => {
     expect(result.current.sectionChanges.inventory).toHaveLength(1001);
   });
 });
+
+it('preserves counter references on identical polls and same-uid auth callbacks', async () => {
+  vi.mocked(fetchSectionChanges).mockImplementation(async () => ({ sections: { clients: [{ ...a }] } }));
+  const { result, rerender } = renderHook(({ identity }) => useSectionViewsState(identity, session, 'ready', []), { initialProps: { identity: user } });
+  await waitFor(() => expect(result.current.sectionChanges.clients).toHaveLength(1));
+  const before = result.current.sectionChanges;
+  rerender({ identity: { ...user } });
+  expect(fetchSectionChanges).toHaveBeenCalledTimes(1);
+  await act(() => result.current.refreshSectionChanges());
+  expect(result.current.sectionChanges).toBe(before);
+});

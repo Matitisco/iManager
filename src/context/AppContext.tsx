@@ -1,3 +1,6 @@
+import { createRefreshGate } from '../lib/list-sync';
+import { authUserView, sameAuthIdentity } from '../lib/auth-identity';
+import { useStableState } from '../lib/stable-state';
 import { useSectionViewsState } from './section-views-state';
 import { setAnalyticsUser } from '../lib/analytics';
 import { clearSessionCaches, readBootSession, writeBootSession } from '../lib/boot-cache';
@@ -124,11 +127,13 @@ function rememberSession(currentUser: AuthUserLike, session: AppSession) {
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const authAdapter = getAuthAdapter();
-  const boot = readBootSession();
-  const [user, setUser] = useState<AuthUserLike | null>(() => boot ? cachedAuthUser(boot) : null);
-  const [loading, setLoading] = useState(() => !boot);
-  const [appSession, setAppSession] = useState<AppSession | null>(() => boot?.session ?? null);
-  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>(() => boot ? 'ready' : 'checking');
+  const [boot] = useState(readBootSession);
+  const firebaseUser = React.useRef<AuthUserLike | null>(null);
+  const currentAuthUser = () => firebaseUser.current ?? authAdapter.getCurrentUser();
+  const [user, setUser] = useState<AuthUserLike | null>(() => boot ? authUserView(cachedAuthUser(boot), currentAuthUser) : null);
+  const [loading, setLoading] = useState(true);
+  const [appSession, setAppSession] = useStableState<AppSession | null>(() => boot?.session ?? null);
+  const [backendStatus, setBackendStatus] = useState<BackendConnectionStatus>('checking');
   const [sessionConfirmed, setSessionConfirmed] = useState(false);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
   const {
@@ -139,7 +144,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     clients, setClients, clientCategories, setClientCategories,
     operationOptions, setOperationOptions, operationDrafts, setOperationDrafts,
     operationNotifications, setOperationNotifications,
-    notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
+    notificationsLoaded, notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
     customColumns, setCustomColumns,
     scopeRef, currentScope, canAccess, backendReady,
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
@@ -186,7 +191,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const sectionViews = useSectionViewsState(user, appSession, backendStatus, [inventory, sales, tradeIns, clients]);
+  const sectionViews = useSectionViewsState(user, appSession, backendStatus, [recordsGeneration.current]);
   const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
   const ledgerState = useLedgerState(user, appSession, backendStatus);
@@ -198,7 +203,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return managed ? { ...item, catalogVisible: managed.catalogVisible, catalogIncluded: Boolean(catalog?.active && !managed.reason) } : item;
     }));
   });
-  const [depositState, setDepositState] = useState<{ scope: string; rows: Record<string, ClientDeposit[]> }>({ scope: currentScope, rows: {} });
+  const [depositState, setDepositState] = useStableState<{ scope: string; rows: Record<string, ClientDeposit[]> }>({ scope: currentScope, rows: {} });
   const depositGenerations = React.useRef<Record<string, number>>({});
   const clientDeposits = depositState.scope === currentScope ? depositState.rows : {};
   const requireDeposits = () => {
@@ -256,6 +261,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshBackendSession = async (currentUser: AuthUserLike) => {
     const { status, session, message } = await fetchBackendSession(currentUser);
     if (scopeRef.current !== currentScope) return { status, session, message };
+    if (status !== 'ready' && appSession?.store && status !== 'unauthorized') return { status, session, message };
     setBackendStatus(status);
     setAppSession(session);
     setBackendMessage(message);
@@ -264,6 +270,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
+      firebaseUser.current = currentUser;
       setAnalyticsUser(currentUser);
       setLoading(false);
       if (!currentUser) {
@@ -271,7 +278,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setUser(null);
         return;
       }
-      setUser(currentUser);
+      setUser(previous => sameAuthIdentity(previous, currentUser) ? previous : authUserView(currentUser, currentAuthUser));
     });
     return () => unsubscribe();
   }, [authAdapter]);
@@ -356,7 +363,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         window.clearTimeout(retryTimeout);
       }
     };
-  }, [user]);
+  }, [user?.uid]);
 
   const login = async () => {
     try {
@@ -410,7 +417,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const storeId = appSession?.store?.id;
-    if (!user || !storeId || appSession?.billing?.plan === 'INTERNAL' || !appSession?.billing) return;
+    if (!sessionConfirmed || backendStatus !== 'ready' || !user || !storeId || appSession?.billing?.plan === 'INTERNAL' || !appSession?.billing) return;
     let active = true;
     const refresh = async () => {
       try {
@@ -418,10 +425,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (active && session?.store?.id === storeId) setAppSession(current => current?.store?.id === storeId ? { ...current, billing: session.billing } : current);
       } catch { /* The existing session remains readable; each write is guarded by the server. */ }
     };
-    const timer = window.setInterval(() => { void refresh(); }, 60_000);
-    window.addEventListener('focus', refresh);
-    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [user, appSession?.store?.id, appSession?.billing?.plan]);
+    const gate = createRefreshGate(refresh, 15_000, true);
+    const refreshVisible = () => { if (document.visibilityState !== 'hidden') gate.request(); };
+    const timer = window.setInterval(refreshVisible, 60_000);
+    window.addEventListener('focus', refreshVisible);
+    return () => { active = false; gate.cancel(); window.clearInterval(timer); window.removeEventListener('focus', refreshVisible); };
+  }, [user?.uid, appSession?.store?.id, appSession?.billing?.plan, sessionConfirmed, backendStatus]);
 
   const gettingStartedState = useGettingStartedState(user, backendStatus === 'ready' ? appSession?.store?.id : undefined);
   const returnsState = useReturnsState(user, appSession, backendStatus);
@@ -511,7 +520,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const currentUser = requireNotificationAccess();
     const requestScope = currentScope;
     const current = beginRead('notifications');
-    setNotificationsLoading(true);
     setNotificationsError(null);
     try {
       const { notifications } = await fetchNotifications(currentUser);
@@ -521,7 +529,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           && canAccess(notification.section as OperationSource);
       }));
     } catch (error) {
-      if (scopeRef.current === requestScope) setNotificationsError(toUserMessage(error));
+      if (scopeRef.current === requestScope && !notificationsLoaded) setNotificationsError(toUserMessage(error));
       throw error;
     } finally {
       if (scopeRef.current === requestScope) setNotificationsLoading(false);

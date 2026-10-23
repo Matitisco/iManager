@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../context/AppContext";
 import { toActionMessage } from "../lib/user-message";
 import { onboardingTotals } from "../lib/onboarding-stock";
@@ -19,17 +20,15 @@ export function SampleStockBanner() {
     appSession,
   } = useAppContext();
   const { open } = useDesk();
+  const banner = useRef<HTMLDivElement>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    void refreshGettingStarted?.();
-  }, [inventory.length, refreshGettingStarted]);
   if (!gettingStarted?.samples) return null;
   const allowed = canViewTeam(appSession?.membership?.role);
   return (
     <>
-      <div className="sample-banner" role="status">
+      <div ref={banner} className="sample-banner" role="status">
         <span>Estás viendo datos de ejemplo</span>
         {allowed && (
           <>
@@ -41,7 +40,7 @@ export function SampleStockBanner() {
           </>
         )}
       </div>
-      {confirm && (
+      {confirm && createPortal(
         <Dialog
           title="¿Borrar los datos de ejemplo?"
           text="Se eliminan únicamente los equipos de ejemplo. Tus equipos reales se conservan."
@@ -65,7 +64,7 @@ export function SampleStockBanner() {
               .catch((cause) => setError(toActionMessage(cause)))
               .finally(() => setBusy(false));
           }}
-        />
+        />, banner.current?.closest('.desk-app') ?? document.body
       )}
     </>
   );

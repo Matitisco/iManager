@@ -247,3 +247,33 @@ describe('AppContext concurrency #461', () => {
   });
 
 });
+
+it('confirms cached Firebase identity once without restarting session or store effects', async () => {
+  const { result } = await mount();
+  const previousUser = result.current.user;
+  const previousInventory = result.current.inventory;
+  const nextUser = { uid: 'u', email: 'u@example.com', displayName: 'Owner', photoURL: null, getIdToken: vi.fn(async () => 'renewed') };
+  await act(async () => { auth.listener?.(nextUser); });
+  expect(result.current.user).toBe(previousUser);
+  expect(await result.current.user!.getIdToken()).toBe('renewed');
+  expect(result.current.inventory).toBe(previousInventory);
+  for (const fetcher of [fetchBackendSession, fetchBackendInventory, fetchBackendClients, fetchBackendSales, fetchBackendTradeIns, fetchBackendRepairs]) {
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  }
+  await act(async () => auth.listener?.({ ...nextUser, displayName: 'Nombre nuevo' }));
+  expect(result.current.user?.displayName).toBe('Nombre nuevo');
+  expect(fetchBackendSession).toHaveBeenCalledTimes(1);
+  expect(fetchBackendInventory).toHaveBeenCalledTimes(1);
+});
+
+it('retains a structurally equal refreshed backend session and billing data', async () => {
+  const { result } = await mount();
+  const before = result.current.appSession;
+  vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'ready', session: structuredClone(session), message: null });
+  await act(() => result.current.reloadSession());
+  expect(result.current.appSession).toBe(before);
+  vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'offline', session: null, message: 'No hay conexión' });
+  await act(() => result.current.reloadSession());
+  expect(result.current.backendStatus).toBe('ready');
+  expect(result.current.appSession).toBe(before);
+});

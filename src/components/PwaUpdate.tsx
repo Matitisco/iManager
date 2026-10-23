@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { appBuildId, watchControllerUpdates, watchUpdateSafety, watchVersionUpdates } from '../lib/pwa-update';
 import './pwa-update.css';
+import { showBootSplash } from '../lib/boot-splash';
 
-const RELOAD_KEY = 'imanager:update-build';
+export const RELOAD_KEY = 'imanager:update-build';
+export const LONG_ABSENCE_MS = 3 * 60 * 1000;
 
 export function PwaUpdate() {
   const [available, setAvailable] = useState(false);
@@ -12,18 +14,25 @@ export function PwaUpdate() {
     let pending = false;
     let reloading = false;
     let remoteId = '';
-    const reload = () => {
-      if (!pending || reloading || !safety.isSafe() || document.visibilityState !== 'visible') return false;
+    let hiddenAt = document.visibilityState === 'hidden' ? Date.now() : null;
+    let frame = 0;
+    const reload = (manual = false) => {
+      if (!pending || reloading || !safety.isSafe() || (!manual && document.visibilityState !== 'hidden')) return false;
       const token = remoteId || 'controller';
       try {
         if (sessionStorage.getItem(RELOAD_KEY) === token) return false;
         sessionStorage.setItem(RELOAD_KEY, token);
       } catch { /* Private mode still reloads. */ }
       reloading = true;
-      window.location.reload();
+      if (document.visibilityState === 'hidden') window.location.reload();
+      else {
+        showBootSplash();
+        // Two frames give the opaque overlay a paint before navigation blocks JS.
+        frame = requestAnimationFrame(() => { frame = requestAnimationFrame(() => window.location.reload()); });
+      }
       return true;
     };
-    const safety = watchUpdateSafety(reload);
+    const safety = watchUpdateSafety(() => { reload(); });
     const notice = (buildId?: string) => {
       if (buildId) remoteId = buildId;
       pending = true;
@@ -31,7 +40,7 @@ export function PwaUpdate() {
     };
     requestUpdate.current = () => {
       if (!safety.isSafe()) { setNeedsSave(true); return; }
-      if (!reload()) setAvailable(true);
+      if (!reload(true)) setAvailable(true);
     };
     const stopController = 'serviceWorker' in navigator
       ? watchControllerUpdates(navigator.serviceWorker, () => notice())
@@ -43,12 +52,23 @@ export function PwaUpdate() {
         worker: 'serviceWorker' in navigator ? navigator.serviceWorker : null,
       })
       : () => {};
-    document.addEventListener('visibilitychange', reload);
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        reload();
+      } else {
+        const longAbsence = hiddenAt !== null && Date.now() - hiddenAt >= LONG_ABSENCE_MS;
+        hiddenAt = null;
+        if (longAbsence && pending) reload(true);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       stopController();
       stopVersion();
       safety.dispose();
-      document.removeEventListener('visibilitychange', reload);
+      cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
   if (!available) return null;
