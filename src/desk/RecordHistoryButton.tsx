@@ -1,5 +1,5 @@
 import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppContext } from '../context/AppContext';
 import { formatArDateTime } from '../lib/ar-date';
@@ -7,6 +7,15 @@ import { fetchHistory, type HistoryEvent } from '../services/history-api';
 import { historyRecordAction, historyDetailRows } from './history-copy';
 import { DeskIcon, Sheet } from './ui';
 import { ListSkeleton } from './list-skeleton';
+
+/** Shared icon access; accessible text stays available to assistive technology. */
+export function HistoryIconButton({ ref, onClick, expanded, count }: {
+  ref?: Ref<HTMLButtonElement>; onClick: () => void; expanded: boolean; count?: number;
+}) {
+  return <button ref={ref} type="button" className="btn2 s record-history-button icon-only" aria-label={count === undefined ? 'Historial' : `Ver historial (${count})`} title="Historial" aria-haspopup="dialog" aria-expanded={expanded} onClick={onClick}>
+    <DeskIcon name="clock" size={18} />
+  </button>;
+}
 
 /** Keeps record tracking focused; the history owns its own layer and request lifetime. */
 export function RecordHistoryButton({ entityType, entityId, label }: {
@@ -16,9 +25,7 @@ export function RecordHistoryButton({ entityType, entityId, label }: {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   return <>
-    <button ref={trigger} type="button" className="btn2 s record-history-button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
-      <DeskIcon name="clock" size={16} />Historial
-    </button>
+    <HistoryIconButton ref={trigger} expanded={open} onClick={() => setOpen(true)} />
     {open ? createPortal(<div className="record-history-layer">
       <RecordHistoryModal key={`${appSession?.store?.id}:${user?.uid}:${entityType}:${entityId}`} entityType={entityType} entityId={entityId} label={label} onClose={() => setOpen(false)} />
     </div>, trigger.current?.closest('.desk-app') ?? document.body) : null}

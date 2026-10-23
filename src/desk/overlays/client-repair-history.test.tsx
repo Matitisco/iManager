@@ -45,6 +45,7 @@ it.each([
   </DeskProvider></div>);
   const parent = screen.getByRole('dialog');
   const trigger = within(parent).getByRole('button', { name: 'Historial' });
+  expect(trigger.textContent).toBe('');
   expect(trigger).toHaveClass('btn2', 's', 'record-history-button');
   expect(trigger.parentElement).toHaveClass(entityType === 'client' ? 'tracking-summary' : 'tracking-history-action');
   if (entityType === 'client') expect(trigger.parentElement?.querySelector('.dhero')).toHaveTextContent('Saldo pendiente');

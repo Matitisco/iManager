@@ -2,7 +2,10 @@ import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { archivedReturn } from '../archive-cache';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { HistoryIconButton } from '../RecordHistoryButton';
+import { usePhoneLayout } from '../section-notices';
 import { useAppContext } from '../../context/AppContext';
 import { saleWarrantyView } from '../../lib/warranty';
 import { getFriendlyErrorMessage } from '../../lib/utils';
@@ -26,12 +29,14 @@ const STOCK = [
 ];
 
 function today() {
-  return new Date().toISOString().slice(0, 10);
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
   const { sales = [], inventory = [], returns, createReturn, updateReturn } = useAppContext();
   const { close, toast } = useDesk();
+  const phone = usePhoneLayout();
   const completed = sales.filter((sale) => sale.status === 'COMPLETADA' && !sale.voidedAt);
   const current = id ? returns?.find(row => row.id === id) ?? archivedReturn(id) : null;
   const [selected, setSelected] = useState(current?.saleId ?? saleId ?? '');
@@ -66,7 +71,7 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
         saleId: sale!.id,
         reason: reason.trim(),
         openedOn,
-        diagnosis: diagnosis.trim() || null,
+        diagnosis: null,
         imei: item?.imei || null,
       });
       toast(id ? 'Reclamo guardado' : 'Reclamo abierto');
@@ -81,8 +86,9 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
   if (id && !current) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
   if (current && isVoidRow(current)) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">Este reclamo está anulado.</p></Sheet>;
   return (
-    <Sheet title={id ? 'Editar reclamo' : 'Nuevo reclamo'} onClose={close} busy={busy} className="return-sheet" footer={<Actions busy={busy} primary={id ? 'Guardar' : 'Abrir reclamo'} onSecondary={close} onPrimary={() => { void save(); }} />}>
+    <Sheet title={id ? 'Editar reclamo' : 'Nuevo reclamo'} onClose={close} busy={busy} className="return-sheet ret-new" footer={<Actions busy={busy} busyLabel={id ? 'Guardar' : 'Abrir reclamo'} primary={id ? 'Guardar' : 'Abrir reclamo'} onSecondary={close} onPrimary={() => { void save(); }} />}>
       {error ? <div className="ferr" role="alert">{error}</div> : null}
+      <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} panel={phone ? 'inline' : 'float'} />
       {current ? <ReturnSummary current={current} /> : <Field label="Venta" error={bad.sale}>
         <select aria-label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={(event) => setSelected(event.target.value)}>
           <option value="">Elegí una venta</option>
@@ -94,34 +100,31 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
         </select>
       </Field>}
       {!current && sale ? (
-        <div className="pending-sale" data-testid="return-sale">
-          <div>
-            <b>{sale.clientName || 'Sin cliente'}</b>
-            <small>
-              {[item?.imei ? `IMEI ${item.imei}` : 'Sin IMEI', coverage?.phrase || 'Sin garantía', formatMoney(sale.amount, sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}
-            </small>
-          </div>
+        <div className="return-summary return-sale-summary" data-testid="return-sale">
+          <b>{item?.imei ? `IMEI ${item.imei}` : 'Sin IMEI'}</b>
+          <small>{[coverage?.phrase || 'Sin garantía', formatMoney(sale.amount, sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}</small>
         </div>
       ) : null}
-      <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} />
       <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" maxLength={500} disabled={busy} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
-      <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" maxLength={2000} disabled={busy} value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional" /></Field>
+      {current ? <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" maxLength={2000} disabled={busy} value={diagnosis} onChange={(event) => setDiagnosis(event.target.value)} placeholder="Opcional" /></Field> : null}
     </Sheet>
   );
 }
 
-function ReturnSummary({ current }: { current: ReturnCaseView }) {
+function ReturnSummary({ current, reason = false }: { current: ReturnCaseView; reason?: boolean }) {
   return <div className="return-summary" data-testid="return-detail">
     <b>{current.clientName || 'Sin cliente'}</b>
     <span>{current.deviceLabel || 'Sin equipo'}</span>
     <small>{[current.imei ? `IMEI ${current.imei}` : '', formatShortDate(current.openedOn)].filter(Boolean).join(' · ')}</small>
+    {reason && current.supplierName ? <div className="kv" data-testid="return-supplier"><span>Proveedor</span><b>{current.supplierName}</b></div> : null}
+    {reason ? <p className="rs-reason">{current.reason}</p> : null}
   </div>;
 }
 
 function Choices({ label, options, value, onChange, disabled }: {
   label: string; options: Array<{ id: string; label: string }>; value: string; onChange: (value: string) => void; disabled?: boolean;
 }) {
-  return <fieldset className="return-choices" disabled={disabled}>
+  return <fieldset className={`return-choices${options.length === 2 ? ' two' : ''}${label === 'Estado' ? ' return-status' : ''}`} disabled={disabled}>
     <legend>{label}</legend>
     <div className="sgs" role="group" aria-label={label}>
       {options.map(option => <button className={`sg${option.id === value ? ' on' : ''}`} type="button" key={option.id} aria-pressed={option.id === value} onClick={() => onChange(option.id)}>{option.label}</button>)}
@@ -130,11 +133,23 @@ function Choices({ label, options, value, onChange, disabled }: {
 }
 
 export function ReturnDetail({ id }: { id: string }) {
-  const { returns, updateReturn, resolveReturn, advanceRma, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash } = useAppContext();
-  const { close, toast, canManageSensitive = true } = useDesk();
+  const { returns } = useAppContext();
+  const { close } = useDesk();
   const current = returns?.find(row => row.id === id) ?? archivedReturn(id) ?? null;
+  if (returns == null) return <Sheet title="Reclamo" className="return-pending" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
+  if (!current) return <Sheet title="Reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
+  return <LoadedReturnDetail key={id} current={current} />;
+}
+
+function LoadedReturnDetail({ current }: { current: ReturnCaseView }) {
+  const { updateReturn, resolveReturn, advanceRma, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash } = useAppContext();
+  const { close, toast, canManageSensitive = true } = useDesk();
+  const id = current.id;
   const [status, setStatus] = useState(current?.status ?? 'ABIERTO');
   const [rma, setRma] = useState(current?.rmaStatus ?? 'ENVIADO');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const historyTrigger = useRef<HTMLButtonElement>(null);
+  const phone = usePhoneLayout();
   const [diagnosis, setDiagnosis] = useState(current?.diagnosis ?? '');
   const [note, setNote] = useState('');
   const [resolution, setResolution] = useState<ReturnResolution>('REPARACION');
@@ -182,8 +197,6 @@ export function ReturnDetail({ id }: { id: string }) {
     } finally { setBusy(false); }
   };
 
-  if (returns == null) return <Sheet title="Reclamo" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
-  if (!current) return <Sheet title="Reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
   const restore = async () => {
     if (busy) return;
     setBusy(true); setError('');
@@ -192,15 +205,13 @@ export function ReturnDetail({ id }: { id: string }) {
     finally { setBusy(false); }
   };
   const legacyArchive = current.deletedAt && current.status !== 'ANULADO';
-  return <Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet"
+  return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet ret-state"
     footer={voided ? legacyArchive && canManageSensitive
-      ? <Actions primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
+      ? <Actions busyLabel="Restaurar" primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
       : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
-      : <Actions primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
+      : <Actions busyLabel="Guardar" primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
-    <ReturnSummary current={current} />
-    {current.supplierName ? <div className="kv" data-testid="return-supplier"><span>Proveedor</span><b>{current.supplierName}</b></div> : null}
-    <div className="return-reason"><b>Motivo</b><p>{current.reason}</p></div>
+    <ReturnSummary current={current} reason />
     {voided ? <Pill status="ANULADO" /> : unresolved ? <Choices label="Estado" value={status} onChange={setStatus} disabled={busy} options={[
       { id: 'ABIERTO', label: 'Abierto' }, { id: 'EN_DIAGNOSTICO', label: 'En diagnóstico' },
       ...(canManageSensitive ? [{ id: 'RESUELTO', label: 'Resuelto' }] : []),
@@ -209,7 +220,6 @@ export function ReturnDetail({ id }: { id: string }) {
       { id: 'ENVIADO', label: 'Enviado' }, { id: 'EN_REVISION', label: 'En revisión' }, { id: 'APROBADO', label: 'Aprobado' },
       { id: 'RECHAZADO', label: 'Rechazado' }, { id: 'RECIBIDO', label: 'Recibido' },
     ]} /> : null}
-    {!voided ? <Field label="Nota (opcional)"><textarea aria-label="Nota (opcional)" placeholder="Agregar al seguimiento" value={note} maxLength={280} disabled={busy} onChange={event => setNote(event.target.value)} /></Field> : null}
     {unresolved && (status === 'EN_DIAGNOSTICO' || diagnosis || resolving) ? <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} maxLength={2000} disabled={busy} onChange={event => setDiagnosis(event.target.value)} /></Field> : null}
     {!unresolved && current.diagnosis ? <div className="return-reason"><b>Diagnóstico</b><p>{current.diagnosis}</p></div> : null}
     {resolving ? <div className="return-resolution" data-testid="return-resolve">
@@ -224,15 +234,30 @@ export function ReturnDetail({ id }: { id: string }) {
     {supplier && rma === 'RECIBIDO' && current.resolution !== 'REPARACION' && canManageSensitive ? <Choices label="Estado al volver" options={STOCK} value={stockStatus} onChange={setStockStatus} disabled={busy} /> : null}
     {current.creditNote ? <div className="return-credit" data-testid="return-credit"><b>Nota de crédito</b><span>{formatMoney(current.creditNote.remaining, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')} disponibles</span></div> : null}
     <section className="return-history" aria-label="Seguimiento">
-      <h4>Seguimiento</h4>
+      <div className="ret-sec">
+        <h4>Seguimiento</h4>
+        <HistoryIconButton ref={historyTrigger} count={current.events.length} expanded={historyOpen} onClick={() => setHistoryOpen(true)} />
+      </div>
+      {!voided ? <ol className="return-timeline" data-testid="return-next-step">
+        <li className="next">
+          <div><b>{statusLabel(supplier ? rma : status)}</b><span className="return-now">Ahora</span></div>
+          <textarea aria-label="Nota de seguimiento" value={note} maxLength={280} disabled={busy} onChange={event => setNote(event.target.value)} />
+        </li>
+      </ol> : null}
+    </section>
+  </Sheet>
+  {historyOpen ? createPortal(<div className="record-history-layer">
+    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet hist-screen" mobileBack onClose={() => setHistoryOpen(false)}
+      footer={phone ? null : <button className="btn2 s" type="button" onClick={() => setHistoryOpen(false)}>Cerrar</button>}>
       <ol className="return-timeline" data-testid="return-events">
         {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>
-          <div><b>{statusLabel(event.status)}</b><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}</time></div>
+          <div><b>{statusLabel(event.status)}</b><time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/,\s*/, ' ')}</time></div>
           {event.note ? <p>{event.note}</p> : null}
         </li>)}
       </ol>
-    </section>
-  </Sheet>;
+    </Sheet>
+  </div>, historyTrigger.current?.closest('.desk-app') ?? document.body) : null}</>;
+
 }
 
 export function ReturnDelete({ id }: { id: string }) {
@@ -248,8 +273,9 @@ export function ReturnDelete({ id }: { id: string }) {
     catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo anular el reclamo.')); }
     finally { setBusy(false); }
   };
-  return <Sheet title="¿Anular reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions primary="Anular" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
-    <p>{current?.code ?? 'Reclamo'} · Queda anulado y fuera de los totales.{current?.resolution ? ' Se conservan los movimientos registrados.' : ''}</p>
+  return <Sheet title="¿Anular reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions busyLabel="Anular" primary="Anular" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
+    <div><b className="rd-who">{current?.code ?? 'Reclamo'} · {current?.clientName || 'Sin cliente'}</b>
+    <p className="rd-note">Queda anulado y fuera de los totales. Se conservan los movimientos registrados.</p></div>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
   </Sheet>;
 }

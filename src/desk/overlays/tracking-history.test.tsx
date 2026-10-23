@@ -37,6 +37,7 @@ it.each(['inventory', 'sale', 'trade', 'integrated-trade'] as const)('offers onl
   mount(kind === 'inventory' ? <EquipmentDetail id="eq" /> : kind === 'sale' ? <SaleDetail id="sale" {...form} /> : <TradeDetail id="trade" {...form} />);
   const parent = screen.getByRole('dialog');
   expect(within(parent).getAllByRole('button', { name: 'Historial' })).toHaveLength(1);
+  expect(within(parent).getByRole('button', { name: 'Historial' }).textContent).toBe('');
   expect(parent).not.toHaveTextContent(/Ocultar historial|Sin movimientos recientes|Ver todo|Precio cambiado por/);
   expect(fetchHistory).not.toHaveBeenCalled();
   if (kind === 'inventory') await userEvent.click(screen.getByRole('button', { name: 'En revisión' }));

@@ -1,3 +1,4 @@
+import { useModalLayer } from './modal-layer';
 import { archivedReturn } from './archive-cache';
 import { StockOnboarding } from '../pages/StockOnboarding';
 import { DepositForm, RepairDepositSheet } from './overlays/deposits';
@@ -44,12 +45,14 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const phone = usePhoneLayout();
   useEscape(close);
   const menuRef = useRef<HTMLDivElement>(null);
+  useModalLayer({ ref: menuRef, onClose: close, enabled: overlay.kind === 'return' });
   useEffect(() => {
     if (overlay.kind !== 'return') return;
-    const trigger = document.activeElement;
+    const row = [...document.querySelectorAll<HTMLElement>('.return-row')].find(node => node.dataset.testid === `return-${overlay.id}`);
+    row?.classList.add('ctx-on');
     menuRef.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
-    return () => { if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus(); };
-  }, [overlay.kind]);
+    return () => { row?.classList.remove('ctx-on'); };
+  }, [overlay.kind, overlay.id]);
   const menuKeys = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (overlay.kind !== 'return' || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
     const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
@@ -62,9 +65,9 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   const edit = overlay.kind === 'return' ? 'edit-return' : overlay.kind === 'eq' ? 'edit-eq' : overlay.kind === 'sale' ? 'edit-sale' : overlay.kind === 'cj' ? 'edit-cj' : overlay.kind === 'ot' ? 'edit-ot' : 'edit-cl';
   return (
     <div className="ov ctxov" onMouseDown={close}>
-      <div ref={menuRef} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
+      <div ref={menuRef} tabIndex={overlay.kind === 'return' ? -1 : undefined} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { top: overlay.y, left: overlay.x }} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
-        <div className="ctxh">{overlay.label}</div>
+        <div className="ctxh">{claim ? `${claim.code} · ${claim.clientName || 'Sin cliente'}` : overlay.label}</div>
         {!cancelledSale ? <button type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
         {overlay.kind === 'sale' && (() => {
           const sale = sales.find((row) => row.id === overlay.id);

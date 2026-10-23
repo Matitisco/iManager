@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReturnCaseView } from '../../services/returns-api';
@@ -20,7 +20,7 @@ describe('acciones de fila de reclamos', () => {
   it('opens the contextual actions with right click and the explicit menu button', async () => {
     mount(<ReturnsScreen />);
     fireEvent.contextMenu(screen.getByTestId('return-claim'), { clientX: 200, clientY: 150 });
-    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001' }));
+    expect(open).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001 · Lucía' }));
     open.mockClear();
     await userEvent.click(screen.getByRole('button', { name: 'Más acciones' }));
     expect(open).toHaveBeenCalledOnce();
@@ -45,8 +45,13 @@ describe('acciones de fila de reclamos', () => {
   });
   it('routes Editar to the prefilled form and Anular to confirmation', async () => {
     mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'return', id: 'claim', label: 'RMA-0001', x: 10, y: 20 }} />);
+    expect(screen.getByText('RMA-0001 · Lucía')).toHaveClass('ctxh');
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Anular' })).toHaveFocus();
+    await userEvent.tab();
+    expect(screen.getByRole('menuitem', { name: 'Editar' })).toHaveFocus();
+    await userEvent.tab({ shift: true });
     expect(screen.getByRole('menuitem', { name: 'Anular' })).toHaveFocus();
     await userEvent.keyboard('{Home}');
     expect(screen.getByRole('menuitem', { name: 'Editar' })).toHaveFocus();
@@ -66,6 +71,12 @@ describe('acciones de fila de reclamos', () => {
     expect(screen.getByTestId('return-cancelled')).toHaveClass('is-void');
     expect(screen.getByTestId('return-cancelled')).toHaveTextContent('Anulado');
     expect(screen.getByTestId('return-cancelled')).not.toHaveTextContent('Aprobado');
+    expect(within(screen.getByTestId('return-cancelled')).getByText('—')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Más acciones' })).toHaveLength(1);
+    fireEvent.contextMenu(screen.getByTestId('return-cancelled'));
+    expect(open).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId('return-cancelled'));
+    expect(open).toHaveBeenLastCalledWith({ type: 'return', id: 'cancelled' });
     await userEvent.click(screen.getByRole('button', { name: 'Activos' }));
     expect(screen.queryByTestId('return-cancelled')).not.toBeInTheDocument();
     expect(screen.getByTestId('return-claim')).toBeInTheDocument();
