@@ -31,6 +31,7 @@ const group: ReturnPatternView = {
 };
 const purchaseGroup = { ...group, key: 'purchase', label: 'Importadora Andes · 05/09/2026 · Baterías', purchaseId: 'purchase' };
 const coolGroup = { ...group, key: 'cool', label: 'Tech Cuyo', supplierId: 'cool', devices: 8, problems: 2, percent: 25, hot: false, topReason: null, claimsDetail: [], claims: 0 };
+const zeroGroup = { ...coolGroup, key: 'zero', label: 'Sin problemas', problems: 0, percent: 0 };
 const tree = (node = <ReturnsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
 const mount = (node = <ReturnsScreen />) => render(tree(node));
 function deferred<T>() {
@@ -52,6 +53,34 @@ beforeEach(() => {
 });
 
 describe('Patrones de Devoluciones', () => {
+  describe.each([false, true])('filtering with phone layout = %s', phone => {
+    it.each(['supplier', 'purchase', 'model'] as const)('hides zero-problem %s groups and expands the first visible group', async groupBy => {
+      layout.phone = phone;
+      api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup, { ...group, problems: 1, percent: 0 }, coolGroup]);
+      mount(<ReturnsPatterns groupBy={groupBy} />);
+      const first = await screen.findByTestId('pattern-supplier');
+      expect(api.fetchReturnPatterns).toHaveBeenCalledWith(ctx.user, groupBy);
+      expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
+      expect(screen.queryByText(zeroGroup.label)).not.toBeInTheDocument();
+      expect(first).toHaveClass('on');
+      expect(screen.getByTestId('pattern-cool')).not.toHaveClass('on');
+      expect(screen.getAllByRole('region')).toHaveLength(1);
+      expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: `Reclamos de ${group.label}` })).toHaveAttribute('aria-expanded', 'true');
+      expect(first.querySelector('.pat-pct')).toHaveTextContent('0%');
+    });
+
+    it.each(['supplier', 'purchase', 'model'] as const)('keeps the existing empty state when every %s group has zero problems', async groupBy => {
+      layout.phone = phone;
+      api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup]);
+      const { container } = mount(<ReturnsPatterns groupBy={groupBy} requestedGroup={zeroGroup.key} />);
+      await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
+      expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
+      expect(screen.queryByRole('region')).not.toBeInTheDocument();
+      expect(container.querySelector('.desk-app')).toBeEmptyDOMElement();
+    });
+  });
+
   it('switches between claims and all three server groupings without mixing rows', async () => {
     api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group]));
     mount();
@@ -137,6 +166,33 @@ describe('Patrones de Devoluciones', () => {
     expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
     expect(screen.getByTestId('pattern-supplier')).not.toHaveClass('on');
     expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
+  });
+
+  it.each(['supplier', 'purchase'] as const)('falls back to the first visible group when the linked %s has no problems', async groupBy => {
+    api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup, group, coolGroup]);
+    history.replaceState(null, '', returnPatternsHash(groupBy, zeroGroup.key));
+    mount();
+    expect(await screen.findByTestId('pattern-supplier')).toHaveClass('on');
+    expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
+    expect(screen.getByTestId('pattern-cool')).not.toHaveClass('on');
+  });
+
+  it('selects the first remaining group if the expanded group loses its problems on refresh', async () => {
+    const pending = deferred<ReturnPatternView[]>();
+    api.fetchReturnPatterns.mockResolvedValueOnce([group, coolGroup]).mockReturnValueOnce(pending.promise);
+    const view = mount(<ReturnsPatterns groupBy="supplier" />);
+    await screen.findByTestId('pattern-supplier');
+    await userEvent.click(screen.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
+    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
+    ctx.inventory = [];
+    view.rerender(tree(<ReturnsPatterns groupBy="supplier" />));
+    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
+    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
+    await act(async () => pending.resolve([group, { ...coolGroup, problems: 0, percent: 0 }]));
+    expect(screen.queryByTestId('pattern-cool')).not.toBeInTheDocument();
+    expect(screen.getByTestId('pattern-supplier')).toHaveClass('on');
+    expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
   });
 
   it('reopens supplier patterns even when the URL already matches a locally changed view', async () => {

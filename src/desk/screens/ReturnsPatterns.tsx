@@ -23,8 +23,9 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
   const seeOrigin = sectionAllowed('suppliers', sections, role);
   const ready = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && allowed;
   const rows = cache[groupBy];
-  const selectedKey = selection?.by === groupBy ? selection.key : requestedGroup ?? rows?.[0]?.key;
-  const selected = rows?.find(row => row.key === selectedKey);
+  const preferredKey = selection?.by === groupBy ? selection.key : requestedGroup;
+  const selected = preferredKey === null ? undefined : rows?.find(row => row.key === preferredKey) ?? rows?.[0];
+  const selectedKey = selected?.key;
 
   useEffect(() => {
     setSelection(null);
@@ -34,7 +35,7 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
     if (!user || !ready) return;
     let active = true;
     void fetchReturnPatterns(user, groupBy).then(result => {
-      if (active) setCache(current => ({ ...current, [groupBy]: result }));
+      if (active) setCache(current => ({ ...current, [groupBy]: result.filter(row => row.problems > 0) }));
     }).catch(() => {
       // Supplemental analysis: omit unavailable data, without a second error flow.
       if (active) setCache(current => ({ ...current, [groupBy]: [] }));
