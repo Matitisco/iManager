@@ -1,5 +1,8 @@
+.desk-app .stage:has(.stock-page, .history-screen) { background: #F6F6F7; }
+
 /* Valores de las referencias aprobadas 318/372; limitados a estas pantallas. */
-.desk-app:has(.stock-page, .history-screen) {
+.desk-app :is(.stock-page, .history-screen),
+.desk-app:has(.stock-page, .history-screen) .ov {
   --bg: #F6F6F7;
   --primary: #16171A;
   --secondary: #6B7280;
@@ -23,13 +26,6 @@
 .desk-app .stock-start-sheet .btn2.p { background: var(--primary); padding-inline: 20px; }
 .desk-app .stock-start-sheet .btn2.s { background: #fff; border: 1px solid #E5E7EB; }
 @media (min-width: 761px) {
-  .desk-app:has(.stock-page, .history-screen) .side { width: 246px; gap: 2px; }
-  .desk-app:has(.stock-page, .history-screen) .dbrand { padding: 0 7px 20px; }
-  .desk-app:has(.stock-page, .history-screen) .dbrand b { font-size: 18px; font-weight: 700; line-height: 1.1; letter-spacing: 0; }
-  .desk-app:has(.stock-page, .history-screen) .dbrand small { font-size: 12px; font-weight: 400; }
-  .desk-app:has(.stock-page, .history-screen) .ditem { height: 42px; font-size: 15px; font-weight: 600; }
-  .desk-app:has(.stock-page, .history-screen) .dcount { min-width: 0; height: auto; padding: 2px 7px; font-weight: 700; }
-  .desk-app:has(.stock-page, .history-screen) .dlabel { font-weight: 600; letter-spacing: .04em; }
   .desk-app:has(.stock-page, .history-screen) .ov:has(.stock-start-sheet) { padding-left: 270px; padding-top: min(200px, 20dvh); align-items: flex-start; }
 }
 @media (max-width: 760px) {

@@ -32,6 +32,7 @@ const row = (label: string) => screen.getByRole('textbox', { name: `Nombre de es
 describe('Catalog editor drafts and persistence', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
     payload = { meta, options: [option('Revisión', 2), option('Reservado'), option('Disponible', 0, true)] };
     mocks.fetch.mockResolvedValue(payload);
     mocks.save.mockResolvedValue(payload);
@@ -74,9 +75,10 @@ describe('Catalog editor drafts and persistence', () => {
   it('uses a live destination when the selected reassignment target is also deleted', async () => {
     const { user } = await setup();
     await user.click(within(row('Revisión')).getByRole('button', { name: 'Eliminar' }));
-    await user.selectOptions(screen.getByRole('combobox'), 'Reservado');
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByRole('option', { name: 'Reservado' }));
     await user.click(within(row('Reservado')).getByRole('button', { name: 'Eliminar' }));
-    expect(screen.getByRole('combobox')).toHaveValue('Disponible');
+    expect(screen.getByRole('combobox')).toHaveTextContent('Disponible');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(mocks.context.user, 'INVENTORY_STATUS', {
       options: [{ value: 'Disponible', label: 'Disponible', color: '#25A66A' }],

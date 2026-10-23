@@ -47,6 +47,70 @@ async function expectFits(page: Page) {
 test.describe('phone navigation', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
+  test('keeps sidenav metrics on every route and separates Más at small widths', async ({ page, request, browser }, testInfo) => {
+    test.setTimeout(180_000);
+    await mockDollar(page);
+    await bootstrapStoreViaApi(page, request, buildTestEmail(testInfo, 'shell-metrics'), 'Menú de prueba');
+    const routes = ['dashboard', 'comercial/ventas', 'comercial/canjes', 'comercial/devoluciones', 'stock/equipos', 'stock/control', 'stock/catalogo', 'atencion/clientes', 'atencion/seguimientos', 'atencion/servicio', 'finanzas/cajas', 'finanzas/gastos', 'finanzas/proveedores', 'analisis/reportes', 'analisis/patrones', 'analisis/comisiones', 'analisis/historial', 'analisis/resumen-periodico', 'cuenta/notificaciones', 'cuenta/ayuda', 'cuenta/configuracion', 'plan'];
+    const metrics = async (target: Page) => target.locator('.sn-nav').evaluate(nav => {
+      // Measure every destination, including collapsed groups, without changing app state.
+      const panels = [...nav.querySelectorAll<HTMLElement>('.sn-children')];
+      const hidden = panels.map(panel => panel.hidden);
+      panels.forEach(panel => { panel.hidden = false; });
+      const values = [...nav.querySelectorAll<HTMLElement>('.ditem, .sn-label')].map(node => {
+        const style = getComputedStyle(node);
+        return { label: node.querySelector('.sn-label')?.textContent ?? node.textContent, fontSize: style.fontSize, lineHeight: style.lineHeight, weight: style.fontWeight, width: node.getBoundingClientRect().width };
+      });
+      panels.forEach((panel, index) => { panel.hidden = hidden[index]; });
+      return values;
+    });
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      let baseline: Awaited<ReturnType<typeof metrics>> | undefined;
+      for (const route of routes) {
+        await page.goto(`/#/${route}`);
+        await expect(page.locator('.desk-app')).toBeVisible();
+        await expect(page.locator('.desk-app select:not(.ds-select-native)')).toHaveCount(0);
+        if (width === 390) await page.getByTestId('sidebar-tab-more').click();
+        await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
+        const current = await metrics(page);
+        baseline ??= current;
+        expect(current, `${width}px / ${route}`).toEqual(baseline);
+      }
+    }
+    const session = await page.context().storageState();
+    for (const banner of [true, false]) {
+      const context = await browser.newContext({ storageState: session, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0.0.0 Mobile Safari/537.36' });
+      await context.addInitScript(show => localStorage.setItem('imanager:install-preference:v2', JSON.stringify({ version: 2, dismissedForever: !show, snoozedUntil: null })), banner);
+      const phone = await context.newPage();
+      await mockDollar(phone);
+      for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 375, height: 667 }]) {
+        await phone.setViewportSize(viewport);
+        await phone.goto('/#/mas');
+        const profile = phone.getByTestId('more-profile');
+        const nav = phone.getByRole('navigation', { name: 'Navegación principal' });
+        await expect(profile).toBeVisible();
+        await expect(phone.locator('.install-more-card')).toHaveCount(banner ? 1 : 0);
+        const assertSpacing = async () => {
+          const boxes = await phone.locator('.mmore > :is(.install-more-card, .mprofile, .sn-mobile)').evaluateAll(nodes => nodes.map(node => { const rect = node.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom }; }));
+          for (let index = 1; index < boxes.length; index++) expect(boxes[index].top - boxes[index - 1].bottom).toBeGreaterThanOrEqual(14);
+        };
+        await assertSpacing();
+        for (const group of ['comercial', 'stock', 'atencion', 'finanzas', 'analisis', 'cuenta']) {
+          const toggle = nav.getByTestId(`nav-group-${group}`).locator('button[aria-expanded]').first();
+          if (await toggle.getAttribute('aria-expanded') === 'true') await toggle.click();
+          await assertSpacing();
+          await toggle.click();
+          await assertSpacing();
+          const last = nav.locator('.sn-children:not([hidden]) .ditem').last();
+          await last.scrollIntoViewIfNeeded();
+          expect((await last.boundingBox())!.y + (await last.boundingBox())!.height).toBeLessThanOrEqual((await phone.getByTestId('mobile-tab-bar').boundingBox())!.y);
+        }
+      }
+      await context.close();
+    }
+  });
+
   test('keeps two menu levels and migrates returns links on desktop and mobile', async ({ page, request }, testInfo) => {
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, buildTestEmail(testInfo, 'two-levels'), 'Menú de prueba');

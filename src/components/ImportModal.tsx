@@ -1,6 +1,7 @@
+import { DeskSelect } from '../desk/select';
 import { toActionMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, ArrowRight, ChevronDown } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Sheet } from '../desk/ui';
 import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
@@ -316,9 +317,9 @@ export const ImportModal: React.FC<Props> = ({
           {review[editing]?.dudas.map((duda, index) => <p key={index} className="text-xs text-amber-900">{duda}</p>)}
           <div className="grid grid-cols-2 gap-3">
             {[...fields.filter((field) => !['grade', 'status'].includes(field.key)), { key: 'currency', label: 'Moneda' }, { key: 'serial', label: 'Serie' }, { key: 'quantity', label: 'Cantidad' }].map((field) => <label key={field.key} className="text-xs font-medium text-gray-700 min-w-0">{field.label}
-              {['currency', 'condition'].includes(field.key) ? <select aria-label={field.label} value={rows[editing][field.key] ?? ''} onChange={(event) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: event.target.value } : row))} className="block w-full min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-base">
-                {(field.key === 'currency' ? ['ARS', 'USD'] : ['USADO', 'NUEVO', 'PRE-OWNED', 'OUTLET']).map((value) => <option key={value}>{value}</option>)}
-              </select> : <input aria-label={field.label} value={rows[editing][field.key] ?? ''} inputMode={['price', 'cost', 'quantity', 'imei'].includes(field.key) ? 'decimal' : undefined} onChange={(event) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: event.target.value } : row))} className="block w-full min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-base" />}
+              {['currency', 'condition'].includes(field.key) ? <DeskSelect label={field.label} value={rows[editing][field.key] ?? ''}
+                onChange={(value) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: value } : row))}
+                options={(field.key === 'currency' ? ['ARS', 'USD'] : ['USADO', 'NUEVO', 'PRE-OWNED', 'OUTLET']).map(value => ({ value, label: value }))} /> : <input aria-label={field.label} value={rows[editing][field.key] ?? ''} inputMode={['price', 'cost', 'quantity', 'imei'].includes(field.key) ? 'decimal' : undefined} onChange={(event) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: event.target.value } : row))} className="block w-full min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-base" />}
             </label>)}
           </div>
           {textRowError(rows[editing]) && <p role="alert" className="text-sm text-red-700">{textRowError(rows[editing])}</p>}
@@ -403,22 +404,12 @@ export const ImportModal: React.FC<Props> = ({
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
-                          <select
-                            aria-label={field.label}
-                            data-testid={`import-field-${field.key}`}
-                            value={selected[field.key] ?? ''}
-                            onChange={(event) => {
-                              const mapping = mappingFromFields(headers, assignColumn(selected, field.key, event.target.value));
+                          <DeskSelect label={field.label} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
+                            onChange={(value) => {
+                              const mapping = mappingFromFields(headers, assignColumn(selected, field.key, value));
                               void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name ? { ...sheetPlan, mapping } : sheetPlan), false);
                             }}
-                            className="w-full appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
-                          >
-                            <option value="">— Sin mapear —</option>
-                            {headers.map((header) => (
-                              <option key={header} value={header} disabled={selected[field.key] !== header && taken.has(header)}>{header}</option>
-                            ))}
-                          </select>
-                          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            options={[{ value: '', label: '— Sin mapear —' }, ...headers.map(header => ({ value: header, label: header, disabled: selected[field.key] !== header && taken.has(header) }))]} />
                         </div>
                       </td>
                     </tr>

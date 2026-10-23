@@ -39,7 +39,7 @@ export function focusNextControl(current: HTMLElement) {
   const move = () => {
     if (!current.isConnected) return;
     const root = current.closest('.sheet, form, .dscreen') ?? document.body;
-    const controls = [...root.querySelectorAll<HTMLElement>('input, select, textarea')].filter((control) => {
+    const controls = [...root.querySelectorAll<HTMLElement>('input, select, textarea, button[role="combobox"]')].filter((control) => {
       if (control === current) return true;
       if ((control as HTMLInputElement).disabled) return false;
       if (control.tabIndex < 0) return false;

@@ -25,6 +25,18 @@ function mobile() {
 }
 
 describe('DeskSelect', () => {
+  it('keeps option names and form data when the compact trigger has a custom display', async () => {
+    render(<form aria-label="Filtros"><DeskSelect className="history-filter" triggerClassName="history-chip" label="Persona" value="model" displayValue="Persona" name="person" options={options} onChange={vi.fn()} /></form>);
+    const control = screen.getByRole('combobox', { name: 'Persona' });
+    expect(control).toHaveTextContent('Persona');
+    expect(new FormData(screen.getByRole('form') as HTMLFormElement).get('person')).toBe('model');
+    await userEvent.click(control);
+    expect(screen.getByRole('option', { name: 'Modelo' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('option', { name: 'Condición' })).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(control).toHaveFocus();
+  });
+
   it('opens, exposes selection and toggles closed without changing value', async () => {
     const change = vi.fn();
     render(<Example onChange={change} />);

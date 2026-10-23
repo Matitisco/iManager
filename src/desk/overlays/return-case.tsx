@@ -1,3 +1,4 @@
+import { DeskSelect } from '../select';
 import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
@@ -90,14 +91,8 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
       {error ? <div className="ferr" role="alert">{error}</div> : null}
       <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} panel={phone ? 'inline' : 'float'} />
       {current ? <ReturnSummary current={current} /> : <Field label="Venta" error={bad.sale}>
-        <select aria-label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={(event) => setSelected(event.target.value)}>
-          <option value="">Elegí una venta</option>
-          {completed.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.clientName || 'Sin cliente'} · {row.deviceLabel || 'Equipo'} · {formatShortDate(row.date)}
-            </option>
-          ))}
-        </select>
+        <DeskSelect label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={setSelected} invalid={Boolean(bad.sale)}
+          options={[{ value: '', label: 'Elegí una venta' }, ...completed.map(row => ({ value: row.id, label: `${row.clientName || 'Sin cliente'} · ${row.deviceLabel || 'Equipo'} · ${formatShortDate(row.date)}` }))]} />
       </Field>}
       {!current && sale ? (
         <div className="return-summary return-sale-summary" data-testid="return-sale">

@@ -216,11 +216,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sup-mark svg { flex: none; color: var(--section); }
 .dcell .archive-note.sup-mark { max-width: 320px; }
 .inv-title .archive-note.sup-mark { margin-top: 3px; }
-.inventory-supplier-filter { max-width: min(240px, 100%); padding: 0 32px 0 14px; flex: none; }
-.inventory-supplier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.inventory-supplier-filter:has(select:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
-.inventory-supplier-filter select { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; border: 0; font: inherit; cursor: pointer; }
-.inventory-supplier-filter > svg { position: absolute; right: 12px; pointer-events: none; }
+.inventory-supplier-filter.ds-select { width: auto; max-width: min(240px, 100%); flex: none; }
+.desk-app .inventory-supplier-filter .ds-select-trigger { height: 36px; padding: 0 14px; gap: 6px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 700; }
+.desk-app .inventory-supplier-filter.filtered .ds-select-trigger { background: var(--lime-soft); border-color: #F0D56B; }
+.desk-app .inventory-supplier-filter .ds-select-trigger > svg { width: 12px; height: 12px; }
 .dch > .inventory-supplier-filter { margin-left: auto; margin-right: 14px; }
 .inventory-selection-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .inventory-selection-tools .bulk-select-filter { margin: 0; }
@@ -608,7 +607,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .stx-pal button.on { box-shadow: 0 0 0 2px var(--primary); }
 .stx-re { font-size: 12.5px; color: var(--primary); background: #FFF6E5; border-radius: 10px; padding: 8px 10px; margin: 6px 0 4px 36px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .stx-re.soft { background: var(--bg); color: var(--secondary); }
-.stx-re select { height: 30px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; font-weight: 600; background: #fff; }
+.desk-app .stx-re .ds-select-trigger { height: 30px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 8px; font: inherit; font-size: 12.5px; font-weight: 600; background: #fff; }
 .stx .stx-add { margin-top: 12px; width: 100%; height: 40px; border: 1.5px dashed #C9CDD4; border-radius: 10px; background: #fff; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--primary); }
 .stx .stx-add:hover { border-color: var(--primary); background: var(--lime-soft); }
 .stx-err { margin-top: 10px; color: var(--err); font-size: 13px; font-weight: 600; }
@@ -970,7 +969,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .mtab-indicator { transition: none !important; }
 }
 .mlabel { margin: 18px 4px 8px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--section); }
-.mprofile { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 100%; padding: 12px 14px; border-radius: 18px; background: #fff; border: 1px solid var(--border); box-shadow: var(--sh); text-align: left; }
+.desk-app .mprofile { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 100%; padding: 12px 14px; margin-bottom: var(--space-4); border-radius: 18px; background: #fff; border: 1px solid var(--border); box-shadow: var(--sh); text-align: left; }
 .mprofile .info { min-width: 0; flex: 1; }
 .mprofile b, .mprofile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mprofile b { font-size: 15px; }

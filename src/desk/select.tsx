@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, ChevronDown, X } from 'lucide-react';
@@ -12,6 +12,9 @@ export interface SelectOption {
 }
 
 interface Props {
+  className?: string;
+  triggerClassName?: string;
+  displayValue?: ReactNode;
   id?: string;
   label: string;
   sheetTitle?: string;
@@ -30,7 +33,7 @@ interface Props {
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 
 /** Controlled single select. The native control only handles form data/validation. */
-export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId }: Props) {
+export function DeskSelect({ className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId }: Props) {
   const autoId = useId();
   const id = suppliedId ?? autoId;
   const listId = `${id}-list`;
@@ -170,18 +173,18 @@ export function DeskSelect({ id: suppliedId, label, sheetTitle = label, value, o
   };
 
   return (
-    <div className="ds-select">
+    <div className={`ds-select${className ? ` ${className}` : ''}`}>
       <select className="ds-select-native" aria-hidden="true" tabIndex={-1} name={name} value={value} required={required} disabled={disabled}
         onChange={(event) => { setValidationError(false); onChange(event.target.value); }}
         onInvalid={(event) => { event.preventDefault(); setValidationError(true); trigger.current?.focus(); show(); }}>
         {!options.some((option) => option.value === '') && <option value="">{placeholder}</option>}
         {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
-      <button ref={trigger} id={id} data-testid={testId} type="button" role="combobox" className={`ds-select-trigger${open ? ' on' : ''}`}
+      <button ref={trigger} id={id} data-testid={testId} type="button" role="combobox" className={`ds-select-trigger${triggerClassName ? ` ${triggerClassName}` : ''}${open ? ' on' : ''}`}
         disabled={disabled} aria-label={label} aria-expanded={open} aria-haspopup={phone ? 'dialog' : 'listbox'} aria-controls={open ? phone ? `${id}-popup` : listId : undefined}
         aria-activedescendant={!phone ? activeId : undefined} aria-required={required} aria-invalid={invalid || validationError || undefined} aria-describedby={describedBy}
         onClick={() => open ? close() : show()} onKeyDown={keys}>
-        <span>{selected?.label ?? placeholder}</span><ChevronDown size={16} aria-hidden="true" />
+        <span>{displayValue ?? selected?.label ?? placeholder}</span><ChevronDown size={16} aria-hidden="true" />
       </button>
       {open && createPortal(
         <AnimatePresence>

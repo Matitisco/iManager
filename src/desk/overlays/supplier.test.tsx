@@ -271,7 +271,7 @@ describe('ficha de proveedor', () => {
     await userEvent.click(screen.getByRole('button', { name: /Registrar equipo/ }));
     const form = screen.getByRole('dialog', { name: 'Registrar equipo' });
     expect(within(form).getByRole('combobox', { name: 'Proveedor' })).toBeDisabled();
-    expect(within(form).getByRole('combobox', { name: 'Proveedor' })).toHaveValue('supplier');
+    expect(within(form).getByRole('combobox', { name: 'Proveedor' })).toHaveTextContent(supplier.name);
     fireEvent.change(within(form).getByLabelText('Modelo'), { target: { value: 'iPhone 13' } });
     fireEvent.change(within(form).getByLabelText('Precio de venta'), { target: { value: '500' } });
     await userEvent.click(within(form).getByRole('button', { name: 'Guardar equipo' }));

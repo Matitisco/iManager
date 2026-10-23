@@ -1,6 +1,6 @@
 import { toUserMessage, isNetworkErrorMessage, toActionMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
-import { ChevronDown } from 'lucide-react';
+import { DeskSelect } from '../select';
 import { AuditDeviceIcon } from './audit-device-icon';
 import './history.css';
 import { isSectionHidden } from '../../config/hiddenSections';
@@ -55,14 +55,10 @@ function FilterChip({ label, emptyLabel, value, onChange, options }: {
 }) {
   const current = options.find((option) => option.id === value);
   return (
-    <label className={`history-chip${value ? ' on' : ''}`}>
-      <span>{value && current ? current.label : <><span className="history-filter-desktop">{emptyLabel}</span><span className="history-filter-phone">{label}</span></>}</span>
-      <ChevronDown size={12} aria-hidden="true" />
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
-        <option value="">{emptyLabel}</option>
-        {options.filter((option) => option.id).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </select>
-    </label>
+    <DeskSelect className="history-filter" triggerClassName={`history-chip${value ? ' filtered' : ''}`}
+      label={label} value={value} onChange={onChange}
+      displayValue={value && current ? current.label : <><span className="history-filter-desktop">{emptyLabel}</span><span className="history-filter-phone">{label}</span></>}
+      options={[{ value: '', label: emptyLabel }, ...options.filter(option => option.id).map(option => ({ value: option.id, label: option.label }))]} />
   );
 }
 

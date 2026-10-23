@@ -818,17 +818,18 @@ describe('origen y filtro de proveedores #308', () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
     const supplier = screen.getByRole('combobox', { name: 'Proveedor' });
-    expect(within(supplier).getAllByRole('option').map(node => node.textContent)).toEqual(['Proveedor', 'Importadora Andes', 'Mayorista sin stock', 'Tech Cuyo']);
+    await user.click(supplier);
+    expect(screen.getAllByRole('option').map(node => node.textContent)).toEqual(['Proveedor', 'Importadora Andes', 'Mayorista sin stock', 'Tech Cuyo']);
     if (phone) expect(supplier.closest('.inventory-selection-tools')).toContainElement(screen.getByRole('button', { name: 'Seleccionar' }));
     else expect(supplier.closest('.dch')).toContainElement(screen.getByRole('heading', { name: 'Equipos' }));
-    await user.selectOptions(supplier, 'andes');
+    await user.click(screen.getByRole('option', { name: 'Importadora Andes' }));
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 3');
     expect(screen.getByText('Modelo 1 · 128 GB')).toBeInTheDocument();
     expect(screen.queryByText('Modelo 2 · 128 GB')).not.toBeInTheDocument();
     if (phone) {
       await user.click(screen.getByRole('button', { name: 'Filtros' }));
       const sheet = screen.getByRole('dialog', { name: 'Filtros' });
-      expect(within(sheet).getByRole('combobox', { name: 'Proveedor' })).toHaveValue('andes');
+      expect(within(sheet).getByRole('combobox', { name: 'Proveedor' })).toHaveTextContent('Importadora Andes');
       await user.click(within(sheet).getByRole('checkbox', { name: 'Nuevo' }));
       await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
     } else {
@@ -838,7 +839,7 @@ describe('origen y filtro de proveedores #308', () => {
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('0 de 3');
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('3 de 3');
-    expect(supplier).toHaveValue('');
+    expect(supplier).toHaveTextContent('Proveedor');
   });
 
   it('resetea la paginación al filtrar y conserva selección al volver a la entrada de navegación', async () => {
@@ -849,12 +850,13 @@ describe('origen y filtro de proveedores #308', () => {
     const first = mount();
     await user.click(screen.getByRole('button', { name: 'Página 3' }));
     expect(screen.getByText('17–18 de 18')).toBeInTheDocument();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Proveedor' }), 'andes');
+    await user.click(screen.getByRole('combobox', { name: 'Proveedor' }));
+    await user.click(screen.getByRole('option', { name: 'Importadora Andes' }));
     expect(screen.getByText('1–8 de 9')).toBeInTheDocument();
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('9 de 18');
     first.unmount();
     mount();
-    expect(screen.getByRole('combobox', { name: 'Proveedor' })).toHaveValue('andes');
+    expect(screen.getByRole('combobox', { name: 'Proveedor' })).toHaveTextContent('Importadora Andes');
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('9 de 18');
     expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute('aria-current', 'page');
   });

@@ -1,5 +1,7 @@
 # iManager - Project Status
 
+- Shell Historial/Más y selects (2026-10-23): audit-layout deja de modificar tipografía/ancho del sidenav; Más separa perfil/menú con 16px y restaura la tarjeta. Selects visibles de Historial, Equipos/proveedor, reclamos/venta, catálogos e importación usan DeskSelect. Onboarding conserva sus cinco nativos fuera del desk. TypeScript frontend/backend, 305 pruebas relacionadas, importación E2E y métricas en 22 rutas × 1440/390; Más a 390/360/375 con/sin banner y grupos abiertos/cerrados. Evidencia en `docs/qa-sidenav2/notas.md` y `/workspace/qa-sidenav2/`.
+
 - Corrección sidenav de dos niveles (2026-10-23): Comercial conserva Ventas/Canjes/Devoluciones; Patrones pasa a Análisis con ruta/título propios y permiso Ventas; Resumen periódico queda como hermano con título propio; Catálogo móvil unifica resumen y equipos. Vacío de Patrones explícito y fallos visibles con caché previa; enlaces antiguos canonicalizados sin pasos extra de historial. TypeScript frontend/backend, 194 pruebas relacionadas y QA Chrome local 1440/390 con datos falsos; detalles en `docs/qa-sidenav2/notas.md`, capturas en `/workspace/qa-sidenav2/`.
 
 - Seguimiento CI/PWA (2026-10-23): #535 pasó el gate en 3m48s y todos los shards E2E de main; PWA escritorio expuso una toma de control tardía del worker que anunciaba de nuevo el bundle ya cargado. Se valida el build antes de ese aviso y se descartan respuestas después de desmontar; conserva confirmación y protección de borradores. Diagnóstico y validación en `docs/qa-main-verde/diagnostico.md`.
