@@ -1,10 +1,10 @@
 name: CI
 
-# PRs run a fast gate (< 5 min): lint, backend unit/integration, frontend unit
-# tests (2 shards), PWA asset checks + PWA smoke and an E2E smoke (@smoke,
-# Chromium only). The full E2E suite (8 shards) and the full PWA suite
-# (iPhone WebKit + Android + desktop) run on every push to main and nightly.
-# Browser jobs use the lockfile-matched Playwright image: no apt or browser installs.
+# PRs run lint/tsc and only related tests. Global config/dependency changes fall
+# back to complete suites; UI/assets/E2E changes also run browser smoke.
+# Push to main, nightly and dispatch keep full unit/integration, 8 E2E shards
+# and all three PWA projects. The required aggregator is always named "test".
+# Browser jobs use the lockfile-matched Playwright image.
 on:
   push:
     branches: [main]
@@ -34,20 +34,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      code: ${{ steps.f.outputs.code }}
+      plan: ${{ steps.f.outputs.plan }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      backend: ${{ steps.f.outputs.backend }}
+      browser: ${{ steps.f.outputs.browser }}
+      frontend-shards: ${{ steps.f.outputs.frontend-shards }}
       playwright-image: ${{ steps.pw.outputs.image }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify selection safety
+        run: node --test scripts/ci-test-plan.test.mjs
       - id: f
-        name: Detect code changes (docs-only PRs skip the test jobs)
-        run: |
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
-          echo "$files"
-          if echo "$files" | grep -qvE '^(docs/|openspec/|skills/)|\.md$'; then code=true; else code=false; fi
-          echo "code=$code" >> "$GITHUB_OUTPUT"
+        name: Select tests from the complete PR diff
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci-test-plan.mjs
       - id: pw
         name: Select Playwright image from lockfile
         run: |
@@ -55,7 +60,6 @@ jobs:
 
   lint:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -84,7 +88,7 @@ jobs:
 
   backend-tests:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.backend != 'off'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -117,15 +121,24 @@ jobs:
         run: npx prisma db push --skip-generate
         working-directory: backend
       - name: Test backend unit
+        if: needs.changes.outputs.backend == 'full'
         run: npm run test:unit
         working-directory: backend
       - name: Test backend integration
+        if: needs.changes.outputs.backend == 'full'
         run: npm run test:integration
         working-directory: backend
+      - name: Test related backend unit and integration
+        if: needs.changes.outputs.backend == 'related'
+        env:
+          TEST_PLAN: ${{ needs.changes.outputs.plan }}
+        run: |
+          node scripts/ci-related-tests.mjs unit
+          node scripts/ci-related-tests.mjs integration
 
   frontend-unit:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.frontend != 'off'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.changes.outputs.playwright-image }}
@@ -134,7 +147,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: ${{ fromJSON(needs.changes.outputs.frontend-shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -156,11 +169,17 @@ jobs:
         run: npm run prisma:generate
         working-directory: backend
       - name: Test frontend
+        if: needs.changes.outputs.frontend == 'full'
         run: npx vitest run --shard=${{ matrix.shard }}/2
+      - name: Test related frontend
+        if: needs.changes.outputs.frontend == 'related'
+        env:
+          TEST_PLAN: ${{ needs.changes.outputs.plan }}
+        run: node scripts/ci-related-tests.mjs frontend
 
   pwa:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.changes.outputs.playwright-image }}
@@ -199,7 +218,7 @@ jobs:
 
   e2e:
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.changes.outputs.playwright-image }}
