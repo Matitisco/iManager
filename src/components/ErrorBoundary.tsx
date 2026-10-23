@@ -1,3 +1,4 @@
+// Keep rendering errors inside this boundary.
 import { hideBootSplash } from '../lib/boot-splash';
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { isNetworkErrorMessage, toUserMessage } from '../lib/user-message';
