@@ -131,7 +131,8 @@ for (const width of [390, 1440]) {
     await page.getByRole('button', { name: 'Iniciar control' }).click();
     const sheet = page.getByRole('dialog', { name: 'Iniciar control' });
     await expect(sheet).toBeVisible();
-    await expect(sheet.getByText('3 equipos sin IMEI quedan fuera.')).toBeVisible();
+    if (mobile) await expect(sheet.getByText('3 equipos sin IMEI quedan fuera.')).toHaveCount(0);
+    else await expect(sheet.getByText('3 equipos sin IMEI quedan fuera.')).toBeVisible();
     await expect(sheet.getByText('Faltan', { exact: true })).toHaveCount(0);
     await expect(sheet.getByText('iPhone 13 mini', { exact: false })).toHaveCount(0);
     await page.locator('.stage').evaluate((node) => { node.scrollTop = 0; });
@@ -162,7 +163,8 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: `docs/pr-shots/318-resultado-${width}.png`, animations: 'disabled' });
     await page.getByTestId('stock-record').click();
     await expect.poll(() => resolveMode).toBe('RECORD');
-    await expect(page.getByText('Registrado')).toBeVisible();
+    if (mobile) await expect(page.getByText('Registrar', { exact: true }).locator('..')).toHaveAttribute('aria-current', 'step');
+    else await expect(page.getByText('Registrado')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Coinciden 36' })).toBeVisible();
   });
 }
