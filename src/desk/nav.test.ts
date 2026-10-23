@@ -40,7 +40,7 @@ describe('navegación por rol', () => {
     expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'stockCount', 'publicCatalog']);
     expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
     expect(group('OWNER', null, 'finanzas')).toEqual(['suppliers']);
-    expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'commissions', 'history']);
+    expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'commissions', 'history', 'periodicSummary']);
     expect(nav.cuenta.map((item) => item.label)).toEqual(['Notificaciones', 'Ayuda', 'Configuración']);
     const labels = nav.main.flatMap((block) => block.kind === 'group' ? [block.label, ...block.items.map((item) => item.label)] : [block.item.label]);
     expect(new Set(labels).size).toBe(labels.length);
@@ -67,9 +67,9 @@ describe('navegación por rol', () => {
   it('mete Mis comisiones en Análisis cuando hay otra sección del grupo', () => {
     expect(commissionsStandalone(['reports'], 'STAFF')).toBe(false);
     const items = group('STAFF', ['reports'], 'analisis');
-    expect(items).toEqual(['reports', 'commissions']);
+    expect(items).toEqual(['reports', 'commissions', 'periodicSummary']);
     const block = desktopNav(['reports'], 'STAFF').main.find((item) => item.kind === 'group' && item.id === 'analisis');
-    expect(block && block.kind === 'group' ? block.items.map((item) => item.label) : []).toEqual(['Reportes', 'Mis comisiones']);
+    expect(block && block.kind === 'group' ? block.items.map((item) => item.label) : []).toEqual(['Reportes', 'Mis comisiones', 'Resumen periódico']);
     expect(desktopNav(['reports', 'commissions'], 'MANAGER').main.some((block) => block.kind === 'link' && block.item.id === 'commissions')).toBe(false);
   });
 
@@ -103,7 +103,7 @@ describe('pendientes de un grupo', () => {
     expect(sectionPending('inventory', input)).toBe(2);
     expect(groupPending(['followups', 'service', 'clients'], input)).toBe(4);
     expect(groupPending(['sales', 'tradeins', 'returns'], input)).toBe(10);
-    expect(groupPending(['reports', 'commissions', 'history'], input)).toBe(1);
+    expect(groupPending(['reports', 'commissions', 'history', 'periodicSummary'], input)).toBe(1);
     expect(sectionPending('notifications', input)).toBe(5);
     expect(sectionPending('returns', input)).toBe(0);
   });

@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { canonicalHash, configHash, configPlace, tabFromHash, writeHash } from './hash-route';
 
 describe('ruta del escritorio', () => {
+  it('distingue el resumen periódico de Reportes al recuperar la URL', () => {
+    expect(canonicalHash('#/analisis/resumen-periodico')).toBe('#/analisis/resumen-periodico');
+    expect(tabFromHash('#/analisis/resumen-periodico')).toBe('periodicSummary');
+    expect(tabFromHash('#/analisis/reportes')).toBe('reports');
+  });
   it('abre Plan y facturación aunque Mercado Pago agregue query al hash', () => {
     expect(tabFromHash('#/plan?preapproval_id=pre-1&status=authorized&external_reference=chk-1')).toBe('billing');
     expect(tabFromHash('#/plan')).toBe('billing');

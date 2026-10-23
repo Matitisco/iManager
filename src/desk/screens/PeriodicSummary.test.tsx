@@ -5,8 +5,12 @@ import type { PeriodicSummary as Summary } from '../../services/periodic-summary
 import { PeriodicSummary } from './PeriodicSummary';
 import { ReportsScreen } from './ReportsScreen';
 import { ExchangeProvider } from '../exchange';
+import { DeskProvider } from '../ui';
+import { NavChrome } from '../group-tabs';
+import { EMPTY_PENDING } from '../nav';
+import type { DeskTab } from '../types';
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn(), go: vi.fn(), back: vi.fn(), phone: false }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), go: vi.fn(), back: vi.fn(), phone: false, tab: 'reports' as DeskTab }));
 const context = vi.hoisted(() => ({
   user: { uid: 'owner', getIdToken: async () => 'test' }, backendStatus: 'ready', sessionConfirmed: true,
   appSession: { user: { id: 'owner' }, store: { id: 'store' }, membership: { role: 'OWNER', sections: null as string[] | null }, onboardingRequired: false },
@@ -15,7 +19,7 @@ const context = vi.hoisted(() => ({
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('../../services/periodic-summary-api', () => ({ fetchPeriodicSummary: mocks.fetch }));
 vi.mock('../section-notices', () => ({ usePhoneLayout: () => mocks.phone }));
-vi.mock('../ui', async importOriginal => ({ ...await importOriginal<typeof import('../ui')>(), useDesk: () => ({ go: mocks.go, back: mocks.back }) }));
+vi.mock('../ui', async importOriginal => ({ ...await importOriginal<typeof import('../ui')>(), useDesk: () => ({ go: mocks.go, back: mocks.back, tab: mocks.tab }) }));
 
 function fixture(empty = false): Summary {
   const period = { id: 'month:2026-09', kind: 'month' as const, from: '2026-09-01', to: '2026-09-30', label: 'septiembre de 2026' };
@@ -33,7 +37,7 @@ function show() { return render(<PeriodicSummary navigation={<div>Resumen perió
 async function loaded() { await screen.findByRole('region', { name: 'Ventas' }); }
 
 beforeEach(() => {
-  mocks.phone = false; mocks.go.mockReset(); mocks.back.mockReset(); mocks.fetch.mockReset(); mocks.fetch.mockResolvedValue(fixture());
+  mocks.tab = 'reports'; mocks.phone = false; mocks.go.mockReset(); mocks.back.mockReset(); mocks.fetch.mockReset(); mocks.fetch.mockResolvedValue(fixture());
   context.backendStatus = 'ready'; context.sessionConfirmed = true;
   context.appSession.store.id = 'store'; context.appSession.membership.sections = null;
 });
@@ -41,13 +45,20 @@ afterEach(() => vi.restoreAllMocks());
 
 describe('Resumen periódico', () => {
   it('is available as an in-app Reportes tab and keeps the existing reports', async () => {
-    render(<ReportsScreen />);
+    const view = () => <DeskProvider value={{ tab: mocks.tab, go: mocks.go, back: mocks.back, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><NavChrome pending={EMPTY_PENDING}><ReportsScreen /></NavChrome></DeskProvider>;
+    const mounted = render(view());
     expect(screen.getByRole('button', { name: 'Personalizado' })).toBeVisible();
     await userEvent.click(screen.getByRole('tab', { name: 'Resumen periódico' }));
+    expect(mocks.go).toHaveBeenCalledWith('periodicSummary');
+    mocks.tab = 'periodicSummary';
+    mounted.rerender(view());
     await loaded();
     expect(screen.getByRole('tab', { name: 'Resumen periódico' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('button', { name: 'Personalizado' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Reportes' }));
+    expect(mocks.go).toHaveBeenCalledWith('reports');
+    mocks.tab = 'reports';
+    mounted.rerender(view());
     expect(screen.getByRole('button', { name: 'Personalizado' })).toBeVisible();
   });
   it('renders audit rows and source totals, previews three sales, and opens the entire list in a shared Sheet', async () => {

@@ -5,7 +5,7 @@ import { fetchCommissionReport } from '../../services/commissions-api';
 import type { CommissionReport } from '../../types/commissions';
 import { commissionTotal, monthKey, saleCount } from '../commissions';
 import { downloadCsv } from '../csv';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Client, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { useAppContext } from '../../context/AppContext';
 import { useMoney } from '../exchange';
@@ -67,7 +67,7 @@ import { canManageCommissions, canOpenSection } from '../sections';
 import { Actions, Pill, ScreenTitle, Sheet, useDesk } from '../ui';
 import { DatePicker } from '../date-picker';
 import { DeskSelect } from '../select';
-import { pageTabs } from '../nav';
+import { GroupTabs } from '../group-tabs';
 import { PeriodicSummary } from './PeriodicSummary';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', '3 meses', 'Año'];
@@ -79,21 +79,9 @@ const PERIOD_LABEL: Record<PeriodKey, string> = {
 };
 
 export function ReportsScreen() {
-  const { appSession } = useAppContext();
-  const { go } = useDesk();
-  const [summary, setSummary] = useState(false);
-  const summaryTab = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    if (summary) summaryTab.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-  }, [summary]);
-  const sections = appSession?.membership?.sections;
-  const role = appSession?.membership?.role;
-  const links = pageTabs('reports', sections, role);
-  const navigation = <div className="wchips nav-tabs periodic-report-tabs" role="tablist" aria-label="Secciones del grupo">
-    {(links.length ? links : [{ id: 'reports' as const, label: 'Reportes' }]).map(item => <button key={item.id} type="button" role="tab" aria-selected={!summary && item.id === 'reports'} className={`sg${!summary && item.id === 'reports' ? ' on' : ''}`} data-testid={`group-tab-${item.id}`} onClick={() => item.id === 'reports' ? setSummary(false) : go(item.id)}>{item.label}</button>)}
-    <button ref={summaryTab} type="button" role="tab" aria-selected={summary} className={`sg${summary ? ' on' : ''}`} onClick={() => setSummary(true)}>Resumen periódico</button>
-  </div>;
-  return summary ? <PeriodicSummary navigation={navigation} /> : <StandardReports navigation={navigation} />;
+  const { tab } = useDesk();
+  const navigation = <GroupTabs showPending={false} />;
+  return tab === 'periodicSummary' ? <PeriodicSummary navigation={navigation} /> : <StandardReports navigation={navigation} />;
 }
 
 function StandardReports({ navigation }: { navigation: ReactNode }) {

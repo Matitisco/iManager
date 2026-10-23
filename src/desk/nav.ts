@@ -56,6 +56,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'reports', label: 'Reportes', subtitle: 'Ventas, stock, canjes, clientes y servicio', icon: 'bars', group: 'analisis' },
   { id: 'commissions', label: 'Comisiones', ownLabel: 'Mis comisiones', subtitle: 'Vendedores y pagos', ownSubtitle: 'Solo las tuyas, de este mes', icon: 'comisiones', group: 'analisis' },
   { id: 'history', label: 'Historial', subtitle: 'Quién hizo qué y cuándo', icon: 'clock', group: 'analisis' },
+  { id: 'periodicSummary', label: 'Resumen periódico', subtitle: '', icon: 'bars', group: 'analisis' },
   { id: 'notifications', label: 'Notificaciones', subtitle: 'Avisos de la tienda', icon: 'bell', group: 'cuenta' },
   { id: 'help', label: 'Ayuda', subtitle: 'Guías y primeros pasos', icon: 'help', group: 'cuenta' },
   { id: 'settings', label: 'Configuración', subtitle: 'Tienda, equipo y tu cuenta', icon: 'gear', group: 'cuenta' },
@@ -69,6 +70,7 @@ export function sectionAllowed(id: DeskTab, stored: string[] | null | undefined,
   if (id === 'returns') return canOpenSection('sales', stored, role);
   if (id === 'followups') return canOpenSection('clients', stored, role);
   if (id === 'history') return canOpenHistory(stored, role);
+  if (id === 'periodicSummary') return canOpenSection('reports', stored, role);
   if (id === 'help' || id === 'more' || id === 'settings') return true;
   return canOpenSection(id, stored, role);
 }
