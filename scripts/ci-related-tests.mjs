@@ -37,7 +37,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const plan = JSON.parse(process.env.TEST_PLAN);
   const frontend = target === 'frontend';
   if (plan[frontend ? 'frontend' : 'backend'] !== 'related') throw new Error('Related runner requires a related plan');
-  const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+  const tracked = execFileSync('git', ['-c', `safe.directory=${process.cwd()}`, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
   const inputs = relatedInputs(plan, target, tracked);
   if (!inputs.length) throw new Error('Refusing to run related without inputs');
   const args = ['related', '--run', '--passWithNoTests', '--maxWorkers=2'];
