@@ -1,6 +1,7 @@
 import { createRefreshGate } from '../lib/list-sync';
 import { authUserView, sameAuthIdentity } from '../lib/auth-identity';
 import { useStableState } from '../lib/stable-state';
+import { clearDashboardCache } from '../desk/dashboard-cache';
 import { useSectionViewsState } from './section-views-state';
 import { setAnalyticsUser } from '../lib/analytics';
 import { clearSessionCaches, readBootSession, writeBootSession } from '../lib/boot-cache';
@@ -270,6 +271,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
+      if (!currentUser || firebaseUser.current?.uid !== currentUser.uid) clearDashboardCache();
       firebaseUser.current = currentUser;
       setAnalyticsUser(currentUser);
       setLoading(false);

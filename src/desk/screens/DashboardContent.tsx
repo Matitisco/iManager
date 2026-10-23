@@ -6,9 +6,10 @@ import { useAppContext } from '../../context/AppContext';
 import { ROLE_LABEL } from '../../lib/roles';
 import { isNetworkErrorMessage, toUserMessage } from '../../lib/user-message';
 import { listMembers, type TeamMember } from '../../services/members-api';
-import { fetchReportsOverview, type ReportsOverview } from '../../services/reports-api';
+import { fetchReportsOverview } from '../../services/reports-api';
 import { clientNet } from '../client-balance';
 import { DashboardDateRange } from '../dashboard-date-range';
+import { dashboardCacheVersion, readDashboardCache, readLatestDashboardCache, writeDashboardCache, type DashboardReport } from '../dashboard-cache';
 import { dashboardDay, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
 import { DashboardTrend } from '../dashboard-trend';
 import { useMoney } from '../exchange';
@@ -43,15 +44,24 @@ export function DashboardSkeleton() {
 }
 
 export function DashboardContent() {
+  const { appSession, user } = useAppContext();
+  const scope = JSON.stringify([appSession?.store?.id, user?.uid, appSession?.membership?.role, appSession?.membership?.sections]);
+  return <ScopedDashboardContent key={scope} scope={scope} />;
+}
+
+function ScopedDashboardContent({ scope }: { scope: string }) {
   const { appSession, user, backendStatus, sales, inventory, tradeIns, clients, operationNotifications, listsLoaded, listsSettled, listsLoadFailed } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded) || listsSettled === false;
   const money = useMoney();
   const { go, open } = useDesk();
   const phone = usePhoneLayout();
-  const [range, setRange] = useState<DashboardPeriod>(() => dashboardMonth());
-  const [members, setMembers] = useState<TeamMember[]>([]);
-  const [report, setReport] = useState<{ key: string; data: ReportsOverview | null; failed?: boolean; networkFailure?: boolean; sales: typeof sales; inventory: typeof inventory } | null>(null);
-  const [initialScope, setInitialScope] = useState('');
+  const [range, setRange] = useState<DashboardPeriod>(dashboardMonth);
+  const queryKey = `${scope}:${range?.start}:${range?.end}`;
+  const [cached] = useState(() => readLatestDashboardCache(scope));
+  const [cacheTicket] = useState(dashboardCacheVersion);
+  const [members, setMembers] = useState<TeamMember[]>(() => cached?.members ?? []);
+  const [report, setReport] = useState<DashboardReport | null>(() => readDashboardCache(queryKey)?.report ?? null);
+  const [initialScope, setInitialScope] = useState(() => cached?.initialResolved ? scope : '');
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const storeId = appSession?.store?.id;
@@ -61,11 +71,8 @@ export function DashboardContent() {
   const showStock = can('inventory');
   const kpiCount = (seeFinancials ? 2 : 0) + Number(showUnits) + Number(showStock);
   const ready = backendStatus === 'ready' && !!storeId && !appSession?.onboardingRequired && !!user;
-  const scope = `${storeId}:${user?.uid}:${role}:${JSON.stringify(sections)}`;
-  const queryKey = `${scope}:${range?.start}:${range?.end}`;
 
   useEffect(() => {
-    setMembers([]);
     if (!canViewTeam(role) || !user || !storeId) return;
     let cancelled = false;
     listMembers(user, storeId).then(rows => { if (!cancelled) setMembers(rows); }).catch(() => {});
@@ -73,44 +80,56 @@ export function DashboardContent() {
   }, [user, storeId, role]);
 
   useEffect(() => {
-    setReport(null);
     if (!ready || loadingLists || !seeFinancials || !user) return;
     let cancelled = false;
     const controller = new AbortController();
     fetchReportsOverview(user, range?.start, range?.end, controller.signal)
-      .then(data => { if (!cancelled) setReport({ key: queryKey, data, sales, inventory }); })
-      .catch((cause: unknown) => { if (!cancelled) setReport({ key: queryKey, data: null, failed: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)), sales, inventory }); });
+      .then(data => { if (!cancelled) setReport({ key: queryKey, range, data, sales, inventory }); })
+      .catch((cause: unknown) => {
+        if (!cancelled) setReport(previous => previous?.data ? previous : { key: queryKey, range, data: null, failed: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)), sales, inventory });
+      });
     return () => { cancelled = true; controller.abort(); };
   }, [ready, loadingLists, seeFinancials, user, queryKey, range?.start, range?.end, sales, inventory]);
 
-  const current = ready && seeFinancials && report?.key === queryKey && report.sales === sales && report.inventory === inventory ? report : null;
+  const current = seeFinancials ? report : null;
   const overview = current?.data;
+  // Keep every period-dependent section on the same resolved snapshot.
+  const displayedRange = current?.data ? current.range : range;
+  const displayedSales = current?.data ? current.sales : sales;
+  const displayedInventory = current?.data ? current.inventory : inventory;
   const reportLoading = ready && seeFinancials && !current;
-  const initialLoading = !ready || loadingLists || (initialScope !== scope && reportLoading);
+  const initialLoading = !overview && (!ready || (initialScope !== scope && (loadingLists || reportLoading)));
   useEffect(() => { if (!initialLoading) setInitialScope(scope); }, [initialLoading, scope]);
+  useEffect(() => {
+    writeDashboardCache(report?.data ? report.key : queryKey, {
+      scope, range: report?.data ? report.range : range, report: report?.data ? report : null,
+      members, initialResolved: initialScope === scope,
+    }, cacheTicket);
+  }, [scope, range, queryKey, report, members, initialScope, cacheTicket]);
   const periodLoading = initialLoading || reportLoading;
-  const hideLoadMessage = backendStatus === 'offline' || current?.networkFailure;
-  const comparable = !!range && !!overview?.comparison.available;
+  const hideLoadMessage = !overview && (backendStatus === 'offline' || current?.networkFailure);
+  const comparable = !!displayedRange && !!overview?.comparison.available;
   const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, appSession?.store?.currency) : money.show(amount, appSession?.store?.currency);
   const available = inventory.filter(item => isInStock(item.status)).length;
   const openTrades = tradeIns.filter(item => !isVoidRow(item) && isInProgressTrade(item.status)).length;
   const balance = money.sum(clients.filter(client => clientNet(client) > 0).map(client => ({ amount: clientNet(client), currency: client.balanceCurrency })));
   const inRange = (value: string) => {
-    if (!range) return true;
+    if (!displayedRange) return true;
     const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : parseAppDate(value);
     const key = typeof date === 'string' ? date : date ? dashboardDay(date) : '';
-    return key >= range.start && key <= range.end;
+    return key >= displayedRange.start && key <= displayedRange.end;
   };
   const units = sales.filter(sale => !isVoidRow(sale) && sale.status === 'COMPLETADA' && inRange(sale.date)).length;
-  const recent = useMemo(() => sales.filter(sale => inRange(sale.date)).sort((a, b) => (parseAppDate(b.date)?.getTime() ?? 0) - (parseAppDate(a.date)?.getTime() ?? 0) || (b.saleNumber ?? 0) - (a.saleNumber ?? 0)).slice(0, phone ? 4 : 5), [sales, range, phone]);
+  const recent = useMemo(() => displayedSales.filter(sale => inRange(sale.date)).sort((a, b) => (parseAppDate(b.date)?.getTime() ?? 0) - (parseAppDate(a.date)?.getTime() ?? 0) || (b.saleNumber ?? 0) - (a.saleNumber ?? 0)).slice(0, phone ? 4 : 5), [displayedSales, displayedRange, phone]);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const people = members.length ? members.map(member => ({ name: member.user.displayName?.trim() || member.user.email || 'Usuario', role: member.role })) : [{ name, role }];
   const avatars = <div className="avatars">{initialLoading ? <Skeleton style={{ width: 100, height: 34 }} /> : people.map((person, index) => <div key={index} className="av" style={{ background: index % 2 ? 'var(--lime)' : 'var(--primary)', color: index % 2 ? 'var(--primary)' : '#fff', fontSize: 12 }} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>)}{canViewTeam(role) ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}</div>;
   const currentMonth = dashboardMonth();
-  const thisMonth = range?.start === currentMonth.start && range?.end === currentMonth.end;
-  const emptyPeriod = !range ? 'en el historial' : thisMonth ? 'este mes' : 'en este período';
-  const pendingText = current?.failed || !ready ? 'No se pudo consultar el período' : `Todavía no hay ventas ${emptyPeriod}`;
-  const trendTitle = { day: 'Ventas por día', week: 'Ventas por semana', month: 'Ventas por mes' }[dashboardTrendUnit(range)];
+  const thisMonth = displayedRange?.start === currentMonth.start && displayedRange?.end === currentMonth.end;
+  const emptyPeriod = !displayedRange ? 'en el historial' : thisMonth ? 'este mes' : 'en este período';
+  const periodFailed = !overview && (current?.failed || !ready);
+  const pendingText = periodFailed ? 'No se pudo consultar el período' : `Todavía no hay ventas ${emptyPeriod}`;
+  const trendTitle = { day: 'Ventas por día', week: 'Ventas por semana', month: 'Ventas por mes' }[dashboardTrendUnit(displayedRange)];
 
   return <div className="dscreen dashboard-screen">
     <ScreenTitle title={<><div className="greet">Hola, {name}</div><h1 className="hero-h">¿Qué hay para <span className="hl">hoy</span>?</h1></>}
@@ -132,12 +151,12 @@ export function DashboardContent() {
     {seeFinancials ? <div className={`dgrid${phone ? '' : ' two v3-stretch'}`}>
       <section className="dcard dashboard-trend">
         <div className="dch"><h3>{phone ? trendTitle : 'Tendencia de ventas'}</h3>{comparable && !periodLoading && overview && overview.summary.unitsSold > 0 ? <Delta value={overview.comparison.revenueChange} /> : null}</div>
-        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={range} phone={phone} format={amount => reportMoney(amount, true)} />}
+        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={displayedRange} phone={phone} format={amount => reportMoney(amount, true)} />}
       </section>
       <section className="dcard dashboard-payments"><div className="dch"><h3>Medios de pago</h3></div>
-        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-payment-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: phone ? 64 : 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{current?.failed || !ready ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>
+        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-payment-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: phone ? 64 : 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{periodFailed ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>
           <div className="dashboard-payment-stack" aria-hidden="true">{overview.paymentMethods.map((method, index) => <i key={method.label} style={{ width: `${method.share}%`, background: paymentColor(index) }} />)}</div>
-          <div className="dashboard-payment-list">{overview.paymentMethods.map((method, index) => <div key={method.label} className="dashboard-payment">
+          <div key={current?.key} className="dashboard-payment-list">{overview.paymentMethods.map((method, index) => <div key={method.label} className="dashboard-payment">
             <span className="dashboard-payment-name"><i style={{ background: paymentColor(index) }} />{method.label}</span><span className="dashboard-payment-amount">{reportMoney(method.revenue)}</span><b>{Math.round(method.share)}%</b><div className="dashboard-payment-bar"><i style={{ width: `${method.share}%` }} /></div>
           </div>)}</div>
         </>}
@@ -147,12 +166,12 @@ export function DashboardContent() {
       {can('sales') ? <section className={phone ? 'dashboard-sales' : 'dcard dashboard-sales'} data-testid="dashboard-sales">
         <div className={`dch${phone ? ' sec' : ''}`}><h3>Ventas</h3><button className="wlink" type="button" onClick={() => go('sales')}>Ver todas</button></div>
         <div className="dashboard-sales-body" aria-busy={periodLoading}>
-          {periodLoading ? <SalesLoading phone={phone} /> : listsLoadFailed ? <div className="dashboard-recent-empty">No se pudieron consultar las ventas</div> : !recent.length ? <div className="dashboard-recent-empty">{sales.length ? 'Sin ventas en este período' : 'Todavía no registraste ventas'}</div> : phone ? <PhoneRecords>{recent.map(sale => <PhoneRecord key={sale.id} className={isVoidRow(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={point => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
-            <RecentSaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, inventory)} amount={money.show(sale.amount, sale.amountCurrency)} />
-          </PhoneRecord>)}</PhoneRecords> : <table className="dtable compact">
+          {periodLoading ? <SalesLoading phone={phone} /> : listsLoadFailed ? <div className="dashboard-recent-empty">No se pudieron consultar las ventas</div> : !recent.length ? <div className="dashboard-recent-empty">{displayedSales.length ? 'Sin ventas en este período' : 'Todavía no registraste ventas'}</div> : phone ? <PhoneRecords>{recent.map(sale => <PhoneRecord key={sale.id} className={isVoidRow(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={point => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
+            <RecentSaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={saleEquipment(sale, displayedInventory)} amount={money.show(sale.amount, sale.amountCurrency)} />
+          </PhoneRecord>)}</PhoneRecords> : <table key={current?.key} className="dtable compact">
             <SalesTableHead />
             <tbody>{recent.map(sale => <PressTarget key={sale.id} as="tr" className={isVoidRow(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={point => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
-              <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td><td>{saleBuyer(sale, clients)}</td><td>{saleEquipment(sale, inventory)}</td><td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td><td><Pill status={sale.status} kind="SALE_STATUS" /></td>
+              <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td><td>{saleBuyer(sale, clients)}</td><td>{saleEquipment(sale, displayedInventory)}</td><td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td><td><Pill status={sale.status} kind="SALE_STATUS" /></td>
             </PressTarget>)}</tbody>
           </table>}
         </div>

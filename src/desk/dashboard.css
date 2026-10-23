@@ -39,6 +39,7 @@
 .dashboard-screen .dstat { min-width: 0; min-height: 126px; text-align: left; align-content: start; }
 .dashboard-screen .dstats[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
 .dashboard-delta-reserve { visibility: hidden; }
+.dashboard-screen .dright .avatars { min-width: 128px; justify-content: flex-end; }
 /* Reserve the five-row table / four mobile cards through initial load and range changes. */
 .dashboard-sales-body { min-height: 311px; }
 .dashboard-recent-empty { min-height: 310px; display: flex; align-items: center; justify-content: center; color: var(--section); font-size: 14px; text-align: center; }
