@@ -1,4 +1,4 @@
-import { toUserMessage } from './user-message';
+import { toActionMessage } from './user-message';
 
 export function trimToString(value: unknown): string {
   if (typeof value === 'string') {
@@ -13,5 +13,5 @@ export function trimToString(value: unknown): string {
 }
 
 export function getFriendlyErrorMessage(error: unknown, fallback: string): string {
-  return toUserMessage(error, fallback);
+  return toActionMessage(error, fallback);
 }

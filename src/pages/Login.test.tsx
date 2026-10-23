@@ -306,7 +306,7 @@ describe('Login', () => {
   });
 
   it.each([
-    ['auth/network-request-failed', /revisá tu internet/i],
+    ['auth/network-request-failed', /No se pudo completar\. Probá de nuevo\./],
     ['auth/too-many-requests', /demasiados intentos/i],
     ['auth/invalid-email', /no es válido/i],
   ])('shows a spanish message for %s and keeps the form open', async (code, message) => {

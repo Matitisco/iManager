@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
 import { ListSkeleton } from '../desk/list-skeleton';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
@@ -124,7 +125,7 @@ export function StoreActivityPage() {
       if (!active) return;
       setData(null); setFunnel(null); setTimeline(null);
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) setLoad({ status: 'missing' });
-      else setLoad({ status: 'error', message: error instanceof Error ? error.message : 'No pudimos cargar la actividad.' });
+      else setLoad({ status: 'error', message: toUserMessage(error, 'No pudimos cargar la actividad.') });
     });
     return () => { active = false; };
   }, [user, range, requestId, isFunnel, timelineId, hideTests]);
@@ -132,7 +133,7 @@ export function StoreActivityPage() {
   let content: ReactNode;
   const missing = !user || load.status === 'missing';
   if (missing) content = <div className="activity-missing"><h1>No encontramos esta página</h1><p>El enlace no existe o ya no está disponible.</p><a className="dbtn p activity-home" href="/">Volver al inicio</a></div>;
-  else if (load.status === 'error') content = <div className="activity-status" role="alert"><h1>No pudimos cargar esta página</h1><p>{load.message}</p><button type="button" className="dbtn p" onClick={() => setRequestId(n => n + 1)}>Reintentar</button></div>;
+  else if (load.status === 'error') content = isNetworkErrorMessage(load.message) ? null : <div className="activity-status" role="alert"><h1>No pudimos cargar esta página</h1><p>{load.message}</p><button type="button" className="dbtn p" onClick={() => setRequestId(n => n + 1)}>Reintentar</button></div>;
   else if (load.status !== 'ready') content = <ListSkeleton variant={phone ? "cards" : "rows"} rows={6} testId="activity-loading" />;
   else if (timelineId && timeline) content = <Timeline data={timeline} back={() => navigate(BASE)} />;
   else if (data) {

@@ -2,7 +2,7 @@ import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { collectAccount, createAccountMovement, fetchDebtors, fetchSaleAccount, type Debtor, type SaleAccount } from '../../services/accounts-api';
 import { useMoney } from '../exchange';
 import { formatInputMoney, parseMoney, paymentLabel } from '../format';
@@ -77,9 +77,9 @@ export function AccountCurrent({ query }: { query: string }) {
   return (
     <section className="acct-screen" aria-label="Cuenta corriente" data-testid="account-current">
       <p className="eqs-note">Ventas abiertas, reparaciones con saldo y deudas manuales. El semáforo mira la deuda más antigua: verde menos de 7 días, amarillo de 7 a 30, rojo después.</p>
-      {error ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
+      {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
       {loading ? <ListSkeleton variant="rows" testId="current-account-loading" /> : null}
-      {!loading && !visible.length ? <div className="wempty">Nadie tiene saldo pendiente.</div> : null}
+      {!loading && !error && !visible.length ? <div className="wempty">Nadie tiene saldo pendiente.</div> : null}
       <div className="acct-list">
         {visible.map((row) => {
           const link = whatsappLink(row.phone, row.statement);
@@ -157,13 +157,13 @@ function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pa
         onSaved(credit ? 'Nota de crédito registrada' : 'Deuda descontada');
       }
     } catch (cause) {
-      setError(toUserMessage(cause, 'No se pudo guardar'));
+      setError(toActionMessage(cause, 'No se pudo guardar'));
       setBusy(false);
     }
   };
   return (
     <Sheet title={title} subtitle={row.name} onClose={() => { if (!busy) onClose(); }}>
-      {error ? <div className="ferr" role="alert">{error}</div> : null}
+      {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
       {mode === 'pago' ? (
         payable.length ? payable.map((line) => (
           <label className="op-check" key={line.id}><input type="radio" name="account-target" checked={choice === line.id} onChange={() => setChoice(line.id)} />{line.label} · {STATE_LABEL[line.state]}</label>

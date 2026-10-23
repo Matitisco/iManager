@@ -1,3 +1,4 @@
+import { isNetworkErrorMessage } from '../../lib/user-message';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useState } from 'react';
@@ -27,7 +28,7 @@ export function SuppliersScreen() {
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}
         </div>
       </div>
-      {error ? <p className="ferr" role="alert">{error}</p> : null}
+      {error && !isNetworkErrorMessage(error) ? <p className="ferr" role="alert">{error}</p> : null}
       {rows == null ? <ListSkeleton variant="cards" rows={4} testId="suppliers-loading" /> : null}
       {rows && rows.length === 0 && !error ? (
         <div className="card team-empty" data-testid="suppliers-empty">

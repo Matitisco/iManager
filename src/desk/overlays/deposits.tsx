@@ -1,7 +1,7 @@
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { toUserMessage } from '../../lib/user-message';
+import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import type { ClientDeposit } from '../../types';
 import { useMoney } from '../exchange';
 import { depositAmount, depositAvailable, depositStatus } from '../deposits';
@@ -75,11 +75,11 @@ export function DepositForm({ clientId }: { clientId: string }) {
       await addClientDeposit(clientId, { amount: value, currency, exchangeRate, method, productId: productId || null, requestKey: requestKey.current });
       toast(productId ? 'Seña registrada · equipo reservado' : 'Seña registrada');
       open({ type: 'cl', id: clientId });
-    } catch (cause) { setError(toUserMessage(cause, 'No se pudo registrar la seña')); }
+    } catch (cause) { setError(toActionMessage(cause, 'No se pudo registrar la seña')); }
     finally { saving.current = false; setBusy(false); }
   };
   return <Sheet title="Agregar seña" subtitle={clients.find(client => client.id === clientId)?.name} onClose={back} className="deposit-sheet">
-    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
     <Field label="Moneda"><span /></Field><Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={currency} onChange={id => setCurrency(id as 'ARS' | 'USD')} />
     <Field label="Monto de la seña" mark={currency}><input value={amount} inputMode="decimal" placeholder="0" onChange={event => setAmount(event.target.value)} /></Field>
     <Field label="Cotización guardada" mark="ARS por USD"><input value={rate} inputMode="decimal" placeholder="Cotización del día" onChange={event => { rateDirty.current = true; setRate(event.target.value); }} /></Field>
@@ -110,11 +110,11 @@ export function CancelDeposit({ row, onClose }: { row: ClientDeposit; onClose: (
       toast(mode === 'REFUND' ? 'Seña devuelta · equipo liberado' : 'Saldo a favor guardado · equipo liberado');
       onClose();
     }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudo cancelar la seña')); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudo cancelar la seña')); }
     finally { saving.current = false; setBusy(false); }
   };
   return <Sheet title="Cancelar seña" subtitle="Elegí qué hacer con el pago" className="deposit-sheet" onClose={back}>
-    {error ? <div className="ferr" role="alert">{error}</div> : null}<DepositReceipt row={row} />
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}<DepositReceipt row={row} />
     <Segs options={[{ id: 'CREDIT', label: 'Dejar saldo a favor' }, { id: 'REFUND', label: 'Devolver dinero' }]} value={mode} onChange={setMode} />
     <p className="eqs-note">{mode === 'CREDIT' ? 'El crédito quedará disponible para una venta o reparación. No se devuelve dinero.' : `Se registra una devolución de ${receiptMoney(row.amount, row.currency)} ${row.currency} por ${row.method.toLocaleLowerCase('es')}.`}{row.status === 'ACTIVE' && row.productId ? ' El equipo vuelve a estar disponible.' : ''}</p>
     <Actions busy={busy} primary={mode === 'CREDIT' ? 'Confirmar saldo a favor' : 'Confirmar devolución'} onPrimary={() => { void save(); }} onSecondary={back} secondary="Volver" />
@@ -159,12 +159,12 @@ export function RepairDepositSheet({ repairId }: { repairId: string }) {
     if (saving.current || !selected || !order.clientId) return;
     saving.current = true; setBusy(true); setError('');
     try { await applyClientDepositToRepair(order.clientId, selected, repairId, money.rate ?? undefined); toast('Seña aplicada como pago parcial'); open({ type: 'ot', id: repairId }); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudo aplicar la seña')); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudo aplicar la seña')); }
     finally { saving.current = false; setBusy(false); }
   };
   const active = rows.filter(depositAvailable);
   return <Sheet title="Aplicar seña a reparación" subtitle={`${order.code} · ${order.clientName}`} className="deposit-sheet" onClose={back}>
-    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
     {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
     {!loading && !active.length ? <p className="eqs-note">Sin señas para mostrar.</p> : null}
     <p className="eqs-note">Se agrega al anticipo existente de la orden sin registrar otro cobro. Pendiente: {formatMoney(maximum, currency === 'USD' ? 'USD' : 'ARS')} {currency}.</p>

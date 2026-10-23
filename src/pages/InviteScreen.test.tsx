@@ -37,7 +37,7 @@ describe('accept invitation', () => {
     expect(leave).toHaveBeenCalledOnce();
   });
   it('keeps a technical error recoverable and shows loading independently', async () => {
-    const view = show({ ...valid, preview: null, error: 'Error de conexión' });
+    const view = show({ ...valid, preview: null, error: 'No se pudo verificar la invitación' });
     expect(screen.queryByText('Esta invitación ya no sirve')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar verificación' }));
     expect(reload).toHaveBeenCalledOnce();
@@ -52,4 +52,11 @@ describe('accept invitation', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Aceptar invitación' }));
     expect(accept).toHaveBeenCalledOnce();
   });
+});
+
+ it('suppresses the entire connection load error panel without replacement copy', () => {
+  show({ ...valid, preview: null, error: 'No hay conexión. Revisá tu internet y probá de nuevo.' });
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByText(/No hay conexión|No pudimos verificar/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Reintentar verificación' })).not.toBeInTheDocument();
 });

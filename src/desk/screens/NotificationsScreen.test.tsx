@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationNotification } from '../../services/operations-api';
@@ -215,4 +215,18 @@ describe('Notifications keep the store currency', () => {
     expect(screen.getByTestId('notification-groups')).toHaveTextContent('toma US$ 200');
     expect(screen.getByTestId('notification-groups')).toHaveTextContent('compró por US$ 1.075');
   });
+});
+
+ it.each([false, true])('never renders connection or replacement empty copy in standalone Notifications (phone: %s)', phone => {
+  const previous = window.matchMedia;
+  window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('760'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  context.operationNotifications = [];
+  context.notificationsError = 'No hay conexión. Revisá tu internet y probá de nuevo.';
+  try {
+    renderScreen();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByText(context.notificationsError)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('offline-banner')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No hay notificaciones|Estás al día|Todavía no/)).not.toBeInTheDocument();
+  } finally { cleanup(); window.matchMedia = previous; context.notificationsError = null; }
 });

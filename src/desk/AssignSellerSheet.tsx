@@ -1,4 +1,4 @@
-import { toUserMessage } from '../lib/user-message';
+import { toActionMessage } from '../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import { ROLE_LABEL } from '../lib/roles';
@@ -25,7 +25,7 @@ export function AssignSellerSheet({ saleIds, subtitle, onClose, onSaved }: { sal
     if (submitting.current || member === null) return;
     submitting.current = true; setBusy(true); setError('');
     try { await assignCommissionSeller(saleIds, member || null); await reloadSales(); onSaved(); }
-    catch (cause) { setError(toUserMessage(cause, 'No se pudo asignar el vendedor')); }
+    catch (cause) { setError(toActionMessage(cause, 'No se pudo asignar el vendedor')); }
     finally { submitting.current = false; setBusy(false); }
   };
   return <Sheet title="Asignar vendedor" subtitle={subtitle} onClose={() => { if (!busy) onClose(); }} className="commission-form">

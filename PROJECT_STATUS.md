@@ -24,6 +24,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 
 - Integración de `origin/main` en `feat/dashboard-redisenio`: conflicto documental resuelto conservando ambas entradas completas; encabezados sin subtítulos y cargas secundarias compatibles con Dashboard v2. Typecheck frontend/backend, 1.560 tests frontend y 569 unitarios backend aprobados. Sin cambios de código, build, commit ni push; resolución en working tree, con índice pendiente por `.git` de sólo lectura.
 
+## Conectividad sin avisos visibles — 2026-10-22
+
+- Retirados el aviso global de conexión y los mensajes locales de cargas, incluidos catálogo público, sesión, invitaciones, Servicio y Notificaciones. Los fallos de red no generan mensajes sustitutos ni vacíos; las acciones conservan errores neutrales y no se cierran como éxito.
+- `NETWORK_ERROR_MESSAGE` sigue como señal interna: se conservan sondeos de salud, reconexión y reintentos automáticos de cargas y borradores. Regresiones de componentes sin contenedor global, autenticación, catálogo y acciones; expectativas E2E existentes actualizadas, sin agregar ni ejecutar E2E.
+- Validación: lint/typecheck frontend y backend, 1.566 pruebas en la suite Vitest completa, 130 pruebas de regresiones y 160 pruebas posteriores a los ajustes finales aprobados; diff check limpio. OpenSpec `hide-connection-messages`. Sin cambios de backend/Prisma, build, commit ni push.
+
 ## CI — Objetivo de PR menor a cinco minutos — 2026-10-22
 
 - Frontend, E2E y PWA usan la imagen oficial de Playwright derivada del lockfile, sin apt ni descargas de navegadores durante el job. E2E conecta al servicio PostgreSQL por hostname; instalaciones npm de frontend/backend una vez por proyecto y en paralelo, con cachés ajustadas a los lockfiles necesarios. Mantiene pruebas, selección PR/full, dos shards frontend, integración backend serial y cancelación existentes.

@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent, type CSSProperties } from "react";
 import { useAppContext } from "../context/AppContext";
 import { useInvitationPreview } from "../hooks/useInvitationPreview";
 import { BrandLockup } from "../components/brand-mark";
-import { toUserMessage } from "../lib/user-message";
+import { toActionMessage, isNetworkErrorMessage } from "../lib/user-message";
 import { manualQuoteOrderError } from "../lib/manual-quote";
 import { ROLE_LABEL } from "../lib/roles";
 import { Banknote } from "lucide-react";
@@ -191,7 +191,7 @@ export function Onboarding({
     try {
       await action();
     } catch (cause) {
-      setError(toUserMessage(cause, "No se pudo crear la tienda."));
+      setError(toActionMessage(cause, "No se pudo crear la tienda."));
     } finally {
       setBusy(false);
     }
@@ -244,7 +244,7 @@ export function Onboarding({
         {!invitation && <span className="onb-step-label">Paso 1 de 2</span>}
       </header>
       <main className="onb-main">
-        {invitation ? (
+        {invitation ? isNetworkErrorMessage(invite.error) ? null : (
           <section>
             <h1>
               {invite.isLoading

@@ -1,5 +1,5 @@
 import { ReasonSheet } from './ReasonSheet';
-import { toUserMessage } from '../lib/user-message';
+import { toActionMessage } from '../lib/user-message';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { BulkSelection } from './bulk-selection';
@@ -56,7 +56,7 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
           completed += 1;
         } catch (cause) {
           if (!mounted.current) return;
-          const message = toUserMessage(cause, 'No se pudo guardar la acción.');
+          const message = toActionMessage(cause, 'No se pudo guardar la acción.');
           setConfirmation(confirmation.slice(completed));
           setError(`${completed} completados · ${confirmation.length - completed} pendientes. ${label(row)}: ${message}`);
           return;

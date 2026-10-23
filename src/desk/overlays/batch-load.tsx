@@ -1,3 +1,4 @@
+import { toActionMessage } from '../../lib/user-message';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { extractImeiLoose, parseDeviceCode, type ParsedDeviceCode } from '../../lib/device-scan';
@@ -178,7 +179,7 @@ export function BatchLoad() {
       const result = await createBackendInventoryBatch(user, payload);
       await reloadInventory();
       if (result.errors.length) {
-        setError(result.errors.map((item) => item.message).join(' · '));
+        setError(result.errors.map((item) => toActionMessage(item.message)).join(' · '));
         if (result.created.length) toast(result.created.length === 1 ? 'Cargaste 1 equipo' : `Cargaste ${result.created.length} equipos`);
         return;
       }

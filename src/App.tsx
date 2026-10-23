@@ -1,7 +1,7 @@
 import { ApiError } from './services/api-client';
 import { InviteScreen } from './pages/InviteScreen';
 import { OnboardingJourney } from './pages/OnboardingJourney';
-import { toUserMessage } from './lib/user-message';
+import { isNetworkErrorMessage, toActionMessage } from './lib/user-message';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -84,7 +84,7 @@ function AppContent() {
       clearInvite();
     } catch (err) {
       if (err instanceof ApiError && err.status === 410) inviteState.reload();
-      setInviteError(toUserMessage(err, 'No se pudo aceptar la invitación'));
+      setInviteError(toActionMessage(err, 'No se pudo aceptar la invitación'));
     } finally {
       setInviteAccepting(false);
     }
@@ -109,7 +109,7 @@ function AppContent() {
     return <AuthActionPage link={authAction.link} onDone={finishAuthAction} />;
   }
 
-  if (inviteToken) return <InviteScreen token={inviteToken} state={inviteState} onLeave={clearInvite} onAccept={() => { void handleAcceptInvite(); }} accepting={inviteAccepting} error={inviteError || (user && ['offline', 'error', 'unconfigured'].includes(backendStatus) ? backendMessage || 'No pudimos preparar tu cuenta. Reintentá en unos segundos.' : '')} ready={backendStatus === 'ready'} />;
+  if (inviteToken) return <InviteScreen token={inviteToken} state={inviteState} onLeave={clearInvite} onAccept={() => { void handleAcceptInvite(); }} accepting={inviteAccepting} error={inviteError || (user && backendStatus !== 'offline' && !isNetworkErrorMessage(backendMessage) && ['error', 'unconfigured'].includes(backendStatus) ? backendMessage || 'No pudimos preparar tu cuenta. Reintentá en unos segundos.' : '')} ready={backendStatus === 'ready'} />;
 
   if (loading && !user) {
     return <div className="min-h-screen bg-gray-50" />;
@@ -145,9 +145,10 @@ function AppContent() {
   }
 
   if (backendStatus !== 'ready' && backendStatus !== 'checking') {
+    if (backendStatus === 'offline' || isNetworkErrorMessage(backendMessage)) return null;
     return (
       <BlockingScreen
-        title={backendStatus === 'offline' ? 'Backend no disponible' : 'Backend no configurado'}
+        title="Backend no configurado"
         message={
           backendMessage ||
           'iManager ahora requiere el backend operativo para cargar datos de negocio y validar la membresía de tienda.'

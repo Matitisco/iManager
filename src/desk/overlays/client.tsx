@@ -1,3 +1,4 @@
+import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
@@ -64,7 +65,7 @@ export function ClientDetail({ id }: { id: string }) {
     if (!user || !loadCommissionSellers) return;
     let current = true;
     void loadCommissionSellers().catch((cause: unknown) => {
-      if (current) setError(getFriendlyErrorMessage(cause, 'No se pudieron cargar los vendedores'));
+      if (current) setError(toUserMessage(cause, 'No se pudieron cargar los vendedores'));
     });
     return () => { current = false; };
   }, [user, appSession?.store?.id]);
@@ -81,7 +82,7 @@ export function ClientDetail({ id }: { id: string }) {
     let cancelled = false;
     fetchClientPayments(user, id)
       .then((rows) => { if (!cancelled) setPayments(rows); })
-      .catch(cause => { if (!cancelled) setError(getFriendlyErrorMessage(cause, 'No se pudo cargar el historial de pagos')); });
+      .catch(cause => { if (!cancelled) setError(toUserMessage(cause, 'No se pudo cargar el historial de pagos')); });
     return () => { cancelled = true; };
   }, [user, id, client?.pendingBalance, deposits.rows]);
 
@@ -120,7 +121,7 @@ export function ClientDetail({ id }: { id: string }) {
   if (paying) {
     return (
       <Sheet title="Registrar pago" subtitle={client.name} onClose={() => { if (!busy) setPaying(false); }} busy={busy} className="cl-sheet" footer={<Actions busy={busy} primary="Confirmar pago" secondary="Volver" onSecondary={() => { if (!busy) setPaying(false); }} onPrimary={() => { void pay(); }} />}>
-        {error && <div className="ferr">{error}</div>}
+        {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
         <Field label="Monto" mark={money.active}><input aria-label="Monto" value={amount} inputMode="decimal" placeholder="$ 0" onChange={(event) => {
           amountDirty.current = true;
           const raw = event.target.value;
@@ -154,7 +155,7 @@ export function ClientDetail({ id }: { id: string }) {
         ? <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => setPaying(true)}>{busy ? 'Guardando…' : 'Registrar pago'}</button>
         : <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', clientName: client.name, clientId: client.id, source: 'clients' })}>Nueva venta</button>}
     </SheetActions>}>
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       {client.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{client.archivedBy ? `por ${client.archivedBy}` : 'Este cliente está archivado'}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendClient(user, client.id); await reloadClients(); toast('Cliente restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <div className="tracking-summary">
         <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
@@ -215,7 +216,7 @@ export function ClientForm({ id, run, busy, error }: FormProps & { id?: string }
 
   return (
     <Sheet title={current ? 'Editar cliente' : 'Nuevo cliente'} onClose={close} busy={busy} className="cl-sheet">
-      {error && <div className="ferr">{error}</div>}
+      {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       <Field label="Nombre y apellido" error={bad.name}><input value={name} placeholder="Ej. Ana Gómez" onChange={(event) => { setName(event.target.value); clearBad(setBad, 'name'); }} /></Field>
       {current ? (
         <Field label="Teléfono"><input value={phone} placeholder="Ej. 11 5555 5555" onChange={(event) => setPhone(event.target.value)} /></Field>

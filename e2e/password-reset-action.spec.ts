@@ -85,7 +85,7 @@ test('explains a weak password and a lost connection in spanish', async ({ page 
   await expect(page.getByTestId('reset-password-submit')).toBeEnabled();
 
   await page.goto('/?mode=resetPassword&oobCode=offline&apiKey=test-key');
-  await expect(page.getByTestId('auth-action-error')).toContainText(/revisá tu internet/i);
+  await expect(page.getByTestId('auth-action-error')).toHaveText('No se pudo completar. Probá de nuevo.');
   await expect(page.getByTestId('reset-password')).toHaveCount(0);
 });
 

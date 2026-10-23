@@ -1,5 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { toUserMessage } from '../lib/user-message';
+import { isNetworkErrorMessage, toUserMessage } from '../lib/user-message';
 
 interface Props {
   children?: ReactNode;
@@ -28,6 +28,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       const errorMessage = toUserMessage(this.state.error, 'Ocurrió un error inesperado. Recargá la página y probá de nuevo.');
 
+      if (isNetworkErrorMessage(errorMessage)) return null;
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
           <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full border border-red-100">
