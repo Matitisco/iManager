@@ -88,11 +88,14 @@ test('periodic summary: periods, complete breakdown, empty and retry at 390px an
     await page.getByRole('option', { name: 'septiembre de 2026' }).click();
     await expect(page.getByText('En curso')).toBeVisible();
     failed = true;
+    const failure = page.waitForResponse(response => response.url().includes('/api/reports/periodic-summary') && response.status() === 503);
     await page.getByRole('button', { name: 'Última quincena' }).click();
-    await expect(page.getByRole('button', { name: 'Reintentar', exact: true })).toBeVisible();
+    await failure;
+    await expect(page.getByRole('button', { name: 'Reintentar', exact: true })).toHaveCount(0);
     await expect(page.locator('.periodic-card')).toHaveCount(0);
     failed = false;
-    await page.getByRole('button', { name: 'Reintentar', exact: true }).click();
+    await page.getByRole('button', { name: 'Último mes' }).click();
+    await page.getByRole('button', { name: 'Última quincena' }).click();
     await expect(page.getByText('0 equipos', { exact: true })).toBeVisible();
   }
   expect(errors).toEqual([]);

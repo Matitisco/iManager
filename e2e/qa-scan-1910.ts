@@ -225,8 +225,15 @@ export async function openEquipos(page: Page) {
 
 export async function wedge(page: Page, field: Locator, text: string) {
   await field.click();
-  await page.keyboard.type(text, { delay: 8 });
-  await page.keyboard.press('Enter');
+  // Model the scanner's burst independently of CDP/runner scheduling gaps.
+  // Real fast/slow input discrimination is covered by keyboard-wedge.test.ts.
+  await page.clock.setFixedTime(new Date());
+  try {
+    await page.keyboard.type(text, { delay: 8 });
+    await page.keyboard.press('Enter');
+  } finally {
+    await page.clock.setSystemTime(new Date());
+  }
 }
 
 export async function shoot(page: Page, name: string) {
@@ -309,8 +316,10 @@ export function registerScanQa(width: 390 | 1440) {
     await page.getByRole('dialog', { name: 'Registrar equipo' }).getByRole('button', { name: 'Escanear con la cámara' }).click();
     await expect(page.getByText('IMEI leído')).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: 'Usar' }).click();
-    const only = page.getByRole('dialog', { name: 'Revisá el equipo' });
-    await expect(only.getByText('Este código trae solo el IMEI')).toBeVisible();
+    // Plain IMEIs return to the equipment form; rich box labels open review.
+    const only = page.getByRole('dialog', { name: 'Registrar equipo', exact: true });
+    await expect(only.getByLabel('IMEI (opcional)')).toHaveValue(ONLY);
+    await expect(page.getByRole('dialog', { name: 'Revisá el equipo' })).toHaveCount(0);
     await closeSheets(page);
 
     await page.getByRole('button', { name: 'Registrar equipo' }).first().click();
@@ -387,6 +396,8 @@ export function registerScanQa(width: 390 | 1440) {
     const removed = await request.delete(`${API}/api/inventory/${archived.inventoryItem.id}`, { headers: authHeaders(email) });
     expect(removed.ok()).toBeTruthy();
     await page.goto('/#/stock/equipos');
+    // API fixtures were seeded after login; a hash-only navigation does not reload lists.
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Inventario', level: 1 })).toBeVisible();
 
     await page.getByRole('button', { name: 'Registrar equipo' }).first().click();
@@ -456,7 +467,7 @@ export function registerScanQa(width: 390 | 1440) {
     await page.goto('/#/stock/control');
     await expect(page.getByRole('heading', { name: 'Control de stock', level: 1 })).toBeVisible();
     await page.getByRole('button', { name: 'Iniciar control' }).click();
-    await page.getByRole('dialog', { name: 'Iniciar control de stock' }).getByRole('button', { name: 'Iniciar control' }).click();
+    await page.getByRole('dialog', { name: 'Iniciar control', exact: true }).getByRole('button', { name: 'Iniciar conteo', exact: true }).click();
     const input = page.getByTestId('stock-scan-input');
     await expect(input).toBeVisible();
     await wedge(page, input, `MLPF3LE/A F2LXK9POQ1 ${ONLY}`);
@@ -498,7 +509,7 @@ export function registerScanQa(width: 390 | 1440) {
     await expect(reviewViewer.getByRole('button', { name: 'Cambiar cámara' })).toHaveCount(0);
     await reviewViewer.getByRole('button', { name: 'Cerrar' }).click();
     await expect(review).toBeVisible();
-    await review.getByRole('button', { name: 'iPhone 13' }).click();
+    await review.getByLabel('Buscar modelo').fill('iPhone 13');
     await review.getByLabel('Precio de venta').fill('250000');
     await review.getByRole('button', { name: 'Guardar equipo' }).click();
     const back = page.getByRole('dialog', { name: 'Registrar venta' });
@@ -537,9 +548,9 @@ export function registerScanQa(width: 390 | 1440) {
     await page.getByRole('button', { name: 'Usar' }).click();
     await expect(trade.getByLabel('IMEI (opcional)')).toHaveValue(IMEI);
     await expect(trade.getByLabel('Equipo recibido')).toHaveValue(/iPhone 13/);
-    await trade.getByLabel('Equipo recibido').fill('');
+    await trade.getByLabel('Equipo recibido').fill('Modelo manual');
     await wedge(page, trade.getByLabel('IMEI (opcional)'), BOX);
-    await expect(trade.getByLabel('Equipo recibido')).toHaveValue(/iPhone 13/);
+    await expect(trade.getByLabel('Equipo recibido')).toHaveValue('Modelo manual');
     await expect(trade.getByLabel('Valor tomado')).toBeFocused();
   });
 }

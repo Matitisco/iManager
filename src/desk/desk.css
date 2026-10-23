@@ -2579,11 +2579,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 }
 .return-delete .sheet-scroll > p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--secondary); }
 
-/* Transient notices float independently of the scrolled page geometry. */
-.stage-notices { position: fixed; z-index: 35; top: calc(12px + env(safe-area-inset-top, 0px)); right: 20px; width: min(390px, calc(100vw - 32px)); display: grid; gap: 8px; pointer-events: none; }
-.stage-notices > * { pointer-events: auto; margin: 0; box-shadow: var(--sh); }
+/* Persistent notices occupy their own space so every page action stays reachable. */
+.stage-notices { display: grid; gap: 8px; padding: 12px 20px 0; }
+.stage-notices:empty { display: none; }
+.desk-app .stage-notices > * { margin: 0; }
 .dolar.chip { width: min(194px, calc(100vw - 156px)); min-width: min(194px, calc(100vw - 156px)); max-width: 194px; height: 36px; min-height: 36px; flex-shrink: 0; }
-@media (max-width: 760px) { .stage-notices { top: auto; bottom: calc(88px + env(safe-area-inset-bottom, 0px)); right: 16px; max-height: calc(100dvh - 180px); overflow: auto; } }
+@media (max-width: 760px) { .stage-notices { padding-inline: 16px; } }
 
 .dolar.chip .dolar-hit { width: 100%; justify-content: center; }
 .dolar-skel { visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }

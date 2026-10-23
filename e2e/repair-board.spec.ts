@@ -1,3 +1,4 @@
+import { expectRepairHistory } from './utils';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createRepairViaApi } from './utils';
@@ -60,12 +61,10 @@ test('drags a repair across columns and still changes status from the keyboard b
 
   await page.getByTestId('repair-column-EN_REPARACION').locator('[data-testid^="repair-card-"]').click();
   const detail = page.getByRole('dialog', { name: /#OT-0001/ });
-  await expect(detail.locator('.svc-log')).toContainText('Recibido');
-  await expect(detail.locator('.svc-log')).toContainText('En reparación');
-  await expect(detail.locator('.svc-log li')).toHaveCount(2);
+  await expectRepairHistory(page, detail, 2, ['Recibido', 'En reparación']);
   await detail.getByRole('button', { name: 'Pasar a Listo para retirar' }).click();
   await expect(page.locator('.toast.show')).toContainText('Pasó a Listo para retirar');
-  await expect(detail.locator('.svc-log li')).toHaveCount(3);
+  await expectRepairHistory(page, detail, 3, ['Recibido', 'Listo para retirar']);
   const opened = await page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
   expect(opened.some((url) => url.includes('wa.me'))).toBeTruthy();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/tablero-listo.png` });

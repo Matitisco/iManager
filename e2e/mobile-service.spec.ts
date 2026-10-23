@@ -1,3 +1,4 @@
+import { expectRepairHistory } from './utils';
 import { sheetAction } from './sheet-actions';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
@@ -169,7 +170,7 @@ test.describe('service on a phone', () => {
     const dockBox = await page.getByTestId('mobile-dock').boundingBox();
     const tabBox = await page.getByTestId('mobile-tab-bar').boundingBox();
     expect(dockBox && tabBox && dockBox.y + dockBox.height <= tabBox.y + 1).toBeTruthy();
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/servicio-390-lista.png`, fullPage: true });
 
@@ -228,8 +229,7 @@ test.describe('service on a phone', () => {
     await expect(detail.getByText('01/01 · atrasada')).toBeVisible();
     await expect(detail.getByText('US$ 120')).toBeVisible();
     await expect(detail.getByText('US$ 40')).toBeVisible();
-    await expect(detail.locator('.svc-log').getByText('Historial', { exact: true })).toBeVisible();
-    await expect(detail.locator('.svc-log li')).toHaveCount(1);
+    await expectRepairHistory(page, detail, 1);
     await expect(detail.getByRole('checkbox', { name: /WhatsApp/ })).toHaveCount(0);
     await expect(detail.getByText(/Tentativo/)).toHaveCount(0);
     await settleMotion(page, '.sheet');
@@ -239,7 +239,7 @@ test.describe('service on a phone', () => {
     await detail.getByRole('button', { name: 'Pasar a Listo para retirar' }).click();
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', /wa\.me/);
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveCount(1);
-    await expect(detail.locator('.svc-log li')).toHaveCount(2);
+    await expectRepairHistory(page, detail, 2, ['Listo para retirar']);
     await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
 
     await (await sheetAction(detail, 'Editar')).click();

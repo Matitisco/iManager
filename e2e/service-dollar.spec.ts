@@ -1,3 +1,4 @@
+import { expectRepairHistory } from './utils';
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail } from './utils';
@@ -56,7 +57,7 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
     await detail.getByRole('button', { name: `Pasar a ${next}` }).click();
     await expect(detail.getByText(`Sigue: ${next}`)).toHaveCount(0);
   }
-  await expect(detail.locator('.svc-log li')).toHaveCount(3);
+  await expectRepairHistory(page, detail, 3, ['Recibido', 'Listo para retirar']);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/servicio-detalle.png` });
   await detail.getByRole('button', { name: 'Cerrar' }).first().click();
 

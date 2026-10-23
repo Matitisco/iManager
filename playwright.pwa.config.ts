@@ -11,6 +11,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   retries: process.env.CI ? 1 : 0,
   workers: 1,
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: { baseURL: pwaUrl, serviceWorkers: 'allow', screenshot: 'only-on-failure' },
   projects: [
     { name: 'desktop-chromium', use: { browserName: 'chromium', viewport: { width: 1440, height: 900 } } },

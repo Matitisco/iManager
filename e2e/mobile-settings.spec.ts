@@ -126,7 +126,7 @@ test.describe('settings on a phone', () => {
     await expect(page.getByTestId('settings-account')).toContainText('Mi cuenta');
     await expect(page.getByTestId('settings-logout')).toContainText('Cerrar sesión');
     await expect(page.getByRole('button', { name: /Cambiar contraseña/ })).toBeVisible();
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390.png` });
 
@@ -256,7 +256,7 @@ test.describe('settings on a phone', () => {
     expect(saveBox && saveBox.y + saveBox.height >= 840).toBeTruthy();
     await expect(page.getByTestId('mobile-tab-bar')).toBeHidden();
     await expect(page.locator('.toast.show')).toBeHidden();
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-permisos.png` });
     await permissions.getByRole('button', { name: 'Guardar', exact: true }).click();

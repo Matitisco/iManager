@@ -83,7 +83,7 @@ test.describe('sales on a phone', () => {
     });
     await bootstrapStoreViaApi(page, request, email, `Ventas ${testInfo.parallelIndex}`);
     await page.getByTestId('sidebar-tab-sales').click();
-    await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('sales-hero')).toContainText('Facturación total');
     await expect(page.getByTestId('sales-hero')).toContainText('Ticket promedio');
@@ -92,7 +92,7 @@ test.describe('sales on a phone', () => {
     await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.getByTestId('sales-period')).toContainText('Mes');
     await expect(page.getByTestId('sales-status')).toContainText('Estado');
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     const dockBox = await page.getByTestId('mobile-dock').boundingBox();

@@ -155,7 +155,7 @@ test.describe('dashboard on a phone', () => {
     }
 
     await page.getByRole('button', { name: 'Ver todas' }).click();
-    await expect(page.getByRole('heading', { name: 'Ventas' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ventas', exact: true })).toBeVisible();
     await page.getByTestId('sidebar-tab-dashboard').click();
     await expect(page.getByRole('heading', { name: /Qué hay para/ })).toBeVisible();
     await page.getByTestId('sidebar-tab-more').click();

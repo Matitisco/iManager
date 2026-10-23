@@ -160,29 +160,24 @@ test.describe('phone dollar', () => {
     await bootstrapStoreViaApi(page, request, email, 'Mi Tienda Ejemplo');
 
     const widget = page.getByTestId('blue-widget');
-    await expect(widget).toHaveAttribute('data-state', 'error');
-    await expect(widget).toHaveAttribute('data-quote', 'stale');
+    const failedRefresh = page.waitForResponse(response => response.url().includes('dolarapi.com') && response.status() === 503);
+    await widget.getByRole('button', { name: 'Dólar blue' }).click();
+    await page.getByTestId('blue-refresh-now').click();
+    await failedRefresh;
+    await expect(widget).toHaveAttribute('data-state', 'ready');
     await expect(widget).toContainText('1.300');
-    await expect(widget).toContainText('21:40');
-    await expect(page.getByTestId('blue-retry')).toBeVisible();
-    await expect(page.getByTestId('blue-toast')).toContainText('Mostramos el de las 21:40');
+    await expect(page.getByTestId('blue-toast')).toHaveCount(0);
+    await expect(page.getByTestId('blue-overlay')).toContainText('21:40');
     await expectFits(page);
-    await shot(page, 'dolar-390-error');
-
+    await shot(page, 'dolar-390-error-detalle');
     await page.setViewportSize({ width: 360, height: 800 });
     await expectFits(page);
     await page.setViewportSize({ width: 390, height: 844 });
-
-    await widget.getByRole('button', { name: 'Dólar blue' }).click();
-    await expect(page.getByTestId('blue-alert')).toContainText('Mostramos el dato de las 21:40');
-    await expect(page.getByTestId('blue-toast')).toBeHidden();
-    await expectFits(page);
-    await shot(page, 'dolar-390-error-detalle');
-    await page.getByTestId('blue-done').click();
-
     await page.unroute('https://dolarapi.com/**');
-    await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: quoteFor(route.request().url()) }));
-    await page.getByTestId('blue-retry').click();
+    const recovered = { ...BLUE, compra: 1310, venta: 1330 };
+    await page.route('https://dolarapi.com/**', route => route.fulfill({ json: recovered }));
+    await page.getByTestId('blue-refresh-now').click();
+    await expect(widget).toContainText('1.330');
     await expect(widget).toHaveAttribute('data-state', 'ready');
     await expect(page.getByTestId('blue-toast')).toHaveCount(0);
   });
@@ -197,8 +192,7 @@ test.describe('phone dollar', () => {
     await expect(widget).toHaveAttribute('data-state', 'error');
     await expect(widget).toHaveAttribute('data-quote', 'none');
     await expect(widget).toContainText('sin dato');
-    await expect(page.getByTestId('blue-retry')).toBeVisible();
-    await expect(page.getByTestId('blue-toast')).toContainText('No pudimos actualizar el dólar.');
+    await expect(page.getByTestId('blue-toast')).toHaveCount(0);
     await expectFits(page);
     await shot(page, 'dolar-390-sin-cotizacion');
 

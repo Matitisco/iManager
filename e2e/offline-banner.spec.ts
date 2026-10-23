@@ -36,10 +36,14 @@ for (const device of [
     await expect(lead.getByText('US$ 920')).toBeVisible();
     const url = lead.url();
     await context.setOffline(true);
+    const failedRefresh = lead.waitForEvent('requestfailed', request => request.url().includes('/api/public/catalog/'));
     await lead.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(lead.getByText('US$ 920')).toHaveCount(0);
+    await failedRefresh;
+    await expect(lead.getByText('US$ 920')).toBeVisible();
     await expect(lead.getByTestId('offline-banner')).toHaveCount(0);
+    const recovered = lead.waitForResponse(response => response.url().includes('/api/public/catalog/') && response.ok());
     await context.setOffline(false);
+    await recovered;
     await expect(lead.getByTestId('offline-banner')).toHaveCount(0);
     await expect(lead.getByText('US$ 920')).toBeVisible();
     expect(lead.url()).toBe(url);

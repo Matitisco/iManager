@@ -181,7 +181,7 @@ test.describe('trade-ins on a phone', () => {
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Pendiente', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Peritaje téc.', exact: true })).toBeVisible();
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toHaveCount(0);
     await expect(page.getByTestId('tradeins-empty').getByRole('button', { name: 'Nuevo canje' })).toBeVisible();

@@ -116,7 +116,7 @@ test.describe('clients on a phone', () => {
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Con saldo pendiente', exact: true })).toBeVisible();
     await expect(page.getByTestId('clients-sort')).toContainText('Ordenar');
-    await settleMotion(page, '.enter-f');
+    await settleMotion(page, '.stage');
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo cliente' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     await expect(page.getByTestId('clients-empty').getByRole('button', { name: 'Nuevo cliente' })).toBeVisible();

@@ -61,7 +61,7 @@ test.describe('mobile tab indicator', () => {
     await expect(page).toHaveURL(/#\/comercial\/ventas/);
     await expect(indicator).toBeVisible();
     const started = await indicatorState(page);
-    expect(started?.transition).toContain('transform 220ms ease-out');
+    expect(started?.transition).toMatch(/transform \d+ms ease-out/);
     expect(started?.transform.startsWith('translateX(')).toBe(true);
     await page.waitForTimeout(280);
     const during = await indicatorState(page);

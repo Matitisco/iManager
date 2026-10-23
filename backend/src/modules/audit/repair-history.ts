@@ -19,19 +19,22 @@ export async function repairHistoryRows(
   allowedActions: string[] | null,
   cursor: { createdAt: Date; id: string } | null,
   take: number,
+  db: Pick<Prisma.TransactionClient, "$queryRaw"> = prisma,
 ): Promise<AuditEvent[]> {
   const entityId = query.entityId;
   if (query.entityType !== "repair" || !entityId || query.actorUserId) return [];
+  // Prisma binds Date as timestamptz; stored timestamps use UTC without a zone.
+  // Normalize boundaries before comparing, regardless of the server TimeZone.
   const conditions: Prisma.Sql[] = [];
-  if (query.from) conditions.push(Prisma.sql`e."createdAt" >= ${query.from}`);
-  if (query.to) conditions.push(Prisma.sql`e."createdAt" <= ${query.to}`);
+  if (query.from) conditions.push(Prisma.sql`e."createdAt" >= (${query.from}::timestamptz AT TIME ZONE 'UTC')`);
+  if (query.to) conditions.push(Prisma.sql`e."createdAt" <= (${query.to}::timestamptz AT TIME ZONE 'UTC')`);
   if (allowedActions) conditions.push(Prisma.sql`(CASE WHEN e.first THEN 'repair.created' ELSE 'repair.status' END) IN (${Prisma.join(allowedActions.length ? allowedActions : ["__none__"])})`);
-  if (cursor) conditions.push(Prisma.sql`(e."createdAt", 'repair-event:' || e.id) < (${cursor.createdAt}, ${cursor.id})`);
+  if (cursor) conditions.push(Prisma.sql`(e."createdAt", 'repair-event:' || e.id) < ((${cursor.createdAt}::timestamptz AT TIME ZONE 'UTC'), ${cursor.id})`);
   if (query.q?.trim()) {
     const like = `%${query.q.trim().replace(/[%_\\]/g, "\\$&")}%`;
     conditions.push(Prisma.sql`(e.status ILIKE ${like} OR e."previousStatus" ILIKE ${like} OR e.device ILIKE ${like} OR ('OT-' || LPAD(e."orderNumber"::text, GREATEST(4, LENGTH(e."orderNumber"::text)), '0')) ILIKE ${like})`);
   }
-  const rows = await prisma.$queryRaw<StatusRow[]>`
+  const rows = await db.$queryRaw<StatusRow[]>`
     WITH events AS (
       SELECT s.*, r."orderNumber", r.device,
         LAG(s.status) OVER timeline AS "previousStatus",

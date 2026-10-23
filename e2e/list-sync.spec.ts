@@ -3,7 +3,7 @@ import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemV
 
 const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
 
-test('a section change drops a device deleted elsewhere, and another page follows a local delete', async ({ page, context, request }, testInfo) => {
+test('a section change reflects an external archive, and another page follows a local archive', async ({ page, context, request }, testInfo) => {
   const email = buildTestEmail(testInfo, 'list-sync');
   await bootstrapStoreViaApi(page, request, email, 'iManager · Listas');
   const headers = authHeaders(email);
@@ -17,10 +17,13 @@ test('a section change drops a device deleted elsewhere, and another page follow
   expect((await request.delete(`${api}/api/inventory/${stale.inventoryItem.id}`, { headers })).status()).toBe(204);
   await expect(page.getByText('Pixel Viejo')).toBeVisible();
   const refreshed = page.waitForResponse((response) => response.url().includes('/api/inventory') && response.request().method() === 'GET' && response.ok());
+  // Focus/navigation revalidation is coalesced for 15s after the initial load.
+  await page.clock.install();
+  await page.clock.fastForward(15_000);
   await page.getByTestId('sidebar-tab-sales').click();
   await refreshed;
   await page.getByTestId('sidebar-tab-inventory').click();
-  await expect(page.getByText('Pixel Viejo')).toHaveCount(0);
+  await expect(page.getByRole('row').filter({ hasText: 'Pixel Viejo' })).toHaveClass(/is-void/);
   await expect(page.getByText('Pixel Compartido')).toBeVisible();
 
   const other = await context.newPage();
@@ -35,7 +38,8 @@ test('a section change drops a device deleted elsewhere, and another page follow
   const synced = other.waitForResponse((response) => response.url().includes('/api/inventory') && response.request().method() === 'GET' && response.ok());
   await page.getByRole('dialog', { name: 'Archivar equipo' }).getByRole('button', { name: 'Archivar', exact: true }).click();
   await synced;
-  await expect(other.getByText('Pixel Compartido')).toHaveCount(0);
+  // Archiving retains a voided row in history while removing it from active stock.
+  await expect(other.getByRole('row').filter({ hasText: 'Pixel Compartido' })).toHaveClass(/is-void/);
   expect((await fetchInventory(request, email)).inventory.map((item) => item.model)).not.toContain('Pixel Compartido');
   await other.close();
 });
@@ -49,6 +53,8 @@ test('a refresh keeps the text typed in an open sale', async ({ page, request },
   const client = page.getByRole('combobox', { name: 'Cliente' });
   await client.fill('Borrador sin guardar');
   const refreshed = page.waitForResponse((response) => response.url().includes('/api/sales') && response.request().method() === 'GET' && response.ok());
+  await page.clock.install();
+  await page.clock.fastForward(15_000);
   await page.evaluate(() => {
     document.dispatchEvent(new Event('visibilitychange'));
     window.dispatchEvent(new Event('focus'));
