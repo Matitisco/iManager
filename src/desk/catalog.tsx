@@ -1,3 +1,4 @@
+import { DeskSelect } from './select';
 import { useStableState } from '../lib/stable-state';
 import { toActionMessage } from '../lib/user-message';
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -202,9 +203,9 @@ export function CatalogEditor({ kind, onClose }: { kind: CatalogKind; onClose: (
               {row.deleted && row.count > 0 ? (
                 <div className="stx-re">
                   {row.count} {noun(row.count)} {row.count === 1 ? 'tiene' : 'tienen'} {thing}. Pasarlos a
-                  <select aria-label={`Pasar ${noun(row.count)} de ${row.label} a`} disabled={busy} value={targetFor(row)?.value || targetFor(row)?.label.trim() || ''} onChange={(event) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, reassignTo: event.target.value } : item))}>
-                    {targets.map((item) => <option key={item.key} value={item.value || item.label.trim()}>{item.label}</option>)}
-                  </select>
+                  <DeskSelect label={`Pasar ${noun(row.count)} de ${row.label} a`} disabled={busy} value={targetFor(row)?.value || targetFor(row)?.label.trim() || ''}
+                    onChange={(value) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, reassignTo: value } : item))}
+                    options={targets.map(item => ({ value: item.value || item.label.trim(), label: item.label }))} />
                 </div>
               ) : row.deleted ? <div className="stx-re soft">Se elimina al guardar.</div> : null}
             </React.Fragment>

@@ -1,3 +1,4 @@
+import { DeskSelect } from '../select';
 import { Skeleton, FieldSkeleton } from '../../components/Skeleton';
 import { formatShortDate } from '../format';
 import { useEffect, useRef, useState } from 'react';
@@ -251,10 +252,8 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       </div>
       <Field label="Proveedor">
         {suppliers === null ? <FieldSkeleton /> : (
-          <select aria-label="Proveedor" disabled={!!supplierId} value={supplierId || supplier} onChange={(event) => setSupplier(event.target.value)}>
-            <option value="">Sin proveedor</option>
-            {(suppliers ?? []).map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
+          <DeskSelect label="Proveedor" disabled={!!supplierId} value={supplierId || supplier} onChange={setSupplier}
+            options={[{ value: '', label: 'Sin proveedor' }, ...(suppliers ?? []).map(row => ({ value: row.id, label: row.name }))]} />
         )}
       </Field>
       <Field label="Condición"><span /></Field>

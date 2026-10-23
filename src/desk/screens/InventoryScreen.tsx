@@ -1,3 +1,4 @@
+import { DeskSelect } from '../select';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
@@ -645,13 +646,8 @@ function SupplierFilter({ suppliers, value, onChange }: {
 }) {
   // Keep the saved selection while the shared supplier catalog is still loading.
   const options = [...(suppliers ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'es'));
-  return <div className={`dsel inventory-supplier-filter${value ? ' on' : ''}`}>
-    <span className="inventory-supplier-label" aria-hidden="true">{options.find(row => row.id === value)?.name || 'Proveedor'}</span>
-    <select aria-label="Proveedor" value={value} onChange={(event) => onChange(event.target.value)}>
-      <option value="">{value ? 'Todos los proveedores' : 'Proveedor'}</option>
-      {value && !options.some(row => row.id === value) ? <option value={value}>Proveedor</option> : null}
-      {options.map(row => <option key={row.id} value={row.id}>{row.name}</option>)}
-    </select>
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-  </div>;
+  return <DeskSelect className={`inventory-supplier-filter${value ? ' filtered' : ''}`} label="Proveedor" value={value} onChange={onChange}
+    options={[{ value: '', label: value ? 'Todos los proveedores' : 'Proveedor' },
+      ...(value && !options.some(row => row.id === value) ? [{ value, label: 'Proveedor' }] : []),
+      ...options.map(row => ({ value: row.id, label: row.name }))]} />;
 }

@@ -1,0 +1,4 @@
+- [x] Reproducir y medir estilos y geometría antes del cambio.
+- [x] Aislar estilos de auditoría y separar bloques de Más.
+- [x] Migrar selects visibles del desk/modales y actualizar pruebas relacionadas.
+- [x] Verificar TypeScript, pruebas y Playwright local con datos falsos.

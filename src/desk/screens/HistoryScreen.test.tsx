@@ -64,6 +64,11 @@ beforeEach(() => {
   ctx.appSession.membership = { role: 'OWNER', sections: null };
 });
 
+async function choose(label: string, option: string) {
+  await userEvent.click(screen.getByRole('combobox', { name: label }));
+  await userEvent.click(screen.getByRole('option', { name: option }));
+}
+
 describe('Historial #372', () => {
   it.each([false, true])('conserva la identidad completa y adapta la búsqueda y el registro (móvil=%s)', async phone => {
     vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
@@ -81,7 +86,7 @@ describe('Historial #372', () => {
     }
     await userEvent.type(search, '5673');
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ q: '5673', period: '30' })));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Período' }), '7');
+    await choose('Período', '7 días');
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ q: '5673', period: '7' })));
     await userEvent.click(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ }));
     expect(screen.getByRole('dialog')).toHaveTextContent('Lucía Fernández');
@@ -91,12 +96,12 @@ describe('Historial #372', () => {
   it('starts at 30 days, exposes Acción and preserves selected values and search', async () => {
     mount(); await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
     expect(fetch).toHaveBeenCalledWith(ctx.user, expect.objectContaining({ period: '30' }));
-    expect(screen.getByRole('combobox', { name: 'Período' })).toHaveValue('30');
+    expect(screen.getByRole('combobox', { name: 'Período' })).toHaveTextContent('30 días');
     expect(screen.queryByRole('combobox', { name: 'Tipo' })).not.toBeInTheDocument();
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Acción' }), 'Edición');
+    await choose('Acción', 'Edición');
     expect(screen.getByRole('combobox', { name: 'Acción' }).parentElement).toHaveTextContent('Edición');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Persona' }), 'lucia');
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sección' }), 'inventory');
+    await choose('Persona', 'Lucía Fernández');
+    await choose('Sección', 'Inventario');
     await userEvent.type(screen.getByRole('textbox'), '5673');
     await waitFor(() => expect(fetch).toHaveBeenLastCalledWith(ctx.user, expect.objectContaining({ period: '30', group: 'Edición', actorUserId: 'lucia', section: 'inventory', q: '5673' })));
   });
@@ -425,7 +430,7 @@ describe('Historial #372', () => {
     expect(empty).toHaveTextContent('Todavía no hay movimientos');
     expect(empty).toHaveClass('inv-empty-box');
     fetch.mockRejectedValueOnce(new Error('Error del servidor'));
-    await userEvent.selectOptions(screen.getByLabelText('Período'), '7');
+    await choose('Período', '7 días');
     expect(await screen.findByRole('alert')).toHaveTextContent('Error del servidor');
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ })).toBeInTheDocument();
@@ -434,14 +439,14 @@ describe('Historial #372', () => {
   it('uses the standard empty state for no filter matches and clears the filters', async () => {
     mount(); await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
     fetch.mockResolvedValueOnce({ events: [], nextCursor: null });
-    await userEvent.selectOptions(screen.getByLabelText('Período'), '7');
+    await choose('Período', '7 días');
     const empty = await screen.findByTestId('history-empty');
     expect(empty).toHaveClass('inv-empty-box');
     expect(empty).toHaveTextContent('Nada con esos filtros');
     await userEvent.click(within(empty).getByRole('button', { name: 'Limpiar filtros' }));
     await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
     expect(screen.queryByTestId('history-empty')).not.toBeInTheDocument();
-    expect(screen.getByLabelText('Período')).toHaveValue('30');
+    expect(screen.getByLabelText('Período')).toHaveTextContent('30 días');
   });
 
   it('loads an archived claim before navigating to its record', async () => {
@@ -460,7 +465,7 @@ describe('Historial #372', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Error de página');
     await userEvent.click(screen.getByRole('button', { name: 'Cargar más' }));
     expect(screen.getByTestId('history-more-loading')).not.toHaveTextContent('Cargando');
-    await userEvent.selectOptions(screen.getByLabelText('Período'), '7');
+    await choose('Período', '7 días');
     await screen.findByRole('button', { name: /Lucía Fernández · Cambió el precio/ });
     await act(async () => pending.resolve({ events: [event({ id: 'stale', actorName: 'Respuesta vieja' })], nextCursor: null }));
     expect(screen.queryByText('Respuesta vieja')).not.toBeInTheDocument();

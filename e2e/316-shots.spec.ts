@@ -109,7 +109,8 @@ for (const width of [390, 1440]) {
     await page.screenshot({ path: `docs/pr-shots/316-lista-${width}.png`, animations: 'disabled' });
 
     await page.getByRole('button', { name: 'Nuevo reclamo' }).first().click();
-    await page.getByLabel('Venta', { exact: true }).selectOption('sale-1');
+    await page.getByRole('combobox', { name: 'Venta', exact: true }).click();
+    await page.getByRole('option').filter({ hasText: 'Lucía Martínez' }).first().click();
     await expect(page.getByTestId('return-sale')).toBeVisible();
     await expect(page.getByTestId('return-sale')).toContainText('IMEI 359111111111119');
     await page.screenshot({ path: `docs/pr-shots/316-reclamo-${width}.png`, animations: 'disabled' });

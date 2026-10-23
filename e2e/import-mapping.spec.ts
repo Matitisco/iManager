@@ -86,9 +86,9 @@ for (const viewport of viewports) {
 
       await dialog.getByTestId('import-adjust-open').click();
       await expect(dialog.getByTestId('import-adjust')).toBeVisible();
-      await expect(dialog.getByTestId('import-field-model')).toHaveValue('Modelo');
-      await expect(dialog.getByTestId('import-field-price')).toHaveValue('PRECIO ARS');
-      await expect(dialog.getByTestId('import-field-batteryHealth')).toHaveValue('Batería');
+      await expect(dialog.getByTestId('import-field-model')).toHaveText('Modelo');
+      await expect(dialog.getByTestId('import-field-price')).toHaveText('PRECIO ARS');
+      await expect(dialog.getByTestId('import-field-batteryHealth')).toHaveText('Batería');
       await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
       await expect(dialog.getByText('%', { exact: true })).toHaveCount(0);
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-ajustar.png`) });
