@@ -15,11 +15,12 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
   const phone = usePhoneLayout();
   const detailId = useId();
   const [cache, setCache] = useState<Partial<Record<PatternGroupBy, ReturnPatternView[]>>>({});
+  const [errors, setErrors] = useState<Partial<Record<PatternGroupBy, boolean>>>({});
   const [selection, setSelection] = useState<{ by: PatternGroupBy; key: string | null } | null>(null);
   const [purchase, setPurchase] = useState<ReturnPatternView | null>(null);
   const sections = appSession?.membership?.sections;
   const role = appSession?.membership?.role;
-  const allowed = sectionAllowed('returns', sections, role);
+  const allowed = sectionAllowed('patterns', sections, role);
   const seeOrigin = sectionAllowed('suppliers', sections, role);
   const ready = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && allowed;
   const rows = cache[groupBy];
@@ -35,10 +36,12 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
     if (!user || !ready) return;
     let active = true;
     void fetchReturnPatterns(user, groupBy).then(result => {
-      if (active) setCache(current => ({ ...current, [groupBy]: result.filter(row => row.problems > 0) }));
+      if (active) {
+        setCache(current => ({ ...current, [groupBy]: result.filter(row => row.problems > 0) }));
+        setErrors(current => ({ ...current, [groupBy]: false }));
+      }
     }).catch(() => {
-      // Supplemental analysis: omit unavailable data, without a second error flow.
-      if (active) setCache(current => ({ ...current, [groupBy]: [] }));
+      if (active) setErrors(current => ({ ...current, [groupBy]: true }));
     });
     return () => { active = false; };
   }, [user, ready, groupBy, returns, inventory, repairOrders]);
@@ -67,14 +70,17 @@ export function ReturnsPatterns({ groupBy, requestedGroup }: { groupBy: PatternG
   </>;
 
   if (!allowed || !user || !appSession?.store || appSession.onboardingRequired) return null;
+  const error = errors[groupBy] ? <p className="ferr" role="alert">No se pudieron cargar los patrones.</p> : null;
+  if (!rows && error) return error;
   if (!rows && backendStatus !== 'ready' && backendStatus !== 'checking') return null;
   if (!rows) return <div className="pat-grid pat-loading" data-testid="patterns-loading">
     <ListSkeleton variant="cards" rows={4} />
     {!phone ? <ListSkeleton variant="cards" rows={4} /> : null}
   </div>;
-  if (!rows.length) return null;
+  if (!rows.length) return error ?? <div className="wempty" data-testid="patterns-empty">No hay equipos con problemas en esta agrupación.</div>;
 
   return <>
+    {error}
     <div className="pat-grid" data-testid="returns-patterns">
       <div className="card ledger-list pat-list">
         {rows.map((row, index) => {

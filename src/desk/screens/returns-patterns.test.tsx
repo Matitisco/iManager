@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PatternGroupBy, ReturnPatternView } from '../../services/returns-api';
 import { DeskProvider } from '../ui';
 import { returnPatternsHash, showSupplierPatterns } from '../returns-navigation';
-import { ReturnsScreen } from './ReturnsScreen';
+import { PatternsScreen } from './PatternsScreen';
 import { ReturnsPatterns } from './ReturnsPatterns';
 
 const ctx = vi.hoisted(() => ({
@@ -32,8 +32,8 @@ const group: ReturnPatternView = {
 const purchaseGroup = { ...group, key: 'purchase', label: 'Importadora Andes · 05/09/2026 · Baterías', purchaseId: 'purchase' };
 const coolGroup = { ...group, key: 'cool', label: 'Tech Cuyo', supplierId: 'cool', devices: 8, problems: 2, percent: 25, hot: false, topReason: null, claimsDetail: [], claims: 0 };
 const zeroGroup = { ...coolGroup, key: 'zero', label: 'Sin problemas', problems: 0, percent: 0 };
-const tree = (node = <ReturnsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
-const mount = (node = <ReturnsScreen />) => render(tree(node));
+const tree = (node = <PatternsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'patterns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
+const mount = (node = <PatternsScreen />) => render(tree(node));
 function navigate(hash: string) {
   act(() => {
     history.replaceState(null, '', hash);
@@ -76,22 +76,22 @@ describe('Patrones de Devoluciones', () => {
       expect(first.querySelector('.pat-pct')).toHaveTextContent('0%');
     });
 
-    it.each(['supplier', 'purchase', 'model'] as const)('keeps the existing empty state when every %s group has zero problems', async groupBy => {
+    it.each(['supplier', 'purchase', 'model'] as const)('shows a clear empty state when every %s group has zero problems', async groupBy => {
       layout.phone = phone;
       api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup]);
-      const { container } = mount(<ReturnsPatterns groupBy={groupBy} requestedGroup={zeroGroup.key} />);
+      mount(<ReturnsPatterns groupBy={groupBy} requestedGroup={zeroGroup.key} />);
       await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
       expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
       expect(screen.queryByRole('region')).not.toBeInTheDocument();
-      expect(container.querySelector('.desk-app')).toBeEmptyDOMElement();
+      expect(screen.getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
     });
   });
 
-  it('switches between claims and all three server groupings without mixing rows', async () => {
+  it('opens with its own header and switches all three server groupings without mixing rows', async () => {
     api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group]));
     mount();
-    expect(api.fetchReturnPatterns).not.toHaveBeenCalled();
-    navigate(returnPatternsHash());
+    expect(screen.getByRole('heading', { name: 'Patrones', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Devoluciones' })).not.toBeInTheDocument();
     await screen.findByTestId('pattern-supplier');
     expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'supplier');
     expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
@@ -103,9 +103,7 @@ describe('Patrones de Devoluciones', () => {
     await screen.findByTestId('pattern-model');
     expect(api.fetchReturnPatterns).toHaveBeenLastCalledWith(ctx.user, 'model');
     expect(screen.queryByText('Ver proveedor')).not.toBeInTheDocument();
-    navigate('#/comercial/devoluciones?view=claims');
-    expect(screen.getByRole('group', { name: 'Estado' })).toBeInTheDocument();
-    expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
   });
 
   it('uses server hot/percent, renders the complete claim reason and real status colors', async () => {
@@ -206,14 +204,13 @@ describe('Patrones de Devoluciones', () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'supplier'));
     mount();
     await screen.findByTestId('pattern-supplier');
-    navigate('#/comercial/devoluciones?view=claims');
-    expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Compra' }));
     act(() => showSupplierPatterns('supplier'));
     await screen.findByTestId('pattern-supplier');
     expect(screen.getByTestId('pattern-supplier')).toHaveClass('on');
   });
 
-  it('shows a skeleton while pending, then no filler for an empty result', async () => {
+  it('shows a skeleton while pending, then a clear empty result', async () => {
     const pending = deferred<ReturnPatternView[]>();
     api.fetchReturnPatterns.mockReturnValueOnce(pending.promise);
     mount(<ReturnsPatterns groupBy="supplier" />);
@@ -223,16 +220,29 @@ describe('Patrones de Devoluciones', () => {
     await act(async () => pending.resolve([]));
     expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
     expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Sin datos|No hay|Todavía/)).not.toBeInTheDocument();
+    expect(screen.getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
   });
 
-  it('omits failed secondary analysis without alerts or retry buttons', async () => {
+  it('distinguishes a failed query from a successful empty result', async () => {
     api.fetchReturnPatterns.mockRejectedValueOnce(new Error('Unavailable'));
     mount(<ReturnsPatterns groupBy="supplier" />);
     await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('No se pudieron cargar los patrones.');
+    expect(screen.queryByTestId('patterns-empty')).not.toBeInTheDocument();
     expect(screen.queryByText(/Reintentar|No hay conexión|Unavailable/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
+  });
+
+  it('keeps the last valid groups and shows an error if revalidation fails', async () => {
+    const view = mount(<ReturnsPatterns groupBy="supplier" />);
+    await screen.findByTestId('pattern-supplier');
+    api.fetchReturnPatterns.mockRejectedValueOnce(new Error('Unavailable'));
+    ctx.inventory = [];
+    view.rerender(tree(<ReturnsPatterns groupBy="supplier" />));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los patrones.');
+    expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
+    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('patterns-empty')).not.toBeInTheDocument();
   });
 
   it('ignores a late supplier response after switching to purchase', async () => {

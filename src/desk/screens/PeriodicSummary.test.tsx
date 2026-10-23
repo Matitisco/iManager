@@ -53,6 +53,7 @@ describe('Resumen periódico', () => {
     mocks.tab = 'periodicSummary';
     mounted.rerender(view());
     await loaded();
+    expect(screen.getByRole('heading', { name: 'Resumen periódico', level: 1 })).toBeVisible();
     expect(screen.getByRole('tab', { name: 'Resumen periódico' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByRole('button', { name: 'Personalizado' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Reportes' }));

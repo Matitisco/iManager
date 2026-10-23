@@ -2,6 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { canonicalHash, configHash, configPlace, tabFromHash, writeHash } from './hash-route';
 
 describe('ruta del escritorio', () => {
+  it.each([
+    ['#/returns?view=patterns', '#/analisis/patrones', 'patterns'],
+    ['#/comercial/devoluciones?view=patterns&groupBy=purchase&group=compra+1', '#/analisis/patrones?groupBy=purchase&group=compra+1', 'patterns'],
+    ['#/returns?view=claims', '#/comercial/devoluciones', 'returns'],
+    ['#/comercial/devoluciones?view=claims', '#/comercial/devoluciones', 'returns'],
+    ['#/analisis/reportes/resumen-periodico', '#/analisis/resumen-periodico', 'periodicSummary'],
+    ['#/periodicSummary?period=latest-month', '#/analisis/resumen-periodico?period=latest-month', 'periodicSummary'],
+    ['#/rep?view=periodic&period=latest-month', '#/analisis/resumen-periodico?period=latest-month', 'periodicSummary'],
+    ['#/stock/catalogo?view=items', '#/stock/catalogo', 'publicCatalog'],
+    ['#/stock/catalogo?view=summary', '#/stock/catalogo', 'publicCatalog'],
+  ])('migrates %s without an extra navigation level', (old, expected, tab) => {
+    expect(canonicalHash(old)).toBe(expected);
+    expect(canonicalHash(expected)).toBe(expected);
+    expect(tabFromHash(old)).toBe(tab);
+    expect(tabFromHash(expected)).toBe(tab);
+  });
+
   it('distingue el resumen periódico de Reportes al recuperar la URL', () => {
     expect(canonicalHash('#/analisis/resumen-periodico')).toBe('#/analisis/resumen-periodico');
     expect(tabFromHash('#/analisis/resumen-periodico')).toBe('periodicSummary');

@@ -24,10 +24,7 @@ for (const device of [
     await openCatalog(); await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
     const slug = link.split('/c/')[1];
-    if (device.mobile) {
-      await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidenav-view-publicCatalog-items').click();
-    }
+    // Summary and equipment now share the same Catálogo destination.
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 14 256GB' }).check();
@@ -87,8 +84,7 @@ for (const device of [
     expect(afterHide.items.map((item: { model: string }) => item.model)).toEqual(['iPhone 14']);
     await loadPublic(link); await expect(lead.getByText('US$ 920')).toHaveCount(0);
     if (device.mobile) {
-      await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidenav-view-publicCatalog-summary').click();
+      await page.getByRole('heading', { name: 'Link público' }).scrollIntoViewIfNeeded();
     }
     await page.screenshot({ path: shots ? `${shots}/issue-341-${device.name}-manage.png` : testInfo.outputPath('manage.png'), fullPage: true });
     if (device.mobile) await page.getByRole('button', { name: 'Editar ›' }).click();

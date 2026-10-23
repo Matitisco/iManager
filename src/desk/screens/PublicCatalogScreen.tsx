@@ -15,7 +15,6 @@ import { ListSkeleton } from '../list-skeleton';
 import { Skeleton } from '../../components/Skeleton';
 import '../../catalog/catalog.css';
 import './public-catalog.css';
-import { useNavigationHash } from '../sidenav-navigation';
 
 const CATALOG_PAGE_SIZE = 16;
 
@@ -26,8 +25,6 @@ export function PublicCatalogScreen() {
   const { publicCatalog: catalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
   const { toast, open, back } = useDesk();
   const phone = usePhoneLayout();
-  const hash = useNavigationHash();
-  const tab = new URLSearchParams(hash.split('?')[1]).get('view') === 'items' ? 'items' : 'summary';
   const [query, setQuery] = useState('');
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -95,7 +92,7 @@ export function PublicCatalogScreen() {
     {loading && !catalog ? <CatalogSkeleton /> : !catalog && unavailable ? null : !catalog ? <div className="cat-card cat-start"><h2>Tu lista de precios pública</h2><p>Elegí los equipos que querés compartir con tus clientes.</p><button className="cat-button dark" disabled={busy} onClick={() => void run(() => savePublicCatalog({ active: true }))}>Crear catálogo</button></div> : <>
       {!phone && counts}
       <div className="cat-layout">
-        {(!phone || tab === 'items') && <section className="cat-card cat-equipment" ref={equipment}>
+        <section className="cat-card cat-equipment" ref={equipment}>
           <div className="cat-card-title">
             <h2>Equipos</h2>
             <small>{page.pages > 1 ? `Página ${page.page} de ${page.pages}` : `${available} ${available === 1 ? 'disponible' : 'disponibles'}`}</small>
@@ -134,13 +131,13 @@ export function PublicCatalogScreen() {
           </div>)}
           {!rows.length && <p className="cat-empty">{catalog.items.length ? 'No hay equipos con esa búsqueda.' : 'Agregá equipos en Inventario para publicarlos.'}</p>}
           <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} pageSize={CATALOG_PAGE_SIZE} />
-        </section>}
-        {(!phone || tab === 'summary') && <aside className="cat-summary">
+        </section>
+        <aside className="cat-summary">
           <section className="cat-card cat-link"><div className="cat-card-title"><h2>Link público</h2><span className={`cat-active${catalog.active ? ' on' : ''}`}>● {catalog.active ? 'Activo' : 'Pausado'}</span></div><div className="cat-link-box"><Link size={16} /><input aria-label="Link público" readOnly value={link} /><button className="cat-button dark" onClick={() => void copy()}>Copiar</button></div><div className="cat-share-actions"><a href={share} target="_blank" rel="noopener noreferrer"><span className="green"><MessageCircle size={20} /></span>WhatsApp</a><button onClick={() => void copy()}><span className="yellow"><Link size={20} /></span>Copiar link</button><a href={link} target="_blank" rel="noopener noreferrer"><span><ExternalLink size={20} /></span>Abrir</a></div></section>
           {phone && counts}
           <section className="cat-card"><div className="cat-card-title"><h2>Reglas y precio</h2><button className="cat-edit" onClick={() => setRules(true)}>Editar ›</button></div><div className="cat-rule-chips">{catalog.hideWithoutStock && <span>Oculta sin stock</span>}{catalog.hideReserved && <span>Oculta reservados</span>}{catalog.minBattery != null && <span>Oculta batería &lt; {catalog.minBattery} %</span>}<span>{catalog.showPrice ? `Precio visible · ${catalog.priceCurrency === 'ORIGINAL' ? 'Como está cargado' : catalog.priceCurrency}` : 'Precio oculto'}</span></div></section>
           <section className="cat-card"><div className="cat-card-title"><h2>Así lo ven tus clientes</h2><a className="cat-edit" href={link} target="_blank" rel="noopener noreferrer">Abrir ›</a></div><CatalogPreview catalog={catalog} storePhone={appSession?.store?.phone ?? null} /></section>
-        </aside>}
+        </aside>
       </div>
     </>}
     {rules && catalog && createPortal(<CatalogRules catalog={catalog} onClose={() => setRules(false)} />, document.querySelector('.desk-app') ?? document.body)}

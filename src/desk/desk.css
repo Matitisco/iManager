@@ -2601,7 +2601,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .sn-children[hidden] { display: none; }
 .sn-children .ditem { gap: 8px; font-size: 13px; padding: 0 10px; }
 .sn-children .dic { display: none; }
-.sn-children .sn-detail { padding-left: 22px; }
 .desk-app .sn-nav button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 @media (max-width:760px) {
   .sn-mobile { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 10px; overflow: visible; }

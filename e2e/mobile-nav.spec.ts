@@ -47,6 +47,36 @@ async function expectFits(page: Page) {
 test.describe('phone navigation', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
+  test('keeps two menu levels and migrates returns links on desktop and mobile', async ({ page, request }, testInfo) => {
+    await mockDollar(page);
+    await bootstrapStoreViaApi(page, request, buildTestEmail(testInfo, 'two-levels'), 'Menú de prueba');
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+      await page.goto('/#/returns?view=patterns');
+      await expect(page).toHaveURL(/#\/analisis\/patrones$/);
+      await expect(page.getByRole('heading', { name: 'Patrones', exact: true })).toBeVisible();
+      await expect(page.getByTestId('patterns-empty')).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Agrupar' })).toBeVisible();
+      if (width === 390) await page.getByTestId('sidebar-tab-more').click();
+      const menu = page.getByRole('navigation', { name: 'Navegación principal' });
+      for (const group of ['comercial', 'stock', 'atencion', 'finanzas', 'analisis', 'cuenta']) {
+        const block = menu.getByTestId(`nav-group-${group}`);
+        const trigger = block.locator('button[aria-expanded]').first();
+        if (await trigger.getAttribute('aria-expanded') === 'false') await trigger.click();
+        await expect(menu.locator('.sn-children:not([hidden])')).toHaveCount(1);
+        await expect(block.locator('.sn-children .sn-detail, .sn-children [aria-expanded], .sn-children .sn-children')).toHaveCount(0);
+      }
+      await openDeskSection(page, 'returns');
+      await expect(page.getByRole('heading', { name: 'Devoluciones', exact: true })).toBeVisible();
+      await expect(page.getByRole('group', { name: 'Estado' })).toBeVisible();
+      await page.goto('/#/returns?view=claims');
+      await expect(page).toHaveURL(/#\/comercial\/devoluciones$/);
+      await page.goto('/#/analisis/reportes/resumen-periodico');
+      await expect(page).toHaveURL(/#\/analisis\/resumen-periodico$/);
+      await expect(page.getByRole('heading', { name: 'Resumen periódico', exact: true })).toBeVisible();
+    }
+  });
+
   test('labels every bar button and keeps other sections in Más', async ({ page, request }, testInfo) => {
     const email = buildTestEmail(testInfo, 'mobile-nav');
     const store = `Nav ${testInfo.parallelIndex}`;
@@ -170,7 +200,9 @@ test.describe('phone navigation', () => {
       await expect(staff.getByTestId('sidebar-tab-notifications')).toBeHidden();
       await expect(staff.getByTestId('sidebar-tab-cash')).toHaveCount(0);
       await expect(staff.getByTestId('sidebar-tab-reports')).toHaveCount(0);
+      await staff.getByTestId('nav-group-analisis').getByRole('button', { name: 'Análisis' }).click();
       await expect(staff.getByTestId('sidebar-tab-commissions')).toContainText('Mis comisiones');
+      await expect(staff.getByTestId('sidebar-tab-patterns')).toBeVisible();
       await expect(staff.getByText(/Tentativo/)).toHaveCount(0);
       await staff.setViewportSize({ width: 360, height: 800 });
       await expectFits(staff);

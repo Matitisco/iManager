@@ -38,8 +38,8 @@ describe('sidenav accordion', () => {
     fireEvent.click(summary);
     expect(onOpen).toHaveBeenCalledWith('periodicSummary', undefined);
     view.rerender(<SidenavNavigation {...props} activeHash="#/comercial/devoluciones?view=patterns" />);
-    expect(screen.getByRole('button', { name: 'Análisis' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'Comercial' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Análisis' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Comercial' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Patrones' })).toHaveAttribute('aria-current', 'page');
     view.rerender(<SidenavNavigation {...props} activeHash="#/cuenta/configuracion" />);
     expect(screen.getByRole('button', { name: 'Cuenta' })).toHaveAttribute('aria-expanded', 'true');
@@ -75,18 +75,25 @@ describe('sidenav accordion', () => {
     expect(screen.getByRole('button', { name: 'Atención' })).toHaveFocus();
   });
 
-  it('exposes claims and mobile catalog views with one current destination', () => {
+  it.each([false, true])('has only group → destination on desktop/mobile=%s', mobile => {
     const onOpen = vi.fn();
-    const props = { nav: owner, pending: EMPTY_PENDING, mobile: true, onOpen };
+    const props = { nav: owner, pending: EMPTY_PENDING, mobile, onOpen };
     const view = render(<SidenavNavigation {...props} activeHash="#/comercial/devoluciones" />);
-    expect(screen.getByRole('button', { name: 'Reclamos' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Devoluciones' })).toHaveAttribute('aria-current', 'page');
+    expect(within(screen.getByTestId('nav-group-comercial')).getAllByRole('button').map(item => item.textContent)).toEqual(['Comercial', 'Ventas', 'Canjes', 'Devoluciones']);
+    expect(screen.queryByText('Reclamos')).not.toBeInTheDocument();
+    for (const panel of document.querySelectorAll('.sn-children')) {
+      expect(panel.querySelector('.sn-children, .sn-detail, [aria-expanded]')).toBeNull();
+      expect([...panel.children].every(item => item.tagName === 'BUTTON')).toBe(true);
+    }
+    view.rerender(<SidenavNavigation {...props} activeHash="#/analisis/patrones" />);
+    expect(screen.getByRole('button', { name: 'Patrones' })).toHaveAttribute('aria-current', 'page');
     fireEvent.click(screen.getByRole('button', { name: 'Patrones' }));
-    expect(onOpen).toHaveBeenCalledWith('returns', '#/comercial/devoluciones?view=patterns');
+    expect(onOpen).toHaveBeenCalledWith('patterns', undefined);
+    expect(screen.getByRole('button', { name: 'Resumen periódico' }).parentElement).toBe(screen.getByRole('button', { name: 'Reportes' }).parentElement);
     view.rerender(<SidenavNavigation {...props} activeHash="#/stock/catalogo?view=items" />);
-    expect(screen.getByTestId('sidenav-view-publicCatalog-items')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Catálogo' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByText('Resumen')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Resumen' }));
-    expect(onOpen).toHaveBeenCalledWith('publicCatalog', '#/stock/catalogo?view=summary');
   });
-
 });

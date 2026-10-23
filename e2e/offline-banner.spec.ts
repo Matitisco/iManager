@@ -26,10 +26,7 @@ for (const device of [
     await openDeskSection(page, 'publicCatalog');
     await page.getByRole('button', { name: 'Crear catálogo' }).click();
     const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
-    if (device.mobile) {
-      await page.getByTestId('sidebar-tab-more').click();
-      await page.getByTestId('sidenav-view-publicCatalog-items').click();
-    }
+    // Summary and equipment now share the same Catálogo destination.
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
     await page.getByRole('button', { name: 'Mostrar', exact: true }).click();

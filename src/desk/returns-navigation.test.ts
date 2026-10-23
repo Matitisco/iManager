@@ -6,7 +6,7 @@ describe('supplier to return patterns navigation', () => {
   it('preserves the encoded supplier identity and the canonical returns route', () => {
     const hash = returnPatternsHash('supplier', 'supplier / ñ');
     expect(returnsView(hash)).toEqual({ patterns: true, groupBy: 'supplier', group: 'supplier / ñ' });
-    expect(tabFromHash(hash)).toBe('returns');
+    expect(tabFromHash(hash)).toBe('patterns');
     expect(canonicalHash(hash)).toBe(hash);
   });
   it('validates grouping, defaults to claims and ignores pattern queries on other sections', () => {

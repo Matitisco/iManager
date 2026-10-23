@@ -54,6 +54,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'expenses', label: 'Gastos', subtitle: 'Lo que resta en la ganancia neta', icon: 'card', group: 'finanzas' },
   { id: 'suppliers', label: 'Proveedores', subtitle: 'Compras y origen del stock', icon: 'store', group: 'finanzas' },
   { id: 'reports', label: 'Reportes', subtitle: 'Ventas, stock, canjes, clientes y servicio', icon: 'bars', group: 'analisis' },
+  { id: 'patterns', label: 'Patrones', subtitle: '', icon: 'bars', group: 'analisis' },
   { id: 'commissions', label: 'Comisiones', ownLabel: 'Mis comisiones', subtitle: 'Vendedores y pagos', ownSubtitle: 'Solo las tuyas, de este mes', icon: 'comisiones', group: 'analisis' },
   { id: 'history', label: 'Historial', subtitle: 'Quién hizo qué y cuándo', icon: 'clock', group: 'analisis' },
   { id: 'periodicSummary', label: 'Resumen periódico', subtitle: '', icon: 'bars', group: 'analisis' },
@@ -67,7 +68,7 @@ export function sectionAllowed(id: DeskTab, stored: string[] | null | undefined,
   if (id === 'billing') return role === 'OWNER';
   if (id === 'expenses') return role === 'OWNER';
   if (id === 'suppliers' || id === 'stockCount') return canOpenSection('inventory', stored, role);
-  if (id === 'returns') return canOpenSection('sales', stored, role);
+  if (id === 'returns' || id === 'patterns') return canOpenSection('sales', stored, role);
   if (id === 'followups') return canOpenSection('clients', stored, role);
   if (id === 'history') return canOpenHistory(stored, role);
   if (id === 'periodicSummary') return canOpenSection('reports', stored, role);

@@ -79,7 +79,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const stockRows = data?.stock?.items.map(item => <StockRow key={item.id} item={item} />) ?? [];
   const fullRows = breakdown === 'sales' ? salesRows : breakdown === 'returns' ? returnRows : data?.stock?.items.map(item => <StockRow key={item.id} item={item} full />) ?? [];
   return <div className="dscreen reports-screen periodic-summary">
-    <ScreenTitle title="Reportes" back={back} desktop={null} navigation={navigation} />
+    <ScreenTitle title="Resumen periódico" back={back} desktop={null} navigation={navigation} />
     <div className="periodic-picker" role="group" aria-label="Período del resumen">
       <button type="button" className={`gchip sm${selection === 'latest-half' ? ' on' : ''}`} aria-pressed={selection === 'latest-half'} onClick={() => selectPeriod('latest-half')}>Última quincena</button>
       <button type="button" className={`gchip sm${selection === 'latest-month' ? ' on' : ''}`} aria-pressed={selection === 'latest-month'} onClick={() => selectPeriod('latest-month')}>Último mes</button>

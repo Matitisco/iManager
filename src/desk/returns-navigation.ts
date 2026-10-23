@@ -6,16 +6,16 @@ export function returnsView(hash: string) {
   const requested = query.get('groupBy');
   const groupBy: PatternGroupBy = requested === 'purchase' || requested === 'model' ? requested : 'supplier';
   return {
-    patterns: tabFromHash(hash) === 'returns' && query.get('view') === 'patterns',
+    patterns: tabFromHash(hash) === 'patterns',
     groupBy,
     group: query.get('group') ?? undefined,
   };
 }
 
 export function returnPatternsHash(groupBy: PatternGroupBy = 'supplier', group?: string) {
-  const query = new URLSearchParams({ view: 'patterns', groupBy });
+  const query = new URLSearchParams({ groupBy });
   if (group) query.set('group', group);
-  return `#/${ROUTE.returns}?${query}`;
+  return `#/${ROUTE.patterns}?${query}`;
 }
 
 export function showSupplierPatterns(supplierId: string) {
