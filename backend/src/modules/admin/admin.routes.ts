@@ -1,3 +1,4 @@
+import { listTacMisses } from '../imei-tac-misses/service.js';
 import { getFunnel, getTimeline } from './funnel.service.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -11,6 +12,10 @@ const querySchema = z.object({
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (_request, reply) => { reply.header("cache-control", "no-store"); });
+  app.get('/imei-tac-misses', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).strict().parse(request.query);
+    return listTacMisses(limit);
+  });
   app.get('/funnel', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
     reply.header('cache-control', 'no-store');
     const query = z.object({ range: z.enum(['7d', '30d', 'all']).default('30d'), tests: z.enum(['hide', 'show']).default('hide') }).strict().parse(request.query);

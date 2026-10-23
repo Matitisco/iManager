@@ -1,3 +1,4 @@
+import { setTacReportUser } from '../lib/report-unknown-tac';
 import { createRefreshGate } from '../lib/list-sync';
 import { authUserView, sameAuthIdentity } from '../lib/auth-identity';
 import { useStableState } from '../lib/stable-state';
@@ -274,6 +275,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (!currentUser || firebaseUser.current?.uid !== currentUser.uid) clearDashboardCache();
       firebaseUser.current = currentUser;
       setAnalyticsUser(currentUser);
+      setTacReportUser(currentUser);
       setLoading(false);
       if (!currentUser) {
         clearSessionCaches();

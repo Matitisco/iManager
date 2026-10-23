@@ -23,6 +23,7 @@ import { displayQuality, isUsedCondition, qualityDetail } from '../quality';
 import { confirmScan } from '../scan/beep';
 import { CameraScanner } from '../scan/CameraScanner';
 import { draftFromCode, type ScanDraft } from '../scan/draft';
+import { useModelAutofill } from '../scan/use-model-autofill';
 import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
 import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, signalDesk, useDesk } from '../ui';
 import { ScanReviewSheet, scanProduct } from './scan-review';
@@ -151,6 +152,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   ];
   const models = [...new Set([...MODELS, ...inventory.map((item) => item.model).filter(Boolean)])];
   const [model, setModel] = useState(current?.model ?? '');
+  const { editModel, fillModel } = useModelAutofill(model, setModel, !current);
   const [capacity, setCapacity] = useState(current?.capacity ?? '');
   const capacityOptions = uniqueCapacityChoices(catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item }))), capacity);
   const [color, setColor] = useState(current?.color ?? '');
@@ -208,7 +210,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
     <>
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} onClose={close} busy={busy} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
-      <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { setModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
+      <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { editModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
       <Segs options={capacityOptions} value={capacity} onChange={setCapacity} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
@@ -219,7 +221,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       <div className="scan-block">
         <div className="scan-imei">
           <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
-            <input ref={imeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+            <input ref={imeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { const value = event.target.value.replace(/\D/g, '').slice(0, 15); setImei(value); fillModel(value); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
               const pushed = wedge.current.push(event.key);
               if (current) return;
               if (pushed.type === 'enter') {
@@ -238,6 +240,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
               if (parsed.rich) openReview(parsed);
               else if (parsed.imei) {
                 setImei(parsed.imei);
+                fillModel(parsed.imei);
                 focusNextControl(event.currentTarget);
               }
             }} />
@@ -326,7 +329,11 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       });
       }} />
     </Sheet>
-    {camera && !current ? <CameraScanner allowCameraSwitch={false} onClose={() => setCamera(false)} onManual={() => { setCamera(false); imeiRef.current?.focus(); }} onUse={openReview} /> : null}
+    {camera && !current ? <CameraScanner allowCameraSwitch={false} onClose={() => setCamera(false)} onManual={() => { setCamera(false); imeiRef.current?.focus(); }} onUse={(parsed) => {
+      if (parsed.rich) { openReview(parsed); return; }
+      setCamera(false);
+      if (parsed.imei) { setImei(parsed.imei); fillModel(parsed.imei); }
+    }} /> : null}
     </>
   );
 }

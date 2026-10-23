@@ -77,7 +77,7 @@ export function ScanReviewHost({
     />
   );
 }
-import { boxLabel, detectedWasEdited, type ScanFieldKey } from '../scan/draft';
+import { boxLabel, detectedWasEdited, editScanField, type ScanFieldKey } from '../scan/draft';
 import { PhoneIcon } from '../scan/icons';
 
 const CONDITIONS = [
@@ -138,14 +138,7 @@ export function ScanReviewSheet({
   const incomplete = missingModel || missingPrice || Boolean(imeiError);
 
   const setField = (key: ScanFieldKey, value: string) => {
-    setDraft((current) => ({
-      ...current,
-      [key]: value,
-      touched: {
-        ...current.touched,
-        [key]: current.detected[key] ? value.trim() !== initial[key].trim() : current.touched[key],
-      },
-    }));
+    setDraft((current) => editScanField(current, key, value));
   };
 
   const moneyInput = (key: 'price' | 'cost', raw: string) => {
@@ -183,20 +176,20 @@ export function ScanReviewSheet({
             <em className={edited ? 'editado' : ''}>{edited ? 'editado' : 'detectado'}</em>
             <button type="button" className="wlink" onClick={() => setEditing((value) => !value)}>{editing ? 'Listo' : 'Editar'}</button>
           </div>
-          {labeled ? (
+          {labeled || draft.detected.model ? (
             <div className="scan-device">
               <span className="scan-device-icon"><PhoneIcon /></span>
               <div>
-                {editing ? (
+                {editing && labeled ? (
                   <input aria-label="Modelo" value={draft.model} placeholder="Ej. iPhone 13" onChange={(event) => setField('model', event.target.value)} />
                 ) : (
                   <b>{[draft.model, draft.capacity].filter(Boolean).join(' · ') || 'Completá el modelo'}</b>
                 )}
-                {editing ? (
+                {labeled ? editing ? (
                   <input aria-label="Color detectado" value={draft.color} placeholder="Color" onChange={(event) => setField('color', event.target.value)} />
                 ) : (
                   <small>{draft.color || 'Completá el color'}</small>
-                )}
+                ) : null}
               </div>
             </div>
           ) : null}

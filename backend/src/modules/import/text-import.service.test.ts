@@ -1,3 +1,5 @@
+import { SAMSUNG_MODELS } from '../../lib/samsung-models.js';
+import { INVENTORY_MODELS } from '../../lib/inventory-models.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -195,4 +197,19 @@ it('enforces overall timeout across successful slow blocks', async () => {
   const check = expect(task).rejects.toThrow('tardó demasiado');
   await vi.advanceTimersByTimeAsync(TEXT_LIMITS.totalMs + TEXT_LIMITS.callMs);
   await check;
+});
+
+it('accepts every generated Samsung suggestion without confusing Plus and base models', () => {
+  expect(SAMSUNG_MODELS).toHaveLength(188);
+  for (const model of SAMSUNG_MODELS) {
+    expect(INVENTORY_MODELS).toContain(model);
+    expect(normalizeTextModel(model.toLowerCase())).toEqual({ model, matched: true });
+  }
+  expect(normalizeTextModel('Samsung Galaxy S24+')).toEqual({ model: 'Samsung Galaxy S24+', matched: true });
+  expect(normalizeTextModel('Samsung Galaxy Note10+')).toEqual({ model: 'Samsung Galaxy Note10+', matched: true });
+  const family = (model: string) => /^Samsung Galaxy (Note|[SZAMF])/.exec(model)?.[1];
+  const families = [...new Set(SAMSUNG_MODELS.map(family))];
+  expect(families).toEqual(['S', 'Z', 'A', 'Note', 'M', 'F']);
+  const firstSamsung = INVENTORY_MODELS.indexOf(SAMSUNG_MODELS[0]);
+  expect(INVENTORY_MODELS.slice(0, firstSamsung).every(model => model.startsWith('iPhone'))).toBe(true);
 });

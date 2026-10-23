@@ -1,3 +1,4 @@
+import { imeiTacMissRoutes } from './modules/imei-tac-misses/routes.js';
 import { sectionViewsRoutes } from './modules/section-views/routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
 import { billingRoutes, mercadoPagoWebhookRoutes } from './modules/billing/routes.js';
@@ -78,6 +79,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(healthRoutes, { prefix: "/api" });
   app.register(authRoutes, { prefix: "/api" });
   app.register(analyticsRoutes, { prefix: "/api" });
+  app.register(imeiTacMissRoutes, { prefix: "/api" });
   app.register(gettingStartedRoutes, { prefix: "/api" });
   app.register(onboardingRoutes, { prefix: "/api" });
   app.register(depositsRoutes, { prefix: '/api/clients' });

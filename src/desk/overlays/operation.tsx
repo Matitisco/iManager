@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { parseDeviceCode } from '../../lib/device-scan';
+import { useModelAutofill } from '../scan/use-model-autofill';
 import { IMEI_FORMAT_MESSAGE, IMEI_OPTIONAL_LABEL, imeiFormatError } from '../../lib/imei';
 import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { voidedSale } from '../archive-cache';
@@ -104,6 +105,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
   const [settlement, setSettlement] = useState<SettlementState>({ active: false, error: null, payload: null });
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
+  const { editModel: editReceived, fillModel: fillReceived } = useModelAutofill(received, (model) => {
+    dirty.current.add('received');
+    setReceived(model);
+  });
   const [imei, setImei] = useState(currentTrade?.deviceReceivedImei ?? '');
   const [take, setTake] = useState(currentTrade ? (money.inputValue(currentTrade.takeValue, currentTrade.currency) || '0') : '');
   const [technicalStatus, setTechnicalStatus] = useState(currentTrade?.status || 'PENDIENTE');
@@ -403,9 +408,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {hasTrade ? (
         <>
           <div className="frow">
-            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { dirty.current.add('received'); setReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
+            <Field label="Equipo recibido" error={bad.received}><input value={received} onChange={(event) => { editReceived(event.target.value); clearBad(setBad, 'received'); }} placeholder="Ej. iPhone 12" /></Field>
             <div className="scan-imei">
-              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input ref={tradeImeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { dirty.current.add('imei'); setImei(event.target.value.replace(/\D/g, '').slice(0, 15)); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
+              <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}><input ref={tradeImeiRef} value={imei} inputMode="numeric" maxLength={15} autoComplete="off" onChange={(event) => { dirty.current.add('imei'); const value = event.target.value.replace(/\D/g, '').slice(0, 15); setImei(value); fillReceived(value); clearBad(setBad, 'imei'); }} placeholder="15 dígitos" onKeyDown={(event) => {
                 const pushed = tradeWedge.current.push(event.key);
                 if (pushed.type !== 'scan') return;
                 event.preventDefault();
@@ -414,7 +419,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
                 confirmScan();
                 dirty.current.add('imei');
                 setImei(parsed.imei);
-                if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+                fillReceived(parsed.imei, [parsed.model, parsed.capacity].filter(Boolean).join(' '));
                 focusNextControl(event.currentTarget);
               }} /></Field>
               <ScanCameraButton onClick={() => setCameraFor('trade')} />
@@ -573,7 +578,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
             confirmScan();
             dirty.current.add('imei');
             setImei(parsed.imei);
-            if (parsed.model && !received.trim()) { dirty.current.add('received'); setReceived([parsed.model, parsed.capacity].filter(Boolean).join(' ')); }
+            fillReceived(parsed.imei, [parsed.model, parsed.capacity].filter(Boolean).join(' '));
             if (tradeImeiRef.current) focusNextControl(tradeImeiRef.current);
             return;
           }

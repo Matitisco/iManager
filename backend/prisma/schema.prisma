@@ -1185,3 +1185,12 @@ model SectionRecordView {
   @@index([storeId])
   @@index([userId])
 }
+
+model ImeiTacMiss {
+  tac         String   @id @db.VarChar(8)
+  count       Int      @default(1)
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now()) @updatedAt
+
+  @@map("ImeiTacMiss")
+}

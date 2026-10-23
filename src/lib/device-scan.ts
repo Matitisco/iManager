@@ -1,5 +1,6 @@
 import { lookupPartNumber } from './apple-part-numbers';
 import { imeiPassesLuhn } from './imei';
+import { imeiSpecs } from './imei-tac';
 
 export type ParsedDeviceCode = {
   imei: string | null;
@@ -63,7 +64,7 @@ export function parseDeviceCode(raw: string): ParsedDeviceCode {
     imei,
     serial,
     partNumber,
-    model: part?.model ?? null,
+    model: part?.model ?? (imei ? imeiSpecs(imei)?.model : null) ?? null,
     capacity: part?.capacity ?? null,
     color: part?.color ?? null,
     rich: Boolean(partNumber || serial),
