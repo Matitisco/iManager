@@ -28,10 +28,10 @@ import { ExpenseForm } from './overlays/expense';
 import { ReturnDelete, ReturnDetail, ReturnForm } from './overlays/return-case';
 import { SupplierDetail, SupplierForm } from './overlays/supplier';
 
-export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void }) {
+export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void | Promise<void> }) {
   if (!overlay) return null;
   if (overlay.type === 'ctx') return <ContextMenu overlay={overlay} />;
-  if (overlay.type === 'import') return <ImportHost kind={overlay.kind} supplierId={overlay.supplierId} supplierName={overlay.supplierName} />;
+  if (overlay.type === 'import') return <ImportHost kind={overlay.kind} supplierId={overlay.supplierId} supplierName={overlay.supplierName} onSaved={onSaved} />;
   return <OverlayBody key={`${overlay.type}-${'id' in overlay ? overlay.id : ''}`} overlay={overlay} onSaved={onSaved} />;
 }
 
@@ -77,7 +77,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
   );
 }
 
-function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => void }) {
+function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => void | Promise<void> }) {
   const desk = useDesk();
   const ctx = useAppContext();
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +89,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     setError(null);
     try {
       const result = await action();
-      onSaved?.();
+      await onSaved?.();
       if (!options?.keepOpen) desk.close();
       options?.afterSuccess?.();
       const summary = result && typeof result === 'object' && 'summary' in result && typeof result.summary === 'string'

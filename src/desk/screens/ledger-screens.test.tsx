@@ -7,7 +7,7 @@ import { SuppliersScreen } from './SuppliersScreen';
 
 const context = vi.hoisted(() => ({
   user: { uid: 'user-1' },
-  suppliers: null as Array<{ id: string; name: string; phone: null; email: null; notes: null; deviceCount: number; problemCount: number; deletedAt: null }> | null,
+  suppliers: null as Array<{ id: string; name: string; phone: null; email: null; notes: null; deviceCount: number; problemCount: number; lastPurchasedAt?: string | null; deletedAt: null }> | null,
   supplierError: '',
   expenses: null as Array<{ id: string; date: string; category: string; amount: number; currency: 'ARS'; exchangeRate: null; notes: null; deletedAt: null }> | null,
   expensesLoaded: false,
@@ -35,6 +35,21 @@ describe('proveedores y gastos', () => {
     desk(<ExpensesScreen />);
     expect(screen.getByTestId('expenses-loading')).toBeInTheDocument();
     expect(screen.queryByTestId('expenses-empty')).not.toBeInTheDocument();
+  });
+
+  it('shows problem pills only for positive counts, and omits missing purchase dates', () => {
+    context.suppliers = [
+      { id: 'a', name: 'Andes', phone: null, email: null, notes: null, deviceCount: 18, problemCount: 5, lastPurchasedAt: '2026-10-02', deletedAt: null },
+      { id: 'b', name: 'Cuyo', phone: null, email: null, notes: null, deviceCount: 7, problemCount: 0, lastPurchasedAt: null, deletedAt: null },
+    ];
+    desk(<SuppliersScreen />);
+    expect(screen.getByText('18 equipos · última compra 02/10')).toBeInTheDocument();
+    const pill = screen.getByLabelText('5 con problemas');
+    expect(pill.querySelector('[data-icon="en-revision"]')).not.toBeNull();
+    expect(pill.querySelector('.sup-pill-t')).toHaveTextContent('con problemas');
+    expect(screen.queryByLabelText('0 con problemas')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Cuyo/ })).toHaveTextContent('7 equipos');
+    expect(screen.getByRole('button', { name: /Cuyo/ })).not.toHaveTextContent(/última compra|Sin proveedor|—/);
   });
 
   it('muestra el vacío recién cuando la lista llegó vacía', () => {
