@@ -2532,6 +2532,7 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .return-delete .sheet-scroll { padding-top: 22px; }
 @media (max-width: 760px) {
   .desk-app .sheet.return-sheet, .desk-app .sheet.return-delete { max-height: min(88dvh, calc(100dvh - 48px)); }
+  .return-history-sheet .sheet-scroll { padding-top: var(--space-5); }
   .return-sheet .sheet-scroll { gap: 18px; padding: 22px 20px 24px; }
   .return-sheet .sheet-h, .return-delete .sheet-h { padding: 4px 20px 16px; }
   .return-sheet .sheet-h h3, .return-delete .sheet-h h3 { margin: 0; }
