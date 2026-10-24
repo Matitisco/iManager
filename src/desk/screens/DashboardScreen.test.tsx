@@ -80,7 +80,7 @@ describe('Dashboard aprobado', () => {
     await screen.findByText('$ 12,69M');
     api.fetchReportsOverview.mockRejectedValueOnce(cause);
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
-    await user.click(screen.getByRole('button', { name: 'Hoy', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Hoy' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Se muestran datos del período anterior.');
     expect(screen.getByText('Venta anterior')).toBeVisible();
@@ -101,7 +101,7 @@ describe('Dashboard aprobado', () => {
     api.fetchReportsOverview.mockReturnValueOnce(old.promise);
     for (const preset of ['Hoy', 'Total']) {
       await user.click(screen.getByRole('button', { name: /Elegir período/ }));
-      await user.click(screen.getByRole('button', { name: preset, exact: true }));
+      await user.click(screen.getByRole('button', { name: preset }));
       await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     }
     await act(async () => old.reject(new Error('500')));
