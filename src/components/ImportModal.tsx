@@ -7,6 +7,7 @@ import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-ma
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
 import { expandTextRows, textRowError } from '../lib/text-import-review';
+import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 import { ListSkeleton } from '../desk/list-skeleton';
 import './ImportModal.css';
@@ -67,6 +68,8 @@ export const ImportModal: React.FC<Props> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [step, setStep] = useState<Step>('upload');
+  const [readingHeight, setReadingHeight] = useState(0);
+  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => { onStageChange?.(step === 'upload' ? 'file' : step === 'reading' ? 'analyze' : step === 'adjust' ? 'mapping' : 'review'); }, [step, onStageChange]);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -85,6 +88,11 @@ export const ImportModal: React.FC<Props> = ({
   const editorRef = useRef<HTMLFieldSetElement>(null);
   useEffect(() => { if (editing !== null) editorRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [editing]);
   useEffect(() => () => { requestRef.current += 1; }, []);
+
+  const beginReading = () => {
+    setReadingHeight(bodyRef.current?.getBoundingClientRect().height ?? 0);
+    setStep('reading');
+  };
 
   const applyResult = (analysis: ImportAnalysis) => {
     setPlan(analysis.plan);
@@ -109,7 +117,7 @@ export const ImportModal: React.FC<Props> = ({
       return;
     }
     const requestId = ++requestRef.current;
-    setStep('reading');
+    beginReading();
     try {
       const analysis = await onAnalyzeText(value);
       if (requestRef.current !== requestId) return;
@@ -155,7 +163,7 @@ export const ImportModal: React.FC<Props> = ({
         return;
       }
       setSheets(nextSheets);
-      setStep('reading');
+      beginReading();
       const analysis = await onAnalyze(nextSheets);
       if (requestRef.current !== requestId) return;
       applyResult(analysis);
@@ -216,9 +224,12 @@ export const ImportModal: React.FC<Props> = ({
   const rowErrors = rows.map((row) => {
     if (textPreview) return textRowError(row);
     const missing = fields.filter((field) => field.required && !row[field.key]?.trim());
-    return missing.length ? `Falta ${missing.map((field) => field.label).join(', ')}` : null;
+    if (missing.length) return `Falta ${missing.map((field) => field.label).join(', ')}`;
+    if (fields.some((field) => field.key === 'amount') && parseImportNumber(row.amount) === undefined) return 'Precio inválido';
+    return null;
   });
   const busy = importing || applying || step === 'reading';
+  const resultHasErrors = Boolean(result?.errors.length);
   const listLabel = `Listado de ${nouns.many === 'filas' ? 'equipos' : nouns.many}`;
   const placeholder = onAnalyzeText
     ? 'iPhone 13 128GB Midnight 89% US$ 420\n13 pro max 256 azul bat 85 520usd'
@@ -229,7 +240,7 @@ export const ImportModal: React.FC<Props> = ({
         : 'Modelo,Precio\niPhone 13,420';
 
   const body = (
-    <div className="inv-import-body">
+    <div ref={bodyRef} className="inv-import-body" style={step === 'reading' ? { minHeight: readingHeight } : undefined}>
       {step === 'upload' && (
         <div className="import-source">
           <div className="import-modes" role="group" aria-label="Origen del listado">
@@ -423,13 +434,13 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'result' && result && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-            <CheckCircle2 size={22} className="text-green-600 shrink-0" />
+          <div className={`flex items-center gap-3 p-4 border rounded-xl ${resultHasErrors ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+            {resultHasErrors ? <AlertCircle size={22} className="text-red-600 shrink-0" /> : <CheckCircle2 size={22} className="text-green-600 shrink-0" />}
             <div>
-              <p className="font-semibold text-green-800">Importación completada</p>
-              <p className="text-sm text-green-700 mt-0.5">
+              <p className={`font-semibold ${resultHasErrors ? 'text-red-800' : 'text-green-800'}`}>{resultHasErrors ? 'Importación con errores' : 'Importación completada'}</p>
+              <p className={`text-sm mt-0.5 ${resultHasErrors ? 'text-red-700' : 'text-green-700'}`}>
                 {result.imported} creados · {result.updated} actualizados
-                {result.errors.length > 0 && ` · ${result.errors.length} errores`}
+                {result.errors.length > 0 && ` · ${result.errors.length} ${result.errors.length === 1 ? 'error' : 'errores'}`}
               </p>
             </div>
           </div>

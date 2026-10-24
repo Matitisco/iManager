@@ -199,6 +199,41 @@ describe("ejemplo stock heuristic", () => {
 });
 
 describe("battery and model normalization", () => {
+  it('keeps recognizable sales with invalid prices visible instead of silently dropping them', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const result = await analyzeImport({ section: 'sales', currency: 'ARS', sheets: [{ name: 'Ventas', rows: [
+      ['Fecha', 'Cliente', 'Equipo', 'Precio'],
+      ['22/10/2026', 'Lucía', 'iPhone 13', 'importe inválido'],
+      ['nota', 'llamar al cliente mañana', '', ''],
+    ] }] });
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ clientName: 'Lucía', device: 'iPhone 13', amount: 'importe inválido' });
+  });
+
+  it('preserves explicit inventory currencies in a mixed sheet without converting amounts', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Equipos', rows: [
+      ['Modelo', 'Precio', 'Moneda', 'Costo'],
+      ['iPhone 13', '420,50', 'USD', '350,00'],
+      ['iPhone 14', '850.000', 'ARS', '700.000'],
+      ['iPhone 15', 'US$ 650,50', '', '500'],
+    ] }] });
+    expect(result.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model: 'iPhone 13', price: '420.5', currency: 'USD', cost: '350' }),
+      expect.objectContaining({ model: 'iPhone 14', price: '850000', currency: 'ARS', cost: '700000' }),
+      expect.objectContaining({ model: 'iPhone 15', price: '650.5', currency: 'USD' }),
+    ]));
+    expect(result.plan[0].mapping).toContainEqual({ header: 'Moneda', field: 'currency' });
+  });
+
+  it('keeps the currency of a USD-only inventory price column in an ARS store', async () => {
+    delete process.env.OPENAI_API_KEY;
+    const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Equipos', rows: [
+      ['Modelo', 'Precio USD'], ['iPhone 13', '420,50'],
+    ] }] });
+    expect(result.rows[0]).toMatchObject({ price: '420.5', currency: 'USD' });
+  });
+
   it("turns fractions and ranges into percentages", () => {
     expect(normalizeBattery("1")).toBe("100%");
     expect(normalizeBattery("0.96")).toBe("96%");
