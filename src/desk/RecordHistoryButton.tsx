@@ -66,7 +66,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
     return () => { active = false; };
   }, [user, entityType, entityId, attempt]);
 
-  return <Sheet title="Historial" subtitle={label} className="record-history-sheet" onClose={onClose}>
+  return <Sheet title="Historial" className="record-history-sheet hist-screen" mobileBack onClose={onClose}>
     {events.length ? <ol className="record-history-timeline">
       {events.map(event => <li key={event.id}>
         <b>{historyRecordAction(event) || event.title}</b>

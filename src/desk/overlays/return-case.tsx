@@ -11,7 +11,7 @@ import { useAppContext } from '../../context/AppContext';
 import { saleWarrantyView } from '../../lib/warranty';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus, ReturnCaseView } from '../../services/returns-api';
-import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel, isVoidRow } from '../format';
+import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel, isVoidRow, saleBuyer } from '../format';
 import { Actions, Field, Pill, Sheet, useDesk } from '../ui';
 
 const RESOLUTIONS: Array<{ id: ReturnResolution; label: string }> = [
@@ -35,7 +35,7 @@ function today() {
 }
 
 export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
-  const { sales = [], inventory = [], returns, createReturn, updateReturn } = useAppContext();
+  const { sales = [], clients = [], inventory = [], returns, createReturn, updateReturn } = useAppContext();
   const { close, toast } = useDesk();
   const phone = usePhoneLayout();
   const completed = sales.filter((sale) => sale.status === 'COMPLETADA' && !sale.voidedAt);
@@ -92,7 +92,7 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
       <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} panel={phone ? 'inline' : 'float'} />
       {current ? <ReturnSummary current={current} /> : <Field label="Venta" error={bad.sale}>
         <DeskSelect label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={setSelected} invalid={Boolean(bad.sale)}
-          options={[{ value: '', label: 'Elegí una venta' }, ...completed.map(row => ({ value: row.id, label: `${row.clientName || 'Sin cliente'} · ${row.deviceLabel || 'Equipo'} · ${formatShortDate(row.date)}` }))]} />
+          options={[{ value: '', label: 'Elegí una venta' }, ...completed.map(row => ({ value: row.id, label: `${saleBuyer(row, clients)} · ${row.deviceLabel || 'Equipo'} · ${formatShortDate(row.date)}` }))]} />
       </Field>}
       {!current && sale ? (
         <div className="return-summary return-sale-summary" data-testid="return-sale">
@@ -244,7 +244,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
     </section>
   </Sheet>
   {historyOpen ? createPortal(<div className="record-history-layer">
-    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet" overlayClassName={overlayClassName} onClose={() => setHistoryOpen(false)}
+    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet hist-screen" mobileBack overlayClassName={overlayClassName} onClose={() => setHistoryOpen(false)}
       footer={phone ? null : <button className="btn2 s" type="button" onClick={() => setHistoryOpen(false)}>Cerrar</button>}>
       <ol className="return-timeline" data-testid="return-events">
         {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>
