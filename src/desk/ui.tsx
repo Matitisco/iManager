@@ -1,4 +1,4 @@
-import React, { Children, cloneElement, isValidElement, useContext, useEffect, useId, useRef, useState } from 'react';
+import React, { Children, cloneElement, isValidElement, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useCatalogs } from './catalog';
 import { isVoidRow, statusColor, statusLabel } from './format';
@@ -91,6 +91,21 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const [menuLeft, setMenuLeft] = useState<number>();
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      if (!box.current || !menu.current) return;
+      const anchor = box.current.getBoundingClientRect();
+      const width = menu.current.getBoundingClientRect().width;
+      const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - 12 - width));
+      setMenuLeft(left - anchor.left);
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const down = (event: MouseEvent) => {
@@ -113,7 +128,7 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
         <ChevronIcon />
       </button>
       {open && (
-        <div className="menu">
+        <div ref={menu} className="menu" style={menuLeft === undefined ? undefined : { left: menuLeft, right: 'auto' }}>
           {options.map((option) => (
             <button key={option} type="button" className={option === value ? 'on' : ''} onClick={() => { onChange(option); setOpen(false); }}>
               {option}

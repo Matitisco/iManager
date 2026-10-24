@@ -1,0 +1,4 @@
+- [x] Ajustar posición horizontal de MenuButton.
+- [x] Verificar bordes, selección, Escape y resize; Chromium desktop/mobile.
+- [x] TypeScript frontend/backend y tests relacionados con lock y máximo dos workers.
+- [x] PR con etiqueta pendiente de revisión y merge con CI verde.
