@@ -183,14 +183,15 @@ function CatalogPreview({ catalog, storePhone }: { catalog: ManagedCatalog; stor
   const [unavailable, setUnavailable] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    setPreview(null); setUnavailable(false);
+    setUnavailable(false);
     void fetchPublicCatalog(catalog.slug, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => {
       if (controller.signal.aborted) return;
       console.warn('No se pudo cargar la vista previa del catálogo.', cause);
+      setPreview(null);
       setUnavailable(true);
     });
     return () => controller.abort();
-  }, [catalog.slug, storePhone]);
+  }, [catalog, storePhone]);
   const phone = preview?.store.phone?.trim() || null;
   const line = [preview?.store.address, preview?.store.hours, phone].filter(Boolean).join(' · ');
   if (unavailable && !preview) return null;

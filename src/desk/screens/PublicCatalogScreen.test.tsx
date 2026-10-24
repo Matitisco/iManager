@@ -385,3 +385,55 @@ describe('catalog rules permissions', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
+
+describe('catalog preview refresh', () => {
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    context.publicCatalog = catalog();
+    context.appSession.store.phone = '11 5555 1234';
+    context.loadPublicCatalog.mockReset();
+    context.loadPublicCatalog.mockImplementation(async () => context.publicCatalog);
+    vi.mocked(fetchPublicCatalog).mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  function preview(items = catalog().items.slice(0, 1)) {
+    return {
+      store: { name: 'QA stock', phone: null, address: null, logoUrl: null, hours: null },
+      active: true, showPrice: true, priceCurrency: 'USD', items,
+    };
+  }
+
+  it.each(['visibility', 'settings'] as const)('refreshes saved %s without clearing the previous preview while pending', async change => {
+    vi.mocked(fetchPublicCatalog).mockResolvedValueOnce(preview());
+    const view = renderScreen();
+    await waitFor(() => expect(document.querySelector('.cat-preview')).toHaveTextContent('iPhone 15'));
+    let finish!: (value: ReturnType<typeof preview>) => void;
+    vi.mocked(fetchPublicCatalog).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    context.publicCatalog = change === 'visibility'
+      ? { ...catalog(), items: catalog().items.map(item => ({ ...item, catalogVisible: false })) }
+      : { ...catalog(), active: false, showPrice: false, priceCurrency: 'ARS' };
+    view.rerenderScreen();
+    await waitFor(() => expect(fetchPublicCatalog).toHaveBeenCalledTimes(2));
+    expect(document.querySelector('.cat-preview')).toHaveTextContent('iPhone 15');
+    expect(screen.queryByTestId('catalog-preview-loading')).not.toBeInTheDocument();
+    await act(async () => { finish(change === 'visibility' ? preview([]) : { ...preview(), active: false }); });
+    expect(document.querySelector('.cat-preview')).toHaveTextContent(change === 'visibility' ? 'Estamos actualizando la lista' : 'Esta lista de precios no está disponible');
+    expect(document.querySelector('.cat-preview')).not.toHaveTextContent('iPhone 15');
+  });
+
+  it('ignores an older preview response after a later catalog refresh', async () => {
+    let oldResponse!: (value: ReturnType<typeof preview>) => void;
+    vi.mocked(fetchPublicCatalog).mockImplementationOnce(() => new Promise(resolve => { oldResponse = resolve; }));
+    const view = renderScreen();
+    await waitFor(() => expect(fetchPublicCatalog).toHaveBeenCalledTimes(1));
+    const firstSignal = vi.mocked(fetchPublicCatalog).mock.calls[0][1];
+    vi.mocked(fetchPublicCatalog).mockResolvedValueOnce(preview([]));
+    context.publicCatalog = { ...catalog(), items: [] };
+    view.rerenderScreen();
+    await waitFor(() => expect(document.querySelector('.cat-preview')).toHaveTextContent('Estamos actualizando la lista'));
+    expect(firstSignal?.aborted).toBe(true);
+    await act(async () => { oldResponse(preview()); });
+    expect(document.querySelector('.cat-preview')).not.toHaveTextContent('iPhone 15');
+  });
+});
