@@ -62,7 +62,7 @@ describe("contratos backend proveedores/patrones #308", () => {
     expect(list.json().suppliers.find((row: { id: string }) => row.id === f.supplier.id)).toMatchObject({ deviceCount: 7, problemCount: 4, claimCount: 3, lastPurchasedAt: "2026-09-20" });
     const detail = await app.inject({ method: "GET", url: `/api/suppliers/${f.supplier.id}`, headers: ownerHeaders });
     expect(detail.statusCode, detail.body).toBe(200);
-    expect(detail.json().supplier).toMatchObject({ deviceCount: 7, problemCount: 4, claimCount: 3 });
+    expect(detail.json().supplier).toMatchObject({ deviceCount: 7, stockCount: 7, claimedDeviceCount: 2, costTotals: [{ currency: "ARS", totalCost: 700 }], problemCount: 4, claimCount: 3 });
     const purchases = detail.json().supplier.purchases;
     expect(purchases.map((row: { id: string }) => row.id)).toEqual([f.purchase.id, f.previous.id, "sin-lote"]);
     expect(purchases[0]).toMatchObject({ name: "Septiembre", purchasedAt: "2026-09-20", devices: 5, problemCount: 4, claimCount: 3, totalCost: 500, currency: "ARS" });
@@ -73,6 +73,9 @@ describe("contratos backend proveedores/patrones #308", () => {
     expect(light.json().supplier.purchases.every((row: object) => !("items" in row))).toBe(true);
     const history = await app.inject({ method: "GET", url: `/api/suppliers/${f.supplier.id}/purchases`, headers: ownerHeaders });
     expect(history.json().purchases).toEqual(light.json().supplier.purchases);
+    await prisma.inventoryItem.update({ where: { id: f.old.id }, data: { status: "VENDIDO", currency: "USD", cost: 2 } });
+    const summary = await app.inject({ method: "GET", url: `/api/suppliers/${f.supplier.id}?includeItems=0`, headers: ownerHeaders });
+    expect(summary.json().supplier).toMatchObject({ deviceCount: 7, stockCount: 6, claimedDeviceCount: 2, costTotals: [{ currency: "ARS", totalCost: 600 }, { currency: "USD", totalCost: 2 }] });
   });
 
   it("detalle de compra aislado por proveedor/tienda y costos solo con canSeeFinancials", async () => {

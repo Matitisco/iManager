@@ -15,6 +15,8 @@ const ctx = vi.hoisted(() => ({
 const layout = vi.hoisted(() => ({ phone: false }));
 vi.mock('../section-notices', async original => ({ ...await original<typeof import('../section-notices')>(), usePhoneLayout: () => layout.phone }));
 const { fetchSupplier, fetchSupplierPurchase } = vi.hoisted(() => ({ fetchSupplier: vi.fn(), fetchSupplierPurchase: vi.fn() }));
+const { fetchHistory } = vi.hoisted(() => ({ fetchHistory: vi.fn() }));
+vi.mock('../../services/history-api', () => ({ fetchHistory }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../../services/suppliers-api', () => ({ fetchSupplier, fetchSupplierPurchase }));
 vi.mock('../exchange', () => ({ useMoney: () => ({ active: 'USD', show: (value: number) => `US$ ${value}`, inputValue: (value: number) => String(value) }) }));
@@ -24,6 +26,7 @@ const toast = vi.fn();
 const supplier: SupplierFile = {
   id: 'supplier', name: 'Mayorista Centro', phone: '+54 261 555 0106', email: 'compras@mayoristacentro.example.com',
   notes: 'Retirar por sucursal.\nConsultar disponibilidad.', deletedAt: null, deviceCount: 2, problemCount: 1,
+  stockCount: 1, claimedDeviceCount: 1, costTotals: [{ currency: 'USD', totalCost: 1600 }],
   purchases: [{
     id: 'purchase', name: null, purchasedAt: '2026-10-14', notes: 'Retiro acordado.', devices: 2, problemCount: 1, claimCount: 1,
     totalCost: 1600, currency: 'USD',
@@ -53,6 +56,7 @@ beforeEach(() => {
   ctx.appSession.membership = { role: 'OWNER', sections: null };
   fetchSupplier.mockResolvedValue(supplier);
   fetchSupplierPurchase.mockResolvedValue(purchaseFile);
+  fetchHistory.mockResolvedValue({ events: [], nextCursor: null });
   ctx.reloadLedger.mockResolvedValue(undefined);
   ctx.addProduct.mockResolvedValue({ id: 'new' });
   ctx.saveSupplier.mockResolvedValue(supplier);
@@ -135,6 +139,32 @@ describe('formulario de proveedor', () => {
 });
 
 describe('ficha de proveedor', () => {
+  it('shows stock, purchases, distinct claimed-device percentage and currency totals without a subtitle', async () => {
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('1');
+    expect(screen.getByText('Con reclamos').nextElementSibling).toHaveTextContent('50%');
+    expect(screen.getByText('Total invertido').nextElementSibling).toHaveTextContent('US$ 1600');
+    expect(screen.getByRole('dialog').querySelector('.sheet-h .sub')).toBeNull();
+    expect(fetchHistory).not.toHaveBeenCalled();
+  });
+  it('opens paginated supplier history only from its icon and returns to the same file', async () => {
+    const event = { id: 'event', action: 'supplier.created', title: 'Proveedor creado', actorName: 'Ana', createdAt: '2026-10-14T15:00:00Z', changes: [], detail: 'Se registró Mayorista Centro.', reason: null };
+    fetchHistory.mockResolvedValueOnce({ events: [event], nextCursor: 'next' }).mockResolvedValueOnce({ events: [{ ...event, id: 'second', detail: 'Se actualizó el teléfono.' }], nextCursor: null });
+    mount(<SupplierDetail id="supplier" />);
+    await screen.findByTestId('supplier-detail');
+    expect(screen.queryByText(event.detail)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Historial' }));
+    const history = screen.getByRole('dialog', { name: 'Historial' });
+    expect(await within(history).findByText(event.detail)).toBeInTheDocument();
+    expect(within(history).getByText('Se actualizó el teléfono.')).toBeInTheDocument();
+    expect(fetchHistory).toHaveBeenLastCalledWith(ctx.user, { entityType: 'supplier', entityId: 'supplier', limit: 50, cursor: 'next' });
+    expect(history.parentElement).toHaveClass('subov');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Historial' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
+    expect(fetchSupplier).toHaveBeenCalledOnce();
+  });
   it('preserves full long contact values in titles when mobile text is truncated', async () => {
     const email = `${'compras'.repeat(24)}@mayoristacentro.example.com`;
     const phone = '+54 261 555 0106 / +54 261 555 0107 / +54 261 555 0108';
@@ -219,7 +249,7 @@ describe('ficha de proveedor', () => {
     if (!allowed) ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(!!screen.queryByText('US$ 1600')).toBe(allowed);
+    expect(screen.queryAllByText('US$ 1600').length > 0).toBe(allowed);
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     await screen.findByTestId('supplier-purchase-detail');
     expect(!!screen.queryByText('US$ 900')).toBe(allowed);
@@ -253,14 +283,14 @@ describe('ficha de proveedor', () => {
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
   });
-  it('silently omits failed secondary purchase data without error or retry copy', async () => {
+  it('shows a failed purchase request without discarding the supplier file', async () => {
     fetchSupplierPurchase.mockRejectedValueOnce(new Error('Unavailable'));
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     await waitFor(() => expect(fetchSupplierPurchase).toHaveBeenCalledOnce());
     expect(screen.queryByTestId('supplier-purchase-detail')).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo abrir la compra.');
     expect(screen.queryByText(/Reintentar|No hay conexión/)).not.toBeInTheDocument();
   });
   it('reuses EquipmentForm with a locked supplier, keeps failures open and refreshes after saving', async () => {
@@ -279,12 +309,12 @@ describe('ficha de proveedor', () => {
     expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ supplierId: 'supplier', model: 'iPhone 13' }));
     expect(form).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
-    fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3 });
+    fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3, stockCount: 2 });
     await userEvent.click(within(form).getByRole('button', { name: 'Guardar equipo' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Registrar equipo' })).not.toBeInTheDocument());
     expect(ctx.reloadLedger).toHaveBeenCalledOnce();
     expect(fetchSupplier).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('3 equipos')).toBeInTheDocument();
+    expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('2');
     expect(close).not.toHaveBeenCalled();
   });
   it('returns to the loaded file without refetch when registration is cancelled', async () => {

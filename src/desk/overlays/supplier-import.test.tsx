@@ -40,13 +40,13 @@ describe('supplier import via the shared inventory overlay', () => {
     await userEvent.click(screen.getByRole('button', { name: /Subir listado/ }));
     const overlay = screen.getByRole('dialog', { name: 'Subir stock de Mayorista Centro' });
     expect(within(overlay).queryByRole('combobox', { name: 'Proveedor' })).not.toBeInTheDocument();
-    api.fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3 });
+    api.fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3, stockCount: 3 });
     await userEvent.click(within(overlay).getByRole('button', { name: 'Importar equipos' }));
     await waitFor(() => expect(api.fetchSupplier).toHaveBeenCalledTimes(2));
     expect(api.importBackendRows).toHaveBeenCalledWith(context.user, 'inventory', [expect.objectContaining({ model: 'iPhone 13', price: 500, cost: 300 })], 'sup');
     expect(context.reloadInventory).toHaveBeenCalledOnce();
     expect(context.reloadLedger).toHaveBeenCalledOnce();
-    expect(screen.getByText('3 equipos')).toBeInTheDocument();
+    expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('3');
     fireEvent.click(within(overlay).getByRole('button', { name: 'Cerrar importación' }));
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
