@@ -62,7 +62,7 @@ beforeEach(() => {
 
 it('links the supplier problem notice to its selected patterns and closes the file', async () => {
   mount(<SupplierDetail id="supplier" />);
-  await userEvent.click(await screen.findByRole('button', { name: `Ver patrones de ${supplier.name}` }));
+  await userEvent.click(await screen.findByRole('button', { name: `Ver fallas de ${supplier.name}` }));
   expect(close).toHaveBeenCalledOnce();
   expect(returnsView(window.location.hash)).toEqual({ patterns: true, groupBy: 'supplier', group: 'supplier' });
 });
@@ -72,7 +72,7 @@ it('keeps the problem notice informational when returns access is missing', asyn
   mount(<SupplierDetail id="supplier" />);
   await screen.findByTestId('supplier-detail');
   expect(screen.getByTestId('supplier-problems').tagName).toBe('P');
-  expect(screen.queryByRole('button', { name: /Ver patrones/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /Ver fallas/ })).not.toBeInTheDocument();
 });
 
 describe('formulario de proveedor', () => {

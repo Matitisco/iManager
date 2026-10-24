@@ -117,18 +117,20 @@ describe("contratos backend proveedores/patrones #308", () => {
     const get = async (groupBy: string, headers = ownerHeaders) => app.inject({ method: "GET", url: `/api/returns/patterns?groupBy=${groupBy}`, headers });
     const purchases = await get("purchase");
     expect(purchases.statusCode, purchases.body).toBe(200);
+    expect(purchases.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 4, percent: 33, topReason: { family: "bateria", claims: 2 } });
     const rows: ReturnPatternView[] = purchases.json().patterns;
     expect(rows.map(row => row.key)).toHaveLength(3);
-    expect(rows[0]).toMatchObject({ key: f.purchase.id, label: "Importadora Andes · Septiembre", supplierId: f.supplier.id, purchaseId: f.purchase.id, devices: 5, problems: 4, claims: 3, percent: 80, hot: true, topReason: { family: "bateria", label: "batería", claims: 2 }, claimsTruncated: false });
+    expect(rows[0]).toMatchObject({ key: f.purchase.id, label: "Importadora Andes · Septiembre", supplierId: f.supplier.id, purchaseId: f.purchase.id, devices: 5, problems: 2, claims: 3, percent: 40, hot: true, topReason: { family: "bateria", label: "batería", claims: 2 }, claimsTruncated: false });
     expect(rows[0].claimsDetail.map(claim => claim.caseNumber)).toEqual(["RMA-0003", "RMA-0002", "RMA-0001"]);
     expect(rows[0].claimsDetail[0]).toMatchObject({ deviceLabel: "iPhone 15 Pro · 256GB", imei: f.fallback.imei, reason: "BATERIA se agota", status: "ABIERTO", openedAt: "2026-10-03T15:00:00.000Z", clientName: "Julián" });
     expect(rows.find(row => row.key === f.previous.id)?.label).toBe("Importadora Andes · 05/09/2026");
     expect(purchases.body).not.toMatch(/"(?:cost|totalCost|price|moneyAmount)":/);
     const suppliers = (await get("supplier")).json().patterns;
-    expect(suppliers.find((row: ReturnPatternView) => row.key === f.supplier.id)).toMatchObject({ devices: 7, problems: 4, claims: 3, percent: 57 });
+    expect(suppliers.find((row: ReturnPatternView) => row.key === f.supplier.id)).toMatchObject({ devices: 7, problems: 2, claims: 3, percent: 29 });
     const models: ReturnPatternView[] = (await get("model")).json().patterns;
-    expect(models.find(row => row.label === "iPhone 15 Pro · 256GB")).toMatchObject({ devices: 7, problems: 4, claims: 3 });
-    expect(models.find(row => row.label === "iPhone SE · 64GB")).toMatchObject({ devices: 1, problems: 1, claims: 1, topReason: null, supplierId: null, purchaseId: null });
+    expect(models[0].label).toBe("iPhone SE · 64GB"); // 1/1 outranks 2/7.
+    expect(models.find(row => row.label === "iPhone 15 Pro · 256GB")).toMatchObject({ devices: 7, problems: 2, claims: 3 });
+    expect(models.find(row => row.label === "iPhone SE · 64GB")).toMatchObject({ devices: 1, problems: 1, claims: 1, topReason: { family: "camara", label: "cámara", claims: 1 }, supplierId: null, purchaseId: null });
     expect(models.find(row => row.label === "iPhone 15 Pro · 128GB")).toMatchObject({ devices: 1, problems: 0 });
     await prisma.storeMember.update({ where: { id: f.membership.id }, data: { sections: ["sales"] } });
     expect((await get("purchase", f.staffHeaders)).statusCode).toBe(200);
@@ -146,8 +148,9 @@ describe("contratos backend proveedores/patrones #308", () => {
     await prisma.returnCase.createMany({ data: Array.from({ length: 51 }, (_, index) => ({ storeId: f.storeId, caseNumber: 100 + index, inventoryItemId: f.fallback.id, supplierId: f.supplier.id, imei: f.fallback.imei!, reason: "Audio", openedAt: new Date() })) });
     const result = await getApp().inject({ method: "GET", url: "/api/returns/patterns?groupBy=purchase", headers: ownerHeaders });
     const pattern: ReturnPatternView = result.json().patterns.find((row: ReturnPatternView) => row.key === f.purchase.id);
-    expect(pattern).toMatchObject({ devices: 5, problems: 4, claims: 54, claimsTruncated: true, topReason: { family: "audio", claims: 51 } });
+    expect(pattern).toMatchObject({ devices: 5, problems: 2, claims: 54, claimsTruncated: true, topReason: { family: "audio", claims: 51 } });
     expect(pattern.claimsDetail).toHaveLength(50);
+    expect(result.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 55, percent: 33, topReason: { family: "audio", claims: 51 } });
   });
 
   it("inventario devuelve metadata en ambas listas y resumen sólo en detalle, con filtro seguro", async () => {

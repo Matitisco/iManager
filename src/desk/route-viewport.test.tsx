@@ -43,7 +43,7 @@ describe('scroll del contenedor por entrada', () => {
   it('canonicalizes old patterns entries once and preserves their history state and scroll', () => {
     history.replaceState({ external: 'keep' }, '', '#/returns?view=patterns&groupBy=model');
     render(<Harness />);
-    expect(location.hash).toBe('#/analisis/patrones?groupBy=model');
+    expect(location.hash).toBe('#/analisis/fallas?groupBy=model');
     const stage = screen.getByTestId('stage');
     stage.scrollTop = 240;
     fireEvent.scroll(stage);
@@ -53,7 +53,7 @@ describe('scroll del contenedor por entrada', () => {
     expect(location.hash).toBe('#/comercial/devoluciones');
     expect(stage.scrollTop).toBe(0);
     navigate('#/returns?view=patterns&groupBy=model', saved);
-    expect(location.hash).toBe('#/analisis/patrones?groupBy=model');
+    expect(location.hash).toBe('#/analisis/fallas?groupBy=model');
     expect(history.length).toBe(length);
     expect(history.state.external).toBe('keep');
     expect(stage.scrollTop).toBe(240);
