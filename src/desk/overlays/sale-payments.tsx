@@ -110,7 +110,16 @@ export function SalePaymentsFields({
   const snapshot = JSON.stringify(state);
   useEffect(() => { onChange(state); }, [snapshot]);
 
-  const coveredPreview = rows.reduce((sum, row) => sum + (parseMoney(row.amount) || 0), 0);
+  const previewRate = Number(rate.replace(',', '.'));
+  const coveredPreview = rows.reduce<number | null>((sum, row) => {
+    if (sum == null) return null;
+    const amount = parseMoney(row.amount);
+    if (!(amount > 0)) return sum;
+    if (row.currency === currency) return sum + amount;
+    if (!Number.isFinite(previewRate) || previewRate <= 0) return null;
+    return sum + (row.currency === 'USD' ? amount * previewRate : amount / previewRate);
+  }, 0);
+  const previewExceedsDue = coveredPreview != null && coveredPreview > due + 0.009;
   return (
     <section className="acct-payments" aria-label="Pagos y cuotas">
       <label className="op-check"><input type="checkbox" checked={mixed} onChange={(event) => setMixed(event.target.checked)} />Varios medios</label>
@@ -133,8 +142,8 @@ export function SalePaymentsFields({
               <input aria-label="Cotización" inputMode="decimal" value={rate} placeholder={suggestedRate ? String(suggestedRate) : 'Ej. 1300'} onChange={(event) => setRate(event.target.value)} />
             </Field>
           ) : null}
-          <p className="eqs-note">La cotización se revisa antes de confirmar. {coveredPreview > due ? 'El pago supera el saldo.' : null}</p>
-          {coveredPreview > due ? (
+          <p className="eqs-note">La cotización se revisa antes de confirmar. {previewExceedsDue ? 'El pago supera el saldo.' : null}</p>
+          {previewExceedsDue ? (
             <>
               <Field label="Excedente"><span /></Field>
               <Segs options={EXCESS} value={excess} onChange={(value) => setExcess(value as typeof excess)} />
