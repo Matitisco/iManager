@@ -12,7 +12,7 @@ import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { TradeIn } from '../../types';
 import type { OperationSource } from '../../services/operations-api';
 import { formatShortDate, parseMoney, statusLabel, tradeCancellationLabel, tradeClientLabel, tradeCode } from '../format';
-import { cancellationPlan, type RefundTarget } from '../cancel-refund';
+import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
@@ -152,7 +152,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   if (!trade && !detailError) return <Sheet title="Canje" onClose={close} className="cj-sheet"><ListSkeleton variant="lines" rows={6} /></Sheet>;
   if (!trade && isNetworkErrorMessage(detailError)) return <Sheet title="Canje" onClose={close} className="cj-sheet">{null}</Sheet>;
   if (!trade) return <Sheet title="Registro no disponible" onClose={close} className="cj-sheet"><div className="ferr">{detailError}</div></Sheet>;
-  const linkedSale = trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined;
+  const linkedSale = (trade.saleId ? sales.find((sale) => sale.id === trade.saleId) : undefined) ?? loadedOperation?.sale;
   if (archivedReceivedLink) {
     const archivedReceived = loadedOperation?.inventory.find((item) => item.archivedAt);
     return (
@@ -192,22 +192,23 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         { keepOpen: true },
       );
     };
-    const linkedSaleForRefund = trade.saleId
-      ? sales.find((item) => item.id === trade.saleId) ?? loadedOperation?.sale
-      : loadedOperation?.sale;
     const refundSales = sales.filter((item) => item.clientId && item.clientId === trade.clientId && item.status !== 'CANCELADA').map((item): RefundTarget => {
       const linked = item.tradeInId ? tradeIns.find((row) => row.id === item.tradeInId) : undefined;
       return { id: item.id, cash: Math.max(0, (linked ? linked.differencePaid : item.amount) - (item.depositAppliedAmount ?? 0)), status: item.status, openBalance: item.openBalance, soldAt: item.date };
     });
     const buyer = clients.find((item) => item.id === trade.clientId);
-    const plan = trade.confirmationStatus === 'CONFIRMED' && linkedSaleForRefund
-      ? cancellationPlan({
-        id: linkedSaleForRefund.id,
-        cash: trade.differencePaid - (linkedSaleForRefund.depositAppliedAmount ?? 0),
-        status: linkedSaleForRefund.status,
-        openBalance: linkedSaleForRefund.openBalance,
-        soldAt: linkedSaleForRefund.date,
-      }, refundSales, movements, buyer?.pendingBalance ?? 0)
+    const refundTarget = linkedSale ? {
+      id: linkedSale.id,
+      cash: trade.differencePaid - (linkedSale.depositAppliedAmount ?? 0),
+      status: linkedSale.status,
+      openBalance: linkedSale.openBalance,
+      soldAt: linkedSale.date,
+    } : null;
+    const displayedDue = refundTarget
+      ? displayedSaleDue(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
+      : 0;
+    const plan = trade.confirmationStatus === 'CONFIRMED' && refundTarget
+      ? cancellationPlan(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
       : { refund: 0, credit: 0 };
     const statusChanged = technicalStatus !== trade.status;
     const detailFooter = trade.confirmationStatus === 'CANCELLED'
@@ -242,7 +243,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           label={tradeCode(tradeIns, trade.id)}
           refund={plan.refund}
           coveredCredit={plan.credit}
-          depositCredit={linkedSaleForRefund?.depositAppliedAmount}
+          depositCredit={linkedSale?.depositAppliedAmount}
           currency={trade.currency}
           busy={busy}
           error={error}
@@ -270,7 +271,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         {trade.confirmationStatus === 'CONFIRMED' ? <>
             <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div>
           <div className="kv"><span>Diferencia</span><b>{money.show(trade.differencePaid, trade.currency)}</b></div>
-            <div className="kv"><span>Deuda</span><b>{linkedSale?.status === 'PENDIENTE' ? money.show(trade.differencePaid - (linkedSale?.depositAppliedAmount ?? 0), trade.currency) : money.showActive(0)}</b></div>
+            <div className="kv"><span>Deuda</span><b>{money.show(displayedDue, trade.currency)}</b></div>
         </> : null}
       </Sheet>
     );
