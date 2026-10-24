@@ -44,8 +44,8 @@ export function ServiceScreen() {
     const rank = new Map(statuses.map((status, index) => [status.id, index]));
     return repairSource.filter((order) => {
       if (!archivedMode && statusId !== 'Todos' && isVoidRow(order)) return false;
-      if (!archivedMode && statusId !== 'Todos' && statusId !== 'ABIERTAS' && repairColumnStatus(order.status) !== statusId) return false;
-      if (!archivedMode && statusId === 'ABIERTAS' && order.status === REPAIR_DELIVERED) return false;
+      if (statusId !== 'Todos' && statusId !== 'ABIERTAS' && repairColumnStatus(order.status) !== statusId) return false;
+      if (statusId === 'ABIERTAS' && order.status === REPAIR_DELIVERED) return false;
       if (!needle) return true;
       const haystack = `${order.code} ${order.clientName} ${order.device} ${order.imei} ${repairFault(order)} ${order.technician}`.toLowerCase();
       return haystack.includes(needle);
@@ -66,13 +66,13 @@ export function ServiceScreen() {
     ];
   }, [repairSource, statuses, archivedMode]);
   const groups = useMemo(() => {
-    const selected = statusId === 'Todos' || archivedMode ? statuses : statusId === 'ABIERTAS'
+    const selected = statusId === 'Todos' ? statuses : statusId === 'ABIERTAS'
       ? statuses.filter((status) => status.id !== REPAIR_DELIVERED)
       : statuses.filter((status) => status.id === statusId);
     return selected
       .map((status) => ({ status, cards: rows.filter((order) => repairColumnStatus(order.status) === status.id) }))
       .filter((group) => !['Todos', 'ABIERTAS'].includes(statusId) || group.cards.length > 0);
-  }, [rows, statusId, statuses, archivedMode]);
+  }, [rows, statusId, statuses]);
   const emptyCopy = repairOrders.length === 0 && !query.trim()
     ? 'No hay órdenes'
     : statusId === 'ABIERTAS' && !query.trim()
