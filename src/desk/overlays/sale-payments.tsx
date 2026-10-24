@@ -1,10 +1,11 @@
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { OperationInput } from '../../services/operations-api';
 import { formatInputMoney, parseMoney } from '../format';
 import { Field, Segs } from '../ui';
 import { PAYMENTS } from './shared';
+import { ImanagerIcon } from '../icons';
 
 function moneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -30,7 +31,7 @@ const EXCESS = [
   { id: 'CHANGE', label: 'Vuelto' },
 ];
 
-type TenderRow = { amount: string; currency: 'ARS' | 'USD'; method: string };
+type TenderRow = { id: number; amount: string; currency: 'ARS' | 'USD'; method: string };
 
 export function SalePaymentsFields({
   clientId,
@@ -47,7 +48,12 @@ export function SalePaymentsFields({
 }) {
   const [mixed, setMixed] = useState(false);
   const [finance, setFinance] = useState(false);
-  const [rows, setRows] = useState<TenderRow[]>([{ amount: '', currency, method: 'EFECTIVO' }]);
+  const [rows, setRows] = useState<TenderRow[]>([{ id: 0, amount: '', currency, method: 'EFECTIVO' }]);
+  const paymentsId = useId();
+  const nextRowId = useRef(1);
+  const amountInputs = useRef(new Map<number, HTMLInputElement>());
+  const addPaymentButton = useRef<HTMLButtonElement>(null);
+  const focusAfterRemoval = useRef<number | null>(null);
   const [rate, setRate] = useState(suggestedRate ? String(suggestedRate) : '');
   const [excess, setExcess] = useState<'OMIT' | 'CREDIT' | 'CHANGE'>('OMIT');
   const [changeMethod, setChangeMethod] = useState('EFECTIVO');
@@ -57,6 +63,25 @@ export function SalePaymentsFields({
   const [surcharge, setSurcharge] = useState('');
   const [collectFirst, setCollectFirst] = useState(false);
   const [firstMethod, setFirstMethod] = useState('EFECTIVO');
+
+  useLayoutEffect(() => {
+    if (focusAfterRemoval.current == null) return;
+    const target = amountInputs.current.get(focusAfterRemoval.current) ?? addPaymentButton.current;
+    focusAfterRemoval.current = null;
+    target?.focus();
+  }, [rows]);
+
+  function removePayment(id: number) {
+    const index = rows.findIndex((row) => row.id === id);
+    if (index <= 0) return;
+    focusAfterRemoval.current = rows[index - 1].id;
+    setRows((current) => current.filter((row) => row.id !== id));
+  }
+
+  function addPayment() {
+    const id = nextRowId.current++;
+    setRows((current) => [...current, { id, amount: '', currency, method: 'EFECTIVO' }]);
+  }
 
   const state = useMemo(() => {
     if (!mixed && !finance) return EMPTY;
@@ -128,15 +153,20 @@ export function SalePaymentsFields({
       {mixed ? (
         <div className="acct-tenders">
           {rows.map((row, index) => (
-            <div className="acct-tender" key={index}>
+            <div className={`acct-tender${index > 0 ? ' acct-tender-removable' : ''}`} key={row.id}>
+              {index > 0 ? (
+                <button className="acct-tender-remove" type="button" aria-label={`Quitar pago ${index + 1}`} title={`Quitar pago ${index + 1}`} onClick={() => removePayment(row.id)}>
+                  <ImanagerIcon name="cerrar" size={16} />
+                </button>
+              ) : null}
               <Field label={`Pago ${index + 1}`} mark={row.currency}>
-                <input aria-label={`Importe del pago ${index + 1}`} inputMode="numeric" value={row.amount} placeholder="$ 0" onChange={(event) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, amount: moneyInput(event.target.value) } : item))} />
+                <input id={`${paymentsId}-payment-${row.id}`} ref={(input) => { if (input) amountInputs.current.set(row.id, input); else amountInputs.current.delete(row.id); }} aria-label={`Importe del pago ${index + 1}`} inputMode="numeric" value={row.amount} placeholder="$ 0" onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, amount: moneyInput(event.target.value) } : item))} />
               </Field>
-              <Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={row.currency} onChange={(value) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, currency: value as 'ARS' | 'USD' } : item))} />
-              <Segs options={PAYMENTS} value={row.method} onChange={(value) => setRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, method: value } : item))} />
+              <Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={row.currency} onChange={(value) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, currency: value as 'ARS' | 'USD' } : item))} />
+              <Segs options={PAYMENTS} value={row.method} onChange={(value) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, method: value } : item))} />
             </div>
           ))}
-          {rows.length < 4 ? <button className="btn2 s" type="button" onClick={() => setRows((current) => [...current, { amount: '', currency, method: 'EFECTIVO' }])}>Agregar pago</button> : null}
+          {rows.length < 4 ? <button ref={addPaymentButton} className="btn2 s" type="button" onClick={addPayment}>Agregar pago</button> : null}
           {rows.some((row) => row.currency !== currency) || excess === 'CREDIT' ? (
             <Field label="Cotización" error={state.error && state.error.includes('cotización') ? state.error : undefined}>
               <input aria-label="Cotización" inputMode="decimal" value={rate} placeholder={suggestedRate ? String(suggestedRate) : 'Ej. 1300'} onChange={(event) => setRate(event.target.value)} />
