@@ -34,7 +34,7 @@ export function SuppliersScreen() {
       {rows == null ? <ListSkeleton variant="cards" rows={4} testId="suppliers-loading" /> : null}
       {rows && rows.length === 0 && !error ? (
         <div className="card team-empty" data-testid="suppliers-empty">
-          <h2>{archived ? 'No hay proveedores archivados.' : 'Todavía no cargaste proveedores.'}</h2>
+          <h2>{archived ? 'No hay proveedores archivados.' : filter === 'Activos' ? 'No hay proveedores activos.' : 'Todavía no cargaste proveedores.'}</h2>
           <p>Cuando cargues uno, vas a poder registrar o subir el stock desde acá.</p>
         </div>
       ) : null}
@@ -49,6 +49,7 @@ export function SuppliersScreen() {
                   {row.deviceCount} {row.deviceCount === 1 ? 'equipo' : 'equipos'}
                   {row.lastPurchasedAt ? ` · última compra ${formatShortDate(row.lastPurchasedAt).slice(0, 5)}` : ''}
                 </span>
+                {isVoidRow(row) ? <span className="spill mid">Archivado</span> : null}
               </span>
               {row.problemCount > 0 ? <span className="sup-aside"><span className="spill lime" aria-label={`${row.problemCount} con problemas`}><ImanagerIcon name="en-revision" size={16} /><span>{row.problemCount}<span className="sup-pill-t"> con problemas</span></span></span></span> : null}
               <span className="chev" aria-hidden="true">›</span>

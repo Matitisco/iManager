@@ -32,6 +32,8 @@
 
 @media (max-width: 760px) {
   .supplier-sheet > .sheet-scroll { padding-top: 16px; }
+  .supplier-sheet .supplier-fields input,
+  .supplier-sheet .supplier-fields textarea { font-size: 16px; }
   .supplier-contact > div { grid-template-columns: 20px minmax(0, 1fr); gap: 12px; }
   .supplier-contact dd { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .desk-app .supplier-item { grid-template-columns: 28px minmax(0, 1fr) fit-content(40%); gap: 4px 8px; }
