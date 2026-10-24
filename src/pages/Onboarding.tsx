@@ -1,7 +1,7 @@
 import { FieldSkeleton } from '../components/Skeleton';
 import { track } from '../lib/analytics';
 import { useKeyboardInset, usePhoneLayout } from "../lib/phone-layout";
-import { useEffect, useState, type FormEvent, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type FormEvent, type CSSProperties } from "react";
 import { useAppContext } from "../context/AppContext";
 import { useInvitationPreview } from "../hooks/useInvitationPreview";
 import { BrandLockup } from "../components/brand-mark";
@@ -185,13 +185,24 @@ export function Onboarding({
   const [sell, setSell] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [errorAttempt, setErrorAttempt] = useState(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const showError = (message: string) => {
+    setError(message);
+    setErrorAttempt(attempt => attempt + 1);
+  };
+  useEffect(() => {
+    if (!error) return;
+    errorRef.current?.focus({ preventScroll: true });
+    errorRef.current?.scrollIntoView?.({ block: "center" });
+  }, [error, errorAttempt]);
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setError("");
     try {
       await action();
     } catch (cause) {
-      setError(toActionMessage(cause, "No se pudo crear la tienda."));
+      showError(toActionMessage(cause, "No se pudo crear la tienda."));
     } finally {
       setBusy(false);
     }
@@ -199,16 +210,16 @@ export function Onboarding({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (!storeName.trim()) {
-      setError("Completá el nombre de la tienda");
+      showError("Completá el nombre de la tienda");
       return;
     }
     if (storeName.trim().length > 120) {
-      setError("El nombre puede tener hasta 120 caracteres");
+      showError("El nombre puede tener hasta 120 caracteres");
       return;
     }
     if (mode === "manual") {
       if (Boolean(rateOrNull(buy)) !== Boolean(rateOrNull(sell))) {
-        setError("Completá compra y venta, o dejalas vacías.");
+        showError("Completá compra y venta, o dejalas vacías.");
         return;
       }
       const invalid = manualQuoteOrderError(
@@ -216,7 +227,7 @@ export function Onboarding({
         rateOrNull(sell) ?? 0,
       );
       if (invalid) {
-        setError(invalid);
+        showError(invalid);
         return;
       }
     }
@@ -348,7 +359,7 @@ export function Onboarding({
               </div>
             </details>
             {error && (
-              <p className="onb-error" role="alert">
+              <p ref={errorRef} tabIndex={-1} className="onb-error" role="alert">
                 {error}
               </p>
             )}
@@ -364,7 +375,7 @@ export function Onboarding({
           </form>
         )}
         {invitation && error && (
-          <p className="onb-error" role="alert">
+          <p ref={errorRef} tabIndex={-1} className="onb-error" role="alert">
             {error}
           </p>
         )}

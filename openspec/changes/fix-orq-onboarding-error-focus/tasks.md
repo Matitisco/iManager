@@ -1,0 +1,4 @@
+- [x] Enfocar y mostrar el mensaje de error.
+- [x] Verificar repetición, TypeScript y tests relacionados.
+- [x] Retest Chromium móvil en app única sin crear tienda.
+- [x] PR etiquetado y merge con CI verde.
