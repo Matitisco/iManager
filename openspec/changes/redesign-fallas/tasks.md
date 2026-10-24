@@ -9,3 +9,8 @@
 - [x] Actualizar tests relacionados y verificar 1440/390 con DB falsa.
 
 Publicación: PR etiquetado «pendiente de revisión» y merge con CI verde.
+
+## Corrección de modales
+- [x] Reemplazar detalle por lista completa sin capas sobrantes y quitar alto completo móvil.
+- [x] Abrir el reclamo en un segundo Sheet conservando el contexto al cerrar.
+- [x] Verificar tests relacionados, TypeScript y capturas locales 1440/390.

@@ -33,7 +33,7 @@
 .pat-claims .role { white-space: normal; }
 .pat-detail .spill.cst { --pc: var(--secondary) !important; }
 .pat-claims > .pat-count { margin: 12px 28px; }
-.ov.pat-claims-layer { z-index: 120; }
+.ov.subov.pat-claim-layer { z-index: 140; }
 .pat-all-sheet .pat-ranking { margin: -16px -28px -24px; }
 @media (max-width: 1100px) and (min-width: 761px) {
   .pat-sections { grid-template-columns: minmax(0, 1fr); }
@@ -56,7 +56,6 @@
   .pat-claims .info { flex: 1; }
   .pat-claims .spill { margin-left: 52px; }
   .pat-claims > .pat-count { margin: 12px 16px; }
-  .desk-app .pat-all-sheet.sheet { height: 100dvh; max-height: 100dvh; border-radius: 0; }
   .pat-all-sheet .pat-ranking.phone-rows { margin: 0; }
   .pat-all-sheet .sheet-h .wback { width: 44px; height: 44px; }
 }

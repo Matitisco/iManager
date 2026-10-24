@@ -127,18 +127,20 @@ function Choices({ label, options, value, onChange, disabled }: {
   </fieldset>;
 }
 
-export function ReturnDetail({ id }: { id: string }) {
+type ReturnDetailProps = { id: string; onClose?: () => void; overlayClassName?: string };
+
+export function ReturnDetail({ id, onClose, overlayClassName }: ReturnDetailProps) {
   const { returns } = useAppContext();
   const { close } = useDesk();
   const current = returns?.find(row => row.id === id) ?? archivedReturn(id) ?? null;
-  if (returns == null) return <Sheet title="Reclamo" className="return-pending" onClose={close}><ListSkeleton variant="lines" rows={6} /></Sheet>;
-  if (!current) return <Sheet title="Reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
-  return <LoadedReturnDetail key={id} current={current} />;
+  if (returns == null) return <Sheet title="Reclamo" className="return-pending" onClose={onClose ?? close} overlayClassName={overlayClassName}><ListSkeleton variant="lines" rows={6} /></Sheet>;
+  if (!current) return <Sheet title="Reclamo" onClose={onClose ?? close} overlayClassName={overlayClassName}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
+  return <LoadedReturnDetail key={id} current={current} onClose={onClose ?? close} overlayClassName={overlayClassName} />;
 }
 
-function LoadedReturnDetail({ current }: { current: ReturnCaseView }) {
+function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { current: ReturnCaseView; onClose: () => void; overlayClassName?: string }) {
   const { updateReturn, resolveReturn, advanceRma, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash } = useAppContext();
-  const { close, toast, canManageSensitive = true } = useDesk();
+  const { toast, canManageSensitive = true } = useDesk();
   const id = current.id;
   const [status, setStatus] = useState(current?.status ?? 'ABIERTO');
   const [rma, setRma] = useState(current?.rmaStatus ?? 'ENVIADO');
@@ -200,7 +202,7 @@ function LoadedReturnDetail({ current }: { current: ReturnCaseView }) {
     finally { setBusy(false); }
   };
   const legacyArchive = current.deletedAt && current.status !== 'ANULADO';
-  return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet ret-state"
+  return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet ret-state" overlayClassName={overlayClassName}
     footer={voided ? legacyArchive && canManageSensitive
       ? <Actions busyLabel="Restaurar" primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
       : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
@@ -242,7 +244,7 @@ function LoadedReturnDetail({ current }: { current: ReturnCaseView }) {
     </section>
   </Sheet>
   {historyOpen ? createPortal(<div className="record-history-layer">
-    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet" onClose={() => setHistoryOpen(false)}
+    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet" overlayClassName={overlayClassName} onClose={() => setHistoryOpen(false)}
       footer={phone ? null : <button className="btn2 s" type="button" onClick={() => setHistoryOpen(false)}>Cerrar</button>}>
       <ol className="return-timeline" data-testid="return-events">
         {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>

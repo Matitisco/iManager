@@ -568,3 +568,5 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 2. Leer este archivo para el estado vivo
 3. Si tocas codigo, correr `npm run lint` (no build)
 4. Actualizar este archivo al cerrar cada iteracion importante
+
+- Fallas: «Todos los reclamos» reemplaza la hoja del grupo en un único Sheet ajustado al contenido; cada reclamo abre un segundo Sheet y conserva lista/foco al cerrar. Validado con DB falsa en 1440/390, scroll en viewport reducido, tests relacionados y TypeScript frontend/backend. Capturas en `/workspace/qa-fallas2/ver-todos-{1440,390}.png`.
