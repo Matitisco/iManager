@@ -1,7 +1,7 @@
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
-import { normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
+import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
 export type SheetCondition = (typeof CONDITIONS)[number];
@@ -454,10 +454,12 @@ export function applyPlans(
         if (plan.batteryAsPercent && record.batteryHealth) record.batteryHealth = normalizeBattery(record.batteryHealth);
         const rawAmount = record.amount ?? "";
         if (record.price != null) {
+          const rowCurrency = normalizeCurrencyToken(record.currency) || amountCellCurrency(record.price) || plan.priceCurrency || storeCurrency;
+          if (section === "inventory") record.currency = rowCurrency;
           record.price = resolvePrice({
             direct: record.price,
             usd: usdIndex >= 0 ? line[usdIndex] ?? "" : "",
-            storeCurrency,
+            storeCurrency: section === "inventory" ? rowCurrency : storeCurrency,
             columnKind: plan.priceCurrency,
             rate,
           });

@@ -16,6 +16,29 @@ describe('cellText', () => {
   });
 });
 
+describe('CSV argentino', () => {
+  it.each([',', ';', '\t'])('preserves quoted cells with delimiter %j', async (delimiter) => {
+    const content = '\uFEFF' + [
+      ['Nombre', 'Precio', 'Nota', 'IMEI'].join(delimiter),
+      ['"Pérez, José"', '"1.250,50"', '"Dijo ""hola""\ny volvió"', '990000000000018'].join(delimiter),
+      ['', '', '', ''].join(delimiter),
+      ['Lucía', '420.50', '', '990000000000026'].join(delimiter),
+    ].join('\r\n');
+    const workbook = await parseWorkbook(new File([content], 'clientes.csv'));
+    expect(workbook.getSheet('Hoja 1')).toEqual([
+      ['Nombre', 'Precio', 'Nota', 'IMEI'],
+      ['Pérez, José', '1.250,50', 'Dijo "hola"\ny volvió', '990000000000018'],
+      ['', '', '', ''],
+      ['Lucía', '420.50', '', '990000000000026'],
+    ]);
+  });
+
+  it('reports unmatched quotes instead of shifting columns', async () => {
+    await expect(parseWorkbook(new File(['Modelo,Precio\niPhone 13,"420,50'], 'stock.csv')))
+      .rejects.toThrow('comillas sin cerrar');
+  });
+});
+
 describe('ejemplo-stock.xlsx', () => {
   it('reads every sheet, the header and the values without [object Object]', async () => {
     const bytes = readFileSync(path.resolve('e2e/fixtures/ejemplo-stock.xlsx'));

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { ImportModal } from './ImportModal';
+import { ImportModal, type GenericImportResult } from './ImportModal';
 import type { ImportAnalysis } from '../services/import-api';
 
 function analysis(kind: 'clients' | 'sales' | 'inventory' = 'clients'): ImportAnalysis {
@@ -16,7 +16,7 @@ function analysis(kind: 'clients' | 'sales' | 'inventory' = 'clients'): ImportAn
 function setup(kind: 'clients' | 'sales' | 'inventory' = 'clients') {
   const result = analysis(kind);
   const onAnalyze = vi.fn(async () => result);
-  const onImport = vi.fn(async (_rows: Record<string, string>[]) => ({ imported: 1, updated: 0, errors: [] }));
+  const onImport = vi.fn(async (_rows: Record<string, string>[]): Promise<GenericImportResult> => ({ imported: 1, updated: 0, errors: [] }));
   const onClose = vi.fn();
   const fields = kind === 'clients' ? [{ key: 'name', label: 'Nombre', required: true }] : kind === 'sales' ? [{ key: 'amount', label: 'Precio', required: false }] : [{ key: 'model', label: 'Modelo', required: true }, { key: 'price', label: 'Precio', required: false }];
   render(<ImportModal title="Importar" fields={fields} nouns={{ one: 'fila', many: 'filas' }} onAnalyze={onAnalyze} onApply={vi.fn()} onImport={onImport} onClose={onClose} />);
@@ -26,6 +26,39 @@ function setup(kind: 'clients' | 'sales' | 'inventory' = 'clients') {
 function fileInput() { return screen.getByLabelText('Archivo a importar') as HTMLInputElement; }
 
 describe('importador compartido compacto', () => {
+  it('reserves the previous body height during analysis to avoid a shrinking modal', async () => {
+    const { onAnalyze } = setup();
+    let resolve!: (value: ImportAnalysis) => void;
+    onAnalyze.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const body = screen.getByRole('dialog').querySelector('.inv-import-body')!;
+    vi.spyOn(body, 'getBoundingClientRect').mockReturnValue({ height: 280 } as DOMRect);
+    await userEvent.upload(fileInput(), new File(['Nombre\nLucía'], 'clientes.csv', { type: 'text/csv' }));
+    await screen.findByTestId('import-reading');
+    expect(body).toHaveStyle({ minHeight: '280px' });
+    await act(async () => resolve(analysis()));
+    await screen.findByTestId('import-preview');
+    expect(body).not.toHaveStyle({ minHeight: '280px' });
+  });
+
+  it('marks invalid sale amounts in the preview', async () => {
+    const { onAnalyze } = setup('sales');
+    onAnalyze.mockResolvedValueOnce({ ...analysis('sales'), rows: [{ clientName: 'Lucía', device: 'iPhone 13', amount: 'importe inválido' }] });
+    await userEvent.upload(fileInput(), new File(['Cliente,Equipo,Precio\nLucía,iPhone 13,importe inválido'], 'ventas.csv', { type: 'text/csv' }));
+    expect(await screen.findByText('Precio inválido')).toBeVisible();
+  });
+
+  it('shows row failures without presenting a successful import', async () => {
+    const { onImport, onClose } = setup();
+    onImport.mockResolvedValueOnce({ imported: 0, updated: 0, errors: [{ row: 2, message: 'Esta venta ya fue importada; no se duplicó' }] });
+    await userEvent.upload(fileInput(), new File(['Nombre\nLucía'], 'clientes.csv', { type: 'text/csv' }));
+    await screen.findByTestId('import-preview');
+    await userEvent.click(screen.getByTestId('import-confirm'));
+    expect(await screen.findByText('Importación con errores')).toBeInTheDocument();
+    expect(screen.queryByText('Importación completada')).not.toBeInTheDocument();
+    expect(screen.getByText('Esta venta ya fue importada; no se duplicó')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('ofrece tres modos, conserva el borrador y coloca una sola acción en el footer', async () => {
     setup();
     const modes = within(screen.getByRole('group', { name: 'Origen del listado' }));

@@ -98,7 +98,7 @@ export function normalizeSectionRow(
   return record;
 }
 
-function amountCellCurrency(raw: string): "" | "ARS" | "USD" {
+export function amountCellCurrency(raw: string): "" | "ARS" | "USD" {
   const value = raw.toLowerCase();
   if (/u\$s|us\$|u\$d|usd|dls|d[oó]lar/.test(value)) return "USD";
   if (/\$|ars|peso/.test(value)) return "ARS";
@@ -125,7 +125,10 @@ function normalizeSaleRow(
   const fromCell = amountCellCurrency(rawAmount);
   next.currency = fromColumn || fromCell || columnCurrency || storeCurrency;
   const who = next.clientName?.trim() || next.device?.trim() || next.productImei?.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(next.amount ?? "") || !who || isJunkLabel(next.clientName) || HEADER_NAME.test(normalizeHeader(next.clientName ?? ""))) return null;
+  if (!who || isJunkLabel(next.clientName) || HEADER_NAME.test(normalizeHeader(next.clientName ?? ""))) return null;
+  // Keep recognizable sales with bad prices for review and per-row errors;
+  // free-form notes without a device/date still stay out of the import.
+  if (!/^-?\d+(\.\d+)?$/.test(next.amount ?? "") && !next.device && !next.productImei && !parseArDate(next.date)) return null;
   return next;
 }
 

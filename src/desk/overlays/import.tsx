@@ -55,6 +55,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'model', label: 'Modelo', required: true },
         { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
         { key: 'price', label: 'Precio', required: false },
+        { key: 'currency', label: 'Moneda', required: false },
         { key: 'capacity', label: 'Capacidad', required: false },
         { key: 'color', label: 'Color', required: false },
         { key: 'condition', label: 'Condición', required: false },

@@ -1,4 +1,6 @@
 import { trackFirstSale } from '../analytics/first-sale.js';
+import { createHash } from 'node:crypto';
+import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
@@ -617,6 +619,19 @@ export async function importSales(
       const rowCurrency = normalizeCurrencyToken(r.currency);
 
       const committed = await withSerializableRetry(async (tx) => {
+        const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
+        const importFingerprint = createHash('sha256').update(JSON.stringify([
+          dateLabel, clientName.toLowerCase(), dni, phone, device.toLowerCase(), imei,
+          amount, amountCurrency, paymentMethod, tradeIn, seller.toLowerCase(), status,
+          r.sellerMemberId ?? null,
+        ])).digest('hex');
+        // Serialize identical retries before any client/stock/balance mutation.
+        await lockTransactionKey(tx, `sale-import:${storeId}:${importFingerprint}`);
+        const duplicate = await tx.sale.findFirst({
+          where: { storeId, customFields: { path: ['importFingerprint'], equals: importFingerprint } },
+          select: { id: true },
+        });
+        if (duplicate) throw new SalesError('Esta venta ya fue importada; no se duplicó', 409);
         let newClient: ImportClient | null = null;
         const clientLink = clientName || dni || phone
           ? decideClientLink(clients, { name: clientName, dni, phone })
@@ -664,7 +679,7 @@ export async function importSales(
           : [];
         const tradeInId = matchOpenTradeIn(openTrades, tradeIn);
         const sellerUserId = matchSellerUserId(sellers, seller);
-        const customFields: Record<string, string> = {};
+        const customFields: Record<string, string> = { importFingerprint };
         if (seller) customFields.vendedor = seller;
         if (sellerUserId) customFields.sellerUserId = sellerUserId;
         if (tradeIn) customFields.canje = tradeIn;
@@ -672,7 +687,6 @@ export async function importSales(
         const deviceLabel = [device, !inventoryItemId && imei ? imei : ""].filter(Boolean).join(" · ").slice(0, 120) || null;
         const linkedClient = clientId ? await tx.client.findFirst({ where: { storeId, id: clientId } }) : null;
         const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-        const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
 
         const sellerMemberId = r.sellerMemberId !== undefined ? r.sellerMemberId : (sellerUserId ? members.find(member => member.userId === sellerUserId)?.id ?? null : null);
         await assertSeller(tx, storeId, sellerMemberId);
