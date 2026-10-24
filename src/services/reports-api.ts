@@ -9,6 +9,7 @@ export interface OverviewSeriesPoint {
 }
 
 export interface ReportsOverview {
+  currency?: 'ARS' | 'USD';
   summary: { revenue: number; grossProfit: number; marginRate: number; unitsSold: number };
   comparison: { available: boolean; revenueChange: number | null; grossProfitChange: number | null; unitsChange: number | null };
   salesSeries: OverviewSeriesPoint[];

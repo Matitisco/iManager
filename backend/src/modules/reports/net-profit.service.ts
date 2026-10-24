@@ -7,7 +7,7 @@ import { netProfit } from "./net-profit.js";
 
 const ZONE = "America/Argentina/Buenos_Aires";
 
-async function sellRate(store: { exchangeMode: string; exchangeSource: string; manualSell: { toString(): string } | null }) {
+export async function reportSellRate(store: { exchangeMode: string; exchangeSource: string; manualSell: { toString(): string } | null }) {
   if (store.exchangeMode === "manual") {
     const rate = Number(store.manualSell ?? 0);
     return rate > 0 ? rate : null;
@@ -31,7 +31,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
   });
   const zone = store.timezone || ZONE;
   const currency: MoneyCurrency = store.currency === "USD" ? "USD" : "ARS";
-  const rate = await sellRate(store);
+  const rate = await reportSellRate(store);
   const sales = await prisma.sale.findMany({
     where: { storeId, voidedAt: null, status: { not: "CANCELADA" } },
     select: {

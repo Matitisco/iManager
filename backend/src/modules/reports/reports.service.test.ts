@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  storeFindMock,
+  rateMock,
   saleFindManyMock,
   tradeInFindManyMock,
   clientCountMock,
@@ -10,6 +12,8 @@ const {
   inventoryFindManyMock,
   returnCaseFindManyMock,
 } = vi.hoisted(() => ({
+  storeFindMock: vi.fn(),
+  rateMock: vi.fn(),
   saleFindManyMock: vi.fn(),
   tradeInFindManyMock: vi.fn(),
   clientCountMock: vi.fn(),
@@ -20,8 +24,11 @@ const {
   returnCaseFindManyMock: vi.fn(),
 }));
 
+vi.mock("./net-profit.service.js", () => ({ reportSellRate: rateMock }));
+
 vi.mock("../../plugins/prisma.js", () => ({
   prisma: {
+    store: { findUniqueOrThrow: storeFindMock },
     sale: {
       findMany: saleFindManyMock,
     },
@@ -98,6 +105,8 @@ describe("normalizeReportsOverviewInput", () => {
 describe("getReportsOverview", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    storeFindMock.mockResolvedValue({ currency: "ARS" });
+    rateMock.mockResolvedValue(1565);
     saleFindManyMock.mockReset();
     inventoryFindManyMock.mockReset();
     returnCaseFindManyMock.mockReset();
@@ -179,6 +188,38 @@ describe("getReportsOverview", () => {
       },
     });
     inventoryFindManyMock.mockResolvedValue([]);
+  });
+
+  it.each([
+    ['USD', 'ARS', 2278000, 2212872, 1456, 42],
+    ['ARS', 'USD', 100, 80, 156500, 31300],
+  ])('converts %s store sales and costs recorded in %s before every sales aggregate', async (active, stored, amount, cost, revenue, profit) => {
+    storeFindMock.mockResolvedValue({ currency: active });
+    saleFindManyMock.mockResolvedValue([{ amount, amountCurrency: stored, status: 'COMPLETADA', paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10T12:00:00Z'), clientId: 'c', inventoryItem: { model: 'Phone', cost, currency: stored } }]);
+    const result = await getReportsOverview('store-1', { rangeKey: 'custom', startDate: new Date('2026-04-01'), endDate: new Date('2026-04-30') });
+    expect(result.currency).toBe(active);
+    expect(result.summary).toMatchObject({ revenue, grossProfit: profit, unitsSold: 1 });
+    expect(result.comparison.revenue).toBe(revenue);
+    expect(result.salesSeries.reduce((n, row) => n + row.revenue, 0)).toBe(revenue);
+    expect(result.paymentMethods[0].revenue).toBe(revenue);
+  });
+  it('combines pesos and dollars and converts cost independently from sale currency', async () => {
+    storeFindMock.mockResolvedValue({ currency: 'USD' });
+    const common = { status: 'COMPLETADA', paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10'), clientId: 'c' };
+    saleFindManyMock.mockResolvedValue([
+      { ...common, amount: 156500, amountCurrency: 'ARS', inventoryItem: { model: 'A', cost: 80, currency: 'USD' } },
+      { ...common, amount: 200, amountCurrency: 'USD', inventoryItem: { model: 'B', cost: 156500, currency: 'ARS' } },
+    ]);
+    const result = await getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null });
+    expect(result.summary).toMatchObject({ revenue: 300, grossProfit: 120, unitsSold: 2, marginRate: 40 });
+    expect(result.paymentMethods[0]).toMatchObject({ revenue: 300, count: 2, share: 100 });
+  });
+
+  it('rejects cross-currency totals when the quote is missing', async () => {
+    storeFindMock.mockResolvedValue({ currency: 'USD' });
+    rateMock.mockResolvedValue(null);
+    saleFindManyMock.mockResolvedValue([{ amount: 2278000, amountCurrency: 'ARS', status: 'COMPLETADA', inventoryItem: null }]);
+    await expect(getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null })).rejects.toMatchObject({ statusCode: 503 });
   });
 
   it("returns valuation and topProducts using completed sales only", async () => {

@@ -9,7 +9,7 @@ import { DeskProvider } from '../ui';
 import { DashboardScreen } from './DashboardScreen';
 import { clearDashboardCache, readLatestDashboardCache } from '../dashboard-cache';
 
-const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.fn(), listInvitations: vi.fn() }));
 const context = vi.hoisted(() => ({
   appSession: {
     user: { displayName: 'Luis', email: 'luis@test.com' },
@@ -23,6 +23,7 @@ const context = vi.hoisted(() => ({
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('../../services/members-api', () => ({ listMembers: api.listMembers }));
+vi.mock('../../services/invitations-api', () => ({ listInvitations: api.listInvitations }));
 vi.mock('../../services/reports-api', () => ({ fetchReportsOverview: api.fetchReportsOverview }));
 const go = vi.fn();
 const open = vi.fn();
@@ -68,6 +69,7 @@ beforeEach(() => {
   context.backendStatus = 'ready'; context.sessionConfirmed = true; context.listsLoaded = true; context.listsSettled = true; context.listsLoadFailed = false; context.gettingStartedLoaded = true; context.gettingStarted = null;
   context.sales = []; context.inventory = []; context.tradeIns = []; context.clients = []; context.operationNotifications = [];
   api.fetchReportsOverview.mockReset().mockResolvedValue(structuredClone(report));
+  api.listInvitations.mockReset().mockResolvedValue([]);
   api.listMembers.mockReset().mockResolvedValue([]);
 });
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
@@ -649,4 +651,28 @@ describe('Dashboard aprobado', () => {
     expect(api.fetchReportsOverview).not.toHaveBeenCalled();
   });
 
+});
+
+
+describe('Acceso mobile al equipo', () => {
+  it.each(['OWNER', 'MANAGER'])('abre el flujo existente para %s y se oculta al crear una invitación', async role => {
+    phoneMedia(); context.appSession.membership.role = role;
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: 'Invitar al equipo' }));
+    expect(open).toHaveBeenCalledWith({ type: 'invite' });
+    api.listInvitations.mockResolvedValue([{ id: 'pending' }]);
+    act(() => window.dispatchEvent(new Event('desk-invites')));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull());
+  });
+  it('no ofrece invitar a empleados ni consulta equipo', async () => {
+    phoneMedia(); context.appSession.membership.role = 'STAFF';
+    renderScreen(); await screen.findByText('Equipos vendidos');
+    expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull();
+    expect(api.listInvitations).not.toHaveBeenCalled();
+  });
+  it('reduce el acceso al menú Más cuando el equipo ya tiene dos empleados', async () => {
+    phoneMedia(); api.listMembers.mockResolvedValue(['OWNER', 'STAFF', 'STAFF'].map((role, id) => ({ id, role, user: { displayName: 'Persona' } })));
+    renderScreen(); await waitFor(() => expect(api.listInvitations).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull();
+  });
 });

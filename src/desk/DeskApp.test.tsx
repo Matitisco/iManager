@@ -104,6 +104,19 @@ describe('sidebar unread counts', () => {
     if (id === 'patterns') expect(screen.queryByText('Nuevo reclamo')).not.toBeInTheDocument();
   });
 
+  it.each(['OWNER', 'MANAGER', 'STAFF'] as const)('offers invitations in Más only to authorized %s', async role => {
+    usePhone(); context.appSession.membership.role = role;
+    window.location.hash = '#/mas';
+    render(<DeskApp />);
+    const more = await screen.findByTestId('more-screen');
+    const invite = within(more).queryByRole('button', { name: 'Invitar al equipo' });
+    if (role === 'STAFF') expect(invite).toBeNull();
+    else {
+      fireEvent.click(invite!);
+      expect(await screen.findByRole('dialog', { name: 'Invitá a tu equipo' })).toBeVisible();
+    }
+  });
+
   it.each([390, 1440])('reutiliza el equipo al abrir, guardar y volver de permisos a %spx', async width => {
     if (width === 390) usePhone();
     const member: TeamMember = { id: 'm2', userId: 'u2', role: 'STAFF', isDefault: false, createdAt: '2026-10-01', sections: ['sales'], user: { id: 'u2', displayName: 'Luis', email: 'luis@example.test', avatarUrl: null } };

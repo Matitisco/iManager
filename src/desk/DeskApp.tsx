@@ -29,10 +29,11 @@ import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
 import { DeskToast } from './toast';
-import { DeskProvider } from './ui';
+import { DeskProvider, useDesk } from './ui';
 import { canManageSensitive as memberCanManageSensitive } from './sensitive-access';
 import { MobileTabBar } from './mobile-tab-bar';
-import { canManageCommissions } from './sections';
+import { UserPlus } from 'lucide-react';
+import { canViewTeam, canManageCommissions } from './sections';
 import { HistoryScreen } from './screens/HistoryScreen';
 import { ExpensesScreen } from './screens/ExpensesScreen';
 import { FollowUpsScreen } from './screens/FollowUps';
@@ -66,6 +67,8 @@ import type { ReactNode } from 'react';
 function MoreScreen({ name, store, role, navigation, onOpen }: {
   name: string; store: string; role: string; navigation: ReactNode; onOpen: (id: DeskTab) => void;
 }) {
+  const { open } = useDesk();
+  const { appSession } = useAppContext();
   return <div className="dscreen mmore" data-testid="more-screen">
     <div className="whead"><h1>Más</h1></div>
     <InstallCard />
@@ -74,6 +77,9 @@ function MoreScreen({ name, store, role, navigation, onOpen }: {
       <span className="info"><b>{name}</b><small>{store} · {role}</small></span>
       <span className="chev" aria-hidden="true">›</span>
     </button>
+    {canViewTeam(appSession?.membership?.role) ? <button className="mprofile" type="button" onClick={() => open({ type: 'invite' })}>
+      <div className="av-c k"><UserPlus size={20} /></div><span className="info"><b>Invitar al equipo</b></span><span className="chev" aria-hidden="true">›</span>
+    </button> : null}
     {navigation}
   </div>;
 }
