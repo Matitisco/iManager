@@ -179,8 +179,8 @@ describe('control de stock #318', () => {
     api.fetchStockCount.mockResolvedValue({ ...closed, buckets: { ...closed.buckets, missing } });
     const act = actor();
     await result();
-    expect(screen.getByText('Equipo 4 · 128GB')).toBeInTheDocument();
-    expect(screen.queryByText('Equipo 5 · 128GB')).not.toBeInTheDocument();
+    expect(screen.getByText('Equipo 2 · 128GB')).toBeInTheDocument();
+    expect(screen.queryByText('Equipo 3 · 128GB')).not.toBeInTheDocument();
     await act.click(screen.getByRole('button', { name: 'Ver los 8' }));
     expect(screen.getByText('Equipo 7 · 128GB')).toBeInTheDocument();
     await act.click(screen.getByRole('button', { name: 'Coinciden 1' }));
@@ -193,13 +193,27 @@ describe('control de stock #318', () => {
     expect(screen.queryByText('Conteos físicos del local')).not.toBeInTheDocument();
     if (mobile) {
       const devices = screen.getByRole('region', { name: 'Sin escanear' });
-      expect(within(devices).getAllByText('352098117741188')).toHaveLength(5);
+      expect(within(devices).getAllByText('352098117741188')).toHaveLength(3);
       expect(devices).not.toHaveTextContent('Rosa');
       await act.click(screen.getByRole('button', { name: 'Volver' }));
       expect(go).toHaveBeenCalledWith('inventory');
     } else {
       expect(screen.queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
       expect(screen.getByRole('region', { name: 'Sin escanear' })).toHaveTextContent('IMEI 352098117741188');
+    }
+  });
+
+  it.each([3, 4])('ofrece ver todos solo si hay más de tres equipos: %s', async (size) => {
+    const missing = Array.from({ length: size }, (_, index) => ({ ...closed.buckets.missing[0], key: `line-${index}` }));
+    api.fetchStockCount.mockResolvedValue({ ...closed, buckets: { ...closed.buckets, missing } });
+    await result();
+    expect(document.querySelectorAll('.stock-line')).toHaveLength(3);
+    if (size === 3) expect(screen.queryByRole('button', { name: 'Ver los 3' })).not.toBeInTheDocument();
+    else {
+      await actor().click(screen.getByRole('button', { name: 'Ver los 4' }));
+      expect(document.querySelectorAll('.stock-line')).toHaveLength(4);
+      await actor().click(screen.getByRole('button', { name: 'Ver menos' }));
+      expect(document.querySelectorAll('.stock-line')).toHaveLength(3);
     }
   });
 

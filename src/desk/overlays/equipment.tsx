@@ -92,7 +92,7 @@ export function EquipmentDetail({ id }: { id: string }) {
   };
   return (
     <>
-    <Sheet title={equipmentTitle(item.model, item.capacity)} subtitle={item.color || undefined} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
+    <Sheet title={equipmentTitle(item.model, item.capacity)} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
       {isInStock(item.status) || (canManageSensitive && !item.archivedAt) ? <SheetActionMenu>{isInStock(item.status) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button> : null}{canManageSensitive && !item.archivedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity) })}>Archivar</button> : null}</SheetActionMenu> : null}
       <button className="btn2 p sheet-primary" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
