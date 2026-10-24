@@ -1,0 +1,7 @@
+- [x] Comparar dos variantes locales y capturarlas a 1440 y 390.
+- [x] Verificar el patrón compartido en Canje y documentar la recomendación.
+- [x] Elegir la variante 1 aprobada por Matias y actualizar los artefactos.
+- [x] Implementar cruz definitiva, ids estables y foco; retirar flag, variante 2 y CSS exploratorio.
+- [x] Verificar remoción intermedia, renumeración, valores, totales, foco y primer pago con tests de componente.
+- [x] Validar Venta/Canje localmente a 1440/390, guardar e inspeccionar las cuatro capturas finales.
+- [x] Ejecutar TypeScript frontend/backend y tests relacionados, sin build.
