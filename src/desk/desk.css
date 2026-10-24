@@ -1970,6 +1970,12 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .acct-actions { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 12px; }
 .acct-actions .btn2, .acct-actions a.btn2, .acct-stack .btn2 { height: auto; min-height: 48px; white-space: normal; text-align: center; line-height: 1.2; padding: 10px 12px; text-decoration: none; }
 .acct-tenders, .acct-stack { display: grid; gap: 8px; min-width: 0; }
+.acct-tender-removable { position: relative; }
+.acct-tender-removable > .fl > span { display: flex; align-items: center; min-height: 44px; padding-right: 52px; }
+.desk-app button.acct-tender-remove { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--secondary); cursor: pointer; touch-action: manipulation; }
+.desk-app button.acct-tender-remove:hover { color: var(--primary); }
+.desk-app button.acct-tender-remove:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.desk-app button.acct-tender-remove:active { background: var(--row); }
 .acct-plan { display: grid; gap: 8px; margin: 8px 0 12px; min-width: 0; }
 .acct-views { min-width: 0; flex: 1 1 100%; }
 .clients-filters { flex-wrap: wrap; }
