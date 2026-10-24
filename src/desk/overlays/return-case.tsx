@@ -205,7 +205,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
   return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet ret-state" overlayClassName={overlayClassName}
     footer={voided ? legacyArchive && canManageSensitive
       ? <Actions busyLabel="Restaurar" primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
-      : <button className="btn2 s" type="button" onClick={close}>Cerrar</button>
+      : <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
       : <Actions busyLabel="Guardar" primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
     <ReturnSummary current={current} reason />
