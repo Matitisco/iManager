@@ -29,6 +29,16 @@ beforeEach(() => {
   for (const fn of [ctx.updateReturn, ctx.resolveReturn, ctx.advanceRma, ctx.archiveReturn]) fn.mockResolvedValue(claim);
 });
 describe('cambio de estado de reclamo', () => {
+  it('saves a nested claim and closes only its local sheet', async () => {
+    const onClose = vi.fn();
+    mount(<ReturnDetail id="claim" onClose={onClose} overlayClassName="subov" />);
+    expect(screen.getByRole('dialog').closest('.ov')).toHaveClass('subov');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+    expect(ctx.updateReturn).toHaveBeenCalledWith('claim', { status: 'ABIERTO', diagnosis: null, note: null });
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it('keeps selection and note as drafts until Guardar, then submits them together', async () => {
     mount(<ReturnDetail id="claim" />);
     await userEvent.click(screen.getByRole('button', { name: 'En diagnóstico' }));

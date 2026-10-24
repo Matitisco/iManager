@@ -1,14 +1,14 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PatternGroupBy, ReturnPatternView } from '../../services/returns-api';
+import type { PatternGroupBy, ReturnCaseView, ReturnPatternView } from '../../services/returns-api';
 import { DeskProvider } from '../ui';
 import { returnPatternsHash, showSupplierPatterns } from '../returns-navigation';
 import { PatternsScreen } from './PatternsScreen';
 import { ReturnsPatterns } from './ReturnsPatterns';
 
 const ctx = vi.hoisted(() => ({
-  user: { uid: 'owner' }, backendStatus: 'ready', returns: [], inventory: [], repairOrders: [], returnsError: '',
+  user: { uid: 'owner' }, backendStatus: 'ready', returns: [] as ReturnCaseView[], inventory: [], repairOrders: [], returnsError: '',
   appSession: { store: { id: 'store' }, membership: { role: 'OWNER', sections: null as string[] | null } },
 }));
 const layout = vi.hoisted(() => ({ phone: false }));
@@ -54,7 +54,16 @@ beforeEach(() => {
   ctx.appSession = { store: { id: 'store' }, membership: { role: 'OWNER', sections: null } };
   ctx.backendStatus = 'ready';
   ctx.inventory = [];
-  ctx.returns = [];
+  ctx.returns = group.claimsDetail.map(claim => ({
+    id: claim.id, code: claim.caseNumber, caseNumber: Number(claim.caseNumber.slice(-4)),
+    clientName: claim.clientName, deviceLabel: claim.deviceLabel, imei: claim.imei,
+    status: claim.status, rmaStatus: claim.rmaStatus, reason: claim.reason, events: [],
+    saleId: null, clientId: null, inventoryItemId: null, supplierId: null, supplierName: null,
+    diagnosis: null, openedOn: '2026-10-21', resolution: null, settlement: null, moneyAmount: 0,
+    moneyCurrency: null, destination: null, stockStatus: null, previousStatus: null,
+    resolvedOn: null, deletedAt: null, refundable: 0, saleAmount: 0, saleCurrency: 'USD',
+    saleDate: null, warrantyDays: 0, itemCost: 0, itemCurrency: 'USD', creditNote: null,
+  }));
   api.fetchReturnAnalysis.mockReset();
   api.fetchReturns.mockResolvedValue([]);
   api.fetchReturnAnalysis.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve({ patterns: by === 'supplier' ? [group, coolGroup] : [], summary }));
@@ -97,8 +106,12 @@ describe('Fallas', () => {
     expect(screen.getByRole('dialog', { name: 'Proveedor 5' })).not.toHaveClass('pat-all-sheet');
     expect(screen.getByText('iPhone 11 64GB · Batería al 70%')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /RMA-0001 · Lucía/ }));
-    expect(open).toHaveBeenCalledWith({ type: 'return', id: 'r1' });
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Proveedor 5' })).toBeInTheDocument();
   });
 
   it('shows server percentages, full denominator and primary reason on each ranking row', async () => {
@@ -110,7 +123,8 @@ describe('Fallas', () => {
     expect(row.querySelector('.pat-bar i')).toHaveStyle({ width: '36%' });
   });
 
-  it('shows three claims and all claims in a second sheet with a transparent server limit', async () => {
+  it.each([false, true])('replaces the group with all claims and opens a nested claim (phone=%s)', async phone => {
+    layout.phone = phone;
     const claims = [...group.claimsDetail, { ...group.claimsDetail[0], id: 'r4', caseNumber: 'RMA-0004' }];
     api.fetchReturnAnalysis.mockResolvedValue(result([{ ...group, claims: 80, claimsDetail: claims, claimsTruncated: true }]));
     mount(<ReturnsPatterns groupBy="supplier" />);
@@ -118,8 +132,22 @@ describe('Fallas', () => {
     expect(screen.getByRole('dialog').querySelectorAll('.return-row')).toHaveLength(3);
     await userEvent.click(screen.getByRole('button', { name: 'Ver todos (80)' }));
     const all = screen.getByRole('dialog', { name: 'Todos los reclamos' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(document.querySelectorAll('.ov')).toHaveLength(1);
+    expect(all).toHaveClass('sheet-frame');
     expect(all.querySelectorAll('.return-row')).toHaveLength(4);
     expect(all).toHaveTextContent('Mostrando 4 de 80 reclamos');
+    const trigger = within(all).getByRole('button', { name: /RMA-0001 · Lucía/ });
+    await userEvent.click(trigger);
+    const detail = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
+    expect(detail).toHaveClass('sheet-frame', 'return-sheet');
+    expect(detail.closest('.ov')).toHaveClass('subov');
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(open).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.getByRole('dialog', { name: 'Todos los reclamos' })).toBe(all);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     await userEvent.keyboard('{Escape}');
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByRole('dialog', { name: group.label })).toBeInTheDocument();
