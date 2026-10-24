@@ -34,4 +34,29 @@ describe('link invitations', () => {
     expect(await screen.findByText('No se pudo crear el link')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
   });
+  it.each(['invite-send', 'invite-copy'])('validates an invalid email before %s and recovers after editing', async (action) => {
+    const user = userEvent.setup();
+    show();
+    const email = screen.getByRole('textbox', { name: 'Email (opcional)' });
+    await user.type(email, 'QA cuenta invalido');
+    await user.click(screen.getByTestId(action));
+    expect(screen.getByText('Ingresá un email válido.')).toBeInTheDocument();
+    expect(email).toHaveAttribute('aria-invalid', 'true');
+    expect(createInvitation).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+
+    await user.clear(email);
+    await user.type(email, 'qa.cuenta@imanager.local');
+    expect(screen.queryByText('Ingresá un email válido.')).not.toBeInTheDocument();
+    expect(email).toHaveAttribute('aria-invalid', 'false');
+    await user.click(screen.getByTestId(action));
+    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith(context.user, 'qa.cuenta@imanager.local', 'STAFF', expect.any(Object)));
+  });
+  it('copies a link without requiring the optional email', async () => {
+    const user = userEvent.setup();
+    show();
+    await user.click(screen.getByTestId('invite-copy'));
+    await waitFor(() => expect(createInvitation).toHaveBeenCalledWith(context.user, undefined, 'STAFF', expect.any(Object)));
+    expect(await screen.findByTestId('invite-url')).toHaveTextContent('https://imanager.test/invite/t');
+  });
 });

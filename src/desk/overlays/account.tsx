@@ -289,12 +289,19 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
   const [sensitive, setSensitive] = useState(false);
   const [url, setUrl] = useState(initialUrl ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const copiedTimer = useRef<number | null>(null);
   useEffect(() => () => { if (copiedTimer.current) window.clearTimeout(copiedTimer.current); }, []);
   const access = { sections, sensitiveAccess: sensitive };
+  const validEmail = () => {
+    const target = email.trim();
+    const invalid = Boolean(target && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target));
+    setEmailError(invalid ? 'Ingresá un email válido.' : '');
+    return !invalid;
+  };
   const create = (target: string | undefined, reuse: boolean) => {
     if (!user) return Promise.reject(new Error('No hay sesión.'));
     if (reuse && url) return Promise.resolve(url);
@@ -348,8 +355,8 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
       onClose={close}
     >
       {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
-      <Field label="Email (opcional)" error={undefined}>
-        <input type="email" inputMode="email" autoComplete="email" value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setUrl(''); }} />
+      <Field label="Email (opcional)" error={emailError}>
+        <input type="email" inputMode="email" autoComplete="email" aria-invalid={Boolean(emailError)} value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setEmailError(''); setUrl(''); }} />
       </Field>
       <Field label="Rol"><span /></Field>
       <Segs
@@ -372,10 +379,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
       <div className="fresh-invite-actions">
         <button className="dbtn p" type="button" data-testid="invite-send" disabled={busy} onClick={() => {
           const target = email.trim();
-          if (target && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
-            setError('Ingresá un email válido.');
-            return;
-          }
+          if (!validEmail()) return;
           setBusy(true);
           setError(null);
           create(target || undefined, true)
@@ -384,6 +388,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
             .finally(() => setBusy(false));
         }}>{busy ? 'Creando…' : 'Crear link de invitación'}</button>
         <button className="fresh-copy" type="button" data-testid="invite-copy" disabled={busy} onClick={() => {
+          if (!validEmail()) return;
           setBusy(true);
           setError(null);
           create(email.trim() || undefined, true)
