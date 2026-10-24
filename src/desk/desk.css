@@ -2589,10 +2589,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .stage-notices { display: grid; gap: 8px; padding: 12px 20px 0; }
 .stage-notices:empty { display: none; }
 .desk-app .stage-notices > * { margin: 0; }
-.dolar.chip { width: min(194px, calc(100vw - 156px)); min-width: min(194px, calc(100vw - 156px)); max-width: 194px; height: 36px; min-height: 36px; flex-shrink: 0; }
+.dolar.chip { width: fit-content; min-width: 0; max-width: calc(100% - 156px); height: 36px; min-height: 36px; flex-shrink: 0; }
 @media (max-width: 760px) { .stage-notices { padding-inline: 16px; } }
 
-.dolar.chip .dolar-hit { width: 100%; justify-content: center; }
+.dolar.chip .dolar-hit { width: auto; min-height: 34px; }
 .dolar-skel { visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
 
 /* Sidenav: one disclosed group; destinations reuse the real menu. */

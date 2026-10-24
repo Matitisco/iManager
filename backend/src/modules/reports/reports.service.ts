@@ -1,3 +1,5 @@
+import { reportSellRate } from "./net-profit.service.js";
+import { projectAmount, type MoneyCurrency } from "../periodic-reports/report-math.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 
@@ -109,6 +111,7 @@ export interface ReportsTradeInSnapshot {
 }
 
 export interface ReportsOverviewResponse {
+  currency: MoneyCurrency;
   filters: {
     rangeKey: ReportsRangeKey;
     startDate: string | null;
@@ -334,6 +337,8 @@ export async function getReportsOverview(
   storeId: string,
   input: ReportsOverviewInput
 ): Promise<ReportsOverviewResponse> {
+  const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { currency: true, exchangeMode: true, exchangeSource: true, manualSell: true } });
+  const currency: MoneyCurrency = store.currency === 'USD' ? 'USD' : 'ARS';
   const salesWhere = {
     storeId,
     voidedAt: null,
@@ -369,6 +374,7 @@ export async function getReportsOverview(
       where: salesWhere,
       select: {
         amount: true,
+        amountCurrency: true,
         paymentMethod: true,
         status: true,
         soldAt: true,
@@ -385,6 +391,7 @@ export async function getReportsOverview(
             capacity: true,
             color: true,
             cost: true,
+            currency: true,
           },
         },
       },
@@ -403,8 +410,9 @@ export async function getReportsOverview(
           },
           select: {
             amount: true,
+            amountCurrency: true,
             inventoryItem: {
-              select: { cost: true },
+              select: { cost: true, currency: true },
             },
           },
         })
@@ -459,31 +467,41 @@ export async function getReportsOverview(
     }),
   ]);
 
+  const needsConversion = [...sales.filter(sale => sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE'), ...previousSales].some(sale =>
+    (sale.amountCurrency != null && sale.amountCurrency !== currency) ||
+    (sale.inventoryItem?.currency != null && sale.inventoryItem.currency !== currency));
+  const rate = needsConversion ? await reportSellRate(store) : null;
+  const convert = (value: unknown, storedCurrency?: string | null) => {
+    const projected = projectAmount(toNumber(value), storedCurrency, currency, rate);
+    if (projected.blocked) throw new ReportsError('No se pudo convertir el reporte. Revisá la cotización del local.', 503);
+    return projected.value;
+  };
+
   const completedSales: CompletedSale[] = sales
     .filter((sale) => sale.status === "COMPLETADA")
     .map((sale) => ({
-      amount: toNumber(sale.amount),
+      amount: convert(sale.amount, sale.amountCurrency),
       paymentMethod: sale.paymentMethod,
       soldAt: sale.soldAt,
       clientId: sale.clientId,
       product: buildProductLabel(sale.inventoryItem),
       category: sale.category?.name?.trim() || "Sin categoría",
       clientName: sale.client?.name?.trim() || "Sin cliente",
-      cost: toNumber(sale.inventoryItem?.cost),
+      cost: convert(sale.inventoryItem?.cost, sale.inventoryItem?.currency),
     }));
 
   const activeTradeIns = tradeIns.filter((tradeIn) => tradeIn.status !== "CANCELADO");
   const pendingSaleRows = sales.filter((sale) => sale.status === "PENDIENTE");
   const pendingSales = pendingSaleRows.length;
   const pendingAmount = pendingSaleRows.reduce(
-    (accumulator, sale) => accumulator + toNumber(sale.amount),
+    (accumulator, sale) => accumulator + convert(sale.amount, sale.amountCurrency),
     0
   );
   const currentMetrics = summarizeCompleted(completedSales);
   const previousMetrics = summarizeCompleted(
     previousSales.map((sale) => ({
-      amount: toNumber(sale.amount),
-      cost: toNumber(sale.inventoryItem?.cost),
+      amount: convert(sale.amount, sale.amountCurrency),
+      cost: convert(sale.inventoryItem?.cost, sale.inventoryItem?.currency),
     }))
   );
   const { revenue, grossProfit, unitsSold, averageTicket } = currentMetrics;
@@ -592,6 +610,7 @@ export async function getReportsOverview(
   });
 
   return {
+    currency,
     filters: {
       rangeKey: input.rangeKey,
       startDate: input.startDate?.toISOString() ?? null,

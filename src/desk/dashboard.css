@@ -116,3 +116,6 @@ a.v3-contact .btn2 { width: auto; padding: 0 24px; }
 @media (max-width: 760px) { .dashboard-screen .phone-rows + .v3-contact { margin-top: 14px; } a.v3-contact { padding: 22px 18px; } }
 @media (max-width: 760px) { .dashboard-screen .phone-rows { padding-bottom: 0; } } /* espejo de .mobile-list-screen .phone-rows (desk.css): no hay mdock en el dashboard */
 a.v3-contact .btn2 svg path { fill: var(--primary); } /* el verde #25D366 no tiene contraste sobre lime: icono monocromo */
+
+.dashboard-screen .dashboard-invite { width: 100%; min-height: 52px; margin-bottom: 14px; padding: 12px 16px; gap: 10px; }
+.dashboard-screen .dashboard-invite span { flex: 1; color: var(--primary); font-size: 14px; font-weight: 700; text-align: left; }

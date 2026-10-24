@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, UserPlus } from 'lucide-react';
 import type { Sale } from '../../types';
 import { Skeleton } from '../../components/Skeleton';
 import { useAppContext } from '../../context/AppContext';
 import { ROLE_LABEL } from '../../lib/roles';
 import { isNetworkErrorMessage, toUserMessage } from '../../lib/user-message';
 import { listMembers, type TeamMember } from '../../services/members-api';
+import { listInvitations } from '../../services/invitations-api';
 import { fetchReportsOverview } from '../../services/reports-api';
 import { clientNet } from '../client-balance';
 import { DashboardDateRange } from '../dashboard-date-range';
@@ -60,6 +61,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const [cached] = useState(() => readLatestDashboardCache(scope));
   const [cacheTicket] = useState(dashboardCacheVersion);
   const [members, setMembers] = useState<TeamMember[]>(() => cached?.members ?? []);
+  const [showInvite, setShowInvite] = useState(false);
   const [report, setReport] = useState<DashboardReport | null>(() => readDashboardCache(queryKey)?.report ?? null);
   const [initialScope, setInitialScope] = useState(() => cached?.initialResolved ? scope : '');
   const role = appSession?.membership?.role;
@@ -75,8 +77,18 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   useEffect(() => {
     if (!canViewTeam(role) || !user || !storeId) return;
     let cancelled = false;
-    listMembers(user, storeId).then(rows => { if (!cancelled) setMembers(rows); }).catch(() => {});
-    return () => { cancelled = true; };
+    let version = 0;
+    const refresh = () => {
+      const ticket = ++version;
+      Promise.all([listMembers(user, storeId).then(rows => { if (!cancelled && ticket === version) setMembers(rows); return rows; }), listInvitations(user)])
+        .then(([rows, invitations]) => {
+          if (cancelled || ticket !== version) return;
+          setShowInvite(rows.filter(member => member.role !== 'OWNER').length <= 1 && invitations.length === 0);
+        }).catch(() => { if (!cancelled && ticket === version) setShowInvite(false); });
+    };
+    refresh();
+    window.addEventListener('desk-invites', refresh);
+    return () => { cancelled = true; window.removeEventListener('desk-invites', refresh); };
   }, [user, storeId, role]);
 
   useEffect(() => {
@@ -109,7 +121,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const periodLoading = initialLoading || reportLoading;
   const hideLoadMessage = !overview && (backendStatus === 'offline' || current?.networkFailure);
   const comparable = !!displayedRange && !!overview?.comparison.available;
-  const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, appSession?.store?.currency) : money.show(amount, appSession?.store?.currency);
+  const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, overview?.currency ?? appSession?.store?.currency) : money.show(amount, overview?.currency ?? appSession?.store?.currency);
   const available = inventory.filter(item => isInStock(item.status)).length;
   const openTrades = tradeIns.filter(item => !isVoidRow(item) && isInProgressTrade(item.status)).length;
   const balance = money.sum(clients.filter(client => clientNet(client) > 0).map(client => ({ amount: clientNet(client), currency: client.balanceCurrency })));
@@ -137,6 +149,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
       desktop={<div className="dright">{avatars}{can('sales') ? <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta> : null}</div>}
       navigation={null} />
     {phone && can('sales') ? <div className="dashboard-register" data-testid="dashboard-register-sale"><DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div> : null}
+    {phone && canViewTeam(role) && showInvite ? <button type="button" className="dcard v3-link dashboard-invite" onClick={() => open({ type: 'invite' })}><UserPlus size={20} /><span>Invitar al equipo</span><ChevronRight size={16} /></button> : null}
     <DashboardDateRange range={range} onApply={setRange} phone={phone} />
     {kpiCount > 0 ? <div className="dstats" data-count={kpiCount}>
       {seeFinancials ? <>
