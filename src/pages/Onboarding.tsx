@@ -26,6 +26,7 @@ function CurrencyQuote() {
 type StoreCurrency = "ARS" | "USD";
 type ExchangeMode = "auto" | "manual";
 type ExchangeSource = "blue" | "oficial" | "mep";
+type QuoteField = "buy" | "sell";
 function rateOrNull(value: string) {
   const n = Number(value.replace(/\D/g, ""));
   return n > 0 ? n : null;
@@ -37,6 +38,7 @@ function CurrencySetup({
   manualBuy,
   manualSell,
   disabled,
+  invalidField,
   onCurrency,
   onMode,
   onSource,
@@ -49,6 +51,7 @@ function CurrencySetup({
   manualBuy: string;
   manualSell: string;
   disabled: boolean;
+  invalidField?: QuoteField;
   onCurrency: (value: StoreCurrency) => void;
   onMode: (value: ExchangeMode) => void;
   onSource: (value: ExchangeSource) => void;
@@ -130,6 +133,8 @@ function CurrencySetup({
             <input
               id="onboarding-manual-buy"
               data-testid="onboarding-manual-buy"
+              aria-invalid={invalidField === "buy" || undefined}
+              aria-describedby={invalidField === "buy" ? "onboarding-error" : undefined}
               inputMode="numeric"
               className={field}
               value={manualBuy}
@@ -150,6 +155,8 @@ function CurrencySetup({
             <input
               id="onboarding-manual-sell"
               data-testid="onboarding-manual-sell"
+              aria-invalid={invalidField === "sell" || undefined}
+              aria-describedby={invalidField === "sell" ? "onboarding-error" : undefined}
               inputMode="numeric"
               className={field}
               value={manualSell}
@@ -186,19 +193,40 @@ export function Onboarding({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [errorAttempt, setErrorAttempt] = useState(0);
-  const errorRef = useRef<HTMLParagraphElement>(null);
   const showError = (message: string) => {
     setError(message);
     setErrorAttempt(attempt => attempt + 1);
   };
+  const [quoteError, setQuoteError] = useState<{ field: QuoteField } | null>(null);
+  const currencyDetails = useRef<HTMLDetailsElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => {
     if (!error) return;
-    errorRef.current?.focus({ preventScroll: true });
-    errorRef.current?.scrollIntoView?.({ block: "center" });
-  }, [error, errorAttempt]);
+    if (!quoteError || !currencyDetails.current) {
+      errorRef.current?.focus({ preventScroll: true });
+      errorRef.current?.scrollIntoView?.({ block: "center" });
+      return;
+    }
+    currencyDetails.current.open = true;
+    const input = currencyDetails.current.querySelector<HTMLInputElement>(`#onboarding-manual-${quoteError.field}`);
+    input?.focus({ preventScroll: true });
+    input?.scrollIntoView({ block: "center" });
+    errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [error, errorAttempt, quoteError]);
+  const clearQuoteError = () => {
+    if (quoteError) {
+      setQuoteError(null);
+      setError("");
+    }
+  };
+  const rejectQuote = (message: string, field: QuoteField) => {
+    showError(message);
+    setQuoteError({ field });
+  };
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
     setError("");
+    setQuoteError(null);
     try {
       await action();
     } catch (cause) {
@@ -209,6 +237,7 @@ export function Onboarding({
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    setQuoteError(null);
     if (!storeName.trim()) {
       showError("Completá el nombre de la tienda");
       return;
@@ -219,7 +248,7 @@ export function Onboarding({
     }
     if (mode === "manual") {
       if (Boolean(rateOrNull(buy)) !== Boolean(rateOrNull(sell))) {
-        showError("Completá compra y venta, o dejalas vacías.");
+        rejectQuote("Completá compra y venta, o dejalas vacías.", rateOrNull(buy) ? "sell" : "buy");
         return;
       }
       const invalid = manualQuoteOrderError(
@@ -227,7 +256,7 @@ export function Onboarding({
         rateOrNull(sell) ?? 0,
       );
       if (invalid) {
-        showError(invalid);
+        rejectQuote(invalid, "sell");
         return;
       }
     }
@@ -325,7 +354,7 @@ export function Onboarding({
               autoComplete="organization"
             />
             <small>Lo cambiás cuando quieras.</small>
-            <details className="onb-currency">
+            <details className="onb-currency" ref={currencyDetails}>
               <summary>
                 <Banknote size={20} aria-hidden="true" />
                 <span>
@@ -350,16 +379,17 @@ export function Onboarding({
                   manualBuy={buy}
                   manualSell={sell}
                   disabled={busy}
+                  invalidField={quoteError?.field}
                   onCurrency={setCurrency}
-                  onMode={setMode}
+                  onMode={(value) => { clearQuoteError(); setMode(value); }}
                   onSource={setSource}
-                  onManualBuy={setBuy}
-                  onManualSell={setSell}
+                  onManualBuy={(value) => { clearQuoteError(); setBuy(value); }}
+                  onManualSell={(value) => { clearQuoteError(); setSell(value); }}
                 />
               </div>
             </details>
             {error && (
-              <p ref={errorRef} tabIndex={-1} className="onb-error" role="alert">
+              <p className="onb-error" id="onboarding-error" role="alert" ref={errorRef} tabIndex={-1}>
                 {error}
               </p>
             )}

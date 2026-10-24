@@ -41,6 +41,8 @@ const FILTERS: { id: Bucket; label: string }[] = [
   { id: 'sold', label: 'Figuran vendidos' },
 ];
 
+const RESULT_PREVIEW_LIMIT = 3;
+
 function CountSteps({ step, onStart, busy }: { step: 1 | 2 | 3; onStart?: () => void; busy?: boolean }) {
   return <ol className="stock-steps" aria-label="Pasos del control">
     {['Contar', 'Revisar', 'Registrar'].map((label, index) => <li key={label} className={index + 1 < step ? 'done' : index + 1 === step ? 'on' : ''} aria-current={index + 1 === step ? 'step' : undefined}>
@@ -297,7 +299,7 @@ export function StockCountScreen() {
   }).format(new Date(value));
   const closedWho = closed?.subtitle.match(/ · contaron (.*?)(?: · \d+ escaneos?)?$/)?.[1];
   const groupLabel = FILTERS.find((item) => item.id === filter)?.label || 'Sin escanear';
-  const visibleLines = expanded ? lines : lines.slice(0, 5);
+  const visibleLines = expanded ? lines : lines.slice(0, RESULT_PREVIEW_LIMIT);
   const availableCount = inventory.filter((item) => !item.archivedAt && item.status === 'DISPONIBLE' && extractImeiLoose(item.imei)).length;
 
   return (
@@ -416,7 +418,7 @@ export function StockCountScreen() {
                 </div>
               ))}
             </div>
-            {lines.length > 5 ? <button className="stock-more" type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Ver menos' : `Ver los ${lines.length}`}</button> : null}
+            {lines.length > RESULT_PREVIEW_LIMIT ? <button className="stock-more" type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>{expanded ? 'Ver menos' : `Ver los ${lines.length}`}</button> : null}
           </section>
         </>
       ) : null}

@@ -199,7 +199,6 @@ export function BatchLoad() {
     <>
       <Sheet
         title="Carga en serie"
-        subtitle="Los repetidos e inválidos no se cargan. Podés quitarlos."
         onClose={close}
         className="batch-sheet"
         footer={(

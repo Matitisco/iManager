@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MANUAL_QUOTE_ORDER_ERROR } from '../lib/manual-quote';
 import { Onboarding } from './Onboarding';
 
@@ -42,7 +42,11 @@ vi.mock('../hooks/useInvitationPreview', () => ({
 }));
 
 describe('Onboarding', () => {
+  const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+  const scroll = vi.fn();
   beforeEach(() => {
+    scroll.mockReset();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
     mockAppContext.completeOnboarding.mockReset();
     mockAppContext.acceptStoreInvitation.mockReset();
     mockAppContext.logout.mockReset();
@@ -52,6 +56,10 @@ describe('Onboarding', () => {
     mockInvitationState.isLoading = false;
     mockInvitationState.isRetrying = false;
     mockInvitationState.reload.mockReset();
+  });
+  afterEach(() => {
+    if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll);
+    else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
   });
 
   it('does not render placeholder hash links', () => {
@@ -153,11 +161,38 @@ describe('Onboarding', () => {
     await user.type(screen.getByTestId('onboarding-manual-sell'), '1300');
     await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
-    const message = await screen.findByText(MANUAL_QUOTE_ORDER_ERROR);
-    expect(message).toBeInTheDocument();
-    await waitFor(() => expect(message).toHaveFocus());
+    expect(await screen.findByText(MANUAL_QUOTE_ORDER_ERROR)).toBeInTheDocument();
+    expect(screen.getByLabelText('Venta')).toHaveFocus();
+    expect(screen.getByLabelText('Venta')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('Venta')).toHaveAccessibleDescription(MANUAL_QUOTE_ORDER_ERROR);
+    expect(scroll).toHaveBeenCalled();
+    expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
+
+    await user.click(screen.getByText('Moneda y dólar'));
+    expect(screen.getByText('Moneda y dólar').closest('details')).not.toHaveAttribute('open');
     await user.click(screen.getByRole('button', { name: 'Seguir' }));
-    await waitFor(() => expect(message).toHaveFocus());
+    expect(screen.getByText('Moneda y dólar').closest('details')).toHaveAttribute('open');
+    expect(screen.getByLabelText('Venta')).toHaveFocus();
+
+    await user.clear(screen.getByLabelText('Venta'));
+    await user.type(screen.getByLabelText('Venta'), '1500');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Venta')).not.toHaveAttribute('aria-invalid');
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
+    await waitFor(() => expect(mockAppContext.completeOnboarding).toHaveBeenCalledWith(expect.objectContaining({ manualBuy: 1400, manualSell: 1500 })));
+  });
+
+  it.each(['Compra', 'Venta'])('focuses the missing manual quote: %s', async (missing) => {
+    const user = userEvent.setup();
+    render(<Onboarding />);
+    await user.type(screen.getByLabelText('Nombre de la tienda'), 'Sucursal Norte');
+    await user.click(screen.getByText('Moneda y dólar'));
+    await user.selectOptions(screen.getByTestId('onboarding-exchange-mode'), 'manual');
+    await user.type(screen.getByLabelText(missing === 'Compra' ? 'Venta' : 'Compra'), '1400');
+    await user.click(screen.getByText('Moneda y dólar'));
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
+    expect(screen.getByLabelText(missing)).toHaveFocus();
+    expect(screen.getByLabelText(missing)).toHaveAccessibleDescription('Completá compra y venta, o dejalas vacías.');
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
   });
 
