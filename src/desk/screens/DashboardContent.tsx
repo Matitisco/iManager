@@ -56,6 +56,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const { go, open } = useDesk();
   const phone = usePhoneLayout();
   const [range, setRange] = useState<DashboardPeriod>(dashboardMonth);
+  const [failedPeriodKey, setFailedPeriodKey] = useState<string | null>(null);
+  const [periodRetry, setPeriodRetry] = useState(0);
   const queryKey = `${scope}:${range?.start}:${range?.end}`;
   const [cached] = useState(() => readLatestDashboardCache(scope));
   const [cacheTicket] = useState(dashboardCacheVersion);
@@ -84,12 +86,15 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     let cancelled = false;
     const controller = new AbortController();
     fetchReportsOverview(user, range?.start, range?.end, controller.signal)
-      .then(data => { if (!cancelled) setReport({ key: queryKey, range, data, sales, inventory }); })
+      .then(data => { if (!cancelled) { setFailedPeriodKey(null); setReport({ key: queryKey, range, data, sales, inventory }); } })
       .catch((cause: unknown) => {
-        if (!cancelled) setReport(previous => previous?.data ? previous : { key: queryKey, range, data: null, failed: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)), sales, inventory });
+        if (!cancelled) {
+          setFailedPeriodKey(queryKey);
+          setReport(previous => previous?.data ? previous : { key: queryKey, range, data: null, failed: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)), sales, inventory });
+        }
       });
     return () => { cancelled = true; controller.abort(); };
-  }, [ready, loadingLists, seeFinancials, user, queryKey, range?.start, range?.end, sales, inventory]);
+  }, [ready, loadingLists, seeFinancials, user, queryKey, range?.start, range?.end, sales, inventory, periodRetry]);
 
   const current = seeFinancials ? report : null;
   const overview = current?.data;
@@ -138,6 +143,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
       navigation={null} />
     {phone && can('sales') ? <div className="dashboard-register" data-testid="dashboard-register-sale"><DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta></div> : null}
     <DashboardDateRange range={range} onApply={setRange} phone={phone} />
+    {current?.data && current.key !== queryKey && failedPeriodKey === queryKey ? <div className="ferr" role="alert">No se pudo aplicar el período. Se muestran datos del período anterior.{' '}<button className="wlink" type="button" onClick={() => { setFailedPeriodKey(null); setPeriodRetry(value => value + 1); }}>Reintentar</button></div> : null}
     {kpiCount > 0 ? <div className="dstats" data-count={kpiCount}>
       {seeFinancials ? <>
         <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>

@@ -73,6 +73,42 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([new Error('500'), new TypeError('Failed to fetch')])('avisa si falla un cambio de período y reintenta las mismas fechas: %s', async cause => {
+    const user = userEvent.setup();
+    context.sales = [makeSale('old', '2026-10-02', 'Venta anterior')];
+    renderScreen();
+    await screen.findByText('$ 12,69M');
+    api.fetchReportsOverview.mockRejectedValueOnce(cause);
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: 'Hoy', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Se muestran datos del período anterior.');
+    expect(screen.getByText('Venta anterior')).toBeVisible();
+    expect(screen.getByText('$ 12,69M')).toBeVisible();
+    expectNoSkeleton();
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: 1000 } });
+    await user.click(screen.getByRole('button', { name: 'Reintentar' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 1.000'));
+    expect(api.fetchReportsOverview.mock.calls.at(-1)!.slice(1, 3)).toEqual(['2026-10-22', '2026-10-22']);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('Venta anterior')).toBeNull();
+  });
+
+  it('ignora el error de un período reemplazado por otra consulta exitosa', async () => {
+    const user = userEvent.setup();
+    renderScreen(); await screen.findByText('$ 12,69M');
+    const old = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(old.promise);
+    for (const preset of ['Hoy', 'Total']) {
+      await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+      await user.click(screen.getByRole('button', { name: preset, exact: true }));
+      await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    }
+    await act(async () => old.reject(new Error('500')));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
+  });
+
   it.each(['7 días', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
     const user = userEvent.setup();
     context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-02', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
@@ -317,7 +353,7 @@ describe('Dashboard aprobado', () => {
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty')).toBeNull();
   });
 
-  it('conserva el período resuelto si falla la revalidación de Total', async () => {
+  it('conserva el período resuelto y avisa si falla el cambio a Total', async () => {
     const user = userEvent.setup();
     context.sales = [makeSale('old', '2024-01-01', 'Histórica')];
     renderScreen();
@@ -336,7 +372,9 @@ describe('Dashboard aprobado', () => {
     expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 12,69M');
     expect(screen.queryByText('Histórica')).toBeNull();
     expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
-    expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Cargando…|Reintentar/)).toBeNull();
+    expect(screen.queryByText(/No hay conexión|No se pudo consultar el período|Cargando…/)).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent('Se muestran datos del período anterior.');
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeVisible();
     expect(document.querySelector('.dashboard-chart-empty, .dashboard-payment-empty, .dtop .sub')).toBeNull();
   });
 
