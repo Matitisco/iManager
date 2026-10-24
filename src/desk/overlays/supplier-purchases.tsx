@@ -2,6 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Box } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { Skeleton } from '../../components/Skeleton';
+import { fetchHistory, type HistoryEvent } from '../../services/history-api';
+import { formatArDateTime } from '../../lib/ar-date';
+import { toUserMessage } from '../../lib/user-message';
+import { historyRecordAction, historyDetailRows } from '../history-copy';
+import { ListSkeleton } from '../list-skeleton';
 import { fetchSupplierPurchase, type SupplierPurchase, type SupplierPurchaseDetail as PurchaseFile } from '../../services/suppliers-api';
 import { useMoney } from '../exchange';
 import { equipmentTitle, formatShortDate } from '../format';
@@ -36,9 +41,9 @@ export function SupplierPurchases({ purchases, seeCosts, onSelect }: { purchases
   </div>;
 }
 
-export function SupplierPurchaseSheet({ title, subtitle, mobileSubtitle = false, children, onClose }: { title: string; subtitle?: string; mobileSubtitle?: boolean; children: ReactNode; onClose: () => void }) {
+export function SupplierPurchaseSheet({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   const phone = usePhoneLayout();
-  return <Sheet title={title} subtitle={!phone && mobileSubtitle ? undefined : subtitle} onClose={onClose} mobileBack className="sup-second" overlayClassName="center subov supplier-history-layer" footer={phone ? null : <button className="btn2 s" type="button" onClick={onClose}>Cerrar</button>}>
+  return <Sheet title={title} onClose={onClose} mobileBack className="sup-second" overlayClassName="center subov supplier-history-layer" footer={phone ? null : <button className="btn2 s" type="button" onClick={onClose}>Cerrar</button>}>
     {children}
   </Sheet>;
 }
@@ -61,7 +66,8 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
   }, [user, storeId, supplierId, purchase.id]);
 
   const purchasedAt = purchase.purchasedAt || info.purchasedAt;
-  return <SupplierPurchaseSheet title={purchase.name || info.name || (purchasedAt ? `Compra del ${formatShortDate(purchasedAt)}` : 'Compra')} subtitle={[info.devices != null ? deviceCount(info.devices) : '', total].filter(Boolean).join(' · ') || undefined} onClose={onClose}>
+  return <SupplierPurchaseSheet title={purchase.name || info.name || (purchasedAt ? `Compra del ${formatShortDate(purchasedAt)}` : 'Compra')} onClose={onClose}>
+    <div className="sup-purchase-summary">{info.devices != null ? <span>{deviceCount(info.devices)}</span> : null}{total ? <strong>{total}</strong> : null}</div>
     {!detail && !failed ? <div className="supplier-purchase sup-card supplier-items" data-testid="supplier-purchase-loading" role="status" aria-label="Cargando" aria-busy="true">
       {Array.from({ length: Math.min(purchase.devices ?? 5, 10) }, (_, index) => <div className="supplier-item" key={index} aria-hidden="true">
         <span className="supplier-item-icon"><Skeleton style={{ width: 16 }} /></span>
@@ -80,5 +86,51 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
         {item.problemLabel ? <span className="supplier-item-status warn">{item.problemLabel}</span> : null}
       </button>)}
     </div> : null}
+    {failed ? <div className="ferr" role="alert">No se pudo abrir la compra.</div> : null}
+  </SupplierPurchaseSheet>;
+}
+
+export function SupplierHistorySheet({ supplierId, onClose }: { supplierId: string; onClose: () => void }) {
+  const { user } = useAppContext();
+  const [events, setEvents] = useState<HistoryEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        if (!user) throw new Error('Iniciá sesión para ver el historial.');
+        const rows: HistoryEvent[] = [];
+        let cursor: string | undefined;
+        do {
+          const page = await fetchHistory(user, { entityType: 'supplier', entityId: supplierId, limit: 50, ...(cursor ? { cursor } : {}) });
+          if (!active) return;
+          rows.push(...page.events);
+          cursor = page.nextCursor ?? undefined;
+        } while (cursor);
+        setEvents(rows);
+      } catch (cause) {
+        if (active) setError(toUserMessage(cause, 'No se pudo abrir el historial.'));
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    return () => { active = false; };
+  }, [user, supplierId]);
+
+  return <SupplierPurchaseSheet title="Historial" onClose={onClose}>
+    {loading ? <ListSkeleton variant="cards" rows={3} /> : null}
+    {error ? <div className="ferr" role="alert">{error}</div> : null}
+    {!loading && !error && !events.length ? <div className="wempty">Sin movimientos</div> : null}
+    {events.length ? <ol className="record-history-timeline">
+      {events.map(event => <li key={event.id}>
+        <b>{historyRecordAction(event) || event.title}</b>
+        <p className="record-history-meta"><time dateTime={event.createdAt}>{formatArDateTime(event.createdAt)}</time> · {event.actorName || 'Sistema'}</p>
+        {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}><span>{change.label}: </span>{change.before ? <>{change.before} → </> : null}{change.after || '—'}</p>)}
+        {!historyDetailRows(event).length && event.detail?.trim() ? <p className="record-history-change">{event.detail}</p> : null}
+        {event.reason ? <p className="record-history-change">{event.reason}</p> : null}
+      </li>)}
+    </ol> : null}
   </SupplierPurchaseSheet>;
 }

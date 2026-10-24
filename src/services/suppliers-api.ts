@@ -53,6 +53,9 @@ export interface SupplierPurchaseDetail extends SupplierPurchase {
 }
 
 export interface SupplierDetail extends SupplierListItem {
+  stockCount?: number;
+  claimedDeviceCount?: number;
+  costTotals?: Array<{ currency: string; totalCost: number }>;
   purchases: SupplierPurchase[];
 }
 

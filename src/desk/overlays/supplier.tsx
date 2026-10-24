@@ -7,8 +7,10 @@ import { fetchSupplier, type SupplierDetail as SupplierFile } from '../../servic
 import { canSeeFinancials } from '../sections';
 import { sectionAllowed } from '../nav';
 import { showSupplierPatterns } from '../returns-navigation';
-import { Mail, Phone, Plus, FileText } from 'lucide-react';
-import { SupplierPurchases, SupplierPurchaseSheet, SupplierPurchaseDetail } from './supplier-purchases';
+import { Mail, Phone, Plus, FileText, Pencil, Archive } from 'lucide-react';
+import { SupplierPurchases, SupplierPurchaseSheet, SupplierPurchaseDetail, SupplierHistorySheet } from './supplier-purchases';
+import { HistoryIconButton } from '../RecordHistoryButton';
+import { useMoney } from '../exchange';
 import { DeskOverlays } from '../DeskOverlays';
 import type { Overlay } from '../types';
 import { ListSkeleton } from '../list-skeleton';
@@ -72,13 +74,15 @@ export function SupplierDetail({ id }: { id: string }) {
   const { user, appSession, suppliers, archiveSupplier, restoreSupplier } = useAppContext();
   const desk = useDesk();
   const { close, open, toast } = desk;
+  const money = useMoney();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const seePatterns = sectionAllowed('returns', appSession?.membership?.sections, appSession?.membership?.role);
+  const seeHistory = sectionAllowed('history', appSession?.membership?.sections, appSession?.membership?.role);
   const [detail, setDetail] = useState<SupplierFile | null>(null);
   const [error, setError] = useState('');
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [secondary, setSecondary] = useState<'purchases' | 'stock' | null>(null);
+  const [secondary, setSecondary] = useState<'purchases' | 'stock' | 'history' | null>(null);
   const [purchase, setPurchase] = useState<SupplierFile['purchases'][number] | null>(null);
   const [stockOverlay, setStockOverlay] = useState<Overlay | null>(null);
   const storeId = appSession?.store?.id;
@@ -144,12 +148,12 @@ export function SupplierDetail({ id }: { id: string }) {
 
   return (
     <>
-    <Sheet title={heading?.name ?? 'Proveedor'} subtitle={heading ? `${heading.deviceCount} ${heading.deviceCount === 1 ? 'equipo' : 'equipos'}` : undefined} onClose={close} busy={busy} className="supplier-sheet"
+    <Sheet title={heading?.name ?? 'Proveedor'} titleAccessory={detail && seeHistory ? <HistoryIconButton expanded={secondary === 'history'} onClick={() => setSecondary('history')} /> : null} onClose={close} busy={busy} className="supplier-sheet supplier-detail-sheet"
       footer={detail ? <SheetActions>
         {detail.deletedAt ? <button className="btn2 p" type="button" disabled={busy} onClick={() => { void restore(); }}>Restaurar</button> : <>
           <SheetActionMenu>
-            <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-supplier', id: detail.id })}>Editar</button>
-            <button className="btn2 s supplier-archive" type="button" onClick={() => setConfirm(true)}>Archivar</button>
+            <button className="btn2 s" type="button" onClick={() => open({ type: 'edit-supplier', id: detail.id })}><Pencil size={18} aria-hidden="true" />Editar</button>
+            <button className="btn2 s supplier-archive" type="button" onClick={() => setConfirm(true)}><Archive size={18} aria-hidden="true" />Archivar</button>
           </SheetActionMenu>
           <button className="btn2 p sheet-primary" type="button" onClick={() => setSecondary('stock')}>Cargar stock</button>
         </>}
@@ -158,13 +162,20 @@ export function SupplierDetail({ id }: { id: string }) {
       {!detail && !error ? <ListSkeleton variant="cards" rows={3} testId="supplier-loading" /> : null}
       {detail ? (
         <div className="supplier-file" data-testid="supplier-detail">
+          <dl className="sup-summary" aria-label="Resumen del proveedor">
+            {detail.stockCount != null ? <div><dt>En stock</dt><dd>{detail.stockCount}</dd></div> : null}
+            <div><dt>Compras</dt><dd>{detail.purchases.length}</dd></div>
+            {detail.deviceCount > 0 && detail.claimedDeviceCount != null ? <div className="sup-claims"><dt>Con reclamos</dt><dd>{new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(detail.claimedDeviceCount / detail.deviceCount)}</dd></div> : null}
+            {seeCosts && detail.costTotals ? <div className="sup-invested"><dt>Total invertido</dt><dd>{detail.costTotals.length ? detail.costTotals.map(total => <span key={total.currency}>{money.show(total.totalCost, total.currency)}</span>) : money.show(0)}</dd></div> : null}
+          </dl>
           {detail.phone || detail.email ? <dl className="supplier-contact icons">
             {detail.phone ? <div><dt><Phone size={18} aria-label="Teléfono" /></dt><dd title={detail.phone}>{detail.phone}</dd></div> : null}
             {detail.email ? <div><dt><Mail size={18} aria-label="Email" /></dt><dd title={detail.email}>{detail.email}</dd></div> : null}
           </dl> : null}
           {detail.notes ? <p className="supplier-note">{detail.notes}</p> : null}
           {detail.problemCount > 0 ? seePatterns ? <button className="sup-status" data-testid="supplier-problems" type="button" aria-label={`Ver fallas de ${detail.name}`} onClick={() => { close(); showSupplierPatterns(detail.id); }}>{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}<span className="chev" aria-hidden="true"> ›</span></button> : <p className="sup-status" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}</p> : null}
-          {detail.deletedAt ? <p className="supplier-note">Archivado. Los equipos conservan el origen.</p> : null}
+          {detail.deletedAt ? <span className="spill mid">Archivado</span> : null}
+          {detail.deviceCount === 0 ? <div className="wempty sup-empty" data-testid="supplier-empty"><strong>Sin equipos</strong>{!detail.deletedAt ? <button className="wlink" type="button" onClick={() => setSecondary('stock')}>Cargá el primer equipo</button> : null}</div> : null}
           {detail.purchases.length > 0 ? <section className="supplier-purchases" aria-label="Compras">
             <div className="sup-sec"><h4>Compras</h4>{detail.purchases.length > 3 ? <button className="wlink" type="button" onClick={() => setSecondary('purchases')}>Ver todas ({detail.purchases.length})</button> : null}</div>
             <SupplierPurchases purchases={detail.purchases.slice(0, 3)} seeCosts={seeCosts} onSelect={setPurchase} />
@@ -172,11 +183,12 @@ export function SupplierDetail({ id }: { id: string }) {
         </div>
       ) : null}
     </Sheet>
-    {detail && secondary === 'purchases' && !purchase ? <SupplierPurchaseSheet title="Compras" subtitle={detail.name} mobileSubtitle onClose={() => setSecondary(null)}>
+    {detail && secondary === 'history' ? <SupplierHistorySheet supplierId={detail.id} onClose={() => setSecondary(null)} /> : null}
+    {detail && secondary === 'purchases' && !purchase ? <SupplierPurchaseSheet title="Compras" onClose={() => setSecondary(null)}>
       <SupplierPurchases purchases={detail.purchases} seeCosts={seeCosts} onSelect={setPurchase} />
     </SupplierPurchaseSheet> : null}
     {detail && purchase ? <SupplierPurchaseDetail supplierId={detail.id} purchase={purchase} seeCosts={seeCosts} onClose={() => setPurchase(null)} /> : null}
-    {detail && secondary === 'stock' && !stockOverlay ? <Sheet title="Cargar stock" subtitle={detail.name} className="sup-choose" overlayClassName="center subov sup-top" onClose={() => setSecondary(null)}>
+    {detail && secondary === 'stock' && !stockOverlay ? <Sheet title="Cargar stock" className="sup-choose" overlayClassName="center subov sup-top" onClose={() => setSecondary(null)}>
       <div className="card ledger-list">
         <button className="member" type="button" onClick={() => setStockOverlay({ type: 'new-eq', supplierId: detail.id })}>
           <span className="ico-row"><Plus size={18} /></span><span className="info"><span className="name">Registrar equipo</span><span className="role">Uno por uno</span></span><span className="chev" aria-hidden="true">›</span>

@@ -65,6 +65,9 @@ export interface PurchaseDetailView extends PurchaseView {
 }
 
 export interface SupplierDetailView extends SupplierListItem {
+  stockCount: number;
+  claimedDeviceCount: number;
+  costTotals?: Array<{ currency: string; totalCost: number }>;
   purchases: Array<PurchaseSummaryView & { items?: PurchaseItemView[] }>;
 }
 
@@ -273,8 +276,17 @@ export async function getSupplier(storeId: string, id: string, financials: boole
   const claimIds = new Set(snapshot.claims.filter(claim => claim.supplierId === id).map(claim => claim.id));
   for (const claim of claimsForDevices(snapshot.items, snapshot.problems)) claimIds.add(claim.id);
   const summary = summarizeProblems(snapshot.items, snapshot.problems);
+  // Include ungrouped devices too; keep currencies separate and costs permission-gated.
+  const totals = new Map<string, Prisma.Decimal>();
+  for (const cost of costs.values()) {
+    const unit = cost.currency ?? currency;
+    totals.set(unit, (totals.get(unit) ?? cost.cost.mul(0)).add(cost.cost));
+  }
   return {
     ...present(supplier, { ...summary, claims: claimIds.size, lastPurchasedAt: purchases[0] ? calendarDay(purchases[0].purchasedAt, ZONE) : null }),
+    stockCount: snapshot.items.filter(item => item.status !== "VENDIDO").length,
+    claimedDeviceCount: snapshot.items.filter(item => snapshot.problems.get(item.id)?.claims.length).length,
+    ...(financials ? { costTotals: [...totals].sort(([a], [b]) => a.localeCompare(b)).map(([unit, total]) => ({ currency: unit, totalCost: total.toNumber() })) } : {}),
     purchases: purchaseViews,
   };
 }
