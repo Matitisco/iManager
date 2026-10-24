@@ -20,6 +20,8 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary 
   const [allRows, setAllRows] = useState(false);
   const [allClaims, setAllClaims] = useState(false);
   const [claimId, setClaimId] = useState<string | null>(null);
+  const claimButtons = useRef(new Map<string, HTMLButtonElement>());
+  const lastClaim = useRef<string | null>(null);
   const [purchase, setPurchase] = useState<ReturnPatternView | null>(null);
   const handledRequest = useRef<typeof request>(undefined);
   const sections = appSession?.membership?.sections;
@@ -28,6 +30,13 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary 
   const seeOrigin = sectionAllowed('suppliers', sections, role);
   const ready = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && allowed;
   const selected = rows?.find(row => row.key === selectedKey);
+
+  useEffect(() => {
+    if (!claimId && lastClaim.current) {
+      claimButtons.current.get(lastClaim.current)?.focus();
+      lastClaim.current = null;
+    }
+  }, [claimId]);
 
   useEffect(() => {
     if (!user || !ready) return;
@@ -70,7 +79,7 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary 
     </button>)}
   </div>;
   const claims = (row: ReturnPatternView, complete: boolean) => <div className="pat-claims ledger-list">
-    {(complete ? row.claimsDetail : row.claimsDetail.slice(0, 3)).map(claim => <button className="member return-row" type="button" key={claim.id} onClick={() => setClaimId(claim.id)}>
+    {(complete ? row.claimsDetail : row.claimsDetail.slice(0, 3)).map(claim => <button ref={node => { if (node) claimButtons.current.set(claim.id, node); else claimButtons.current.delete(claim.id); }} className="member return-row" type="button" key={claim.id} onClick={() => { lastClaim.current = claim.id; setClaimId(claim.id); }}>
       <span className="ico-row" aria-hidden="true"><DeskIcon name="list" size={16} /></span>
       <span className="info"><span className="name">{[claim.caseNumber, claim.clientName].filter(Boolean).join(' · ')}</span><span className="role">{[claim.deviceLabel, claim.reason].filter(Boolean).join(' · ')}</span></span>
       <Pill status={claim.rmaStatus || claim.status} />
@@ -88,12 +97,12 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary 
       {rows?.length ? ranking(rows.slice(0, 5)) : rows && !failed ? <div className="wempty" data-testid="fallas-group-empty">No hay equipos con reclamo.</div> : null}
     </section>
     {allRows && rows ? <Sheet title={title} onClose={() => setAllRows(false)} className="pat-all-sheet" mobileBack={phone} overlayClassName="subov" footer={null}>{ranking(rows)}</Sheet> : null}
-    {selected && !allClaims ? <Sheet title={selected.label} onClose={closeDetail} className="pat-detail" overlayClassName="subov" footer={originAvailable(selected) ? <div className="sacts"><button className="btn2 s" type="button" onClick={closeDetail}>Cerrar</button><button className="btn2 p" type="button" onClick={() => openOrigin(selected)}>{originLabel}</button></div> : null}>
+    {selected && !allClaims && !claimId ? <Sheet title={selected.label} onClose={closeDetail} className="pat-detail" overlayClassName="subov" footer={originAvailable(selected) ? <div className="sacts"><button className="btn2 s" type="button" onClick={closeDetail}>Cerrar</button><button className="btn2 p" type="button" onClick={() => openOrigin(selected)}>{originLabel}</button></div> : null}>
       <div className="pat-detail-metrics"><strong>{selected.percent}%</strong><span>{selected.problems} de {selected.devices} equipos</span></div>
       <div className="ret-sec"><h4>Reclamos</h4>{selected.claimsDetail.length > 3 ? <button className="wlink" type="button" onClick={() => setAllClaims(true)}>Ver todos ({selected.claims})</button> : null}</div>
       {claims(selected, false)}
     </Sheet> : null}
-    {selected && allClaims ? <Sheet title="Todos los reclamos" onClose={() => setAllClaims(false)} mobileBack={phone} className="pat-all-sheet pat-detail" overlayClassName="subov" footer={null}>{claims(selected, true)}</Sheet> : null}
+    {selected && allClaims && !claimId ? <Sheet title="Todos los reclamos" onClose={() => setAllClaims(false)} mobileBack={phone} className="pat-all-sheet pat-detail" overlayClassName="subov" footer={null}>{claims(selected, true)}</Sheet> : null}
     {claimId ? <ReturnDetail id={claimId} onClose={() => setClaimId(null)} overlayClassName="subov pat-claim-layer" /> : null}
     {purchase?.supplierId && purchase.purchaseId && seeOrigin ? <SupplierPurchaseDetail supplierId={purchase.supplierId} purchase={{ id: purchase.purchaseId, devices: purchase.devices, problemCount: purchase.problems }} seeCosts={canSeeFinancials(sections, role)} onClose={() => setPurchase(null)} /> : null}
   </>;
