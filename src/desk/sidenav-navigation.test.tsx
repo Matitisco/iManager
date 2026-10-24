@@ -40,7 +40,7 @@ describe('sidenav accordion', () => {
     view.rerender(<SidenavNavigation {...props} activeHash="#/comercial/devoluciones?view=patterns" />);
     expect(screen.getByRole('button', { name: 'Análisis' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Comercial' })).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.getByRole('button', { name: 'Patrones' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Fallas' })).toHaveAttribute('aria-current', 'page');
     view.rerender(<SidenavNavigation {...props} activeHash="#/cuenta/configuracion" />);
     expect(screen.getByRole('button', { name: 'Cuenta' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Comercial' })).toHaveAttribute('aria-expanded', 'false');
@@ -52,7 +52,7 @@ describe('sidenav accordion', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     expect(within(nav).getByRole('button', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByText('Mis comisiones')).toBeInTheDocument();
-    for (const label of ['Análisis', 'Reportes', 'Resumen periódico', 'Historial', 'Patrones', 'Catálogo', 'Cajas', 'Gastos', 'Seguimientos']) {
+    for (const label of ['Análisis', 'Reportes', 'Resumen periódico', 'Historial', 'Fallas', 'Catálogo', 'Cajas', 'Gastos', 'Seguimientos']) {
       expect(within(nav).queryByText(label)).not.toBeInTheDocument();
     }
   });
@@ -86,9 +86,9 @@ describe('sidenav accordion', () => {
       expect(panel.querySelector('.sn-children, .sn-detail, [aria-expanded]')).toBeNull();
       expect([...panel.children].every(item => item.tagName === 'BUTTON')).toBe(true);
     }
-    view.rerender(<SidenavNavigation {...props} activeHash="#/analisis/patrones" />);
-    expect(screen.getByRole('button', { name: 'Patrones' })).toHaveAttribute('aria-current', 'page');
-    fireEvent.click(screen.getByRole('button', { name: 'Patrones' }));
+    view.rerender(<SidenavNavigation {...props} activeHash="#/analisis/fallas" />);
+    expect(screen.getByRole('button', { name: 'Fallas' })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('button', { name: 'Fallas' }));
     expect(onOpen).toHaveBeenCalledWith('patterns', undefined);
     expect(screen.getByRole('button', { name: 'Resumen periódico' }).parentElement).toBe(screen.getByRole('button', { name: 'Reportes' }).parentElement);
     view.rerender(<SidenavNavigation {...props} activeHash="#/stock/catalogo?view=items" />);

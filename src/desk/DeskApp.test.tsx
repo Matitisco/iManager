@@ -91,9 +91,9 @@ describe('sidebar unread counts', () => {
   }
 
   it.each([
-    ['#/returns?view=patterns&groupBy=model', '#/analisis/patrones?groupBy=model', 'Patrones', 'patterns'],
+    ['#/returns?view=patterns&groupBy=model', '#/analisis/fallas?groupBy=model', 'Fallas', 'patterns'],
     ['#/returns?view=claims', '#/comercial/devoluciones', 'Devoluciones', 'returns'],
-    ['#/analisis/patrones', '#/analisis/patrones', 'Patrones', 'patterns'],
+    ['#/analisis/fallas', '#/analisis/fallas', 'Fallas', 'patterns'],
   ])('mounts %s with the matching header and current destination', async (old, hash, title, id) => {
     history.replaceState(null, '', old);
     render(<DeskApp />);

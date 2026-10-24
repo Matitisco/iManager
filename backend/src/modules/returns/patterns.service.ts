@@ -1,7 +1,7 @@
 import { calendarDay } from "../periodic-reports/schedule.js";
-import { claimsForDevices, loadProblems, summarizeProblems, type ProblemDevice } from "../suppliers/problems.js";
+import { claimsForDevices, loadProblems, type ProblemDevice } from "../suppliers/problems.js";
 import { returnCode } from "./returns-math.js";
-import { comparePatterns, problemMetrics, topReason, type TopReason } from "./patterns-math.js";
+import { problemMetrics, topReason, type TopReason } from "./patterns-math.js";
 
 export type PatternGroupBy = "supplier" | "purchase" | "model";
 export interface PatternClaimView {
@@ -49,7 +49,7 @@ function groupIdentity(item: ProblemDevice, groupBy: PatternGroupBy) {
   return { key: JSON.stringify([item.model.trim(), item.capacity.trim()]), label: [item.model.trim(), item.capacity.trim()].filter(Boolean).join(" · "), supplierId: null, purchaseId: null };
 }
 
-export async function listReturnPatterns(storeId: string, groupBy: PatternGroupBy): Promise<ReturnPatternView[]> {
+export async function returnPatternAnalysis(storeId: string, groupBy: PatternGroupBy) {
   const snapshot = await loadProblems(storeId);
   const groups = new Map<string, { identity: NonNullable<ReturnType<typeof groupIdentity>>; items: ProblemDevice[] }>();
   for (const item of snapshot.items) {
@@ -59,12 +59,16 @@ export async function listReturnPatterns(storeId: string, groupBy: PatternGroupB
     group.items.push(item);
     groups.set(identity.key, group);
   }
-  return [...groups.values()].map(({ identity, items }) => {
-    const summary = summarizeProblems(items, snapshot.problems);
+  const count = (items: ProblemDevice[]) => ({ devices: items.length, problems: items.filter(item => (snapshot.problems.get(item.id)?.claims.length ?? 0) > 0).length });
+  const totals = count(snapshot.items);
+  const allClaims = claimsForDevices(snapshot.items, snapshot.problems);
+  const summary = { ...totals, ...problemMetrics(totals.problems, totals.devices), claims: allClaims.length, topReason: topReason(allClaims.map(claim => claim.reason), 1) };
+  const patterns: ReturnPatternView[] = [...groups.values()].map(({ identity, items }) => {
+    const summary = count(items);
     const claims = claimsForDevices(items, snapshot.problems).sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime() || b.caseNumber - a.caseNumber);
     return {
       ...identity, ...summary, claims: claims.length, ...problemMetrics(summary.problems, summary.devices),
-      topReason: topReason(claims.map(claim => claim.reason)),
+      topReason: topReason(claims.map(claim => claim.reason), 1),
       claimsDetail: claims.slice(0, PATTERN_CLAIM_LIMIT).map(claim => ({
         id: claim.id, caseNumber: returnCode(claim.caseNumber), deviceLabel: claim.deviceLabel,
         imei: claim.imei, reason: claim.reason, status: claim.status, rmaStatus: claim.rmaStatus,
@@ -72,5 +76,6 @@ export async function listReturnPatterns(storeId: string, groupBy: PatternGroupB
       })),
       claimsTruncated: claims.length > PATTERN_CLAIM_LIMIT,
     };
-  }).sort(comparePatterns);
+  }).sort((a, b) => b.percent - a.percent || b.problems - a.problems || a.key.localeCompare(b.key));
+  return { patterns, summary };
 }

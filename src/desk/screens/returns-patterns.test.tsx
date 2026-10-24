@@ -1,20 +1,20 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PatternGroupBy, ReturnPatternView } from '../../services/returns-api';
+import type { PatternGroupBy, ReturnCaseView, ReturnPatternView } from '../../services/returns-api';
 import { DeskProvider } from '../ui';
 import { returnPatternsHash, showSupplierPatterns } from '../returns-navigation';
 import { PatternsScreen } from './PatternsScreen';
 import { ReturnsPatterns } from './ReturnsPatterns';
 
 const ctx = vi.hoisted(() => ({
-  user: { uid: 'owner' }, backendStatus: 'ready', returns: [], inventory: [], repairOrders: [], returnsError: '',
+  user: { uid: 'owner' }, backendStatus: 'ready', returns: [] as ReturnCaseView[], inventory: [], repairOrders: [], returnsError: '',
   appSession: { store: { id: 'store' }, membership: { role: 'OWNER', sections: null as string[] | null } },
 }));
 const layout = vi.hoisted(() => ({ phone: false }));
-const api = vi.hoisted(() => ({ fetchReturnPatterns: vi.fn(), fetchReturns: vi.fn(), fetchSupplierPurchase: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchReturnAnalysis: vi.fn(), fetchReturns: vi.fn(), fetchSupplierPurchase: vi.fn() }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
-vi.mock('../../services/returns-api', () => ({ fetchReturnPatterns: api.fetchReturnPatterns, fetchReturns: api.fetchReturns }));
+vi.mock('../../services/returns-api', () => ({ fetchReturnAnalysis: api.fetchReturnAnalysis, fetchReturns: api.fetchReturns }));
 vi.mock('../../services/suppliers-api', () => ({ fetchSupplierPurchase: api.fetchSupplierPurchase }));
 vi.mock('../section-notices', async original => ({ ...await original<typeof import('../section-notices')>(), usePhoneLayout: () => layout.phone }));
 vi.mock('../exchange', () => ({ useMoney: () => ({ show: (value: number) => `US$ ${value}` }) }));
@@ -32,6 +32,8 @@ const group: ReturnPatternView = {
 const purchaseGroup = { ...group, key: 'purchase', label: 'Importadora Andes · 05/09/2026 · Baterías', purchaseId: 'purchase' };
 const coolGroup = { ...group, key: 'cool', label: 'Tech Cuyo', supplierId: 'cool', devices: 8, problems: 2, percent: 25, hot: false, topReason: null, claimsDetail: [], claims: 0 };
 const zeroGroup = { ...coolGroup, key: 'zero', label: 'Sin problemas', problems: 0, percent: 0 };
+const summary = { devices: 90, problems: 16, percent: 18, claims: 20, topReason: { family: 'bateria', label: 'batería', claims: 12 } };
+const result = (patterns: ReturnPatternView[]) => ({ patterns, summary });
 const tree = (node = <PatternsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'patterns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
 const mount = (node = <PatternsScreen />) => render(tree(node));
 function navigate(hash: string) {
@@ -51,278 +53,221 @@ beforeEach(() => {
   layout.phone = false;
   ctx.appSession = { store: { id: 'store' }, membership: { role: 'OWNER', sections: null } };
   ctx.backendStatus = 'ready';
+  ctx.inventory = [];
+  ctx.returns = group.claimsDetail.map(claim => ({
+    id: claim.id, code: claim.caseNumber, caseNumber: Number(claim.caseNumber.slice(-4)),
+    clientName: claim.clientName, deviceLabel: claim.deviceLabel, imei: claim.imei,
+    status: claim.status, rmaStatus: claim.rmaStatus, reason: claim.reason, events: [],
+    saleId: null, clientId: null, inventoryItemId: null, supplierId: null, supplierName: null,
+    diagnosis: null, openedOn: '2026-10-21', resolution: null, settlement: null, moneyAmount: 0,
+    moneyCurrency: null, destination: null, stockStatus: null, previousStatus: null,
+    resolvedOn: null, deletedAt: null, refundable: 0, saleAmount: 0, saleCurrency: 'USD',
+    saleDate: null, warrantyDays: 0, itemCost: 0, itemCurrency: 'USD', creditNote: null,
+  }));
+  api.fetchReturnAnalysis.mockReset();
   api.fetchReturns.mockResolvedValue([]);
-  api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'supplier' ? [group, coolGroup] : []));
+  api.fetchReturnAnalysis.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve({ patterns: by === 'supplier' ? [group, coolGroup] : [], summary }));
   api.fetchSupplierPurchase.mockResolvedValue({ id: 'purchase', name: null, purchasedAt: '2026-09-05', notes: null, devices: 1, problemCount: 1, claimCount: 1, totalCost: 900, currency: 'USD', summary: { devices: 1, problems: 1 }, items: [
     { id: 'eq', model: 'iPhone 11', capacity: '64GB', imei: '356789104523871', status: 'EN_REVISION', cost: 900, currency: 'USD', problem: true, problemLabel: 'En revisión' },
   ] });
 });
 
-describe('Patrones de Devoluciones', () => {
-  describe.each([false, true])('filtering with phone layout = %s', phone => {
-    it.each(['supplier', 'purchase', 'model'] as const)('hides zero-problem %s groups and expands the first visible group', async groupBy => {
-      layout.phone = phone;
-      api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup, { ...group, problems: 1, percent: 0 }, coolGroup]);
-      mount(<ReturnsPatterns groupBy={groupBy} />);
-      const first = await screen.findByTestId('pattern-supplier');
-      expect(api.fetchReturnPatterns).toHaveBeenCalledWith(ctx.user, groupBy);
-      expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
-      expect(screen.queryByText(zeroGroup.label)).not.toBeInTheDocument();
-      expect(first).toHaveClass('on');
-      expect(screen.getByTestId('pattern-cool')).not.toHaveClass('on');
-      expect(screen.getAllByRole('region')).toHaveLength(1);
-      expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: `Reclamos de ${group.label}` })).toHaveAttribute('aria-expanded', 'true');
-      expect(first.querySelector('.pat-pct')).toHaveTextContent('0%');
-    });
-
-    it.each(['supplier', 'purchase', 'model'] as const)('shows a clear empty state when every %s group has zero problems', async groupBy => {
-      layout.phone = phone;
-      api.fetchReturnPatterns.mockResolvedValueOnce([zeroGroup]);
-      mount(<ReturnsPatterns groupBy={groupBy} request={{ group: zeroGroup.key }} />);
-      await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
-      expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
-      expect(screen.queryByRole('region')).not.toBeInTheDocument();
-      expect(screen.getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
-    });
-  });
-
-  it.each([false, true])('shows all three server groupings as independent sections with phone layout = %s', async phone => {
+describe('Fallas', () => {
+  it.each([false, true])('shows summary and three rankings without automatically opening a sheet (phone=%s)', async phone => {
     layout.phone = phone;
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group, coolGroup]));
+    api.fetchReturnAnalysis.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(result(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group, coolGroup, zeroGroup])));
     mount();
-    expect(screen.getByRole('heading', { name: 'Patrones', level: 1 })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Devoluciones' })).not.toBeInTheDocument();
-    for (const [name, by, key] of [['Proveedor', 'supplier', 'supplier'], ['Compra', 'purchase', 'purchase'], ['Modelo', 'model', 'model']] as const) {
-      const section = within(screen.getByRole('region', { name }));
-      expect(await section.findByTestId(`pattern-${key}`)).toHaveClass('on');
-      expect(section.getByRole('heading', { name })).toBeInTheDocument();
-      expect(api.fetchReturnPatterns).toHaveBeenCalledWith(ctx.user, by);
-      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Fallas', level: 1 })).toBeInTheDocument();
+    for (const name of ['Proveedores con más fallas', 'Compras con más fallas', 'Modelos con más fallas']) {
+      expect((await within(screen.getByRole('region', { name })).findAllByRole('button', { name: /Reclamos de/ })).length).toBeGreaterThan(0);
     }
+    const stats = screen.getByLabelText('Resumen de fallas');
+    expect(stats).toHaveTextContent('18%');
+    expect(stats).toHaveTextContent('16 de 90 equipos');
+    expect(stats).toHaveTextContent('batería');
+    expect(stats).toHaveTextContent('12 de 20 reclamos');
+    expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Agrupar' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Estado' })).not.toBeInTheDocument();
-    const supplier = within(screen.getByRole('region', { name: 'Proveedor' }));
-    await userEvent.click(supplier.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
-    expect(supplier.getByTestId('pattern-cool')).toHaveClass('on');
-    expect(screen.getByTestId('pattern-purchase')).toHaveClass('on');
-    expect(screen.getByTestId('pattern-model')).toHaveClass('on');
   });
 
-  it('shows the existing empty state in every section when there are no problems', async () => {
-    api.fetchReturnPatterns.mockResolvedValue([]);
-    mount();
-    await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
-    for (const name of ['Proveedor', 'Compra', 'Modelo']) {
-      expect(within(screen.getByRole('region', { name })).getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
-    }
-  });
-
-  it('uses server hot/percent, renders the complete claim reason and real status colors', async () => {
+  it.each([false, true])('shows top five and opens all groups then a content-sized claims sheet (phone=%s)', async phone => {
+    layout.phone = phone;
+    const groups = Array.from({ length: 6 }, (_, i) => ({ ...group, key: `s${i}`, label: `Proveedor ${i}` }));
+    api.fetchReturnAnalysis.mockResolvedValue(result(groups));
     mount(<ReturnsPatterns groupBy="supplier" />);
-    const hot = await screen.findByTestId('pattern-supplier');
-    expect(hot).toHaveClass('hot', 'on');
-    expect(hot).toHaveTextContent('4 de 11 equipos');
-    expect(hot.querySelector('.pat-bar i')).toHaveStyle({ width: '36%' });
-    expect(screen.getByTestId('pattern-cool')).not.toHaveClass('hot');
-    expect(screen.getByTestId('pattern-cool').querySelector('.pat-bar i')).toHaveStyle({ width: '25%' });
-    expect(screen.getByTestId('pattern-reason')).toHaveTextContent('3 de 3 reclamos son por batería');
+    await screen.findByTestId('pattern-s0');
+    expect(screen.queryByTestId('pattern-s5')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todos (6)' }));
+    const all = screen.getByRole('dialog', { name: 'Fallas' });
+    expect(within(all).getAllByRole('button', { name: /Reclamos de/ })).toHaveLength(6);
+    await userEvent.click(within(all).getByRole('button', { name: 'Reclamos de Proveedor 5' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Proveedor 5' })).not.toHaveClass('pat-all-sheet');
     expect(screen.getByText('iPhone 11 64GB · Batería al 70%')).toBeInTheDocument();
-    expect(screen.getByText('Resuelto')).toBeInTheDocument();
-    expect(screen.getByText('Enviado').getAttribute('style')).toContain('#5B8DEF');
     await userEvent.click(screen.getByRole('button', { name: /RMA-0001 · Lucía/ }));
-    expect(open).toHaveBeenCalledWith({ type: 'return', id: 'r1' });
+    expect(open).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: 'Proveedor 5' })).toBeInTheDocument();
   });
 
-  it('only shows a reason when supplied, using total claims even when truncated', async () => {
-    api.fetchReturnPatterns.mockResolvedValueOnce([{ ...group, claims: 80, topReason: { family: 'pantalla', label: 'pantalla', claims: 60 }, claimsTruncated: true }]);
+  it('shows server percentages, full denominator and primary reason on each ranking row', async () => {
     mount(<ReturnsPatterns groupBy="supplier" />);
-    expect(await screen.findByTestId('pattern-reason')).toHaveTextContent('60 de 80 reclamos son por pantalla');
-    expect(screen.getByText('Mostrando 3 de 80 reclamos')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Reclamos de Importadora Andes' }));
-    expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
+    const row = await screen.findByTestId('pattern-supplier');
+    expect(row).toHaveTextContent('4 de 11 equipos');
+    expect(row).toHaveTextContent('36%');
+    expect(row).toHaveTextContent('batería');
+    expect(row.querySelector('.pat-bar i')).toHaveStyle({ width: '36%' });
   });
 
-  it('expands one inline region on mobile and opens the supplier from the name', async () => {
-    layout.phone = true;
+  it.each([false, true])('replaces the group with all claims and opens a nested claim (phone=%s)', async phone => {
+    layout.phone = phone;
+    const claims = [...group.claimsDetail, { ...group.claimsDetail[0], id: 'r4', caseNumber: 'RMA-0004' }];
+    api.fetchReturnAnalysis.mockResolvedValue(result([{ ...group, claims: 80, claimsDetail: claims, claimsTruncated: true }]));
     mount(<ReturnsPatterns groupBy="supplier" />);
-    await screen.findByTestId('pattern-supplier');
-    expect(screen.getByRole('region').parentElement).toHaveClass('pat-group');
-    const cool = screen.getByRole('button', { name: 'Reclamos de Tech Cuyo' });
-    await userEvent.click(cool);
-    expect(cool).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getAllByRole('region')).toHaveLength(1);
-    expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
-    await userEvent.click(cool);
-    expect(screen.queryByRole('region')).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Ver proveedor: Importadora Andes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Reclamos de Importadora Andes' }));
+    expect(screen.getByRole('dialog').querySelectorAll('.return-row')).toHaveLength(3);
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todos (80)' }));
+    const all = screen.getByRole('dialog', { name: 'Todos los reclamos' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(document.querySelectorAll('.ov')).toHaveLength(1);
+    expect(all).toHaveClass('sheet-frame');
+    expect(all.querySelectorAll('.return-row')).toHaveLength(4);
+    expect(all).toHaveTextContent('Mostrando 4 de 80 reclamos');
+    const trigger = within(all).getByRole('button', { name: /RMA-0001 · Lucía/ });
+    await userEvent.click(trigger);
+    const detail = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
+    expect(detail).toHaveClass('sheet-frame', 'return-sheet');
+    expect(detail.closest('.ov')).toHaveClass('subov');
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(open).not.toHaveBeenCalled();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.getByRole('dialog', { name: 'Todos los reclamos' })).toBe(all);
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name: group.label })).toBeInTheDocument();
+  });
+
+  it('opens the supplier only from the detail action', async () => {
+    mount(<ReturnsPatterns groupBy="supplier" />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Reclamos de Importadora Andes' }));
+    expect(open).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver proveedor' }));
     expect(open).toHaveBeenCalledWith({ type: 'supplier', id: 'supplier' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('opens the existing purchase sheet and hides costs without financial permission', async () => {
+  it('keeps purchase detail and financial permissions without stacking the claims sheet', async () => {
     ctx.appSession.membership = { role: 'STAFF', sections: ['sales', 'inventory'] };
-    api.fetchReturnPatterns.mockResolvedValueOnce([purchaseGroup]);
+    api.fetchReturnAnalysis.mockResolvedValue(result([purchaseGroup]));
     mount(<ReturnsPatterns groupBy="purchase" />);
-    await userEvent.click(await screen.findByRole('button', { name: `Ver compra: ${purchaseGroup.label}` }));
-    const detail = await screen.findByTestId('supplier-purchase-detail');
+    await userEvent.click(await screen.findByRole('button', { name: `Reclamos de ${purchaseGroup.label}` }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ver compra' }));
+    expect(await screen.findByTestId('supplier-purchase-detail')).toBeInTheDocument();
     expect(api.fetchSupplierPurchase).toHaveBeenCalledWith(ctx.user, 'supplier', 'purchase');
-    expect(screen.getByRole('dialog', { name: 'Compra del 05/09/2026' })).toBeInTheDocument();
-    expect(within(detail).getByText('IMEI 356789104523871')).toBeInTheDocument();
-    expect(within(detail).getByText('En revisión')).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole('button', { name: 'Cerrar' })[0]);
-    expect(screen.getByTestId('pattern-purchase')).toHaveClass('on');
   });
 
-  it('opens from a supplier link with the requested group selected instead of the first', async () => {
+  it('opens the linked group even outside the top five and can reopen the same supplier link', async () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'cool'));
     mount();
-    await screen.findByTestId('pattern-cool');
-    expect(screen.queryByRole('group', { name: 'Vista' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Agrupar' })).not.toBeInTheDocument();
-    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
-    expect(screen.getByTestId('pattern-supplier')).not.toHaveClass('on');
-    expect(screen.queryByTestId('pattern-reason')).not.toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: coolGroup.label })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    act(() => showSupplierPatterns('cool'));
+    expect(await screen.findByRole('dialog', { name: coolGroup.label })).toBeInTheDocument();
   });
 
-  it.each(['supplier', 'purchase'] as const)('falls back to the first visible group when the linked %s has no problems', async groupBy => {
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(by === groupBy ? [zeroGroup, group, coolGroup] : []));
-    history.replaceState(null, '', returnPatternsHash(groupBy, zeroGroup.key));
-    mount();
-    expect(await screen.findByTestId('pattern-supplier')).toHaveClass('on');
-    expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
-    expect(screen.getByTestId('pattern-cool')).not.toHaveClass('on');
-  });
-
-  it('selects the first remaining group if the expanded group loses its problems on refresh', async () => {
-    const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockResolvedValueOnce([group, coolGroup]).mockReturnValueOnce(pending.promise);
-    const view = mount(<ReturnsPatterns groupBy="supplier" />);
-    await screen.findByTestId('pattern-supplier');
-    await userEvent.click(screen.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
-    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
-    ctx.inventory = [];
-    view.rerender(tree(<ReturnsPatterns groupBy="supplier" />));
-    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
-    await act(async () => pending.resolve([group, { ...coolGroup, problems: 0, percent: 0 }]));
-    expect(screen.queryByTestId('pattern-cool')).not.toBeInTheDocument();
-    expect(screen.getByTestId('pattern-supplier')).toHaveClass('on');
-    expect(screen.getByRole('region', { name: `Reclamos de ${group.label}` })).toBeInTheDocument();
-  });
-
-  it('reopens the linked supplier after changing the expanded row', async () => {
-    history.replaceState(null, '', returnPatternsHash('supplier', 'supplier'));
+  it('does not open an unrelated group if the linked group no longer has claims', async () => {
+    history.replaceState(null, '', returnPatternsHash('supplier', 'zero'));
     mount();
     await screen.findByTestId('pattern-supplier');
-    await userEvent.click(screen.getByRole('button', { name: `Reclamos de ${coolGroup.label}` }));
-    expect(screen.getByTestId('pattern-cool')).toHaveClass('on');
-    act(() => showSupplierPatterns('supplier'));
-    await screen.findByTestId('pattern-supplier');
-    expect(screen.getByTestId('pattern-supplier')).toHaveClass('on');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('shows a skeleton while pending, then a clear empty result', async () => {
-    const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockReturnValueOnce(pending.promise);
-    mount(<ReturnsPatterns groupBy="supplier" />);
-    expect(screen.getByTestId('patterns-loading')).toBeInTheDocument();
-    expect(screen.queryByText(/Cargando/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
-    await act(async () => pending.resolve([]));
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
-    expect(screen.getByTestId('patterns-empty')).toHaveTextContent('No hay equipos con problemas en esta agrupación.');
-  });
-
-  it('distinguishes a failed query from a successful empty result', async () => {
-    api.fetchReturnPatterns.mockRejectedValueOnce(new Error('Unavailable'));
-    mount(<ReturnsPatterns groupBy="supplier" />);
-    await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
-    expect(screen.getByRole('alert')).toHaveTextContent('No se pudieron cargar los patrones.');
-    expect(screen.queryByTestId('patterns-empty')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Reintentar|No hay conexión|Unavailable/)).not.toBeInTheDocument();
-    expect(screen.queryByTestId('returns-patterns')).not.toBeInTheDocument();
-  });
-
-  it('keeps the last valid groups and shows an error if revalidation fails', async () => {
-    const view = mount(<ReturnsPatterns groupBy="supplier" />);
-    await screen.findByTestId('pattern-supplier');
-    api.fetchReturnPatterns.mockRejectedValueOnce(new Error('Unavailable'));
-    ctx.inventory = [];
-    view.rerender(tree(<ReturnsPatterns groupBy="supplier" />));
-    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los patrones.');
-    expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('patterns-empty')).not.toBeInTheDocument();
-  });
-
-  it('keeps completed sections visible when another grouping responds late', async () => {
-    const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? pending.promise : Promise.resolve(by === 'purchase' ? [purchaseGroup] : []));
+  it('shows one short empty line for the screen and no loading text', async () => {
+    api.fetchReturnAnalysis.mockResolvedValue({ patterns: [], summary: { ...summary, devices: 0, problems: 0, claims: 0, percent: 0, topReason: null } });
     mount();
-    await screen.findByTestId('pattern-purchase');
-    expect(screen.queryByTestId('pattern-supplier')).not.toBeInTheDocument();
-    await act(async () => pending.resolve([group]));
-    expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
-    expect(screen.getByTestId('pattern-purchase')).toBeInTheDocument();
+    expect(await screen.findByTestId('fallas-empty')).toHaveTextContent('No hay equipos con reclamo.');
+    expect(screen.queryByRole('region', { name: 'Proveedores con más fallas' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Resumen de fallas')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cargando|No hay conexión/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('fallas-loading')).not.toBeInTheDocument();
   });
 
-  it('keeps all completed sections while revalidating without flashing skeletons', async () => {
+  it('shows failures distinctly from empty data and clears the initial skeleton', async () => {
+    api.fetchReturnAnalysis.mockRejectedValue(new Error('Unavailable'));
+    mount();
+    expect(await screen.findAllByRole('alert')).toHaveLength(3);
+    await waitFor(() => expect(document.querySelector('.pat-summary-loading')).not.toBeInTheDocument());
+    expect(screen.queryByTestId('fallas-empty')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('fallas-loading')).not.toBeInTheDocument();
+  });
+
+  it('preserves last valid rows and summary during revalidation and failure', async () => {
     const view = mount();
     await screen.findByTestId('pattern-supplier');
-    await waitFor(() => expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument());
-    const pending = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? pending.promise : Promise.resolve([]));
+    const pending = deferred<ReturnType<typeof result>>();
+    api.fetchReturnAnalysis.mockReturnValue(pending.promise);
     ctx.inventory = [];
     view.rerender(tree());
     expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
-    await act(async () => pending.resolve([group]));
+    expect(screen.getByLabelText('Resumen de fallas')).toHaveTextContent('18%');
+    expect(screen.queryByTestId('fallas-loading')).not.toBeInTheDocument();
+    await act(async () => pending.resolve(result([coolGroup])));
+    api.fetchReturnAnalysis.mockRejectedValue(new Error('Unavailable'));
+    ctx.inventory = [];
+    view.rerender(tree());
+    expect(await screen.findAllByRole('alert')).toHaveLength(3);
+    expect(screen.getAllByTestId('pattern-cool')).toHaveLength(3);
+    expect(screen.getByLabelText('Resumen de fallas')).toHaveTextContent('18%');
   });
 
   it('does not reuse a previous store snapshot or its late response', async () => {
-    const oldStore = deferred<ReturnPatternView[]>();
-    const newStore = deferred<ReturnPatternView[]>();
-    api.fetchReturnPatterns.mockImplementation((_user, by: PatternGroupBy) => by === 'supplier' ? (ctx.appSession.store.id === 'store' ? oldStore.promise : newStore.promise) : Promise.resolve([]));
-    history.replaceState(null, '', returnPatternsHash());
+    const oldStore = deferred<ReturnType<typeof result>>();
+    const newStore = deferred<ReturnType<typeof result>>();
+    api.fetchReturnAnalysis.mockImplementation(() => ctx.appSession.store.id === 'store' ? oldStore.promise : newStore.promise);
     const view = mount();
     ctx.appSession = { ...ctx.appSession, store: { id: 'other-store' } };
     view.rerender(tree());
-    await act(async () => newStore.resolve([coolGroup]));
-    await act(async () => oldStore.resolve([group]));
-    expect(screen.getByTestId('pattern-cool')).toBeInTheDocument();
+    await act(async () => newStore.resolve(result([coolGroup])));
+    await act(async () => oldStore.resolve(result([group])));
+    expect(screen.getAllByTestId('pattern-cool')).toHaveLength(3);
     expect(screen.queryByTestId('pattern-supplier')).not.toBeInTheDocument();
   });
 
-  it('keeps completed data during a temporary session reconnect without another skeleton', async () => {
+  it('closes detail if its group loses its claims on refresh', async () => {
     const view = mount(<ReturnsPatterns groupBy="supplier" />);
-    await screen.findByTestId('pattern-supplier');
-    ctx.backendStatus = 'checking';
+    await userEvent.click(await screen.findByRole('button', { name: 'Reclamos de Importadora Andes' }));
+    api.fetchReturnAnalysis.mockResolvedValue(result([coolGroup]));
+    ctx.inventory = [];
     view.rerender(tree(<ReturnsPatterns groupBy="supplier" />));
-    expect(screen.getByTestId('pattern-supplier')).toBeInTheDocument();
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByTestId('pattern-cool')).toBeInTheDocument();
   });
 
-  it('allows analysis with sales access alone but hides inventory links', async () => {
+  it('permits sales-only access while hiding origin links', async () => {
     ctx.appSession.membership = { role: 'STAFF', sections: ['sales'] };
     mount(<ReturnsPatterns groupBy="supplier" />);
-    await screen.findByTestId('pattern-supplier');
-    expect(screen.queryByRole('button', { name: /Ver proveedor/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Ver compra/ })).not.toBeInTheDocument();
-    expect(screen.getByTestId('pattern-reason')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Reclamos de Importadora Andes' }));
+    expect(screen.queryByRole('button', { name: /Ver proveedor|Ver compra/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('never queries patterns without returns access or before a business session is ready', () => {
+  it('never queries without sales access or a ready business session', () => {
     ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
-    const view = mount(<ReturnsPatterns groupBy="supplier" />);
-    expect(api.fetchReturnPatterns).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('patterns-loading')).not.toBeInTheDocument();
+    const view = mount();
+    expect(api.fetchReturnAnalysis).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('fallas-loading')).not.toBeInTheDocument();
     view.unmount();
     ctx.appSession.membership = { role: 'OWNER', sections: null };
     ctx.backendStatus = 'checking';
-    mount(<ReturnsPatterns groupBy="supplier" />);
-    expect(api.fetchReturnPatterns).not.toHaveBeenCalled();
+    mount();
+    expect(api.fetchReturnAnalysis).not.toHaveBeenCalled();
   });
 });

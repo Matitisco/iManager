@@ -54,7 +54,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'expenses', label: 'Gastos', subtitle: 'Lo que resta en la ganancia neta', icon: 'card', group: 'finanzas' },
   { id: 'suppliers', label: 'Proveedores', subtitle: 'Compras y origen del stock', icon: 'store', group: 'finanzas' },
   { id: 'reports', label: 'Reportes', subtitle: 'Ventas, stock, canjes, clientes y servicio', icon: 'bars', group: 'analisis' },
-  { id: 'patterns', label: 'Patrones', subtitle: '', icon: 'bars', group: 'analisis' },
+  { id: 'patterns', label: 'Fallas', subtitle: '', icon: 'bars', group: 'analisis' },
   { id: 'commissions', label: 'Comisiones', ownLabel: 'Mis comisiones', subtitle: 'Vendedores y pagos', ownSubtitle: 'Solo las tuyas, de este mes', icon: 'comisiones', group: 'analisis' },
   { id: 'history', label: 'Historial', subtitle: 'Quién hizo qué y cuándo', icon: 'clock', group: 'analisis' },
   { id: 'periodicSummary', label: 'Resumen periódico', subtitle: '', icon: 'bars', group: 'analisis' },

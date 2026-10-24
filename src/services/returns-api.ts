@@ -35,10 +35,22 @@ export interface ReturnPatternView {
   claimsTruncated: boolean;
 }
 
+export interface ReturnPatternSummary {
+  devices: number;
+  problems: number;
+  percent: number;
+  claims: number;
+  topReason: ReturnPatternView['topReason'];
+}
+
+export function fetchReturnAnalysis(user: AuthUserLike, groupBy: PatternGroupBy) {
+  return apiRequest<{ patterns: ReturnPatternView[]; summary: ReturnPatternSummary }>(user, `/api/returns/patterns?groupBy=${groupBy}`, {
+    fallback: 'No se pudieron cargar las fallas',
+  });
+}
+
 export function fetchReturnPatterns(user: AuthUserLike, groupBy: PatternGroupBy) {
-  return apiRequest<{ patterns: ReturnPatternView[] }>(user, `/api/returns/patterns?groupBy=${groupBy}`, {
-    fallback: 'No se pudieron cargar los patrones',
-  }).then(data => data.patterns);
+  return fetchReturnAnalysis(user, groupBy).then(data => data.patterns);
 }
 
 export interface CreditNoteView {

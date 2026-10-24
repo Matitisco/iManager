@@ -1,37 +1,61 @@
-.pat-sections { gap: 24px; }
-.pat-section { min-width: 0; }
-.pat-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
-.pat-grid > .card { margin: 0; }
-.pat-list { overflow: hidden; }
-.pat-group + .pat-group { border-top: 1px solid var(--border); }
-.desk-app .pat-row { gap: 12px; border-bottom: 0; }
-.pat-row.on { background: var(--lime-soft); }
-.desk-app .pat-name { padding: 0; text-align: left; }
-.pat-row .pat-val { display: flex; align-items: center; align-self: stretch; gap: 12px; flex: none; padding: 0; }
-.pat-name:hover .name { text-decoration: underline; text-underline-offset: 3px; }
-.pat-name:focus-visible, .pat-val:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 4px; }
-.pat-bar { width: 72px; height: 6px; border-radius: 99px; background: var(--row); overflow: hidden; }
-.pat-row.on .pat-bar { background: var(--card); }
-.pat-bar i { display: block; height: 100%; border-radius: inherit; background: var(--section); }
-.pat-row.hot .pat-bar i { background: var(--primary); }
-.pat-pct { min-width: 38px; text-align: right; font-size: 14px; font-weight: 800; }
-.pat-detail { padding: 18px 18px 6px; min-width: 0; }
-.pat-detail .dch { align-items: flex-start; gap: 12px; margin-bottom: 4px; }
-.pat-detail .dch h3 { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
-.pat-detail .dch p { margin: 2px 0 0; font-size: 13px; color: var(--secondary); font-weight: 500; }
-.pat-detail .wlink { flex: none; }
-.pat-note { margin: 12px 0 4px; padding: 12px 14px; border-radius: 12px; background: var(--lime-soft); font-size: 13px; line-height: 1.5; font-weight: 600; }
-.pat-claims { margin: 8px -18px 0; }
-.pat-claims .member { padding: 14px 18px; border-bottom: 1px solid var(--border); }
-.pat-claims .member:last-child { border-bottom: 0; }
-.pat-limit { font-size: 12px; color: var(--secondary); padding: 12px 0; }
-.pat-loading { min-height: 405px; }
+.pat-summary.dstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pat-summary .bar { margin-top: 12px; }
+.pat-summary .big { margin-bottom: 4px; }
+.pat-summary .pat-reason-value { text-transform: capitalize; }
+.pat-summary-loading { min-height: 150px; }
+.pat-sections[hidden] { display: none; }
+.pat-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.pat-section { min-width: 0; padding-bottom: 4px; }
+.pat-section .dch { flex-wrap: wrap; gap: 8px; min-height: 44px; margin-bottom: 4px; }
+.pat-section .dch h3 { font-size: 16px; }
+.pat-ranking { margin: 0 -20px; }
+.desk-app button.pat-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--border); border-radius: 0; }
+.desk-app button.pat-row:last-child { border-bottom: 0; }
+.desk-app button.pat-row:hover { background: var(--lime-soft); }
+.desk-app button.pat-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.pat-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; }
+.pat-pct { display: flex; align-items: center; gap: 10px; grid-row: span 2; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pat-pct .chev { color: var(--secondary); font-size: 20px; font-weight: 500; }
+.pat-bar { width: 100%; height: 6px; border-radius: 999px; background: var(--row); overflow: hidden; }
+.pat-bar i { display: block; height: 100%; border-radius: inherit; background: var(--lime); }
+.pat-count { font-size: 12px; font-weight: 500; color: var(--secondary); }
+.pat-row .pat-count { grid-column: 1 / -1; }
+.pat-reason { grid-column: 1 / -1; font-size: 13px; font-weight: 500; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.pat-detail-metrics { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
+.pat-detail-metrics strong { font-size: 26px; font-weight: 800; }
+.pat-detail-metrics span { font-size: 13px; color: var(--secondary); }
+.pat-detail .sheet-title { min-width: 0; }
+.pat-detail .sheet-title h3 { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pat-claims { margin: 0 -28px; }
+.pat-claims .member { padding: 14px 28px; gap: 12px; }
+.pat-claims .info { min-width: 0; }
+.pat-claims .name { overflow-wrap: anywhere; }
+.pat-claims .role { white-space: normal; }
+.pat-detail .spill.cst { --pc: var(--secondary) !important; }
+.pat-claims > .pat-count { margin: 12px 28px; }
+.ov.subov.pat-claim-layer { z-index: 140; }
+.pat-all-sheet .pat-ranking { margin: -16px -28px -24px; }
+@media (max-width: 1100px) and (min-width: 761px) {
+  .pat-sections { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 760px) {
-  .pat-grid { grid-template-columns: minmax(0, 1fr); }
-  .pat-bar { width: 48px; }
-  .pat-open { border-top: 1px solid var(--border); padding-top: 0; }
-  .pat-open .pat-note { margin: 0 16px 8px; }
-  .pat-open .pat-claims { margin: 0; }
-  .pat-open .pat-claims .member { padding: 12px 16px; }
-  .pat-open .pat-limit { padding: 12px 16px; }
+  .pat-summary.dstats { gap: 12px; }
+  .pat-summary .dstat { min-width: 0; padding: 16px; }
+  .pat-summary .eb { min-height: 34px; margin-bottom: 8px; }
+  .pat-summary .pat-reason-value { font-size: 22px; line-height: 34px; overflow-wrap: anywhere; }
+  .pat-sections { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .pat-section.dcard { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .pat-section .dch { min-height: 0; margin-bottom: 12px; }
+  .pat-section .dch h3 { font-size: 16px; }
+  .pat-ranking.phone-rows { margin: 0; display: grid; gap: 8px; }
+  .desk-app button.pat-row.phone-row { padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+  .pat-row .pat-name { font-size: 15px; }
+  .pat-detail .sheet-scroll { padding-top: 12px; }
+  .pat-claims { margin: 0 -16px; }
+  .pat-claims .member { padding: 14px 16px; flex-wrap: wrap; }
+  .pat-claims .info { flex: 1; }
+  .pat-claims .spill { margin-left: 52px; }
+  .pat-claims > .pat-count { margin: 12px 16px; }
+  .pat-all-sheet .pat-ranking.phone-rows { margin: 0; }
+  .pat-all-sheet .sheet-h .wback { width: 44px; height: 44px; }
 }

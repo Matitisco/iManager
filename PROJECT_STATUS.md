@@ -2,6 +2,8 @@
 
 - QA de importaciones (2026-10-23): equipos/clientes/ventas recorridos desde Chromium local con DB falsa, archivos de 50 filas, variantes desordenadas/ajenas y stock Mendoza, a 1440/390. Corregidos CSV con comillas/coma decimal, moneda de equipos, ventas repetidas con bloqueo transaccional, filas de venta con precio inválido y presentación de errores. TypeScript frontend/backend y 185 pruebas relacionadas aprobados. Pendientes: identidad de lotes sin IMEI (Mendoza repite 48 unidades), proveedor/fecha en mapeo genérico y diferencias de diseño del modal. Informe en `docs/qa-import/notas.md`; evidencia en `/workspace/qa-import/`.
 
+- Fallas (2026-10-23): renombra Patrones con redirect; resumen exacto de equipos con reclamo y motivo, top 5 de proveedores/compras/modelos por porcentaje, detalle en hojas y vacío de una línea. QA 1440/390 con 90 equipos falsos y seis grupos por ranking; TypeScript y tests relacionados. Detalles en `docs/qa-fallas/notas.md`, capturas en `/workspace/qa-fallas/`.
+
 - Patrones sin pastillas (2026-10-23): Proveedor, Compra y Modelo apilados con títulos existentes, selección independiente, enlaces y caché conservados. TypeScript frontend/backend, 107 pruebas relacionadas y QA local falsa a 1440/390 aprobados, sin overflow ni errores de página. Otros selectores reportados sin cambios en `docs/qa-patrones/notas.md`; capturas en `/workspace/qa-patrones/`.
 
 - Shell Historial/Más y selects (2026-10-23): audit-layout deja de modificar tipografía/ancho del sidenav; Más separa perfil/menú con 16px y restaura la tarjeta. Selects visibles de Historial, Equipos/proveedor, reclamos/venta, catálogos e importación usan DeskSelect. Onboarding conserva sus cinco nativos fuera del desk. TypeScript frontend/backend, 305 pruebas relacionadas, importación E2E y métricas en 22 rutas × 1440/390; Más a 390/360/375 con/sin banner y grupos abiertos/cerrados. Evidencia en `docs/qa-sidenav2/notas.md` y `/workspace/qa-sidenav2/`.
@@ -568,3 +570,5 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 2. Leer este archivo para el estado vivo
 3. Si tocas codigo, correr `npm run lint` (no build)
 4. Actualizar este archivo al cerrar cada iteracion importante
+
+- Fallas: «Todos los reclamos» reemplaza la hoja del grupo en un único Sheet ajustado al contenido; cada reclamo abre un segundo Sheet y conserva lista/foco al cerrar. Validado con DB falsa en 1440/390, scroll en viewport reducido, tests relacionados y TypeScript frontend/backend. Capturas en `/workspace/qa-fallas2/ver-todos-{1440,390}.png`.

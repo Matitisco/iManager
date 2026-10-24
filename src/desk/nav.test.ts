@@ -73,7 +73,7 @@ describe('navegación por rol', () => {
     expect(desktopNav(['reports', 'commissions'], 'MANAGER').main.some((block) => block.kind === 'link' && block.item.id === 'commissions')).toBe(false);
   });
 
-  it.each(['OWNER', 'MANAGER', 'STAFF'])('Patrones inherits sales permission for %s', role => {
+  it.each(['OWNER', 'MANAGER', 'STAFF'])('Fallas inherits sales permission for %s', role => {
     for (const stored of [null, [], ['sales'], ['reports'], ['inventory']]) {
       expect(sectionAllowed('patterns', stored, role)).toBe(sectionAllowed('returns', stored, role));
       expect((group(role, stored, 'analisis') ?? []).includes('patterns')).toBe(sectionAllowed('patterns', stored, role));

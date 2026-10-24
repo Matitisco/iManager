@@ -51,7 +51,7 @@ test.describe('phone navigation', () => {
     test.setTimeout(180_000);
     await mockDollar(page);
     await bootstrapStoreViaApi(page, request, buildTestEmail(testInfo, 'shell-metrics'), 'Menú de prueba');
-    const routes = ['dashboard', 'comercial/ventas', 'comercial/canjes', 'comercial/devoluciones', 'stock/equipos', 'stock/control', 'stock/catalogo', 'atencion/clientes', 'atencion/seguimientos', 'atencion/servicio', 'finanzas/cajas', 'finanzas/gastos', 'finanzas/proveedores', 'analisis/reportes', 'analisis/patrones', 'analisis/comisiones', 'analisis/historial', 'analisis/resumen-periodico', 'cuenta/notificaciones', 'cuenta/ayuda', 'cuenta/configuracion', 'plan'];
+    const routes = ['dashboard', 'comercial/ventas', 'comercial/canjes', 'comercial/devoluciones', 'stock/equipos', 'stock/control', 'stock/catalogo', 'atencion/clientes', 'atencion/seguimientos', 'atencion/servicio', 'finanzas/cajas', 'finanzas/gastos', 'finanzas/proveedores', 'analisis/reportes', 'analisis/fallas', 'analisis/comisiones', 'analisis/historial', 'analisis/resumen-periodico', 'cuenta/notificaciones', 'cuenta/ayuda', 'cuenta/configuracion', 'plan'];
     const metrics = async (target: Page) => target.locator('.sn-nav').evaluate(nav => {
       // Measure every destination, including collapsed groups, without changing app state.
       const panels = [...nav.querySelectorAll<HTMLElement>('.sn-children')];
@@ -117,13 +117,9 @@ test.describe('phone navigation', () => {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
       await page.goto('/#/returns?view=patterns');
-      await expect(page).toHaveURL(/#\/analisis\/patrones$/);
-      await expect(page.getByRole('heading', { name: 'Patrones', exact: true })).toBeVisible();
-      for (const name of ['Proveedor', 'Compra', 'Modelo']) {
-        const section = page.getByRole('region', { name, exact: true });
-        await expect(section.getByRole('heading', { name })).toBeVisible();
-        await expect(section.getByTestId('patterns-empty')).toBeVisible();
-      }
+      await expect(page).toHaveURL(/#\/analisis\/fallas$/);
+      await expect(page.getByRole('heading', { name: 'Fallas', exact: true })).toBeVisible();
+      await expect(page.getByTestId('fallas-empty')).toBeVisible();
       await expect(page.getByRole('group', { name: 'Agrupar' })).toHaveCount(0);
       if (width === 390) await page.getByTestId('sidebar-tab-more').click();
       const menu = page.getByRole('navigation', { name: 'Navegación principal' });

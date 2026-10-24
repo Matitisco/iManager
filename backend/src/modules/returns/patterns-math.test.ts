@@ -24,6 +24,14 @@ describe("familias de motivos sin cambiar el texto libre", () => {
   });
 });
 
+describe("motivo principal en Fallas", () => {
+  it("incluye un único reclamo y compara motivos libres contra familias", () => {
+    expect(topReason(["Cámara empañada"], 1)).toMatchObject({ family: "camara", label: "cámara", claims: 1 });
+    expect(topReason(["Se reinicia solo", "se reinicia solo", "Batería"], 1)).toMatchObject({ family: "otro", claims: 2 });
+    expect(topReason(["", "   "], 1)).toBeNull();
+  });
+});
+
 describe("métricas y orden", () => {
   it.each([
     [0, 0, 0, false], [1, 7, 14, false], [2, 8, 25, false], [2, 5, 40, true],
