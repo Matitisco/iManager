@@ -153,7 +153,11 @@ describe('Onboarding', () => {
     await user.type(screen.getByTestId('onboarding-manual-sell'), '1300');
     await user.click(screen.getByRole('button', { name: 'Seguir' }));
 
-    expect(await screen.findByText(MANUAL_QUOTE_ORDER_ERROR)).toBeInTheDocument();
+    const message = await screen.findByText(MANUAL_QUOTE_ORDER_ERROR);
+    expect(message).toBeInTheDocument();
+    await waitFor(() => expect(message).toHaveFocus());
+    await user.click(screen.getByRole('button', { name: 'Seguir' }));
+    await waitFor(() => expect(message).toHaveFocus());
     expect(mockAppContext.completeOnboarding).not.toHaveBeenCalled();
   });
 
