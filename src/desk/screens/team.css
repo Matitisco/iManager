@@ -16,9 +16,7 @@
 .team-grid>.team-block,.team-card{width:100%;max-width:none}
 .team-desktop-invite{display:none!important}
 .settings-grid>.team-invite-bottom,.team-page .team-invite-bottom{display:none!important}
-.team-grid .av-c.b{background:var(--c-blue);color:#fff}
-.team-grid .av-c.p{background:var(--c-pink);color:#fff}
-.team-grid .av-c.g{background:var(--c-green);color:#fff}
+.team-grid .av-c.b,.team-grid .av-c.p,.team-grid .av-c.g{background:var(--row);color:var(--primary)}
 .team-grid .spill,.team-grid .spill.mid{background:#f0f1f3;color:#4a4f57;border:0}
 .team-grid .spill.off{background:#16181d;color:#fff}
 .you-badge{flex:none;padding:3px 8px;border-radius:999px;background:var(--row);color:var(--secondary);font-size:12px;font-weight:700}
