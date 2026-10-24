@@ -3,11 +3,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReturnCaseView } from '../../services/returns-api';
+import type { Client, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ReturnDelete, ReturnDetail, ReturnForm } from './return-case';
 
 const ctx = vi.hoisted(() => ({
-  returns: [] as ReturnCaseView[], sales: [], inventory: [],
+  returns: [] as ReturnCaseView[], sales: [] as Sale[], clients: [] as Client[], inventory: [],
   updateReturn: vi.fn(), resolveReturn: vi.fn(), advanceRma: vi.fn(), archiveReturn: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
@@ -25,7 +26,7 @@ function mount(node: ReactNode, sensitive = true) {
   return render(<div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: !sensitive, canManageSensitive: sensitive }}>{node}</DeskProvider></div>);
 }
 beforeEach(() => {
-  vi.clearAllMocks(); ctx.returns = [{ ...claim }];
+  vi.clearAllMocks(); ctx.returns = [{ ...claim }]; ctx.sales = []; ctx.clients = [];
   for (const fn of [ctx.updateReturn, ctx.resolveReturn, ctx.advanceRma, ctx.archiveReturn]) fn.mockResolvedValue(claim);
 });
 describe('cambio de estado de reclamo', () => {
@@ -171,22 +172,19 @@ describe('rediseño aprobado de reclamos', () => {
       await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Borrador');
       await userEvent.click(trigger);
       const history = screen.getByRole('dialog', { name: 'Historial · RMA-0001' });
-      expect(history.className).toBe('sheet sheet-frame return-history-sheet');
+      expect(history).toHaveClass('return-history-sheet', 'hist-screen');
       expect(history.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
-      expect(within(history).queryByRole('button', { name: 'Volver' })).not.toBeInTheDocument();
-      expect(history.querySelector('.wback')).not.toBeInTheDocument();
       const header = history.querySelector<HTMLElement>('.sheet-h')!;
-      const closeHistory = within(header).getByRole('button', { name: 'Cerrar' });
-      expect(closeHistory).toHaveClass('modal-x');
       expect(within(history).getAllByRole('listitem')).toHaveLength(2);
       expect(within(history).getAllByRole('listitem')[0]).toHaveTextContent('Revisar batería.');
       expect(history.querySelector('time')).toHaveAttribute('datetime', '2026-10-22T15:00:00Z');
       expect(within(history).getByText('Ingresó el reclamo.')).toBeInTheDocument();
       if (phone) {
-        expect(history.querySelector('.sheet-grab')).toBeInTheDocument();
+        expect(history.querySelector('.sheet-grab')).not.toBeInTheDocument();
         expect(history.querySelector('.sheet-foot')).not.toBeInTheDocument();
-        await userEvent.click(closeHistory);
+        await userEvent.click(within(header).getByRole('button', { name: 'Volver' }));
       } else {
+        expect(within(header).getByRole('button', { name: 'Cerrar' })).toHaveClass('modal-x');
         expect(history.querySelector('.sheet-grab')).not.toBeInTheDocument();
         const footer = history.querySelector<HTMLElement>('.sheet-foot')!;
         await userEvent.click(within(footer).getByRole('button', { name: 'Cerrar' }));
@@ -207,6 +205,17 @@ describe('rediseño aprobado de reclamos', () => {
     expect(sheet.querySelector('input[type="date"]')).toBeNull();
     expect(screen.queryByLabelText('Diagnóstico')).not.toBeInTheDocument();
     expect([...body.querySelectorAll('.fl')].map(field => field.textContent)).toEqual([expect.stringContaining('Fecha'), expect.stringContaining('Venta'), expect.stringContaining('Motivo')]);
+  });
+  it('identifies linked buyers without a snapshot and preserves historical names', async () => {
+    ctx.clients = [{ id: 'client', name: 'Lucía Fernández' } as Client];
+    ctx.sales = [
+      { id: 'linked', clientId: 'client', clientName: '', deviceLabel: 'iPhone 13', date: '2026-10-24', status: 'COMPLETADA' },
+      { id: 'snapshot', clientId: 'client', clientName: 'Nombre histórico', deviceLabel: 'iPhone 14', date: '2026-10-23', status: 'COMPLETADA' },
+    ] as Sale[];
+    mount(<ReturnForm />);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
+    expect(screen.getByRole('option', { name: 'Lucía Fernández · iPhone 13 · 24/10/2026' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Nombre histórico · iPhone 14 · 23/10/2026' })).toBeInTheDocument();
   });
   it('loads the real status when records arrive after the sheet opens', async () => {
     const rows = ctx.returns;

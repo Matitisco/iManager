@@ -56,7 +56,10 @@ it.each([
 
   await userEvent.click(trigger);
   const history = screen.getByRole('dialog', { name: 'Historial' });
-  expect(history).toHaveTextContent(entityType === 'client' ? 'Ana Gómez' : '#OT-0012 · iPhone 13');
+  expect(within(history).getByRole('heading', { name: 'Historial' })).toBeInTheDocument();
+  expect(history.querySelector('.sub')).not.toBeInTheDocument();
+  expect(history).toHaveClass('hist-screen');
+  expect(within(history).getByRole('button', { name: phone ? 'Volver' : 'Cerrar' })).toBeInTheDocument();
   expect(history.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
   expect(within(history).getByRole('status', { name: 'Cargando' })).toHaveAttribute('aria-busy', 'true');
   expect(history).not.toHaveTextContent('Cargando');
@@ -64,7 +67,8 @@ it.each([
   await act(async () => resolve({ events: [], nextCursor: null }));
   expect(within(history).getByText('Sin movimientos')).toBeInTheDocument();
 
-  await userEvent.keyboard('{Escape}');
+  if (phone) await userEvent.click(within(history).getByRole('button', { name: 'Volver' }));
+  else await userEvent.keyboard('{Escape}');
   expect(screen.queryByRole('dialog', { name: 'Historial' })).not.toBeInTheDocument();
   expect(parent).toBeInTheDocument();
   expect(close).not.toHaveBeenCalled();

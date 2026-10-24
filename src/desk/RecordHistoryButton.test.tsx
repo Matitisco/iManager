@@ -28,7 +28,7 @@ function mount(entityId = 'eq') {
     <RecordHistoryButton entityType="inventory" entityId={entityId} label="iPhone 13" />
   </Sheet></div>);
 }
-beforeEach(() => { fetch.mockReset(); fetch.mockResolvedValue({ events: [], nextCursor: null }); ctx.appSession.store.id = 'store'; });
+beforeEach(() => { vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })); fetch.mockReset(); fetch.mockResolvedValue({ events: [], nextCursor: null }); ctx.appSession.store.id = 'store'; });
 
 describe('historial apilado compartido', () => {
   it.each([false, true])('opens on demand, preserves draft and returns focus with Escape (phone=%s)', async phone => {
@@ -47,6 +47,9 @@ describe('historial apilado compartido', () => {
     await userEvent.click(trigger);
     const modal = await screen.findByRole('dialog', { name: 'Historial' });
     expect(modal.closest('.record-history-layer')?.parentElement).toHaveClass('desk-app');
+    expect(modal).toHaveClass('hist-screen');
+    expect(within(modal).getByRole('button', { name: phone ? 'Volver' : 'Cerrar' })).toBeInTheDocument();
+    expect(modal.querySelector('.sub')).not.toBeInTheDocument();
     expect(screen.getAllByRole('dialog')).toHaveLength(2);
     expect(await within(modal).findByText('Cambió estado 1')).toBeInTheDocument();
     expect(modal.querySelector('time')).toHaveTextContent('22/10/2026');
