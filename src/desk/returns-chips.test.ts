@@ -13,7 +13,7 @@ describe('returns chips', () => {
     const page = await browser.newPage({ viewport: { width, height: 900 } });
     try {
       await page.setContent(`<!doctype html><style>${css}</style><div class="desk-app"><div class="returns-screen">
-        <button class="gchip on">Patrones</button>
+        <button class="gchip on">Fallas</button>
         <button class="gchip">Reclamos</button>
         <button class="gchip sm on">Proveedor</button>
         <button class="gchip sm">Compra</button>

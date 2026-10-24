@@ -3,8 +3,9 @@ import { canonicalHash, configHash, configPlace, tabFromHash, writeHash } from '
 
 describe('ruta del escritorio', () => {
   it.each([
-    ['#/returns?view=patterns', '#/analisis/patrones', 'patterns'],
-    ['#/comercial/devoluciones?view=patterns&groupBy=purchase&group=compra+1', '#/analisis/patrones?groupBy=purchase&group=compra+1', 'patterns'],
+    ['#/analisis/patrones?groupBy=model&group=iphone', '#/analisis/fallas?groupBy=model&group=iphone', 'patterns'],
+    ['#/returns?view=patterns', '#/analisis/fallas', 'patterns'],
+    ['#/comercial/devoluciones?view=patterns&groupBy=purchase&group=compra+1', '#/analisis/fallas?groupBy=purchase&group=compra+1', 'patterns'],
     ['#/returns?view=claims', '#/comercial/devoluciones', 'returns'],
     ['#/comercial/devoluciones?view=claims', '#/comercial/devoluciones', 'returns'],
     ['#/analisis/reportes/resumen-periodico', '#/analisis/resumen-periodico', 'periodicSummary'],
