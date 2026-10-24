@@ -212,10 +212,10 @@ describe('repair and archival concurrency #461', () => {
 });
 
 describe('import consistency #461', () => {
-  it.each(['ordinary sale', 'second import'])('preserves current totals against %s', async mode => {
+  it.each(['ordinary sale', 'second distinct import'])('preserves current totals against %s', async mode => {
     const f = await fixture();
     const rows = [{ clientName: f.client.name, clientDni: f.client.dni!, device: 'Imported', amount: '30', date: '01/01/2026' }];
-    const result = await overlap('Client', () => importSales(f.storeId, rows, f.actor), () => mode === 'ordinary sale' ? pending(f) : importSales(f.storeId, rows, f.actor), 'findMany');
+    const result = await overlap('Client', () => importSales(f.storeId, rows, f.actor), () => mode === 'ordinary sale' ? pending(f) : importSales(f.storeId, rows.map(row => ({ ...row, device: 'Another imported device' })), f.actor), 'findMany');
     expect(result).toMatchObject({ status: 'fulfilled', value: { imported: 1, errors: [] } });
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).totalSpent)).toBe(mode === 'ordinary sale' ? 130 : 60);
     expect(await cash(f.storeId)).toBe(0);

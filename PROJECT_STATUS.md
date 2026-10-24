@@ -1,5 +1,7 @@
 # iManager - Project Status
 
+- QA de importaciones (2026-10-23): equipos/clientes/ventas recorridos desde Chromium local con DB falsa, archivos de 50 filas, variantes desordenadas/ajenas y stock Mendoza, a 1440/390. Corregidos CSV con comillas/coma decimal, moneda de equipos, ventas repetidas con bloqueo transaccional, filas de venta con precio inválido y presentación de errores. TypeScript frontend/backend y 185 pruebas relacionadas aprobados. Pendientes: identidad de lotes sin IMEI (Mendoza repite 48 unidades), proveedor/fecha en mapeo genérico y diferencias de diseño del modal. Informe en `docs/qa-import/notas.md`; evidencia en `/workspace/qa-import/`.
+
 - Fallas (2026-10-23): renombra Patrones con redirect; resumen exacto de equipos con reclamo y motivo, top 5 de proveedores/compras/modelos por porcentaje, detalle en hojas y vacío de una línea. QA 1440/390 con 90 equipos falsos y seis grupos por ranking; TypeScript y tests relacionados. Detalles en `docs/qa-fallas/notas.md`, capturas en `/workspace/qa-fallas/`.
 
 - Patrones sin pastillas (2026-10-23): Proveedor, Compra y Modelo apilados con títulos existentes, selección independiente, enlaces y caché conservados. TypeScript frontend/backend, 107 pruebas relacionadas y QA local falsa a 1440/390 aprobados, sin overflow ni errores de página. Otros selectores reportados sin cambios en `docs/qa-patrones/notas.md`; capturas en `/workspace/qa-patrones/`.

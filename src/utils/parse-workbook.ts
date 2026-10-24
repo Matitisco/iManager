@@ -66,11 +66,45 @@ function readWorksheet(worksheet: ExcelJS.Worksheet): string[][] {
 }
 
 async function parseCsv(file: File): Promise<ParsedWorkbook> {
-  const text = await file.text();
-  const rows = trimRows(text
-    .split(/\r?\n/)
-    .filter((line) => line.length > 0)
-    .map((line) => line.split(',').map((cell) => cell.replace(/^"|"$/g, '').trim())));
+  const text = (await file.text()).replace(/^\uFEFF/, '');
+  // Excel in Argentina commonly exports semicolons; commas inside quoted
+  // amounts/names must never participate in delimiter detection.
+  const counts = new Map([[',', 0], [';', 0], ['\t', 0]]);
+  let quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      if (quoted && text[index + 1] === '"') { index += 1; continue; }
+      quoted = !quoted;
+    } else if (!quoted) {
+      if (char === '\r' || char === '\n') break;
+      if (counts.has(char)) counts.set(char, counts.get(char)! + 1);
+    }
+  }
+  const delimiter = [...counts].sort((left, right) => right[1] - left[1])[0][0];
+  const parsed: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"' && (quoted || !cell.trim())) {
+      if (quoted && text[index + 1] === '"') { cell += '"'; index += 1; }
+      else quoted = !quoted;
+    } else if (!quoted && (char === delimiter || char === '\r' || char === '\n')) {
+      row.push(cell.trim());
+      cell = '';
+      if (char !== delimiter) {
+        parsed.push(row);
+        row = [];
+        if (char === '\r' && text[index + 1] === '\n') index += 1;
+      }
+    } else cell += char;
+  }
+  if (quoted) throw new Error('El CSV tiene comillas sin cerrar. Revisá el archivo y volvé a subirlo.');
+  row.push(cell.trim());
+  parsed.push(row);
+  const rows = trimRows(parsed);
 
   return {
     sheetNames: ['Hoja 1'],
