@@ -75,7 +75,7 @@ it('keeps the problem notice informational when returns access is missing', asyn
   ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
   mount(<SupplierDetail id="supplier" />);
   await screen.findByTestId('supplier-detail');
-  expect(screen.getByTestId('supplier-problems').tagName).toBe('P');
+  expect(screen.getByTestId('supplier-problems').tagName).toBe('SPAN');
   expect(screen.queryByRole('button', { name: /Ver fallas/ })).not.toBeInTheDocument();
 });
 
@@ -139,13 +139,15 @@ describe('formulario de proveedor', () => {
 });
 
 describe('ficha de proveedor', () => {
-  it('shows stock, purchases, distinct claimed-device percentage and currency totals without a subtitle', async () => {
+  it('shows investment first with history, stock and the actual last purchase date', async () => {
+    fetchSupplier.mockResolvedValue({ ...supplier, lastPurchasedAt: '2026-10-14' });
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('1');
-    expect(screen.getByText('Con reclamos').nextElementSibling).toHaveTextContent('50%');
+    expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('1 de 2 equipos');
+    expect(screen.getByText('Con problemas').nextElementSibling).toHaveTextContent('1 de 2 equipos');
+    expect(screen.getByRole('button', { name: 'Historial' }).closest('.tracking-summary')).not.toBeNull();
     expect(screen.getByText('Total invertido').nextElementSibling).toHaveTextContent('US$ 1600');
-    expect(screen.getByRole('dialog').querySelector('.sheet-h .sub')).toBeNull();
+    expect(screen.getByRole('dialog').querySelector('.sheet-h .sub')).toHaveTextContent('Última compra · 14/10/2026');
     expect(fetchHistory).not.toHaveBeenCalled();
   });
   it('opens paginated supplier history only from its icon and returns to the same file', async () => {
@@ -165,7 +167,7 @@ describe('ficha de proveedor', () => {
     expect(screen.getByTestId('supplier-detail')).toBeInTheDocument();
     expect(fetchSupplier).toHaveBeenCalledOnce();
   });
-  it('preserves full long contact values in titles when mobile text is truncated', async () => {
+  it('preserves full long contact values and their titles', async () => {
     const email = `${'compras'.repeat(24)}@mayoristacentro.example.com`;
     const phone = '+54 261 555 0106 / +54 261 555 0107 / +54 261 555 0108';
     fetchSupplier.mockResolvedValue({ ...supplier, email, phone });
@@ -173,9 +175,9 @@ describe('ficha de proveedor', () => {
     await screen.findByTestId('supplier-detail');
     for (const value of [email, phone]) {
       const contact = screen.getByText(value);
-      expect(contact.tagName).toBe('DD');
+      expect(contact.tagName).toBe('B');
       expect(contact).toHaveAttribute('title', value);
-      expect(contact.closest('.supplier-contact')).not.toBeNull();
+      expect(contact.closest('.kv')).not.toBeNull();
     }
   });
   it('uses a silent skeleton until the detail resolves', async () => {
@@ -197,7 +199,7 @@ describe('ficha de proveedor', () => {
   it('opens a purchase over the file with full IMEI and problem states', async () => {
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(screen.getByTestId('supplier-problems')).toHaveTextContent('1 de 2 equipos con problemas');
+    expect(screen.getByTestId('supplier-problems')).toHaveTextContent('1 de 2 equipos');
     expect(screen.queryByText(/Sin IMEI|Sin compra/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     const purchase = await screen.findByTestId('supplier-purchase-detail');
@@ -256,12 +258,15 @@ describe('ficha de proveedor', () => {
     expect(screen.getByText('IMEI 356789104523871')).toBeInTheDocument();
     expect(screen.queryByText('Sin IMEI')).not.toBeInTheDocument();
   });
-  it('omits missing supplier data and empty purchase sections', async () => {
+  it('shows missing contact and a single empty purchase row without zero investment', async () => {
     fetchSupplier.mockResolvedValue({ ...supplier, phone: null, email: null, notes: null, deviceCount: 0, problemCount: 0, purchases: [] });
     mount(<SupplierDetail id="empty" />);
     await screen.findByTestId('supplier-detail');
     expect(screen.queryByRole('region', { name: 'Compras' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Teléfono')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Sin cargar')).toHaveLength(2);
+    expect(screen.getByTestId('supplier-empty')).toHaveTextContent('Sin compras registradas');
+    expect(screen.queryByText('Total invertido')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Historial' }).closest('.sheet-h')).not.toBeNull();
     expect(screen.queryByTestId('supplier-problems')).not.toBeInTheDocument();
   });
   it('uses full screen mobile purchase layers with a back arrow and returns to the file', async () => {
