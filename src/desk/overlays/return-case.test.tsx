@@ -33,6 +33,7 @@ describe('cambio de estado de reclamo', () => {
   it('saves a nested claim and closes only its local sheet', async () => {
     const onClose = vi.fn();
     mount(<ReturnDetail id="claim" onClose={onClose} overlayClassName="subov" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     expect(screen.getByRole('dialog').closest('.ov')).toHaveClass('subov');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
@@ -42,6 +43,7 @@ describe('cambio de estado de reclamo', () => {
 
   it('keeps selection and note as drafts until Guardar, then submits them together', async () => {
     mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     await userEvent.click(screen.getByRole('button', { name: 'En diagnóstico' }));
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
     await userEvent.type(screen.getByLabelText('Nota de seguimiento'), ' Revisar batería ');
@@ -55,6 +57,7 @@ describe('cambio de estado de reclamo', () => {
   it('cancels RMA drafts without persisting and saves only when confirmed', async () => {
     ctx.returns = [{ ...claim, status: 'EN_PROVEEDOR', rmaStatus: 'ENVIADO', resolution: 'REPARACION' }];
     mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     await userEvent.click(screen.getByRole('button', { name: 'Aprobado' }));
     expect(ctx.advanceRma).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
@@ -66,6 +69,7 @@ describe('cambio de estado de reclamo', () => {
   });
   it('resolves through the existing financial endpoint with diagnosis and note in one request', async () => {
     mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     await userEvent.click(screen.getByRole('button', { name: 'Resuelto' }));
     await userEvent.click(screen.getByRole('button', { name: 'Reintegro' }));
     await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Se acordó devolver el importe');
@@ -79,6 +83,7 @@ describe('cambio de estado de reclamo', () => {
     let reject!: (reason: Error) => void;
     ctx.updateReturn.mockReturnValue(new Promise((_, no) => { reject = no; }));
     mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     await userEvent.click(screen.getByRole('button', { name: 'En diagnóstico' }));
     await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Pendiente');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
@@ -91,8 +96,9 @@ describe('cambio de estado de reclamo', () => {
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
     expect(close).not.toHaveBeenCalled();
   });
-  it('does not offer resolution to staff without sensitive access', () => {
+  it('does not offer resolution to staff without sensitive access', async () => {
     mount(<ReturnDetail id="claim" />, false);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     expect(screen.queryByRole('button', { name: 'Resuelto' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toBeInTheDocument();
   });
@@ -162,6 +168,7 @@ describe('rediseño aprobado de reclamos', () => {
     try {
       ctx.returns = [{ ...claim, events: [claim.events[0], { status: 'EN_DIAGNOSTICO', note: 'Revisar batería.', createdAt: '2026-10-22T15:00:00Z' }] }];
       mount(<ReturnDetail id="claim" />);
+      await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
       const parent = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
       const trigger = within(parent).getByRole('button', { name: 'Ver historial (2)' });
       expect(trigger).toHaveAttribute('title', 'Historial');
@@ -226,6 +233,9 @@ describe('rediseño aprobado de reclamos', () => {
     expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument();
     ctx.returns = [{ ...rows[0], status: 'EN_DIAGNOSTICO', diagnosis: 'Batería' }];
     view.rerender(<div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: false }}><ReturnDetail id="claim" /></DeskProvider></div>);
+    expect(screen.getByText('En diagnóstico')).toBeInTheDocument();
+    expect(screen.getByText('Batería')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     expect(screen.getByRole('button', { name: 'En diagnóstico' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Diagnóstico')).toHaveValue('Batería');
   });
@@ -260,4 +270,45 @@ it('muestra la fila Proveedor solo cuando el reclamo tiene supplierName', () => 
   mount(<ReturnDetail id="claim" />);
   expect(screen.getByTestId('return-supplier')).toHaveTextContent('ProveedorImportadora Andes');
   expect(within(screen.getByTestId('return-detail')).getByTestId('return-supplier')).toBeInTheDocument();
+});
+
+describe('detalle definitivo de reclamo', () => {
+  it('shows saved data without editors or mutations and opens history beside the identity', async () => {
+    mount(<ReturnDetail id="claim" />);
+    const detail = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
+    const identity = detail.querySelector<HTMLElement>('.rcl-identity')!;
+    expect(identity).toHaveTextContent('iPhone 13 128GBLucía');
+    const trigger = within(identity).getByRole('button', { name: 'Ver historial (1)' });
+    expect(detail).toHaveTextContent('21/10/2026');
+    expect(detail).toHaveTextContent(claim.imei);
+    expect(detail).toHaveTextContent(claim.reason);
+    expect(detail.querySelector('textarea')).toBeNull();
+    expect(screen.queryByText('Diagnóstico')).not.toBeInTheDocument();
+    expect(screen.queryByText('Resolución')).not.toBeInTheDocument();
+    expect(screen.queryByText('Seguimiento')).not.toBeInTheDocument();
+    await userEvent.click(trigger);
+    const history = screen.getByRole('dialog', { name: 'Historial · RMA-0001' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(2);
+    expect(history.closest('.ov')).toHaveClass('subov');
+    expect(within(history).getByText('Ingresó el reclamo.')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    await userEvent.click(within(detail.querySelector<HTMLElement>('.sheet-foot')!).getByRole('button', { name: 'Cerrar' }));
+    expect(close).toHaveBeenCalledOnce();
+    expect(ctx.updateReturn).not.toHaveBeenCalled();
+  });
+
+  it('shows stored diagnosis and resolution and adds a note through the existing editor', async () => {
+    ctx.returns = [{ ...claim, status: 'RESUELTO', diagnosis: 'Se cambió la batería', resolution: 'REPARACION', resolvedOn: '2026-10-23' }];
+    mount(<ReturnDetail id="claim" />);
+    expect(screen.getByText('Se cambió la batería')).toBeInTheDocument();
+    expect(screen.getByText('Reparación')).toBeInTheDocument();
+    expect(screen.getByText('23/10/2026')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cambiar estado' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Agregar nota' }));
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    await userEvent.type(screen.getByLabelText('Nota de seguimiento'), 'Equipo entregado');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(ctx.updateReturn).toHaveBeenCalledWith('claim', { note: 'Equipo entregado' }));
+  });
 });

@@ -144,7 +144,7 @@ describe('Fallas', () => {
     const trigger = within(all).getByRole('button', { name: /RMA-0001 · Lucía/ });
     await userEvent.click(trigger);
     const detail = screen.getByRole('dialog', { name: 'Reclamo · RMA-0001' });
-    expect(detail).toHaveClass('sheet-frame', 'return-sheet');
+    expect(detail).toHaveClass('sheet-frame', 'rcl-detail');
     expect(detail.closest('.ov')).toHaveClass('subov');
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(open).not.toHaveBeenCalled();

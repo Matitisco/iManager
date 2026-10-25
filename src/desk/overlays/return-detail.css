@@ -1,0 +1,25 @@
+/* Claim detail: shared controls, typography and surfaces come from desk.css. */
+.record-history-layer.rcl-history-layer > .ov { z-index: 160; }
+.rcl-detail > .sheet-scroll { display: flex; flex-direction: column; gap: 20px; padding-top: 20px; }
+.rcl-detail > .sheet-scroll > * { flex-shrink: 0; min-width: 0; }
+/* Remap inherited blue statuses to the neutral/semantic palette of the guide. */
+.rcl-detail .spill { --pc: var(--secondary) !important; }
+.rcl-detail.rcl-resolved .spill { --pc: var(--ok) !important; }
+.rcl-detail.rcl-voided .spill { --pc: var(--err) !important; }
+.rcl-detail .kv { align-items: baseline; min-width: 0; }
+.rcl-detail .kv > b { max-width: 68%; min-width: 0; overflow-wrap: anywhere; }
+.rcl-detail .kv .spill { vertical-align: middle; }
+.rcl-detail .rcl-text { padding-top: 20px; border-top: 1px solid var(--border); }
+.rcl-detail h4 { margin: 0; font-size: 14px; font-weight: 700; }
+.rcl-detail .rcl-text p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rcl-detail .rcl-identity { align-items: center; justify-content: space-between; margin: 0; }
+.rcl-detail .rcl-identity > div { min-width: 0; }
+.rcl-detail .rcl-identity h4 { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+.rcl-detail .rcl-identity p { margin: 4px 0 0; color: var(--secondary); font-size: 14px; }
+.rcl-detail .rcl-resolution { border-top: 1px solid var(--border); padding-top: 8px; }
+@media (max-width: 760px) {
+  .desk-app .rcl-detail.sheet { height: auto; max-height: min(92dvh, calc(100dvh - 24px)); }
+  .rcl-detail > .sheet-scroll { padding: 12px 16px 20px; gap: 16px; }
+  .rcl-detail .rcl-text { padding-top: 16px; }
+  .rcl-detail .kv > b { max-width: 64%; }
+}

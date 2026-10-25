@@ -13,6 +13,7 @@ import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus, ReturnCaseView } from '../../services/returns-api';
 import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel, isVoidRow, saleBuyer } from '../format';
 import { Actions, Field, Pill, Sheet, useDesk } from '../ui';
+import { ReturnDetailContent } from './return-detail';
 
 const RESOLUTIONS: Array<{ id: ReturnResolution; label: string }> = [
   { id: 'REPARACION', label: 'Reparación' },
@@ -142,6 +143,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
   const { updateReturn, resolveReturn, advanceRma, restoreReturn, reloadInventory, reloadSales, reloadClients, loadCash } = useAppContext();
   const { toast, canManageSensitive = true } = useDesk();
   const id = current.id;
+  const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState(current?.status ?? 'ABIERTO');
   const [rma, setRma] = useState(current?.rmaStatus ?? 'ENVIADO');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -202,12 +204,15 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
     finally { setBusy(false); }
   };
   const legacyArchive = current.deletedAt && current.status !== 'ANULADO';
-  return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className="return-sheet ret-state" overlayClassName={overlayClassName}
+  const historyButton = <HistoryIconButton ref={historyTrigger} count={current.events.length} expanded={historyOpen} onClick={() => setHistoryOpen(true)} />;
+  return <><Sheet title={`Reclamo · ${current.code}`} onClose={close} busy={busy} className={editing ? 'return-sheet ret-state' : `rcl-detail${current.status === 'RESUELTO' ? ' rcl-resolved' : ''}${voided ? ' rcl-voided' : ''}`} overlayClassName={overlayClassName}
     footer={voided ? legacyArchive && canManageSensitive
       ? <Actions busyLabel="Restaurar" primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
       : <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
-      : <Actions busyLabel="Guardar" primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />}>
+      : editing ? <Actions busyLabel="Guardar" primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />
+        : <Actions secondary="Cerrar" primary={current.status === 'RESUELTO' ? 'Agregar nota' : 'Cambiar estado'} onSecondary={close} onPrimary={() => setEditing(true)} />}>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
+    {!editing ? <ReturnDetailContent current={current} historyButton={historyButton} /> : <>
     <ReturnSummary current={current} reason />
     {voided ? <Pill status="ANULADO" /> : unresolved ? <Choices label="Estado" value={status} onChange={setStatus} disabled={busy} options={[
       { id: 'ABIERTO', label: 'Abierto' }, { id: 'EN_DIAGNOSTICO', label: 'En diagnóstico' },
@@ -233,7 +238,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
     <section className="return-history" aria-label="Seguimiento">
       <div className="ret-sec">
         <h4>Seguimiento</h4>
-        <HistoryIconButton ref={historyTrigger} count={current.events.length} expanded={historyOpen} onClick={() => setHistoryOpen(true)} />
+        {historyButton}
       </div>
       {!voided ? <ol className="return-timeline" data-testid="return-next-step">
         <li className="next">
@@ -242,9 +247,10 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
         </li>
       </ol> : null}
     </section>
+    </>}
   </Sheet>
-  {historyOpen ? createPortal(<div className="record-history-layer">
-    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet hist-screen" mobileBack overlayClassName={overlayClassName} onClose={() => setHistoryOpen(false)}
+  {historyOpen ? createPortal(<div className="record-history-layer rcl-history-layer">
+    <Sheet title={`Historial · ${current.code}`} className="return-history-sheet hist-screen" mobileBack overlayClassName="subov" onClose={() => setHistoryOpen(false)}
       footer={phone ? null : <button className="btn2 s" type="button" onClick={() => setHistoryOpen(false)}>Cerrar</button>}>
       <ol className="return-timeline" data-testid="return-events">
         {[...current.events].reverse().map((event, index) => <li key={`${event.createdAt}-${index}`}>
