@@ -1,0 +1,5 @@
+- [x] Revisar la variante 2 elegida y los patrones existentes de Ventas/Stock.
+- [x] Implementar el detalle definitivo con datos reales y un único historial compartido con el editor.
+- [x] Retirar wireframes, variante descartada y flags de QA; conservar los flujos existentes.
+- [x] Verificar visualmente 1440/390 y capturar final-1440.png y final-390.png con la API local ficticia.
+- [x] Ejecutar lint frontend/backend y pruebas relacionadas con máximo dos workers.
