@@ -55,7 +55,7 @@ describe('EquipmentField', () => {
     expect(options).toHaveLength(6);
     expect(options.map((option) => option.textContent).join(' ')).toContain('iPhone 13');
     expect(screen.queryByRole('option', { name: /Samsung/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/Completá los datos básicos para crearlo/)).toBeInTheDocument();
+    expect(screen.getByText(/Se guarda para completar después/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('option', { name: /iPhone 13/ }));
     expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: 'a', model: 'iPhone 13' }));
@@ -79,7 +79,7 @@ describe('EquipmentField', () => {
     render(<Reserved />);
     await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'iPhone 13');
     expect(screen.getByText('Reservado para Ana Pérez')).toBeInTheDocument();
-    expect(screen.queryByText(/Completá los datos básicos para crearlo/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Se guarda para completar después/)).not.toBeInTheDocument();
   });
 
   it('prices a suggestion in the store currency', async () => {

@@ -133,6 +133,6 @@ describe('cuotas en la venta', () => {
   it('no financia a consumidor final', () => {
     render(<SalePaymentsFields clientId="" due={1000} currency="ARS" suggestedRate={null} onChange={() => undefined} />);
     expect(screen.getByRole('checkbox', { name: /Financiar en cuotas/ })).toBeDisabled();
-    expect(screen.getByText('Financiar en cuotas no está disponible para consumidor final.')).toBeInTheDocument();
+    expect(screen.getByText('Elegí un cliente de la lista para financiar en cuotas.')).toBeInTheDocument();
   });
 });

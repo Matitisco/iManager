@@ -13,6 +13,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   value,
   linked,
   error,
+  mark,
   onValue,
   onPick,
   reservedName,
@@ -25,6 +26,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   value: string;
   linked: boolean;
   error?: string;
+  mark?: string;
   reservedName?: string | null;
   onValue: (value: string) => void;
   onPick: (item: T) => void;
@@ -48,7 +50,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
   return (
     <div className="eqs">
       <div className={`scan-imei${imeiMissing ? ' scan-missing' : ''}`}>
-      <Field label="Equipo" error={error}>
+      <Field label="Equipo" mark={mark} error={error}>
         <input
           role="combobox"
           aria-expanded={visible}
@@ -119,7 +121,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
           ))}
         </ul>
       ) : null}
-      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked && !imeiMissing ? <p className="eqs-note">No está en el inventario. Completá los datos básicos para crearlo.</p> : null}
+      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked && !imeiMissing ? <p className="eqs-note">No está en stock. Se guarda para completar después.</p> : null}
     </div>
   );
 }

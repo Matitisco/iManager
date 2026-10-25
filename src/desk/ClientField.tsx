@@ -100,7 +100,7 @@ export function ClientField<T extends Client | OperationClientOption>({
           ))}
         </ul>
       ) : null}
-      {value.trim() && !linked ? <p className="eqs-note">Se crea un cliente nuevo al guardar, aunque tenga el mismo nombre. Elegí una sugerencia para usar un cliente existente.</p> : null}
+      {value.trim() && !linked ? <p className="eqs-note">Se crea un cliente nuevo al guardar. Para evitar duplicados, elegí uno de la lista.</p> : null}
     </div>
   );
 }

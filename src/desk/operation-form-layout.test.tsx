@@ -173,7 +173,7 @@ describe.each([1440, 390])('operation form layout at %ipx', width => {
     mount(width, 'sale');
     fireEvent.change(screen.getByRole('combobox', { name: 'Cliente' }), { target: { value: 'Ana' } });
     fireEvent.mouseDown(screen.getByRole('option', { name: /Ana Pérez/ }));
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Varios medios' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Combinar pagos' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Financiar en cuotas' }));
     fireEvent.click(screen.getByRole('button', { name: 'Agregar pago' }));
     expect(screen.getByLabelText('Importe del pago 2')).toBeInTheDocument();
