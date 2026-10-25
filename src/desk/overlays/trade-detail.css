@@ -1,0 +1,30 @@
+/* Detail-only composition; shared modal styles remain in desk.css. */
+.trade-detail-sheet .sheet-title h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-detail-sheet .cjd-meta { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; color: var(--secondary); font-size: 13px; font-weight: 600; }
+.trade-detail-sheet .cjd-heading { margin-bottom: 10px; min-height: 44px; }
+.trade-detail-sheet .cjd-state { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; min-width: 0; }
+.trade-detail-sheet .cjd-state h4 { margin: 0; font-size: 14px; font-weight: 700; }
+.trade-detail-sheet .cjd-state .spill { --pc: var(--secondary) !important; }
+.trade-detail-sheet .cjd-state.cjd-ok .spill { --pc: var(--ok) !important; }
+.trade-detail-sheet .cjd-state.cjd-error .spill { --pc: var(--err) !important; }
+.trade-detail-sheet .cjd-technical .sgs { margin: 0; }
+.trade-detail-sheet .cjd-technical { margin-bottom: 20px; }
+.sheet.trade-detail-sheet .kv { border: 0; padding: 6px 0; min-width: 0; }
+.sheet.trade-detail-sheet .kv > b { min-width: 0; overflow-wrap: anywhere; }
+.trade-detail-sheet .cjd-device { margin-bottom: 4px; }
+.trade-detail-sheet .cjd-summary { margin-bottom: 20px; }
+.trade-detail-sheet .cjd-devices { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.trade-detail-sheet .cjd-group { min-width: 0; padding: 16px; border-radius: 20px; background: var(--bg); }
+.sheet.trade-detail-sheet .cjd-group .kv { flex-direction: column; gap: 4px; }
+.sheet.trade-detail-sheet .cjd-group .kv b { max-width: 100%; text-align: left; }
+.trade-detail-sheet .cjd-device > span { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--secondary); }
+.trade-detail-sheet .cjd-device > b { font-size: 16px; }
+.trade-detail-sheet .cjd-settlement { margin-top: 16px; border: 0; padding: 0; }
+@media (max-width: 760px) {
+  .trade-detail-sheet .cjd-meta { margin-top: 8px; margin-bottom: 14px; }
+  .trade-detail-sheet .cjd-heading { gap: 8px; }
+  .trade-detail-sheet .cjd-state { gap: 6px 8px; }
+  .trade-detail-sheet .cjd-devices { grid-template-columns: 1fr; gap: 10px; }
+  .sheet.trade-detail-sheet .cjd-group .kv:not(.cjd-device) { flex-direction: row; justify-content: space-between; gap: 12px; }
+  .sheet.trade-detail-sheet .cjd-group .kv:not(.cjd-device) b { max-width: 62%; text-align: right; }
+}

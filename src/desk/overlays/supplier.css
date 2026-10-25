@@ -88,32 +88,46 @@
 
 /* Supplier detail: one continuous summary and list, sized by its content. */
 .supplier-detail-sheet > .sheet-h { align-items: center; }
-.supplier-detail-sheet .sheet-title { display: flex; align-items: center; gap: 12px; }
-.supplier-detail-sheet .sheet-title h3 { flex: 1; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.supplier-detail-sheet .supplier-file { gap: 16px; }
-.sup-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; padding: 0 0 16px; border-bottom: 1px solid var(--border); }
-.sup-summary dt { color: var(--secondary); font-size: 12px; font-weight: 600; }
-.sup-summary:not(:has(.sup-claims)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.sup-summary dd { margin: 4px 0 0; font-size: 26px; line-height: 1.2; font-weight: 800; letter-spacing: -.02em; }
-.sup-summary .sup-invested { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.sup-summary .sup-invested dd { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; margin: 0; font-size: 18px; text-align: right; }
-.sup-invested dd span { white-space: nowrap; }
-.supplier-detail-sheet .supplier-contact > div { padding: 8px 0; }
-.supplier-detail-sheet .supplier-contact > div + div { border-top: 0; }
-.supplier-detail-sheet .supplier-note { padding: 0; background: none; border-radius: 0; }
 .supplier-detail-sheet .supplier-purchase.sup-card { padding: 0; border: 0; border-radius: 0; }
 .supplier-detail-sheet .supplier-item { padding: 12px 0; }
 .supplier-detail-sheet .sup-buy .supplier-item-cost { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .supplier-detail-sheet .sup-buy .supplier-item-cost i { margin: 0; }
-.sup-empty { display: grid; justify-items: center; gap: 12px; }
-.sup-empty strong { font-size: 16px; font-weight: 800; color: var(--primary); }
 .sup-purchase-summary { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; font-size: 14px; color: var(--secondary); }
 .sup-purchase-summary strong { color: var(--primary); text-align: right; }
 .supplier-loading-footer { visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
 .sup-second:has(.record-history-timeline) { width: 480px; }
 @media (max-width: 760px) {
   .supplier-detail-sheet > .sheet-scroll { padding-top: 16px; }
-  .supplier-detail-sheet .sup-summary { gap: 16px 12px; }
-  .sup-summary .sup-invested dd { font-size: 16px; }
   .desk-app .sheet.sup-second:has(.record-history-timeline) { width: 100%; }
+}
+
+/* Approved supplier detail: investment first, using the shared modal styles. */
+.supplier-detail-sheet .sheet-title h3 { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.supplier-detail-sheet .sheet-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+.supplier-detail-sheet .sheet-title .sub { grid-column: 1; grid-row: 2; margin: 0; }
+.supplier-detail-sheet .sheet-title > .record-history-button { grid-column: 2; grid-row: 1 / 3; }
+.supplier-detail-sheet .sheet-title:not(:has(.sub)) { align-items: center; grid-template-rows: 44px; }
+.supplier-detail-sheet .sheet-title:not(:has(.sub)) > .record-history-button { grid-row: 1; }
+.sup-detail-file { min-width: 0; }
+.sup-detail-file .kv { align-items: baseline; padding: 12px 0; }
+.sup-detail-file .kv > span { flex: none; }
+.sup-detail-file .kv b { min-width: 0; overflow-wrap: anywhere; }
+.sup-detail-file .kv b.sup-detail-missing { color: var(--secondary); font-weight: 500; }
+.sup-detail-file .sup-detail-notes b { max-width: 72%; font-weight: 500; white-space: pre-wrap; }
+.sup-detail-file .sup-detail-totals { display: flex; flex-direction: column; gap: 4px; }
+.sup-detail-file .sup-detail-amount { color: var(--primary); font-weight: 800; }
+.sup-detail-file .dhero { padding: 0; background: none; border-radius: 0; }
+.sup-detail-file .tracking-summary { padding-bottom: 16px; margin-bottom: 0; border-bottom: 1px solid var(--border); }
+.sup-detail-file .supplier-purchases { gap: 8px; margin-top: 20px; }
+.sup-detail-file .supplier-purchases .sup-sec h4 { font-size: 14px; }
+.sup-detail-file .supplier-purchase.sup-card { padding: 0; border: 0; border-radius: 0; }
+.sup-detail-file .sup-buy:last-child { padding-bottom: 0; }
+.supplier-detail-sheet .sheet-actions > .btn2,
+.supplier-detail-sheet .sheet-actions > .sheet-action-menu > summary { min-height: 52px; }
+@media (max-width: 760px) {
+  .supplier-detail-sheet .sheet-title { gap: 4px 8px; }
+  .supplier-detail-sheet .sheet-title h3 { font-size: 22px; }
+  .sup-detail-file .kv { padding: 11px 0; }
+  .sup-detail-file .sup-detail-notes b { max-width: 70%; }
+  .sup-detail-file .supplier-purchases { margin-top: 16px; }
 }

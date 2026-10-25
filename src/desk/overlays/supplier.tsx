@@ -7,7 +7,7 @@ import { fetchSupplier, type SupplierDetail as SupplierFile } from '../../servic
 import { canSeeFinancials } from '../sections';
 import { sectionAllowed } from '../nav';
 import { showSupplierPatterns } from '../returns-navigation';
-import { Mail, Phone, Plus, FileText, Pencil, Archive } from 'lucide-react';
+import { Plus, FileText, Pencil, Archive } from 'lucide-react';
 import { SupplierPurchases, SupplierPurchaseSheet, SupplierPurchaseDetail, SupplierHistorySheet } from './supplier-purchases';
 import { HistoryIconButton } from '../RecordHistoryButton';
 import { useMoney } from '../exchange';
@@ -16,6 +16,7 @@ import type { Overlay } from '../types';
 import { ListSkeleton } from '../list-skeleton';
 import { Skeleton } from '../../components/Skeleton';
 import { Actions, DeskProvider, Field, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
+import { formatShortDate } from '../format';
 import './supplier.css';
 
 export function SupplierForm({ id }: { id?: string }) {
@@ -87,6 +88,8 @@ export function SupplierDetail({ id }: { id: string }) {
   const [stockOverlay, setStockOverlay] = useState<Overlay | null>(null);
   const storeId = appSession?.store?.id;
   const heading = detail ?? suppliers?.find(row => row.id === id);
+  const historyButton = detail && seeHistory ? <HistoryIconButton expanded={secondary === 'history'} onClick={() => setSecondary('history')} /> : null;
+  const investmentFirst = seeCosts && !!detail?.costTotals?.length && detail.purchases.length > 0;
 
   useEffect(() => {
     if (!user) return;
@@ -148,7 +151,9 @@ export function SupplierDetail({ id }: { id: string }) {
 
   return (
     <>
-    <Sheet title={heading?.name ?? 'Proveedor'} titleAccessory={detail && seeHistory ? <HistoryIconButton expanded={secondary === 'history'} onClick={() => setSecondary('history')} /> : null} onClose={close} busy={busy} className="supplier-sheet supplier-detail-sheet"
+    <Sheet title={heading?.name ?? 'Proveedor'} titleAccessory={investmentFirst ? null : historyButton}
+      subtitle={detail?.lastPurchasedAt ? `Última compra · ${formatShortDate(detail.lastPurchasedAt)}` : undefined}
+      onClose={close} busy={busy} className="supplier-sheet supplier-detail-sheet"
       footer={detail ? <SheetActions>
         {detail.deletedAt ? <button className="btn2 p" type="button" disabled={busy} onClick={() => { void restore(); }}>Restaurar</button> : <>
           <SheetActionMenu>
@@ -161,21 +166,26 @@ export function SupplierDetail({ id }: { id: string }) {
       {error && !isNetworkErrorMessage(error) ? <div className="supplier-load-error" role="alert">{error}</div> : null}
       {!detail && !error ? <ListSkeleton variant="cards" rows={3} testId="supplier-loading" /> : null}
       {detail ? (
-        <div className="supplier-file" data-testid="supplier-detail">
-          <dl className="sup-summary" aria-label="Resumen del proveedor">
-            {detail.stockCount != null ? <div><dt>En stock</dt><dd>{detail.stockCount}</dd></div> : null}
-            <div><dt>Compras</dt><dd>{detail.purchases.length}</dd></div>
-            {detail.deviceCount > 0 && detail.claimedDeviceCount != null ? <div className="sup-claims"><dt>Con reclamos</dt><dd>{new Intl.NumberFormat('es-AR', { style: 'percent', maximumFractionDigits: 1 }).format(detail.claimedDeviceCount / detail.deviceCount)}</dd></div> : null}
-            {seeCosts && detail.costTotals ? <div className="sup-invested"><dt>Total invertido</dt><dd>{detail.costTotals.length ? detail.costTotals.map(total => <span key={total.currency}>{money.show(total.totalCost, total.currency)}</span>) : money.show(0)}</dd></div> : null}
-          </dl>
-          {detail.phone || detail.email ? <dl className="supplier-contact icons">
-            {detail.phone ? <div><dt><Phone size={18} aria-label="Teléfono" /></dt><dd title={detail.phone}>{detail.phone}</dd></div> : null}
-            {detail.email ? <div><dt><Mail size={18} aria-label="Email" /></dt><dd title={detail.email}>{detail.email}</dd></div> : null}
-          </dl> : null}
-          {detail.notes ? <p className="supplier-note">{detail.notes}</p> : null}
-          {detail.problemCount > 0 ? seePatterns ? <button className="sup-status" data-testid="supplier-problems" type="button" aria-label={`Ver fallas de ${detail.name}`} onClick={() => { close(); showSupplierPatterns(detail.id); }}>{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}<span className="chev" aria-hidden="true"> ›</span></button> : <p className="sup-status" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo con problemas' : 'equipos con problemas'}</p> : null}
+        <div className="sup-detail-file" data-testid="supplier-detail">
           {detail.deletedAt ? <span className="spill mid">Archivado</span> : null}
-          {detail.deviceCount === 0 ? <div className="wempty sup-empty" data-testid="supplier-empty"><strong>Sin equipos</strong>{!detail.deletedAt ? <button className="wlink" type="button" onClick={() => setSecondary('stock')}>Cargá el primer equipo</button> : null}</div> : null}
+          {investmentFirst ? <div className="tracking-summary">
+            <div className="dhero"><div className="eb">Total invertido</div><div className="big sup-detail-totals">
+              {detail.costTotals?.map(total => <span className="sup-detail-amount" key={total.currency}>{money.show(total.totalCost, total.currency)}</span>)}
+            </div></div>
+            {historyButton}
+          </div> : null}
+          <div className="sup-detail-data">
+            {detail.stockCount != null && detail.deviceCount > 0 ? <div className="kv"><span>En stock</span><b>{detail.stockCount} de {detail.deviceCount} equipos</b></div> : null}
+            {!detail.purchases.length ? <div className="kv" data-testid="supplier-empty"><span>Compras</span><b>Sin compras registradas</b></div> : null}
+            <div className="kv"><span>Teléfono</span><b title={detail.phone || undefined} className={!detail.phone ? 'sup-detail-missing' : undefined}>{detail.phone || 'Sin cargar'}</b></div>
+            <div className="kv"><span>Email</span><b title={detail.email || undefined} className={!detail.email ? 'sup-detail-missing' : undefined}>{detail.email || 'Sin cargar'}</b></div>
+            {detail.notes ? <div className="kv sup-detail-notes"><span>Notas</span><b>{detail.notes}</b></div> : null}
+            {detail.problemCount > 0 ? <div className="kv"><span>Con problemas</span><b>
+              {seePatterns ? <button className="wlink" data-testid="supplier-problems" type="button" aria-label={`Ver fallas de ${detail.name}`} onClick={() => { close(); showSupplierPatterns(detail.id); }}>
+                {detail.problemCount} de {detail.deviceCount} equipos<span aria-hidden="true"> ›</span>
+              </button> : <span className="sup-detail-amount" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} equipos</span>}
+            </b></div> : null}
+          </div>
           {detail.purchases.length > 0 ? <section className="supplier-purchases" aria-label="Compras">
             <div className="sup-sec"><h4>Compras</h4>{detail.purchases.length > 3 ? <button className="wlink" type="button" onClick={() => setSecondary('purchases')}>Ver todas ({detail.purchases.length})</button> : null}</div>
             <SupplierPurchases purchases={detail.purchases.slice(0, 3)} seeCosts={seeCosts} onSelect={setPurchase} />
