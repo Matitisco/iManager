@@ -27,6 +27,7 @@ import { ScanCameraButton } from '../scan/ImeiScanField';
 import { Actions, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from '../ui';
 import { clearBad, CJ_STATUS, stampedCurrency, ConfirmOperationDialog, type FormProps } from './shared';
 import { operationMoneyInput, OperationForm } from './operation';
+import './trade-detail.css';
 
 export function TradeForm({ id, source = 'tradeins', run, busy, error }: FormProps & { id?: string; source?: OperationSource }) {
   const { tradeIns } = useAppContext();
@@ -252,27 +253,40 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
         />
       );
     }
+    const cancelled = !!trade.voidedAt || trade.confirmationStatus === 'CANCELLED';
+    const confirmation = trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación'
+      : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado';
+    const quality = tradeQuality(trade.grade);
     return (
-      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${trade.confirmationStatus === 'PENDING' ? 'Pendiente de confirmación' : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado'}`} onClose={close} busy={busy} className="cj-sheet" footer={detailFooter}>
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} onClose={close} busy={busy} className="cj-sheet trade-detail-sheet" footer={detailFooter}>
         {error && <div className="ferr">{error}</div>}{detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
-        <div className="tracking-history-action"><RecordHistoryButton entityType="trade" entityId={trade.id} label={tradeCode(tradeIns, trade.id)} /></div>
-        <div className="kv"><span>Estado técnico</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>
-        {trade.confirmationStatus !== 'CANCELLED' ? (
-          <>
-            <Segs options={technicalOptions} value={technicalStatus} onChange={setTechnicalStatus} />
-          </>
-        ) : null}
-        <div className="kv"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
-        <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
-        {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
-        <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
-        <div className="kv"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
-        {trade.confirmationStatus === 'CONFIRMED' ? <>
-            <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div>
-          <div className="kv"><span>Diferencia</span><b>{money.show(trade.differencePaid, trade.currency)}</b></div>
-            <div className="kv"><span>Deuda</span><b>{money.show(displayedDue, trade.currency)}</b></div>
-        </> : null}
+        <div className="cjd-meta"><time>{formatShortDate(trade.date)}</time><span className={`spill ${cancelled ? 'no' : trade.confirmationStatus === 'PENDING' ? 'mid' : 'ok'}`}>{confirmation}</span></div>
+        <div className="tracking-summary cjd-summary">
+          <div className="dhero"><div className="eb">Diferencia</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
+          <RecordHistoryButton entityType="trade" entityId={trade.id} label={tradeCode(tradeIns, trade.id)} />
+        </div>
+        <section className="cjd-technical" aria-label="Estado técnico">
+          <div className="ret-sec cjd-heading">
+            <div className={`cjd-state ${cancelled || trade.status === 'RECHAZADO' ? 'cjd-error' : ['LISTO', 'APROBADO'].includes(trade.status) ? 'cjd-ok' : ''}`}><h4>Estado técnico</h4><Pill status={cancelled ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></div>
+          </div>
+          {!cancelled ? <Segs options={technicalOptions.map(option => ({ ...option, color: option.id === 'RECHAZADO' ? 'var(--err)' : ['LISTO', 'APROBADO'].includes(option.id) ? 'var(--ok)' : option.id === 'PENDIENTE' ? '#E8A33D' : 'var(--secondary)' }))} value={technicalStatus} onChange={setTechnicalStatus} /> : null}
+        </section>
+        <div className="cjd-devices">
+          <section className="cjd-group" aria-label="Equipo recibido">
+            <div className="kv cjd-device"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
+            <div className="kv"><span>Calidad</span><b>{quality ? qualityDetail(quality) : '—'}</b></div>
+            {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
+            <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
+          </section>
+          <section className="cjd-group" aria-label="Equipo entregado">
+            <div className="kv cjd-device"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
+            {trade.confirmationStatus === 'CONFIRMED' ? <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div> : null}
+          </section>
+        </div>
+        {trade.confirmationStatus === 'CONFIRMED' ? <section className="cjd-settlement" aria-label="Importes del canje">
+          <div className="kv"><span>Deuda</span><b>{money.show(displayedDue, trade.currency)}</b></div>
+        </section> : null}
       </Sheet>
     );
   }

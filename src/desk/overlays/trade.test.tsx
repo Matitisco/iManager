@@ -39,7 +39,7 @@ describe('Trade detail outstanding debt', () => {
     renderDetail();
     await waitFor(() => expect(payments.fetchClientPayments).toHaveBeenCalled());
     await waitFor(() => expect(amountFor('Deuda')).toHaveTextContent('$ 200.000'));
-    expect(amountFor('Diferencia')).toHaveTextContent('$ 300.000');
+    expect(screen.getByText('Diferencia', { exact: true }).closest('.dhero')).toHaveTextContent('$ 300.000');
     expect(amountFor('Precio de salida')).toHaveTextContent('$ 500.000');
   });
 
