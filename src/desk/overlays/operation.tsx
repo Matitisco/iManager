@@ -1,7 +1,7 @@
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
 import { depositAmount, depositAvailable } from '../deposits';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { INPUT_LIMITS } from '../../lib/input-limits';
 import { parseDeviceCode } from '../../lib/device-scan';
@@ -123,6 +123,17 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const sealedWarrantyDays = context.appSession?.store?.sealedWarrantyDays ?? DEFAULT_SEALED_WARRANTY_DAYS;
   const [warrantyDays, setWarrantyDays] = useState(currentSale?.warrantyDays == null ? '' : String(currentSale.warrantyDays));
   const [bad, setBad] = useState<Record<string, string>>({});
+  const amountRef = useRef<HTMLInputElement>(null);
+  const [validationAttempt, setValidationAttempt] = useState(0);
+  useLayoutEffect(() => {
+    if (!validationAttempt) return;
+    const sheet = amountRef.current?.closest('.sheet');
+    const field = sheet?.querySelector<HTMLElement>('.fl.bad');
+    const control = field?.querySelector<HTMLElement>('input, select, textarea, button')
+      ?? (bad.warranty ? sheet?.querySelector<HTMLElement>('[data-testid="sale-warranty-days"]') : null);
+    control?.focus({ preventScroll: true });
+    (field?.closest('.scan-imei') ?? field ?? control)?.scrollIntoView?.({ block: 'nearest' });
+  }, [validationAttempt]);
   const [cameraFor, setCameraFor] = useState<null | 'sale' | 'trade'>(null);
   const tradeWedge = useRef(createWedgeBuffer());
   const tradeImeiRef = useRef<HTMLInputElement>(null);
@@ -212,6 +223,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setOutgoingImei('');
     if (!preset?.resumeAmount) setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '');
     clearBad(setBad, 'equipment');
+    clearBad(setBad, 'amount');
   };
   const applySaleScan = (raw: string) => {
     const parsed = parseDeviceCode(raw);
@@ -349,6 +361,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     if (kind === 'confirm' && depositIds.length && appliedDeposits > cashDue) next.amount = 'Las señas superan el importe que falta pagar';
     if (kind === 'confirm' && !currentSale && settlement.error) next.amount = settlement.error;
     setBad(next);
+    setValidationAttempt((attempt) => attempt + 1);
     return Object.keys(next).length === 0;
   };
   const save = (kind: 'draft' | 'confirm') => {
@@ -363,6 +376,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     const group = money.commitGroup(fields);
     if (group.blocked) {
       setBad({ amount: FX_WARNING });
+      setValidationAttempt((attempt) => attempt + 1);
       return;
     }
     const input = buildInput(kind === 'draft');
@@ -400,7 +414,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const appliedDeposits = currentSale?.depositAppliedAmount ?? receipts.rows.filter(row => depositIds.includes(row.id) && depositAvailable(row)).reduce((sum, row) => sum + (depositAmount(row, typedCurrency ?? money.active, money.rate) ?? 0), 0);
   const dueCopy = appliedDeposits > 0 ? `Señas aplicadas: ${receiptMoney(appliedDeposits, typedCurrency ?? money.active)} · ${paymentStatus === 'PENDIENTE' ? 'Deuda pendiente' : 'Restante a cobrar'}: ${receiptMoney(Math.max(0, cashDue - appliedDeposits), typedCurrency ?? money.active)}` : hasTrade
     ? (difference == null ? (tradeGap.warning ?? 'Completá el precio de salida para calcular la diferencia') : `Diferencia a cobrar: ${money.show(difference, typedCurrency)}`)
-    : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : 'Venta cobrada';
+    : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : amount.trim() ? `Total a cobrar: ${money.show(parseMoney(amount), typedCurrency)}` : '';
   const tradeBlock = (
     <>
       <label className="op-check"><input type="checkbox" checked={hasTrade} disabled={busy || (!saleId && Boolean(currentTrade))} onChange={(event) => { dirty.current.add('hasTrade'); setHasTrade(event.target.checked); }} />Tiene canje</label>
@@ -441,7 +455,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     <>
     <Sheet title={title} subtitle={currentSale ? `${saleCode(currentSale)} · ${formatShortDate(currentSale.date)}` : undefined} onClose={close} busy={busy} className={sheetClass || undefined} footer={
       <SheetActions>
-          <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
+          <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cancelar</button>
         {hasTrade && !currentSale && !hasConfirmedOperation && (!tradeRef || source === 'tradeins' || currentTrade?.operationSource === source) ? <SheetActionMenu><button className="btn2 s" type="button" disabled={busy || cancelled} onClick={() => save('draft')}>{busy ? 'Guardando…' : 'Guardar pendiente'}</button></SheetActionMenu> : null}
         <button className="btn2 p sheet-primary" type="button" disabled={busy || cancelled} onClick={() => save('confirm')}>{busy ? 'Guardando…' : currentSale || hasConfirmedOperation ? 'Guardar cambios' : hasTrade ? 'Confirmar canje' : 'Confirmar venta'}</button>
       </SheetActions>
@@ -449,6 +463,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {cancelled ? <div className="ferr">Esta venta está cancelada y no se puede editar.</div> : null}
       {error && <div ref={errorRef} className="ferr">{error}</div>}
       {optionError && !isNetworkErrorMessage(optionError) && <div className="ferr">{optionError}</div>}
+      <DatePicker required boundary="sheet" panel={phone ? 'inline' : 'float'} label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
       <ClientField
         clients={optionClients}
         value={buyer}
@@ -458,6 +473,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         onPick={(client) => { dirty.current.add('buyer'); dirty.current.add('clientId'); setBuyer(client.name); setClientId(client.id); clearBad(setBad, 'client'); }}
       />
       <EquipmentField
+        mark={hasTrade ? 'para entregar' : undefined}
         items={equipmentItems}
         value={deviceLabel}
         linked={Boolean(selectedProduct)}
@@ -495,7 +511,6 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       {deviceLabel.trim() && !selectedProduct && !reservedName && !missingSaleImei ? (
         <div className="unlisted-eq" data-testid="unlisted-equipment">
-          <p className="eqs-note">Se crea en el inventario marcado para completar. El texto de arriba es el modelo.</p>
           <div className="frow">
             <Field label="Capacidad" error={bad.outgoingCapacity}><input value={outgoingCapacity} onChange={(event) => { dirty.current.add('outgoingCapacity'); setOutgoingCapacity(event.target.value); clearBad(setBad, 'outgoingCapacity'); }} placeholder="Ej. 128GB" /></Field>
             <Field label="Color" error={bad.outgoingColor}><input value={outgoingColor} onChange={(event) => { dirty.current.add('outgoingColor'); setOutgoingColor(event.target.value); clearBad(setBad, 'outgoingColor'); }} placeholder="Ej. Azul" /></Field>
@@ -506,7 +521,6 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         </div>
       ) : null}
       {selectedProduct && isUsedCondition(selectedProduct.condition) ? <p className="eqs-note">Calidad: {displayQuality(selectedProduct.condition, selectedProduct.grade) ? qualityDetail(displayQuality(selectedProduct.condition, selectedProduct.grade)) : 'sin cargar'}</p> : null}
-      <DatePicker required boundary="sheet" panel={phone ? 'inline' : 'float'} label="Fecha de la venta" value={saleDate} onChange={(value) => { dirty.current.add('date'); setSaleDate(value); }} />
       <Field label="Garantía" error={bad.warranty}><span /></Field>
       <div className="sgs warranty-presets" role="group" aria-label="Garantía">
         {(['30', '60', '90'] as const).map((days) => (
@@ -529,9 +543,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       {foldTrade ? null : tradeBlock}
-      <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input ref={amountRef} value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
-      <p className="op-summary">{dueCopy}</p>
+      {dueCopy ? <p className="op-summary">{dueCopy}</p> : null}
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
       {!currentSale && openNotes.length ? (
         <div data-testid="sale-credit-notes">
@@ -559,7 +573,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
           <div className="op-fold-body">{tradeBlock}</div>
         </details>
       ) : null}
-      {settlement.active ? <p className="eqs-note">El estado de cobro sale de los pagos y las cuotas.</p> : <><Field label="Cobro"><span /></Field>
+      {settlement.active ? <p className="eqs-note">El cobro se calcula según los pagos y las cuotas.</p> : <><Field label="Cobro"><span /></Field>
       <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} /></>}
       {sellerError && !isNetworkErrorMessage(sellerError) ? <div className="ferr" role="alert">{sellerError}</div> : null}
       <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />

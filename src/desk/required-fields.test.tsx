@@ -162,6 +162,54 @@ describe('desk required fields', () => {
     })));
   });
 
+  it('focuses and describes the first invalid field on every attempt without clearing the draft', async () => {
+    const user = userEvent.setup();
+    renderOverlay('new-cj');
+    const client = screen.getByRole('combobox', { name: 'Cliente' });
+    const confirm = screen.getByRole('button', { name: 'Confirmar canje' });
+    await user.type(screen.getByLabelText('Equipo recibido'), 'iPhone 11');
+    await user.click(confirm);
+    expect(client).toHaveFocus();
+    expect(client).toHaveAttribute('aria-invalid', 'true');
+    expect(client).toHaveAccessibleDescription('Completá el nombre del cliente');
+    await user.click(confirm);
+    expect(client).toHaveFocus();
+    await user.type(client, 'Ana');
+    await user.click(confirm);
+    expect(screen.getByRole('combobox', { name: 'Equipo' })).toHaveFocus();
+    expect(client).not.toHaveAttribute('aria-invalid');
+    expect(screen.getByLabelText('Equipo recibido')).toHaveValue('iPhone 11');
+    expect(ctx.createOperation).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unconfirmed sale total neutral when entering a partial payment', async () => {
+    const user = userEvent.setup();
+    render(<DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <DeskOverlays overlay={{ type: 'new-sale' }} />
+    </DeskProvider>);
+    expect(screen.queryByText('Venta cobrada')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total a cobrar/)).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Precio completo de salida'), '800');
+    await user.click(screen.getByRole('checkbox', { name: 'Combinar pagos' }));
+    await user.type(screen.getByLabelText('Importe del pago 1'), '300');
+    expect(screen.getByText('Total a cobrar: $ 800')).toBeInTheDocument();
+    expect(screen.queryByText('Venta cobrada')).not.toBeInTheDocument();
+  });
+
+  it('clears the missing price error when picking a stocked device that supplies its price', async () => {
+    const user = userEvent.setup();
+    ctx.operationOptions = { sales: { products: [product()], clients: [] } };
+    render(<DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <DeskOverlays overlay={{ type: 'new-sale' }} />
+    </DeskProvider>);
+    await user.click(screen.getByRole('button', { name: 'Confirmar venta' }));
+    expect(screen.getByText('Completá el precio de salida')).toBeInTheDocument();
+    await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'iPhone');
+    await user.click(screen.getByRole('option', { name: /iPhone 13/ }));
+    expect(screen.getByLabelText('Precio completo de salida')).toHaveValue('200');
+    expect(screen.queryByText('Completá el precio de salida')).not.toBeInTheDocument();
+  });
+
   it('asks for a sale price when the equipment has no list price', async () => {
     const user = userEvent.setup();
     ctx.inventory = [{ ...product(), id: 'prod-0', model: 'iPhone recibido', price: 0, status: 'VENDIDO', pendingSaleRegistration: true }];

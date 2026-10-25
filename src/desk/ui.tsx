@@ -438,7 +438,12 @@ export function Field({ label, error, mark, children }: { label: string; error?:
   const autoId = useId();
   const child = isValidElement<{ id?: string }>(children) ? children : null;
   const controlId = child?.props.id || autoId;
-  const control = child ? cloneElement(child, { id: child.props.id || controlId }) : children;
+  const errorId = `${autoId}-error`;
+  const input = child && typeof child.type === 'string' && ['input', 'select', 'textarea'].includes(child.type);
+  const control = child ? cloneElement(child, {
+    id: child.props.id || controlId,
+    ...(input && error ? { 'aria-invalid': true, 'aria-describedby': errorId } : {}),
+  }) : children;
   return (
     <div className={`fl${error ? ' bad' : ''}`}>
       <span>
@@ -446,7 +451,7 @@ export function Field({ label, error, mark, children }: { label: string; error?:
         {mark ? <em className="fl-mark" aria-hidden="true"> · {mark}</em> : null}
       </span>
       {control}
-      {error ? <div className="err">{error}</div> : null}
+      {error ? <div id={errorId} className="err">{error}</div> : null}
     </div>
   );
 }

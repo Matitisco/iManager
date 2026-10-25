@@ -1,3 +1,4 @@
+import { usePhoneLayout } from '../section-notices';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -46,6 +47,7 @@ export function SalePaymentsFields({
   suggestedRate: number | null;
   onChange: (value: SettlementState) => void;
 }) {
+  const phone = usePhoneLayout();
   const [mixed, setMixed] = useState(false);
   const [finance, setFinance] = useState(false);
   const [rows, setRows] = useState<TenderRow[]>([{ id: 0, amount: '', currency, method: 'EFECTIVO' }]);
@@ -105,7 +107,7 @@ export function SalePaymentsFields({
     const remainder = over ? 0 : Math.max(0, due - covered);
     let installments: OperationInput['installments'] = null;
     if (finance) {
-      if (!clientId) return { active: true, error: 'Financiar en cuotas no está disponible para consumidor final', payload: null };
+      if (!clientId) return { active: true, error: 'Elegí un cliente de la lista para financiar en cuotas', payload: null };
       const installmentsCount = Number(count);
       if (!Number.isInteger(installmentsCount) || installmentsCount < 2 || installmentsCount > 36) return { active: true, error: 'La cantidad de cuotas tiene que estar entre 2 y 36', payload: null };
       if (!isDateValue(firstDue)) return { active: true, error: 'Indicá el primer vencimiento', payload: null };
@@ -147,9 +149,9 @@ export function SalePaymentsFields({
   const previewExceedsDue = coveredPreview != null && coveredPreview > due + 0.009;
   return (
     <section className="acct-payments" aria-label="Pagos y cuotas">
-      <label className="op-check"><input type="checkbox" checked={mixed} onChange={(event) => setMixed(event.target.checked)} />Varios medios</label>
+      <label className="op-check"><input type="checkbox" checked={mixed} onChange={(event) => setMixed(event.target.checked)} />Combinar pagos</label>
       <label className="op-check"><input type="checkbox" checked={finance} disabled={!clientId} onChange={(event) => setFinance(event.target.checked)} />Financiar en cuotas</label>
-      {!clientId ? <p className="eqs-note">Financiar en cuotas no está disponible para consumidor final.</p> : null}
+      {!clientId ? <p className="eqs-note">Elegí un cliente de la lista para financiar en cuotas.</p> : null}
       {mixed ? (
         <div className="acct-tenders">
           {rows.map((row, index) => (
@@ -172,7 +174,7 @@ export function SalePaymentsFields({
               <input aria-label="Cotización" inputMode="decimal" value={rate} placeholder={suggestedRate ? String(suggestedRate) : 'Ej. 1300'} onChange={(event) => setRate(event.target.value)} />
             </Field>
           ) : null}
-          <p className="eqs-note">La cotización se revisa antes de confirmar. {previewExceedsDue ? 'El pago supera el saldo.' : null}</p>
+          {previewExceedsDue ? <p className="eqs-note">El pago supera el saldo.</p> : null}
           {previewExceedsDue ? (
             <>
               <Field label="Excedente"><span /></Field>
@@ -186,7 +188,7 @@ export function SalePaymentsFields({
         <div className="acct-plan">
           <div className="acct-stack">
             <Field label="Cantidad de cuotas"><input aria-label="Cantidad de cuotas" inputMode="numeric" value={count} onChange={(event) => setCount(event.target.value.replace(/\D/g, '').slice(0, 2))} /></Field>
-            <DatePicker label="Primer vencimiento" value={firstDue} onChange={setFirstDue} required boundary="sheet" />
+            <DatePicker label="Primer vencimiento" value={firstDue} onChange={setFirstDue} required boundary="sheet" panel={phone ? 'inline' : 'float'} />
           </div>
           <Field label="Frecuencia"><span /></Field>
           <Segs options={FREQUENCIES} value={frequency} onChange={(value) => setFrequency(value as typeof frequency)} />

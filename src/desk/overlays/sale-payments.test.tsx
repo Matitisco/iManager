@@ -6,7 +6,7 @@ import { SalePaymentsFields } from './sale-payments';
 function mount(currency: 'ARS' | 'USD', due: number) {
   const onChange = vi.fn();
   render(<SalePaymentsFields clientId="qa-ventas" due={due} currency={currency} suggestedRate={1565} onChange={onChange} />);
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Varios medios' }));
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Combinar pagos' }));
   return onChange;
 }
 
@@ -153,4 +153,19 @@ describe('removing additional sale and trade-in payments', () => {
     expect(screen.getByLabelText('Importe del pago 3')).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Agregar pago' })).toBeInTheDocument();
   });
+});
+
+it.each([1440, 390])('opens installment dates inside the mobile flow at %ipx', (width) => {
+  const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+    matches: width <= 760, media: query, onchange: null,
+    addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
+  }));
+  try {
+    render(<SalePaymentsFields clientId="client" due={800} currency="ARS" suggestedRate={1565} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Financiar en cuotas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir calendario: primer vencimiento' }));
+    const calendar = screen.getByRole('dialog', { name: 'Elegir primer vencimiento' });
+    expect(calendar.closest('.dp-calendar')?.classList.contains('dp-inline')).toBe(width <= 760);
+    expect(screen.getByLabelText('Cantidad de cuotas')).toHaveValue('3');
+  } finally { media.mockRestore(); }
 });
