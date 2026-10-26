@@ -1,0 +1,2 @@
+ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "importedSpent" DECIMAL(12,2);
+ALTER TABLE "Client" ADD COLUMN IF NOT EXISTS "importedSpentCurrency" VARCHAR(3);
