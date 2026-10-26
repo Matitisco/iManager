@@ -11,3 +11,8 @@ export function maskReplayHistoryValue(label: string, entityType: string): true 
   return /\b(imei|serie|serial|cliente|telefono|email|correo|dni|precio|costo|importe|monto|total|saldo|deuda|presupuesto|sena|anticipo|valor tomado|diferencia|comision)\b/.test(normalized)
     || (entityType === 'client' && normalized === 'nombre') ? true : undefined;
 }
+
+/** Preserve the existing text nodes for non-sensitive audit values. */
+export function ReplayHistoryValue({ label, entityType, children }: { label: string; entityType: string; children: ReactNode }) {
+  return maskReplayHistoryValue(label, entityType) ? <ReplayValue>{children}</ReplayValue> : <>{children}</>;
+}

@@ -1,4 +1,4 @@
-import { maskReplayHistoryValue } from './replay-privacy';
+import { ReplayHistoryValue } from './replay-privacy';
 import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
 import { useEffect, useRef, useState, type Ref } from 'react';
 import { createPortal } from 'react-dom';
@@ -73,7 +73,7 @@ function RecordHistoryModal({ entityType, entityId, label, onClose }: {
         <b data-ph-mask={event.entityType === 'client' || undefined}>{historyRecordAction(event) || event.title}</b>
         <p className="record-history-meta"><time dateTime={event.createdAt}>{formatArDateTime(event.createdAt)}</time> · {event.actorName || 'Sistema'}</p>
         {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}>
-          <span>{change.label}: </span>{change.before ? <><span data-ph-mask={maskReplayHistoryValue(change.label, event.entityType)}>{change.before}</span> <span aria-label="a">→</span> </> : null}<span data-ph-mask={maskReplayHistoryValue(change.label, event.entityType)}>{change.after || '—'}</span>
+          <span>{change.label}: </span>{change.before ? <><ReplayHistoryValue label={change.label} entityType={event.entityType}>{change.before}</ReplayHistoryValue> <span aria-label="a">→</span> </> : null}<ReplayHistoryValue label={change.label} entityType={event.entityType}>{change.after || '—'}</ReplayHistoryValue>
         </p>)}
         {!historyDetailRows(event).length && event.detail?.trim() ? <p className="record-history-change">{event.detail}</p> : null}
         {event.reason ? <p className="record-history-change">{event.reason}</p> : null}

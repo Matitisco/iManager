@@ -1,4 +1,4 @@
-import { maskReplayHistoryValue, ReplayValue } from '../replay-privacy';
+import { ReplayHistoryValue, ReplayValue } from '../replay-privacy';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Box } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
@@ -128,7 +128,7 @@ export function SupplierHistorySheet({ supplierId, onClose }: { supplierId: stri
       {events.map(event => <li key={event.id}>
         <b data-ph-mask={event.entityType === 'client' || undefined}>{historyRecordAction(event) || event.title}</b>
         <p className="record-history-meta"><time dateTime={event.createdAt}>{formatArDateTime(event.createdAt)}</time> · {event.actorName || 'Sistema'}</p>
-        {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}><span>{change.label}: </span>{change.before ? <>{change.before} → </> : null}<span data-ph-mask={maskReplayHistoryValue(change.label, event.entityType)}>{change.after || '—'}</span></p>)}
+        {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}><span>{change.label}: </span>{change.before ? <>{change.before} → </> : null}<ReplayHistoryValue label={change.label} entityType={event.entityType}>{change.after || '—'}</ReplayHistoryValue></p>)}
         {!historyDetailRows(event).length && event.detail?.trim() ? <p className="record-history-change">{event.detail}</p> : null}
         {event.reason ? <p className="record-history-change">{event.reason}</p> : null}
       </li>)}
