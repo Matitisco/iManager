@@ -718,7 +718,7 @@ export function NetProfitCard({
   }
   const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
-  const periodReturns = returns.filter((row) => !isVoidRow(row) && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.resolvedOn ?? undefined, start, end));
+  const periodReturns = returns.filter((row) => !isVoidRow(row) && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.compensatedOn ?? row.resolvedOn ?? undefined, start, end));
   const reversals = periodReturns.map((row) => returnReversal(row));
   const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({

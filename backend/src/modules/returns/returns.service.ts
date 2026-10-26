@@ -8,6 +8,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { recordCash } from "../cash/service.js";
 import { calendarDay } from "../periodic-reports/schedule.js";
+import { returnCompensatedAt } from "./return-recognition.js";
 import {
   planCreditApplication,
   refundableAmount,
@@ -60,6 +61,7 @@ export interface ReturnCaseView {
   rmaStatus: string | null;
   status: string;
   resolvedOn: string | null;
+  compensatedOn: string | null;
   deletedAt: string | null;
   refundable: number;
   saleAmount: number;
@@ -100,6 +102,7 @@ function currencyOf(value: string | null | undefined): MoneyCurrency {
 
 function present(row: CaseRow): ReturnCaseView {
   const sale = row.sale;
+  const compensatedAt = returnCompensatedAt(row);
   return {
     id: row.id,
     code: returnCode(row.caseNumber),
@@ -125,6 +128,7 @@ function present(row: CaseRow): ReturnCaseView {
     rmaStatus: row.rmaStatus,
     status: row.status,
     resolvedOn: row.resolvedAt ? calendarDay(row.resolvedAt, ZONE) : null,
+    compensatedOn: compensatedAt ? calendarDay(compensatedAt, ZONE) : null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
     refundable: refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null),
     saleAmount: money(sale?.amount),
