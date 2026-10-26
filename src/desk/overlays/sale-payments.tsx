@@ -3,16 +3,10 @@ import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { OperationInput } from '../../services/operations-api';
-import { formatInputMoney, parseMoney } from '../format';
+import { formatInputMoney, formatMoneyInput, parseMoney } from '../format';
 import { Field, Segs } from '../ui';
 import { PAYMENTS } from './shared';
 import { ImanagerIcon } from '../icons';
-
-function moneyInput(value: string) {
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return '';
-  return formatInputMoney(Number(digits)) || '0';
-}
 
 export type SettlementState = {
   active: boolean;
@@ -162,7 +156,7 @@ export function SalePaymentsFields({
                 </button>
               ) : null}
               <Field label={`Pago ${index + 1}`} mark={row.currency}>
-                <input id={`${paymentsId}-payment-${row.id}`} ref={(input) => { if (input) amountInputs.current.set(row.id, input); else amountInputs.current.delete(row.id); }} aria-label={`Importe del pago ${index + 1}`} inputMode="numeric" value={row.amount} placeholder="$ 0" onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, amount: moneyInput(event.target.value) } : item))} />
+                <input id={`${paymentsId}-payment-${row.id}`} ref={(input) => { if (input) amountInputs.current.set(row.id, input); else amountInputs.current.delete(row.id); }} aria-label={`Importe del pago ${index + 1}`} inputMode="numeric" value={row.amount} placeholder="$ 0" onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, amount: formatMoneyInput(event.target.value) } : item))} />
               </Field>
               <Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={row.currency} onChange={(value) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, currency: value as 'ARS' | 'USD' } : item))} />
               <Segs options={PAYMENTS} value={row.method} onChange={(value) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, method: value } : item))} />
@@ -192,7 +186,7 @@ export function SalePaymentsFields({
           </div>
           <Field label="Frecuencia"><span /></Field>
           <Segs options={FREQUENCIES} value={frequency} onChange={(value) => setFrequency(value as typeof frequency)} />
-          <Field label="Recargo opcional" mark={currency}><input aria-label="Recargo" inputMode="numeric" value={surcharge} placeholder="$ 0" onChange={(event) => setSurcharge(moneyInput(event.target.value))} /></Field>
+          <Field label="Recargo opcional" mark={currency}><input aria-label="Recargo" inputMode="numeric" value={surcharge} placeholder="$ 0" onChange={(event) => setSurcharge(formatMoneyInput(event.target.value))} /></Field>
           <label className="op-check"><input type="checkbox" checked={collectFirst} onChange={(event) => setCollectFirst(event.target.checked)} />Cobrar la primera cuota ahora</label>
           {collectFirst ? <><Field label="Medio de la primera cuota"><span /></Field><Segs options={PAYMENTS} value={firstMethod} onChange={setFirstMethod} /></> : null}
           <p className="eqs-note">Se financia el saldo que queda después de los pagos iniciales{surcharge ? `. Recargo ${formatInputMoney(parseMoney(surcharge)) || surcharge}` : ''}.</p>
