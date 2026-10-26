@@ -56,7 +56,7 @@ function BlockingScreen({
 }
 
 function AppContent() {
-  const { user, loading, appSession, listsSettled, backendStatus, backendMessage, acceptStoreInvitation, logout } = useAppContext();
+  const { user, loading, appSession, listsSettled, backendStatus, backendMessage, acceptStoreInvitation, logout, stockOnboardingExited } = useAppContext();
   const authAction = useAuthActionLink();
   const [inviteToken, setInviteToken] = useState<string | null>(() => extractInviteToken());
   const [closedVersion, setClosedVersion] = useState(0);
@@ -86,7 +86,7 @@ function AppContent() {
   };
 
   const bootFinished = useRef(false);
-  const opensJourney = appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly;
+  const opensJourney = appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly && !stockOnboardingExited;
   const waitingForLists = !bootFinished.current && backendStatus === 'ready' && !!appSession?.store && !!appSession.membership && !appSession.onboardingRequired && !opensJourney && listsSettled === false;
   const waitingForSession = loading || waitingForLists || (!!user && backendStatus === 'checking')
     || (!!user && backendStatus === 'offline' && !appSession);
@@ -137,7 +137,7 @@ function AppContent() {
     return <Onboarding inviteToken={inviteToken} onInviteAccepted={clearInvite} />;
   }
 
-  if (backendStatus === 'ready' && appSession?.membership?.role === 'OWNER' && appSession.store?.onboardingStartedAt && !appSession.store.onboardingCompletedAt && !appSession.billing?.readOnly) {
+  if (backendStatus === 'ready' && opensJourney) {
     return <OnboardingJourney />;
   }
 

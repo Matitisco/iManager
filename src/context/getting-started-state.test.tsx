@@ -11,7 +11,7 @@ const context = vi.hoisted(() => ({
 vi.mock('../services/getting-started-api', () => ({ getGettingStarted: vi.fn(), updateGettingStarted: vi.fn() }));
 vi.mock('./AppContext', () => ({ useAppContext: () => ({ ...context, ...useGettingStartedState(context.user, context.appSession.store.id) }) }));
 vi.mock('../desk/ui', () => ({ useDesk: () => ({ open: vi.fn() }) }));
-beforeEach(() => { vi.mocked(getGettingStarted).mockReset(); vi.mocked(updateGettingStarted).mockReset(); });
+beforeEach(() => { localStorage.clear(); vi.mocked(getGettingStarted).mockReset(); vi.mocked(updateGettingStarted).mockReset(); });
 afterEach(() => vi.restoreAllMocks());
 
 it.each([{ name: 'Dashboard', Component: FirstStepsIsland }, { name: 'Ayuda', Component: FirstStepsHelp }])('hides failed progress loads in $name and logs the cause', async ({ Component }) => {
@@ -90,4 +90,39 @@ it('retains progress identity and does not reload for a new object with the same
   expect(getGettingStarted).toHaveBeenCalledTimes(2);
   expect(result.current.gettingStarted).toBe(before);
   expect(result.current.gettingStartedLoaded).toBe(true);
+});
+
+
+it('sale inmediatamente con PATCH pendiente, recuerda la decisión y reintenta después de recargar', async () => {
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+  vi.mocked(getGettingStarted).mockResolvedValue({ active: true } as Awaited<ReturnType<typeof getGettingStarted>>);
+  let rejectSave!: (cause: Error) => void;
+  vi.mocked(updateGettingStarted).mockReturnValueOnce(new Promise((_resolve, reject) => { rejectSave = reject; }));
+  const first = renderHook(() => useGettingStartedState(context.user, 's'));
+  act(() => first.result.current.finishStockOnboarding('skip'));
+  expect(first.result.current.stockOnboardingExited).toBe(true);
+  await act(async () => rejectSave(new Error('offline')));
+  first.unmount();
+  vi.mocked(updateGettingStarted).mockRejectedValueOnce(new Error('offline'));
+  const second = renderHook(({ user, storeId }) => useGettingStartedState(user, storeId), { initialProps: { user: context.user, storeId: 's' } });
+  expect(second.result.current.stockOnboardingExited).toBe(true);
+  await waitFor(() => expect(updateGettingStarted).toHaveBeenCalledTimes(2));
+  vi.mocked(updateGettingStarted).mockResolvedValue({ active: false } as Awaited<ReturnType<typeof getGettingStarted>>);
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(updateGettingStarted).toHaveBeenLastCalledWith(context.user, { complete: true, completedVia: 'skip' });
+  expect(JSON.parse(localStorage.getItem('imanager:stock-exit:u:s')!)).toEqual({ via: 'skip', pending: false });
+  second.rerender({ user: context.user, storeId: 'other' });
+  expect(second.result.current.stockOnboardingExited).toBe(false);
+  second.rerender({ user: { ...context.user, uid: 'other-user' }, storeId: 's' });
+  expect(second.result.current.stockOnboardingExited).toBe(false);
+});
+
+it('permite salir con storage deshabilitado, sin inventar progreso confirmado', async () => {
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+  vi.mocked(getGettingStarted).mockReturnValue(new Promise(() => {}));
+  vi.mocked(updateGettingStarted).mockReturnValue(new Promise(() => {}));
+  const { result } = renderHook(() => useGettingStartedState(context.user, 's'));
+  act(() => result.current.finishStockOnboarding('import'));
+  expect(result.current.stockOnboardingExited).toBe(true);
+  expect(result.current.gettingStarted).toBeNull();
 });

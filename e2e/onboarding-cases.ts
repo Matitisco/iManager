@@ -4,7 +4,6 @@ import { test, expect, type Page } from "@playwright/test";
 import {
   authHeaders,
   buildTestEmail,
-  loginViaUi,
   fetchInventory,
   bootstrapStoreViaApi,
 } from "./utils";
@@ -66,9 +65,19 @@ async function shot(page: Page, name: string) {
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${directory}/395-${name}.png`, animations: "disabled", scale: "css" });
 }
-async function start(page: Page, email: string, device?: string) {
-  await quote(page);
-  await loginViaUi(page, email);
+async function start(page: Page, email: string, device?: string, quoteAvailable = true) {
+  if (quoteAvailable) await quote(page);
+  else {
+    await page.route("https://dolarapi.com/**", route => route.abort());
+    await page.route("https://mercados.ambito.com/**", route => route.abort());
+  }
+  // Exercise registration from zero, including its distinct auth callback.
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Crear cuenta', exact: true }).click();
+  await page.getByTestId('login-email').fill(email);
+  await page.getByTestId('login-password').fill('test123456');
+  await page.getByPlaceholder('Confirmar contraseña').fill('test123456');
+  await page.locator('button[type="submit"]').click();
   await page.getByTestId("onboarding-store-name").fill("iPhone Club Palermo");
   await expect(page.getByTestId("onboarding-submit")).toBeInViewport();
   if (device) {
@@ -107,6 +116,35 @@ async function fits(page: Page) {
   ).toBe(true);
 }
 export function onboardingCases(phone: boolean) {
+  test('registro nuevo: saltar sin progreso ni cotización permite entrar, recargar y sincronizar después', async ({ page, request }, info) => {
+    const email = buildTestEmail(info, 'onboarding-recovery');
+    await start(page, email, undefined, false);
+    let blocked = true;
+    await page.route('**/api/onboarding/progress', route =>
+      blocked && route.request().method() === 'PATCH' ? route.abort('failed') : route.continue());
+    await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+    await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
+    await expect(page.getByTestId('stock-onboarding')).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
+    await expect(page.getByTestId('stock-onboarding')).toHaveCount(0);
+    expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
+    blocked = false;
+    const synced = page.waitForResponse(response => response.url().endsWith('/api/onboarding/progress') && response.request().method() === 'PATCH' && response.ok());
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await synced;
+    const session = await request.get(`${API}/api/me`, { headers: authHeaders(email) });
+    expect((await session.json()).store.onboardingCompletedAt).toBeTruthy();
+  });
+
+  test('un inventario no disponible después de saltar no bloquea la entrada', async ({ page }, info) => {
+    await start(page, buildTestEmail(info, 'onboarding-read-failure'));
+    await page.route('**/api/inventory', route => route.abort('failed'));
+    await page.getByRole('button', { name: 'Saltar por ahora' }).click();
+    await expect(page.getByTestId('sidebar-tab-dashboard')).toBeVisible();
+    await expect(page.getByTestId('stock-onboarding')).toHaveCount(0);
+  });
+
   test("Subir Excel es la primera opción y guarda stock real tras revisar", async ({ page, request }, info) => {
     const email = buildTestEmail(info, "onboarding-excel");
     await start(page, email);

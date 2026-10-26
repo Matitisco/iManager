@@ -15,7 +15,7 @@ const context = vi.hoisted(() => ({
   inventory: [] as Array<{ id: string }>,
   reloadInventory: vi.fn(async () => undefined),
   reloadSession: vi.fn(async () => undefined),
-  updateGettingStarted: vi.fn(async () => undefined),
+  finishStockOnboarding: vi.fn(),
   refreshGettingStarted: vi.fn(async () => undefined),
 }));
 const analytics = vi.hoisted(() => ({ track: vi.fn(), rowBucket: (n: number) => n <= 1 ? '1' : '2-10' }));
@@ -64,6 +64,8 @@ const analysis = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  context.reloadInventory.mockResolvedValue(undefined);
+  samples.createSampleStock.mockResolvedValue(undefined);
   context.inventory = [];
   context.appSession.store = {
     name: "Casa",
@@ -109,7 +111,7 @@ describe("guardado revisado", () => {
     );
     await screen.findByRole("alert");
     expect(finish).not.toHaveBeenCalled();
-    expect(context.updateGettingStarted).not.toHaveBeenCalled();
+    expect(context.finishStockOnboarding).not.toHaveBeenCalled();
     expect(screen.getByTestId("onboarding-equipment-count")).toHaveTextContent(
       "1",
     );
@@ -216,7 +218,7 @@ describe('instrumentación invisible de Stock', () => {
     expect(analytics.track).toHaveBeenCalledWith('onboarding_stock_viewed');
     fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
     expect(analytics.track).toHaveBeenCalledWith('stock_method_chosen', { method });
-    if (method === 'skip') await waitFor(() => expect(context.updateGettingStarted).toHaveBeenCalledWith({ complete: true, completedVia: 'skip' }));
+    if (method === 'skip') await waitFor(() => expect(context.finishStockOnboarding).toHaveBeenCalledWith('skip'));
   });
   it('registra el cierre de Excel y el paso donde se abandonó', () => {
     render(<StockOnboarding onFinish={vi.fn()} />);
@@ -242,7 +244,7 @@ describe('instrumentación invisible de Stock', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Importar prueba' }));
     await waitFor(() => expect(finish).toHaveBeenCalledWith('inventory'));
     expect(analytics.track).toHaveBeenCalledWith('stock_import_finished', { method: 'excel', ok: true, rows: '1', errors: 0 });
-    expect(context.updateGettingStarted).toHaveBeenCalledWith({ complete: true, completedVia: 'import' });
+    expect(context.finishStockOnboarding).toHaveBeenCalledWith('import');
   });
   it('registra Volver desde pegar como abandono sin enviar el texto', () => {
     render(<StockOnboarding onFinish={vi.fn()} />);
@@ -251,5 +253,46 @@ describe('instrumentación invisible de Stock', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Volver' }));
     expect(analytics.track).toHaveBeenCalledWith('stock_import_abandoned', { method: 'paste', at: 'file' });
     expect(JSON.stringify(analytics.track.mock.calls)).not.toContain('Texto privado');
+  });
+});
+
+
+describe('salida resiliente de stock', () => {
+  it('sale sin esperar una recarga de inventario que falla', async () => {
+    context.reloadInventory.mockRejectedValue(new Error('offline'));
+    const finish = vi.fn();
+    render(<StockOnboarding onFinish={finish} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Saltar por ahora' }));
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('dashboard'));
+    expect(context.finishStockOnboarding).toHaveBeenCalledWith('skip');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+  it('no espera una lectura de inventario que sigue pendiente', async () => {
+    context.reloadInventory.mockReturnValue(new Promise(() => {}));
+    const finish = vi.fn();
+    render(<StockOnboarding onFinish={finish} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Saltar por ahora' }));
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('dashboard'));
+  });
+  it('no presenta ejemplos fallidos como cargados y todavía permite saltar', async () => {
+    samples.createSampleStock.mockRejectedValue(new Error('No se pudieron cargar los ejemplos.'));
+    const finish = vi.fn();
+    render(<StockOnboarding onFinish={finish} />);
+    fireEvent.click(screen.getByRole('button', { name: /Probar con datos de ejemplo/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los ejemplos.');
+    expect(finish).not.toHaveBeenCalled();
+    expect(context.finishStockOnboarding).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Saltar por ahora' }));
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('dashboard'));
+  });
+  it('no repite un Excel ya guardado si falla su recarga', async () => {
+    api.importBackendRows.mockResolvedValue({ imported: 1, updated: 0, errors: [] });
+    context.reloadInventory.mockRejectedValue(new Error('offline'));
+    const finish = vi.fn();
+    render(<StockOnboarding onFinish={finish} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Subir Excel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Importar prueba' }));
+    await waitFor(() => expect(finish).toHaveBeenCalledWith('inventory'));
+    expect(api.importBackendRows).toHaveBeenCalledTimes(1);
   });
 });
