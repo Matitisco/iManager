@@ -189,7 +189,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
       await post(request, email, `/cash/${current.id}/open`);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await editPrice(page, phone, amount);
-      expect((await fetchSales(request, email)).sales[0]).toMatchObject({ amount, status: 'COMPLETADA' });
+      expect((await fetchSales(request, email)).sales[0]).toMatchObject({ amount, status: amount > 100 ? 'PENDIENTE' : 'COMPLETADA' });
       expect((await get(request, email, `/cash/${current.id}/movements`)).movements).toHaveLength(0);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await cancelSale(page, phone);
@@ -236,7 +236,7 @@ export function registerCashOperationTests(device: 'desktop' | 'iphone') {
     await editor.getByLabel('Precio completo de salida').fill('130');
     await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
     await expect(editor).toBeHidden();
-    expect((await fetchSales(request, email)).sales[0]).toMatchObject({ amount: 130, status: 'COMPLETADA', openBalance: 30 });
+    expect((await fetchSales(request, email)).sales[0]).toMatchObject({ amount: 130, status: 'PENDIENTE', openBalance: 30 });
     const debtors = await get(request, email, '/accounts/debtors');
     expect(debtors.debtors.find((row: { clientId: string }) => row.clientId === client.id).lines[0].amount).toBe(30);
     expect((await get(request, email, `/cash/${boxId}/movements`)).movements).toHaveLength(1);

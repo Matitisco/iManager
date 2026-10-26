@@ -53,7 +53,7 @@ for (const device of [
     await expect(lead.getByText('US$ 920')).toBeVisible();
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveCount(1);
     await expect(lead.getByRole('link', { name: 'Escribinos por WhatsApp' })).toBeInViewport({ ratio: 1 });
-    await expect(lead.getByText(/precios en USD/)).toBeVisible();
+    await expect(lead.getByText(/moneda por equipo/)).toBeVisible();
     const href = await lead.getByRole('link', { name: 'Escribinos por WhatsApp' }).getAttribute('href');
     expect(href).toMatch(/^https:\/\/wa\.me\/5491155551234\?text=/);
     expect(decodeURIComponent(new URL(href!).searchParams.get('text')!)).toContain('👋');

@@ -288,7 +288,7 @@ test.describe('issue 375 ventas, garantía y ficha en escritorio', () => {
     const detail = page.getByRole('dialog', { name: 'Juan Domínguez' });
     await expect(detail.getByTestId('client-purchases')).toBeVisible();
     await detail.getByTestId('client-purchases').scrollIntoViewIfNeeded();
-    await expect(detail.getByText('Total gastado')).toBeVisible();
+    await expect(detail.getByText('Total comprado')).toBeVisible();
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('1.695');
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('5');
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('2 vigentes');

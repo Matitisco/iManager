@@ -194,7 +194,8 @@ test.describe('clients on a phone', () => {
     await expect(debtor).toContainText('1100003333');
     await expect(debtor).toContainText('Saldo US$ 50.000');
     await expect(debtor).toContainText('03/10/2026');
-    await expect(debtor).toContainText('US$ 650.000');
+    // Total comprado comes from the client's operations, not the stored historical accumulator.
+    await expect(debtor).toContainText('Total compradoUS$ 0');
     await expect(created).toContainText('Sin saldo');
     await expect(page.locator('[data-testid^="client-row-"]')).toHaveCount(2);
     const order = await page.getByTestId('phone-rows').locator('[data-testid^="client-row-"]').allTextContents();
@@ -228,7 +229,7 @@ test.describe('clients on a phone', () => {
     const detail = page.getByRole('dialog', { name: debtorName });
     await expect(detail.getByText('Saldo pendiente')).toBeVisible();
     await expect(detail.getByText('US$ 50.000').first()).toBeVisible();
-    await expect(detail.getByText('Total gastado')).toBeVisible();
+    await expect(detail.getByText('Total comprado')).toBeVisible();
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('US$ 0');
     await expect(detail.getByTestId('client-purchase-stats')).toContainText('0 vigentes');
     await expect(detail.locator('.sheet-foot').getByRole('button', { name: 'Registrar pago' })).toBeVisible();

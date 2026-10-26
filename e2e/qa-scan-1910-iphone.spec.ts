@@ -28,8 +28,8 @@ test('barra, Más y redirecciones en el iPhone', async ({ page, request }, testI
   await expect(page).toHaveURL(/#\/atencion\/clientes$/);
   await expect(page.getByRole('heading', { name: 'Clientes', level: 1 })).toBeVisible();
   await page.goto('/#/gastos');
-  await expect(page).toHaveURL(/#\/dashboard$/);
-  await expect(page.getByRole('heading', { name: '¿Qué hay para hoy?', level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/#\/finanzas\/gastos$/);
+  await expect(page.getByRole('heading', { name: 'Gastos', level: 1 })).toBeVisible();
   await page.goto('/#/devoluciones');
   await expect(page).toHaveURL(/#\/comercial\/devoluciones$/);
   await expect(page.getByRole('heading', { name: 'Devoluciones', level: 1 })).toBeVisible();

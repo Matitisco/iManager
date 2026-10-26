@@ -47,7 +47,7 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   await expect(page.getByTestId('nav-group-finanzas')).toBeVisible();
   await expect(page.locator('aside').getByTestId('sidebar-tab-followups')).toHaveCount(0);
   await expect(page.locator('aside').getByTestId('sidebar-tab-returns')).toBeHidden();
-  await expect(page.locator('aside').getByTestId('sidebar-tab-expenses')).toHaveCount(0);
+  await expect(page.locator('aside').getByTestId('sidebar-tab-expenses')).toBeHidden();
   await expect(page.locator('aside').getByTestId('sidebar-tab-suppliers')).toBeHidden();
 
   const routes: Array<[string, string, string]> = [
@@ -59,7 +59,7 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
     ['#/canjes', '#/comercial/canjes', 'Canjes'],
     ['#/devoluciones', '#/comercial/devoluciones', 'Devoluciones'],
     ['#/seguimientos', '#/atencion/clientes', 'Clientes'],
-    ['#/gastos', '#/dashboard', '¿Qué hay para hoy?'],
+    ['#/gastos', '#/finanzas/gastos', 'Gastos'],
     ['#/rep', '#/analisis/reportes', 'Reportes'],
   ];
   for (const [legacy, canonical, heading] of routes) {
