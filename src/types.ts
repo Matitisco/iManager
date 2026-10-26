@@ -182,6 +182,8 @@ export interface Client {
   instagram?: string;
   lastPurchaseDate: string;
   totalSpent: number;
+  importedSpent?: number | null;
+  importedSpentCurrency?: string | null;
   pendingBalance: number;
   creditBalance?: number;
   balanceCurrency?: string | null;
