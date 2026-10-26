@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { DeskSelect } from '../select';
 import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
@@ -97,8 +98,8 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
       </Field>}
       {!current && sale ? (
         <div className="return-summary return-sale-summary" data-testid="return-sale">
-          <b>{item?.imei ? `IMEI ${item.imei}` : 'Sin IMEI'}</b>
-          <small>{[coverage?.phrase || 'Sin garantía', formatMoney(sale.amount, sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}</small>
+          <b data-ph-mask>{item?.imei ? `IMEI ${item.imei}` : 'Sin IMEI'}</b>
+          <small data-ph-mask>{[coverage?.phrase || 'Sin garantía', formatMoney(sale.amount, sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}</small>
         </div>
       ) : null}
       <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" maxLength={500} disabled={busy} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
@@ -109,9 +110,9 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
 
 function ReturnSummary({ current, reason = false }: { current: ReturnCaseView; reason?: boolean }) {
   return <div className="return-summary" data-testid="return-detail">
-    <b>{current.clientName || 'Sin cliente'}</b>
+    <b data-ph-mask>{current.clientName || 'Sin cliente'}</b>
     <span>{current.deviceLabel || 'Sin equipo'}</span>
-    <small>{[current.imei ? `IMEI ${current.imei}` : '', formatShortDate(current.openedOn)].filter(Boolean).join(' · ')}</small>
+    <small data-ph-mask>{[current.imei ? `IMEI ${current.imei}` : '', formatShortDate(current.openedOn)].filter(Boolean).join(' · ')}</small>
     {reason && current.supplierName ? <div className="kv" data-testid="return-supplier"><span>Proveedor</span><b>{current.supplierName}</b></div> : null}
     {reason ? <p className="rs-reason">{current.reason}</p> : null}
   </div>;
@@ -237,7 +238,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
       {chosenDestination === 'STOCK' ? <Choices label="Estado en stock" options={STOCK} value={stockStatus} onChange={setStockStatus} disabled={busy} /> : null}
     </div> : null}
     {supplier && rma === 'RECIBIDO' && current.resolution !== 'REPARACION' && canManageSensitive ? <Choices label="Estado al volver" options={STOCK} value={stockStatus} onChange={setStockStatus} disabled={busy} /> : null}
-    {current.creditNote ? <div className="return-credit" data-testid="return-credit"><b>Nota de crédito</b><span>{formatMoney(current.creditNote.remaining, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')} disponibles</span></div> : null}
+    {current.creditNote ? <div className="return-credit" data-testid="return-credit"><b>Nota de crédito</b><span><ReplayValue>{formatMoney(current.creditNote.remaining, current.creditNote.currency === 'USD' ? 'USD' : 'ARS')}</ReplayValue> disponibles</span></div> : null}
     <section className="return-history" aria-label="Seguimiento">
       <div className="ret-sec">
         <h4>Seguimiento</h4>
@@ -280,7 +281,7 @@ export function ReturnDelete({ id }: { id: string }) {
     finally { setBusy(false); }
   };
   return <Sheet title="¿Anular reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions busyLabel="Anular" primary="Anular" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
-    <div><b className="rd-who">{current?.code ?? 'Reclamo'} · {current?.clientName || 'Sin cliente'}</b>
+    <div><b className="rd-who">{current?.code ?? 'Reclamo'} · <ReplayValue>{current?.clientName || 'Sin cliente'}</ReplayValue></b>
     <p className="rd-note">Queda anulado y fuera de los totales. Se conservan los movimientos registrados.</p></div>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
   </Sheet>;

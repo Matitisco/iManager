@@ -1,3 +1,4 @@
+import { ReplayValue } from './replay-privacy';
 import { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
@@ -43,8 +44,8 @@ function PurchaseRows({ rows, money }: { rows: ClientPurchase[]; money: MoneyApi
       <div className="buy-row">
         <span className={`av-c buy-kind ${KIND_TONE[row.kind]}`} aria-hidden="true">{KIND_MARK[row.kind]}</span>
         <b className="buy-title">{row.title}</b>
-        <b className="buy-amt">{amountLabel(row, money)}</b>
-        <small className="buy-meta">{metaLine(row)}</small>
+        <b data-ph-mask className="buy-amt">{amountLabel(row, money)}</b>
+        <small data-ph-mask={Boolean(row.imei) || undefined} className="buy-meta">{metaLine(row)}</small>
         {row.annulled ? <span className="spill buy-pill annulled">Anulada</span>
           : row.warranty ? <span className={`spill buy-pill ${row.warranty.state}`}>{row.warranty.badge}</span> : null}
       </div>
@@ -75,7 +76,7 @@ function PurchasesModal({ clientName, rows, money, initialFilter, onClose }: {
       <div ref={ref} tabIndex={-1} className="sheet sheet-frame buy-sheet" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
         <div className="sheet-h buy-modal-head">
           {phone ? <button type="button" className="buy-back" aria-label="Volver a la ficha del cliente" onClick={modal.requestClose}><ArrowLeft size={22} /></button> : null}
-          <div className="sheet-title"><h3>{title}</h3>{phone ? <p className="sub">{clientName}</p> : null}</div>
+          <div className="sheet-title"><h3>Compras{phone ? null : <> · <ReplayValue>{clientName}</ReplayValue></>}</h3>{phone ? <p data-ph-mask className="sub">{clientName}</p> : null}</div>
           {!phone ? <ModalCloseButton onClick={modal.requestClose} /> : null}
         </div>
         <PurchaseChips filter={filter} onChange={setFilter} count={filtered.filter(row => !row.annulled).length} />

@@ -1,3 +1,4 @@
+import { textContent } from '../test/text-content';
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -78,7 +79,7 @@ describe('EquipmentField', () => {
     }
     render(<Reserved />);
     await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'iPhone 13');
-    expect(screen.getByText('Reservado para Ana Pérez')).toBeInTheDocument();
+    expect(screen.getByText(textContent('Reservado para Ana Pérez'))).toBeInTheDocument();
     expect(screen.queryByText(/Se guarda para completar después/)).not.toBeInTheDocument();
   });
 

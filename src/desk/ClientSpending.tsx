@@ -9,6 +9,6 @@ export function ClientSpending({ client, parts, money, compact = false }: {
 }) {
   const history = importedClientSpending(client);
   const total = formatClientSpending(combinedClientSpending(parts, client), money);
-  if (compact) return <span className="cl-spending"><b>{total}</b>{history.length ? <small>Incluye histórico</small> : null}</span>;
-  return <div className="dstat cl-spending-total"><div className="eb">Total comprado</div><div className="big">{total}</div>{history.length ? <small className="cl-spending-note">Incluye histórico importado</small> : null}</div>;
+  if (compact) return <span className="cl-spending"><b data-ph-mask>{total}</b>{history.length ? <small>Incluye histórico</small> : null}</span>;
+  return <div className="dstat cl-spending-total"><div className="eb">Total comprado</div><div data-ph-mask className="big">{total}</div>{history.length ? <small className="cl-spending-note">Incluye histórico importado</small> : null}</div>;
 }

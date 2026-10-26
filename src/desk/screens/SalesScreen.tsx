@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
@@ -203,12 +204,12 @@ export function SalesScreen() {
         />
       ) : phone ? null : (
       <div className="dstats">
-        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length === 1 ? '1 venta' : `${periodSales.length} ventas`}</span></div> : null}
-        <div className="dstat"><div className="eb">Ticket promedio</div><div className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
+        {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div data-ph-mask className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length === 1 ? '1 venta' : `${periodSales.length} ventas`}</span></div> : null}
+        <div className="dstat"><div className="eb">Ticket promedio</div><div data-ph-mask className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
         {seeFinancials ? (
           <div className="dstat">
             <div className="eb">Margen bruto est.</div>
-            <div className="big">{hasCost && margin != null ? money.showActive(margin) : '—'}</div>
+            <div data-ph-mask className="big">{hasCost && margin != null ? money.showActive(margin) : '—'}</div>
             <small className="mut">{hasCost ? 'precio menos costo' : 'Cargá el costo en el equipo'}</small>
           </div>
         ) : null}
@@ -340,11 +341,11 @@ export function SalesScreen() {
                   >
                     <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
-                    <td>{saleBuyer(sale, clients)}</td>
+                    <td data-ph-mask>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
-                    <td className="r"><b className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
+                    <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></td>
                   </PressTarget>
                 );
@@ -376,8 +377,8 @@ function SalesHero({ seeFinancials, total, approx, staleClock, count, average, m
       {seeFinancials ? (
         <>
           <div className="eb">Facturación total</div>
-          <div className="big">{total}</div>
-          {approx ? <small className="sale-fx" data-testid="sales-usd">{approx}{staleClock ? ` · con el dólar de las ${staleClock}` : ''}</small> : null}
+          <div data-ph-mask className="big">{total}</div>
+          {approx ? <small className="sale-fx" data-testid="sales-usd"><ReplayValue>{approx}</ReplayValue>{staleClock ? ` · con el dólar de las ${staleClock}` : ''}</small> : null}
           <span className="spill lime">{count === 1 ? '1 venta' : `${count} ventas`}</span>
           <small className="sale-delta">{delta == null ? '— vs período anterior' : <span className={delta >= 0 ? 'up' : 'down'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs período anterior</span>}</small>
         </>
@@ -385,13 +386,13 @@ function SalesHero({ seeFinancials, total, approx, staleClock, count, average, m
       <div className={`sale-hero-grid${seeFinancials ? '' : ' solo'}`}>
         <div>
           <div className="eb">Ticket promedio</div>
-          <div className="mid">{average}</div>
+          <div data-ph-mask className="mid">{average}</div>
           <small>Por venta</small>
         </div>
         {seeFinancials ? (
           <div>
             <div className="eb">Margen bruto est.</div>
-            <div className="mid">{margin}</div>
+            <div data-ph-mask className="mid">{margin}</div>
             <small>{marginNote}</small>
           </div>
         ) : null}
@@ -425,11 +426,11 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
       <span className="sale-who">
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />
         <span>
-          <b>{buyer}</b>
+          <b data-ph-mask>{buyer}</b>
           <small>{equipment}</small>
         </span>
       </span>
-      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b>{amount}</b>{approx ? <small>{approx}</small> : null}</span></span>
+      <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b>{approx ? <small data-ph-mask>{approx}</small> : null}</span></span>
     </span>
   );
 }

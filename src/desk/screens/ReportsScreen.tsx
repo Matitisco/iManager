@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useOfflineRecovery } from '../../lib/offline-recovery';
@@ -314,7 +315,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
       {activeTab === 'Comisiones' && commissionReportLoading ? <ListSkeleton variant="rows" rows={3} testId="commission-report-loading" /> : null}
       <div className="gtotal">
         <div className="geye">{model.eye} · {period === 'Personalizado' ? reportRangeLabel(bounds) : PERIOD_LABEL[period]}</div>
-        <div className="gamount">{model.unavailable ? '—' : model.barMoney ? money.showActive(model.headline) : model.total}</div>
+        <div data-ph-mask={model.barMoney || undefined} className="gamount">{model.unavailable ? '—' : model.barMoney ? money.showActive(model.headline) : model.total}</div>
         <span className="gdelta">{model.delta}</span>
       </div>
       {model.note ? <p className="gnote">{model.note}</p> : null}
@@ -324,7 +325,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {phone && activeBucket ? (
             <div className="gnow">
               <span>
-                <b>{figure(activeBucket.value)}</b>
+                <b data-ph-mask={model.barMoney || undefined}>{figure(activeBucket.value)}</b>
                 {` · ${activeBucket.label}`}
               </span>
             </div>
@@ -336,7 +337,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
                 <button key={`${bucket.label}-${index}`} className={`gcol${index === active ? ' sel' : ''}`} aria-label={`${bucket.label}: ${figureFull(bucket.value)}`} type="button" onClick={() => setSelected(index)}>
                   {index === active ? (
                     <span className={`gtip${index < 2 ? ' tl' : index > model.buckets.length - 3 ? ' tr' : ''}`}>
-                      <b>{figure(bucket.value)}</b>
+                      <b data-ph-mask={model.barMoney || undefined}>{figure(bucket.value)}</b>
                       {` · ${bucket.label}`}
                     </span>
                   ) : null}
@@ -366,7 +367,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
               />
             </div>
           </div>
-          <Donut parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
+          <Donut maskLabels={activeTab === 'Clientes'} parts={model.parts} money={model.donutMoney} total={model.donutTotal} cat={cat} phone={phone} onToggle={(label) => setCat((current) => current === label ? null : label)} />
         </div>
       </div>
       {role === 'OWNER' ? (
@@ -384,15 +385,15 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           warning={money.warning}
         />
       ) : null}
-      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div className="gstore">{row.name}</div><div className="gmeta">Pagado {commissionTotal(row.paid)} · pendiente {commissionTotal(row.pending)}</div></div><div className="gr"><div className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
+      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div data-ph-mask className="gstore">{row.name}</div><div className="gmeta">Pagado <ReplayValue>{commissionTotal(row.paid)}</ReplayValue> · pendiente <ReplayValue>{commissionTotal(row.pending)}</ReplayValue></div></div><div className="gr"><div data-ph-mask className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
       {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
           {!saleRows.length && <p className="gnote">No hay ventas para este período y filtro.</p>}
           {saleRows.map((sale) => (
             <button key={sale.id} className={`gtk${isVoidRow(sale) ? ' is-void' : ''}`} type="button" onClick={() => open({ type: 'sale', id: sale.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
-              <div className="gr"><div className="gamt">{money.compact(sale.amount, sale.amountCurrency)}</div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(sale.date)} · {saleCode(sale)}</div><div data-ph-mask className="gstore">{saleBuyer(sale, clients)}</div><div className="gmeta">{saleEquipment(sale, inventory)} <Pill status={sale.status} kind="SALE_STATUS" /></div></div>
+              <div className="gr"><div data-ph-mask className="gamt">{money.compact(sale.amount, sale.amountCurrency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -406,7 +407,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
               <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition) : '', qualityPhrase(item.condition, item.grade)].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
-              <div className="gr"><div className="gamt">{item.price == null ? 'A definir' : money.compact(item.price, item.currency)}</div></div>
+              <div className="gr"><div data-ph-mask className="gamt">{item.price == null ? 'A definir' : money.compact(item.price, item.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -418,8 +419,8 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {!tradeRows.length && <p className="gnote">No hay canjes para este período y filtro.</p>}
           {tradeRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'cj', id: item.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div className="gstore">{tradeClientLabel(item, clients)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
-              <div className="gr"><div className="gamt">+{money.compact(item.differencePaid, item.currency)}</div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(item.date)} · {tradeCode(tradeIns, item.id)}</div><div data-ph-mask className="gstore">{tradeClientLabel(item, clients)}</div><div className="gmeta">{item.deviceReceived} <Pill status={item.status} kind="TRADE_IN_STATUS" /></div></div>
+              <div className="gr"><div className="gamt">+<ReplayValue>{money.compact(item.differencePaid, item.currency)}</ReplayValue></div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -431,8 +432,8 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {!clientRows.length && <p className="gnote">No hay clientes para este período y filtro.</p>}
           {clientRows.map((row) => (
             <button key={row.id ?? row.name} className="gtk" type="button" onClick={() => { if (row.id) open({ type: 'cl', id: row.id }); }}>
-              <div className="gl"><div className="gdate">{row.kind}</div><div className="gstore">{row.name}</div><div className="gmeta">{row.purchases} {row.purchases === 1 ? 'compra' : 'compras'}{row.tag ? ` · ${row.tag}` : ''}</div></div>
-              <div className="gr"><div className="gamt">{row.blocked ? '—' : money.showActive(row.revenue)}</div></div>
+              <div className="gl"><div className="gdate">{row.kind}</div><div data-ph-mask className="gstore">{row.name}</div><div className="gmeta">{row.purchases} {row.purchases === 1 ? 'compra' : 'compras'}{row.tag ? ` · ${row.tag}` : ''}</div></div>
+              <div className="gr"><div data-ph-mask className="gamt">{row.blocked ? '—' : money.showActive(row.revenue)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -444,8 +445,8 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {!repairRows.length && <p className="gnote">No hay órdenes para este período y filtro.</p>}
           {repairRows.map((order) => (
             <button key={order.id} className="gtk" type="button" onClick={() => open({ type: 'ot', id: order.id })}>
-              <div className="gl"><div className="gdate">{formatReportDate(order.receivedAt)} · {order.code}</div><div className="gstore">{order.clientName}</div><div className="gmeta">{order.device} <Pill status={order.status} kind="REPAIR_STATUS" /></div></div>
-              <div className="gr"><div className="gamt">{order.estimate == null ? 'A cotizar' : money.compact(order.estimate, order.currency)}</div></div>
+              <div className="gl"><div className="gdate">{formatReportDate(order.receivedAt)} · {order.code}</div><div data-ph-mask className="gstore">{order.clientName}</div><div className="gmeta">{order.device} <Pill status={order.status} kind="REPAIR_STATUS" /></div></div>
+              <div className="gr"><div data-ph-mask className="gamt">{order.estimate == null ? 'A cotizar' : money.compact(order.estimate, order.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}
@@ -471,7 +472,7 @@ function donutSlicePath(start: number, end: number) {
   return `M ${point(start)} A ${DONUT_RADIUS} ${DONUT_RADIUS} 0 ${sweep > Math.PI ? 1 : 0} 1 ${point(end)}`;
 }
 
-function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; phone: boolean; onToggle: (label: string) => void }) {
+function Donut({ parts, money: showMoney, total, cat, phone, onToggle, maskLabels = false }: { maskLabels?: boolean; parts: { label: string; value: number; color: string }[]; money: boolean; total: number; cat: string | null; phone: boolean; onToggle: (label: string) => void }) {
   const money = useMoney();
   const sum = parts.reduce((acc, part) => acc + part.value, 0);
   const visible = parts.filter((part) => part.value > 0);
@@ -515,7 +516,7 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts
           })}
         </svg>
         <div className="gc" role="img" aria-label={sum === 0 ? `sin datos; ${description}` : description} title={description}>
-          <b style={{ fontSize: center.fontSize }}>{center.text}</b><small title={centerLabel}>{centerLabel}</small>
+          <b data-ph-mask={showMoney || undefined} style={{ fontSize: center.fontSize }}>{center.text}</b><small title={centerLabel}>{centerLabel}</small>
         </div>
       </div>
       <div className="gleg">
@@ -525,8 +526,8 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle }: { parts
           return (
             <button key={part.label} className={`glg${cat === part.label ? ' sel' : cat ? ' off' : ''}`} aria-pressed={cat === part.label} aria-label={`${part.label}: ${showMoney && sum ? pct : part.value}`} type="button" onClick={() => onToggle(part.label)}>
               <i style={{ background: part.color }} />
-              <span>{part.label}</span>
-              {phone && sum > 0 ? <em>{showMoney ? money.showActive(part.value) : part.value}</em> : null}
+              <span data-ph-mask={maskLabels || undefined}>{part.label}</span>
+              {phone && sum > 0 ? <em data-ph-mask={showMoney || undefined}>{showMoney ? money.showActive(part.value) : part.value}</em> : null}
               <b>{phone && sum > 0 ? pct : desktopFigure}</b>
             </button>
           );
@@ -741,10 +742,10 @@ export function NetProfitCard({
   return (
     <div data-testid="net-profit">
       <div className="dstats net-stats">
-        {returned ? <div className="dstat" data-testid="net-profit-returns"><div className="eb">Devoluciones</div><div className="big">{show(returned)}</div></div> : null}
-        <div className="dstat"><div className="eb">Ganancia bruta</div><div className="big">{text(figures?.grossProfit)}</div></div>
-        <div className="dstat"><div className="eb">Gastos</div><div className="big">{text(figures?.expenses)}</div></div>
-        <div className="dstat"><div className="eb">Ganancia neta</div><div className="big">{text(figures?.netProfit)}</div></div>
+        {returned ? <div className="dstat" data-testid="net-profit-returns"><div className="eb">Devoluciones</div><div data-ph-mask className="big">{show(returned)}</div></div> : null}
+        <div className="dstat"><div className="eb">Ganancia bruta</div><div data-ph-mask className="big">{text(figures?.grossProfit)}</div></div>
+        <div className="dstat"><div className="eb">Gastos</div><div data-ph-mask className="big">{text(figures?.expenses)}</div></div>
+        <div className="dstat"><div className="eb">Ganancia neta</div><div data-ph-mask className="big">{text(figures?.netProfit)}</div></div>
       </div>
       {figures ? null : <p className="fx-warn" role="status">{warning || FX_WARNING}</p>}
     </div>

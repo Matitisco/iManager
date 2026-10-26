@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -75,7 +76,7 @@ describe('Resumen periódico', () => {
     expect(within(sales).getAllByRole('listitem')).toHaveLength(3);
     expect(screen.getByText('En curso')).toBeVisible();
     expect(screen.getByText('1 equipo')).toBeVisible();
-    expect(screen.getByText('IMEI 352094113377802')).toBeVisible();
+    expect(screen.getByText(textContent('IMEI 352094113377802'))).toBeVisible();
     await userEvent.click(within(sales).getByRole('button', { name: 'Ver todas las ventas (5)' }));
     const dialog = screen.getByRole('dialog', { name: 'Ventas' });
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(5);
@@ -207,7 +208,7 @@ describe('Resumen periódico', () => {
       expect(dialog).toHaveAttribute('aria-modal', 'true');
       expect(dialog).toHaveClass('sheet', 'sheet-frame', 'periodic-breakdown', 'hist-screen');
       expect(within(dialog).getAllByRole('listitem')).toHaveLength(count);
-      if (title === 'Diferencias de stock') expect(within(dialog).getByText('IMEI 352094113377802 · 28/09/2026')).toBeVisible();
+      if (title === 'Diferencias de stock') expect(within(dialog).getByText(textContent('IMEI 352094113377802 · 28/09/2026'))).toBeVisible();
       if (title === 'Ventas') {
         expect(within(dialog).getByText('iPhone 4')).toBeVisible();
         expect(dialog.querySelector('s')).toHaveTextContent('$ 9.000');

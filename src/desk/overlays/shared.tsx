@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import type { Dispatch, SetStateAction } from 'react';
 import { formatArDateTime } from '../format';
 import { useMoney } from '../exchange';
@@ -67,9 +68,11 @@ export function ConfirmOperationDialog({ title, label, refund, depositCredit, co
   onOk: (reason: string) => void;
 }) {
   const money = useMoney();
-  const text = (refund > 0
-    ? `${label} se anulará y quedará en el historial. Se devolverán ${money.show(refund, currency)}.`
-    : `${label} se anulará y quedará en el historial.`) + (coveredCredit ? ` El pago general que cubría esta venta queda como saldo a favor (${money.show(coveredCredit, currency)}).` : "") + (depositCredit ? " Las señas aplicadas vuelven como saldo a favor, sin devolución de ese anticipo." : "");
+  const text = <>{label} se anulará y quedará en el historial.
+    {refund > 0 ? <> Se devolverán <ReplayValue>{money.show(refund, currency)}</ReplayValue>.</> : null}
+    {coveredCredit ? <> El pago general que cubría esta venta queda como saldo a favor (<ReplayValue>{money.show(coveredCredit, currency)}</ReplayValue>).</> : null}
+    {depositCredit ? " Las señas aplicadas vuelven como saldo a favor, sin devolución de ese anticipo." : ""}
+  </>;
   return (
     <ReasonSheet
       title={title}

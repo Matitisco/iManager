@@ -363,7 +363,7 @@ export function StockCountScreen() {
               }}
             />
           ) : null}
-          {latest ? <div className={`fb ${latest.tone}`} role="status"><span className="i">{latest.tone === 'ok' ? '✓' : '!'}</span><div><b>{latest.banner}</b><small>{latest.bannerDetail}</small></div></div> : null}
+          {latest ? <div className={`fb ${latest.tone}`} role="status"><span className="i">{latest.tone === 'ok' ? '✓' : '!'}</span><div><b>{latest.banner}</b><small data-ph-mask>{latest.bannerDetail}</small></div></div> : null}
           <div className="cnt"><b>Tus escaneos</b><small>{yours(blind.mine, blind.total)}</small></div>
           <div className="dcard flush">
             {blind.scans.length === 0 ? <div className="srow"><div className="m"><b>Todavía no escaneaste</b><small>El lector suma con Enter.</small></div></div> : blind.scans.map((scan) => {
@@ -371,7 +371,7 @@ export function StockCountScreen() {
               return (
                 <div className="srow" key={scan.id}>
                   <span className="t">{formatArTime(scan.createdAt)}</span>
-                  <div className="m"><b>{copy.title}</b><small>{copy.detail}</small></div>
+                  <div className="m"><b data-ph-mask={copy.title.includes('IMEI') || undefined}>{copy.title}</b><small data-ph-mask={copy.detail.includes('IMEI') || undefined}>{copy.detail}</small></div>
                   <span className="spill cst" style={{ ['--pc' as string]: copy.tone === 'ok' ? '#25A66A' : '#E0A100' }}>{copy.badge}</span>
                 </div>
               );
@@ -411,9 +411,9 @@ export function StockCountScreen() {
               {lines.length === 0 ? <div className="stock-line"><span className="stock-line-empty">Nada en este grupo</span></div> : visibleLines.map((line) => (
                 <div className="stock-line" key={line.key}>
                   <span className="stock-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
-                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? line.imei : `IMEI ${line.imei}`}</small>{!phone && line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
+                  <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small data-ph-mask>{phone ? line.imei : `IMEI ${line.imei}`}</small>{!phone && line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
                   {!phone ? <span className="stock-color">{line.color}</span> : null}
-                  {!phone ? <b className="stock-price">{line.price == null ? 'A definir' : formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
+                  {!phone ? <b data-ph-mask className="stock-price">{line.price == null ? 'A definir' : formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
                   {phone ? <ChevronRight className="stock-line-go" size={16} aria-hidden="true" /> : null}
                 </div>
               ))}

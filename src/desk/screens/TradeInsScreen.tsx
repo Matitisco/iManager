@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { BulkActions, useBulkScope } from '../bulk-actions';
@@ -250,10 +251,10 @@ export function TradeInsScreen() {
                 >
                   <td className="trade-nowrap"><b>#{tradeCode(tradeSource, item.id)}</b><NoticeTag reason={notices.reasonFor(item.id)} /></td>
                   <td className="trade-nowrap">{formatShortDate(item.date)}</td>
-                  <td>{tradeClientLabel(item, clients)}</td>
-                  <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}{item.deviceReceivedImei ? <small>{item.deviceReceivedImei}</small> : null}</td>
+                  <td data-ph-mask>{tradeClientLabel(item, clients)}</td>
+                  <td className="trade-device"><b>{item.deviceReceived || '—'}</b>{tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}{item.deviceReceivedImei ? <small data-ph-mask>{item.deviceReceivedImei}</small> : null}</td>
                   <td className="trade-device">{item.deviceGiven || '—'}</td>
-                  <td className="r trade-nowrap"><b>{money.show(item.takeValue, item.currency)}</b><small>Dif. {money.show(item.differencePaid, item.currency)}</small></td>
+                  <td className="r trade-nowrap"><b data-ph-mask>{money.show(item.takeValue, item.currency)}</b><small>Dif. <ReplayValue>{money.show(item.differencePaid, item.currency)}</ReplayValue></small></td>
                   <td>
                     {item.status ? <Pill status={isVoidRow(item) ? 'ANULADA' : item.status} kind="TRADE_IN_STATUS" /> : '—'}
                     {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
@@ -340,9 +341,9 @@ function TradeCard({ item, code, client, take, difference }: {
       </span>
       <b>Recibido: {item.deviceReceived || '—'}</b>
       {tradeQuality(item.grade) ? <small>Calidad {qualityDetail(tradeQuality(item.grade))}</small> : null}
-      {item.deviceReceivedImei ? <small>IMEI {item.deviceReceivedImei}</small> : null}
-      <span className="sale-bot"><span>{client}</span><b>{take}</b></span>
-      <span className="sale-bot"><span>Entrega: {item.deviceGiven || '—'}</span><b>dif. {difference}</b></span>
+      {item.deviceReceivedImei ? <small>IMEI <ReplayValue>{item.deviceReceivedImei}</ReplayValue></small> : null}
+      <span className="sale-bot"><span data-ph-mask>{client}</span><b data-ph-mask>{take}</b></span>
+      <span className="sale-bot"><span>Entrega: {item.deviceGiven || '—'}</span><b>dif. <ReplayValue>{difference}</ReplayValue></b></span>
       {item.confirmationStatus === 'PENDING' ? <small className="trade-confirmation pending">Pendiente de confirmación</small> : null}
       {item.confirmationStatus === 'CONFIRMED' ? <small className="trade-confirmation">Canje confirmado</small> : null}
       {item.confirmationStatus === 'CANCELLED' ? <small className="trade-confirmation cancelled">{tradeCancellationLabel(item)}</small> : null}

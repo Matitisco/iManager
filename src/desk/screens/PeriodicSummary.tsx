@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useEffect, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -18,20 +19,20 @@ const titles: Record<Breakdown, string> = { sales: 'Ventas', returns: 'Devolucio
 function SaleRow({ item }: { item: SummarySale }) {
   const money = useMoney();
   return <li className={`phone-row periodic-row${item.voided ? ' periodic-void is-void' : ''}`}>
-    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}{!item.voided && item.detail ? ` · ${item.detail}` : ''}</small></div>
-    <div className="periodic-end"><b className="periodic-value">{item.voided ? <s>{money.show(item.amount, item.currency)}</s> : money.show(item.amount, item.currency)}</b>{item.voided ? <span className="spill periodic-danger">Anulado</span> : null}</div>
+    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}<ReplayValue>{!item.voided && item.detail ? ` · ${item.detail}` : ''}</ReplayValue></small></div>
+    <div className="periodic-end"><b data-ph-mask className="periodic-value">{item.voided ? <s>{money.show(item.amount, item.currency)}</s> : money.show(item.amount, item.currency)}</b>{item.voided ? <span className="spill periodic-danger">Anulado</span> : null}</div>
   </li>;
 }
 function ReturnRow({ item }: { item: SummaryReturn }) {
   const money = useMoney();
   return <li className="phone-row periodic-row">
-    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}{item.detail ? ` · ${item.detail}` : ''}</small></div>
-    <div className="periodic-end">{item.amount !== 0 ? <b className="periodic-value">{money.show(item.amount, item.currency)}</b> : <span className={`spill ${item.pending ? 'lime' : 'mid'}`}>{item.pending ? 'En curso' : 'Resuelto'}</span>}</div>
+    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}<ReplayValue>{item.detail ? ` · ${item.detail}` : ''}</ReplayValue></small></div>
+    <div className="periodic-end">{item.amount !== 0 ? <b data-ph-mask className="periodic-value">{money.show(item.amount, item.currency)}</b> : <span className={`spill ${item.pending ? 'lime' : 'mid'}`}>{item.pending ? 'En curso' : 'Resuelto'}</span>}</div>
   </li>;
 }
 function StockRow({ item, full = false }: { item: SummaryStock; full?: boolean }) {
   return <li className="phone-row periodic-row">
-    <div className="periodic-copy"><b>{item.title}</b><small>IMEI {item.imei}{full ? ` · ${summaryDate(item.day)}` : ''}</small></div>
+    <div className="periodic-copy"><b>{item.title}</b><small>IMEI <ReplayValue>{item.imei}</ReplayValue>{full ? ` · ${summaryDate(item.day)}` : ''}</small></div>
     <div className="periodic-end"><span className={`spill ${item.status === 'Falta' ? 'periodic-danger' : 'mid'}`}>{item.status}</span></div>
   </li>;
 }
@@ -81,7 +82,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const selectPeriod = (value: string) => { setBreakdown(null); setSelection(value); const params = hashParams(); params.set('period', value); window.location.hash = `#/analisis/resumen-periodico?${params}`; };
   const periodLabel = data ? `${data.period.from.slice(8)} al ${summaryDate(data.period.to)}` : '';
   const card = (kind: Breakdown, value: ReactNode, items: ReactNode[], note?: string) => <section className="dcard periodic-card" aria-label={titles[kind]}>
-    <div className="dch"><h3>{titles[kind]}</h3>{items.length ? <button type="button" className="wlink periodic-more" aria-haspopup="dialog" aria-label={`Ver todas las ${kind === 'stock' ? 'diferencias de stock' : titles[kind].toLowerCase()} (${items.length})`} onClick={() => setBreakdown(kind)}>Ver todas ({items.length})</button> : null}</div><div className="periodic-total">{value}</div>
+    <div className="dch"><h3>{titles[kind]}</h3>{items.length ? <button type="button" className="wlink periodic-more" aria-haspopup="dialog" aria-label={`Ver todas las ${kind === 'stock' ? 'diferencias de stock' : titles[kind].toLowerCase()} (${items.length})`} onClick={() => setBreakdown(kind)}>Ver todas ({items.length})</button> : null}</div><div data-ph-mask={kind !== 'stock' || undefined} className="periodic-total">{value}</div>
     {items.length > 0 && note ? <p className="periodic-note">{note}</p> : null}
     {items.length ? <ul className="phone-rows periodic-list">{items.slice(0, 3)}</ul> : null}
   </section>;

@@ -338,7 +338,7 @@ export function SettingsScreen() {
           const label = member.user.displayName || member.user.email || 'Miembro';
           return <button className="member" type="button" key={member.id} data-testid={`settings-member-${member.id}`} disabled={!editable} onClick={() => openMember(member.id)}>
             <div className={`av-c ${['b', 'p', 'g'][index % 3]}`}>{initials(label)}</div>
-            <div className="info"><div className="name">{label}</div><div className="role">{member.user.email || 'Sin email'}</div></div>
+            <div className="info"><div data-ph-mask={!member.user.displayName || undefined} className="name">{label}</div><div data-ph-mask className="role">{member.user.email || 'Sin email'}</div></div>
             {member.userId === me?.id ? <span className="you-badge">vos</span> : null}
             <span className={`spill ${member.role === 'OWNER' ? 'off' : ''}`}>{ROLE_LABEL[member.role]}</span>
             <span className="chev">›</span>
@@ -346,7 +346,7 @@ export function SettingsScreen() {
         })}
         {invites.map(invite => <div className="team-invitation" key={invite.id} data-testid="settings-invites">
           <span className="team-link-icon"><Link2 size={16} /></span>
-          <div className="info"><b>{invite.email || `Link para ${ROLE_LABEL[invite.role]}`}</b><small>{ROLE_LABEL[invite.role]} · vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
+          <div className="info"><b data-ph-mask={Boolean(invite.email) || undefined}>{invite.email || `Link para ${ROLE_LABEL[invite.role]}`}</b><small>{ROLE_LABEL[invite.role]} · vence el {new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'short' }).format(new Date(invite.expiresAt))}</small></div>
           <div className="team-invite-actions"><button type="button" aria-label="Copiar link" disabled={!invite.inviteUrl} onClick={() => { void copyLink(invite.inviteUrl); }}><Link2 size={17} /></button><a onClick={() => track('invite_shared', { channel: 'whatsapp' })} aria-label="Compartir por WhatsApp" href={`https://wa.me/?text=${encodeURIComponent(`Sumate al equipo de ${store?.name}: ${invite.inviteUrl}`)}`} target="_blank" rel="noreferrer"><MessageCircle size={17} /></a>{appSession?.membership?.role === 'OWNER' || invite.role === 'STAFF' ? <button className="cancel" type="button" aria-label="Cancelar invitación" disabled={busyInvite === invite.id} onClick={() => setRevokeId(invite.id)}><X size={17} /></button> : null}</div>
         </div>)}
         <button className="invite" type="button" data-testid="settings-invite" onClick={() => open({ type: 'invite' })}>+ Invitar al equipo</button>

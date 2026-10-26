@@ -164,7 +164,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           <div className="kv"><span>Calidad</span><b>{displayQuality(archivedReceived.condition, archivedReceived.grade) || tradeQuality(trade.grade) || '—'}</b></div>
           <div className="kv"><span>Capacidad</span><b>{archivedReceived.capacity || '—'}</b></div>
           <div className="kv"><span>Estado técnico</span><b><Pill status={archivedReceived.status} kind="TRADE_IN_STATUS" /></b></div>
-          <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
+          <div className="kv"><span>Valor tomado</span><b data-ph-mask>{money.show(trade.takeValue, trade.currency)}</b></div>
           <div className="kv"><span>Fecha</span><b>{formatShortDate(trade.date)}</b></div>
         </> : loadedOperation ? <div className="wempty">El equipo ya no está en stock activo.</div> : <ListSkeleton variant="lines" rows={3} />}
       </Sheet>
@@ -258,12 +258,12 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       : trade.confirmationStatus === 'CANCELLED' ? tradeCancellationLabel(trade) : 'Canje confirmado';
     const quality = tradeQuality(trade.grade);
     return (
-      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} onClose={close} busy={busy} className="cj-sheet trade-detail-sheet" footer={detailFooter}>
+      <Sheet title={`${tradeCode(tradeIns, trade.id)} · ${tradeClientLabel(trade, clients)}`} maskTitle onClose={close} busy={busy} className="cj-sheet trade-detail-sheet" footer={detailFooter}>
         {error && <div className="ferr">{error}</div>}{detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
         {trade.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulado</b><small>{trade.voidedBy ? `por ${trade.voidedBy}` : 'Este canje está anulado'}{trade.voidReason ? ` · ${trade.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
         <div className="cjd-meta"><time>{formatShortDate(trade.date)}</time><span className={`spill ${cancelled ? 'no' : trade.confirmationStatus === 'PENDING' ? 'mid' : 'ok'}`}>{confirmation}</span></div>
         <div className="tracking-summary cjd-summary">
-          <div className="dhero"><div className="eb">Diferencia</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
+          <div className="dhero"><div className="eb">Diferencia</div><div data-ph-mask className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
           <RecordHistoryButton entityType="trade" entityId={trade.id} label={tradeCode(tradeIns, trade.id)} />
         </div>
         <section className="cjd-technical" aria-label="Estado técnico">
@@ -276,16 +276,16 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
           <section className="cjd-group" aria-label="Equipo recibido">
             <div className="kv cjd-device"><span>Equipo recibido</span><b>{trade.deviceReceived || '—'}</b></div>
             <div className="kv"><span>Calidad</span><b>{quality ? qualityDetail(quality) : '—'}</b></div>
-            {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b>{trade.deviceReceivedImei}</b></div> : null}
-            <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
+            {trade.deviceReceivedImei ? <div className="kv"><span>IMEI recibido</span><b data-ph-mask>{trade.deviceReceivedImei}</b></div> : null}
+            <div className="kv"><span>Valor tomado</span><b data-ph-mask>{money.show(trade.takeValue, trade.currency)}</b></div>
           </section>
           <section className="cjd-group" aria-label="Equipo entregado">
             <div className="kv cjd-device"><span>Equipo entregado</span><b>{trade.deviceGiven || trade.draftDeviceLabel || '—'}</b></div>
-            {trade.confirmationStatus === 'CONFIRMED' ? <div className="kv"><span>Precio de salida</span><b>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div> : null}
+            {trade.confirmationStatus === 'CONFIRMED' ? <div className="kv"><span>Precio de salida</span><b data-ph-mask>{linkedSale ? money.show(linkedSale.amount, linkedSale.amountCurrency) : '—'}</b></div> : null}
           </section>
         </div>
         {trade.confirmationStatus === 'CONFIRMED' ? <section className="cjd-settlement" aria-label="Importes del canje">
-          <div className="kv"><span>Deuda</span><b>{money.show(displayedDue, trade.currency)}</b></div>
+          <div className="kv"><span>Deuda</span><b data-ph-mask>{money.show(displayedDue, trade.currency)}</b></div>
         </section> : null}
       </Sheet>
     );
@@ -296,19 +296,19 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
   const next = index >= 0 && index < flow.length - 1 ? flow[index + 1] : null;
   const code = tradeCode(tradeIns, trade.id);
   return (
-    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next && !trade.voidedAt ? <SheetActions>
+    <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} maskTitle subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next && !trade.voidedAt ? <SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={trade.status === 'APROBADO' ? close : () => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>{trade.status === 'APROBADO' ? 'Después' : 'Rechazar'}</button>
       <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
     </SheetActions> : <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">Diferencia a cobrar</div><div className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
+        <div className="dhero"><div className="eb">Diferencia a cobrar</div><div data-ph-mask className="big">{money.show(trade.differencePaid, trade.currency)}</div></div>
         <RecordHistoryButton entityType="trade" entityId={trade.id} label={code} />
       </div>
       <div className="kv"><span>Recibido</span><b>{trade.deviceReceived}</b></div>
       <div className="kv"><span>Calidad</span><b>{tradeQuality(trade.grade) ? qualityDetail(tradeQuality(trade.grade)) : '—'}</b></div>
-      <div className="kv"><span>Valor tomado</span><b>{money.show(trade.takeValue, trade.currency)}</b></div>
+      <div className="kv"><span>Valor tomado</span><b data-ph-mask>{money.show(trade.takeValue, trade.currency)}</b></div>
       <div className="kv"><span>Entrega</span><b>{trade.deviceGiven}</b></div>
       <div className="kv"><span>Estado</span><b><Pill status={trade.voidedAt || trade.confirmationStatus === 'CANCELLED' ? 'ANULADA' : trade.status} kind="TRADE_IN_STATUS" /></b></div>
     </Sheet>

@@ -1,3 +1,4 @@
+import { ReplayHistoryValue, ReplayValue } from '../replay-privacy';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Box } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
@@ -34,7 +35,7 @@ export function SupplierPurchases({ purchases, seeCosts, onSelect }: { purchases
     {purchases.map(purchase => <button key={purchase.id} className="supplier-item sup-buy" type="button" onClick={() => onSelect(purchase)}>
       <span className="supplier-item-icon" aria-hidden="true"><Box size={16} /></span>
       <span className="supplier-item-name">{purchaseLabel(purchase)}</span>
-      <span className="supplier-item-cost">{total(purchase)}<i aria-hidden="true">›</i></span>
+      <span className="supplier-item-cost"><ReplayValue>{total(purchase)}</ReplayValue><i aria-hidden="true">›</i></span>
       <span className="supplier-item-imei">{deviceCount(purchase.devices)}{purchase.name ? ` · ${formatShortDate(purchase.purchasedAt)}` : ''}{purchase.notes ? ` · ${purchase.notes}` : ''}</span>
       {purchase.problemCount > 0 ? <span className="supplier-item-status warn">{purchase.problemCount} con problemas</span> : null}
     </button>)}
@@ -67,7 +68,7 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
 
   const purchasedAt = purchase.purchasedAt || info.purchasedAt;
   return <SupplierPurchaseSheet title={purchase.name || info.name || (purchasedAt ? `Compra del ${formatShortDate(purchasedAt)}` : 'Compra')} onClose={onClose}>
-    <div className="sup-purchase-summary">{info.devices != null ? <span>{deviceCount(info.devices)}</span> : null}{total ? <strong>{total}</strong> : null}</div>
+    <div className="sup-purchase-summary">{info.devices != null ? <span>{deviceCount(info.devices)}</span> : null}{total ? <strong data-ph-mask>{total}</strong> : null}</div>
     {!detail && !failed ? <div className="supplier-purchase sup-card supplier-items" data-testid="supplier-purchase-loading" role="status" aria-label="Cargando" aria-busy="true">
       {Array.from({ length: Math.min(purchase.devices ?? 5, 10) }, (_, index) => <div className="supplier-item" key={index} aria-hidden="true">
         <span className="supplier-item-icon"><Skeleton style={{ width: 16 }} /></span>
@@ -81,8 +82,8 @@ export function SupplierPurchaseDetail({ supplierId, purchase, seeCosts, onClose
       {detail.items.map(item => <button key={item.id} className="supplier-item" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
         <span className="supplier-item-icon" aria-hidden="true"><DeskIcon name="list" size={16} /></span>
         <span className="supplier-item-name">{equipmentTitle(item.model, item.capacity)}</span>
-        {seeCosts && item.cost != null ? <span className="supplier-item-cost">{money.show(item.cost, item.currency)}</span> : null}
-        {item.imei ? <span className="supplier-item-imei">IMEI {item.imei}</span> : null}
+        {seeCosts && item.cost != null ? <span data-ph-mask className="supplier-item-cost">{money.show(item.cost, item.currency)}</span> : null}
+        {item.imei ? <span className="supplier-item-imei">IMEI <ReplayValue>{item.imei}</ReplayValue></span> : null}
         {item.problemLabel ? <span className="supplier-item-status warn">{item.problemLabel}</span> : null}
       </button>)}
     </div> : null}
@@ -125,9 +126,9 @@ export function SupplierHistorySheet({ supplierId, onClose }: { supplierId: stri
     {!loading && !error && !events.length ? <div className="wempty">Sin movimientos</div> : null}
     {events.length ? <ol className="record-history-timeline">
       {events.map(event => <li key={event.id}>
-        <b>{historyRecordAction(event) || event.title}</b>
+        <b data-ph-mask={event.entityType === 'client' || undefined}>{historyRecordAction(event) || event.title}</b>
         <p className="record-history-meta"><time dateTime={event.createdAt}>{formatArDateTime(event.createdAt)}</time> · {event.actorName || 'Sistema'}</p>
-        {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}><span>{change.label}: </span>{change.before ? <>{change.before} → </> : null}{change.after || '—'}</p>)}
+        {historyDetailRows(event).map((change, index) => <p className="record-history-change" key={`${change.label}-${index}`}><span>{change.label}: </span>{change.before ? <>{change.before} → </> : null}<ReplayHistoryValue label={change.label} entityType={event.entityType}>{change.after || '—'}</ReplayHistoryValue></p>)}
         {!historyDetailRows(event).length && event.detail?.trim() ? <p className="record-history-change">{event.detail}</p> : null}
         {event.reason ? <p className="record-history-change">{event.reason}</p> : null}
       </li>)}

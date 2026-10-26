@@ -1,3 +1,4 @@
+import { ReplayValue } from '../desk/replay-privacy';
 import { useEffect, useRef, useState } from 'react';
 
 export type PreviewColumn = { key: string; label: string };
@@ -135,9 +136,9 @@ export function ImportPreviewList({
                       ? <TableRow row={row} columns={columns} currency={currency} />
                       : <CardRow row={row} columns={columns} currency={currency} kind={equipment ? 'equipment' : sales ? 'sales' : clients ? 'clients' : 'generic'} />}
                   </div>
-                  {errorHeight > 0 && <p className="px-3 text-xs text-red-700 truncate" style={{ height: errorHeight, margin: 0, lineHeight: '28px' }} title={errors?.[index] ?? undefined}>{errors?.[index]}</p>}
+                  {errorHeight > 0 && <p data-ph-mask className="px-3 text-xs text-red-700 truncate" style={{ height: errorHeight, margin: 0, lineHeight: '28px' }} title={errors?.[index] ?? undefined}>{errors?.[index]}</p>}
                   {onEdit && <button type="button" onClick={() => onEdit(index)} title={errors?.[index] ?? undefined} data-testid={`import-edit-row-${index}`} style={{ minHeight: 44 }} className="w-full px-3 flex items-center justify-between gap-2 text-xs font-medium text-gray-700 text-left">
-                    <span className={`truncate ${errors?.[index] ? 'text-red-700' : ''}`}>{errors?.[index] || <>{excluded?.has(index) ? 'Excluida · ' : ''}{review?.[index]?.dudas.length ? `${review[index].dudas.length} ${review[index].dudas.length === 1 ? 'duda' : 'dudas'} · ` : ''}Cantidad: {row.quantity || '1'}{row.imei ? ` · IMEI ${row.imei}` : ''}{row.serial ? ` · Serie ${row.serial}` : ''}</>}</span>
+                    <span className={`truncate ${errors?.[index] ? 'text-red-700' : ''}`}>{errors?.[index] ? <ReplayValue>{errors[index]}</ReplayValue> : <>{excluded?.has(index) ? 'Excluida · ' : ''}{review?.[index]?.dudas.length ? `${review[index].dudas.length} ${review[index].dudas.length === 1 ? 'duda' : 'dudas'} · ` : ''}Cantidad: {row.quantity || '1'}<ReplayValue>{row.imei ? ` · IMEI ${row.imei}` : ''}</ReplayValue><ReplayValue>{row.serial ? ` · Serie ${row.serial}` : ''}</ReplayValue></>}</span>
                     <span className="shrink-0 underline">Revisar / editar</span>
                   </button>}
                 </div>
@@ -154,7 +155,7 @@ function TableRow({ row, columns, currency }: { row: Record<string, string>; col
   return (
     <div className="grid gap-2 h-full items-center px-3 text-sm" style={{ gridTemplateColumns: template(columns) }}>
       {columns.map((column) => (
-        <span key={column.key} className={`truncate ${column.key === 'model' || column.key === 'price' || column.key === 'clientName' || column.key === 'name' || column.key === 'amount' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+        <span data-ph-mask key={column.key} className={`truncate ${column.key === 'model' || column.key === 'price' || column.key === 'clientName' || column.key === 'name' || column.key === 'amount' ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
           {display(row, column.key, currency) || '—'}
         </span>
       ))}
@@ -179,10 +180,10 @@ function CardRow({
     return (
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
-          <p className="text-sm font-medium text-gray-900 shrink-0">{row.price?.trim() ? [price, row.currency || currency].filter(Boolean).join(' ') : 'A definir'}</p>
+          <p data-ph-mask className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
+          <p data-ph-mask className="text-sm font-medium text-gray-900 shrink-0">{row.price?.trim() ? [price, row.currency || currency].filter(Boolean).join(' ') : 'A definir'}</p>
         </div>
-        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p data-ph-mask title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }
@@ -192,10 +193,10 @@ function CardRow({
     return (
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-medium text-gray-900 truncate">{row.clientName || deviceLine(row) || '—'}</p>
-          <p className="text-sm font-medium text-gray-900 shrink-0">{price || '—'}</p>
+          <p data-ph-mask className="text-sm font-medium text-gray-900 truncate">{row.clientName || deviceLine(row) || '—'}</p>
+          <p data-ph-mask className="text-sm font-medium text-gray-900 shrink-0">{price || '—'}</p>
         </div>
-        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p data-ph-mask title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }
@@ -206,16 +207,16 @@ function CardRow({
       .join(' · ');
     return (
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
-        <p className="text-sm font-medium text-gray-900 truncate">{row.name || '—'}</p>
-        <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
+        <p data-ph-mask className="text-sm font-medium text-gray-900 truncate">{row.name || '—'}</p>
+        <p data-ph-mask title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
     );
   }
   const [primary, ...rest] = columns;
   return (
     <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
-      <p className="text-sm font-medium text-gray-900 truncate">{primary ? display(row, primary.key, currency) || '—' : '—'}</p>
-      <p className="text-xs text-gray-500 truncate">
+      <p data-ph-mask className="text-sm font-medium text-gray-900 truncate">{primary ? display(row, primary.key, currency) || '—' : '—'}</p>
+      <p data-ph-mask className="text-xs text-gray-500 truncate">
         {rest.map((column) => display(row, column.key, currency)).filter(Boolean).join(' · ') || '—'}
       </p>
     </div>

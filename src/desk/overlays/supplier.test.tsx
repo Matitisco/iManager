@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -203,7 +204,7 @@ describe('ficha de proveedor', () => {
     expect(screen.queryByText(/Sin IMEI|Sin compra/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     const purchase = await screen.findByTestId('supplier-purchase-detail');
-    expect(within(purchase).getByText('IMEI 356789104523871')).toBeInTheDocument();
+    expect(within(purchase).getByText(textContent('IMEI 356789104523871'))).toBeInTheDocument();
     expect(within(purchase).getByText('En revisión')).toBeInTheDocument();
     expect(fetchSupplierPurchase).toHaveBeenCalledWith(ctx.user, 'supplier', 'purchase');
     expect(purchase.closest('.ov')).toHaveClass('center', 'subov');
@@ -255,7 +256,7 @@ describe('ficha de proveedor', () => {
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     await screen.findByTestId('supplier-purchase-detail');
     expect(!!screen.queryByText('US$ 900')).toBe(allowed);
-    expect(screen.getByText('IMEI 356789104523871')).toBeInTheDocument();
+    expect(screen.getByText(textContent('IMEI 356789104523871'))).toBeInTheDocument();
     expect(screen.queryByText('Sin IMEI')).not.toBeInTheDocument();
   });
   it('shows missing contact and a single empty purchase row without zero investment', async () => {

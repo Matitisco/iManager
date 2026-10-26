@@ -235,8 +235,8 @@ export function BatchLoad() {
               </>
             ) : null}
             <dl className="scan-kv">
-              <div><dt>Precio de venta</dt><dd>{editing ? <input aria-label="Precio de la serie" className={!parseMoney(shared.price) ? 'need' : ''} inputMode="numeric" value={shared.price ? `$ ${shared.price}` : '$ 0'} onChange={(event) => setShared((current) => ({ ...current, price: formatInputMoney(parseMoney(event.target.value)) }))} /> : (parseMoney(shared.price) ? `$ ${shared.price}` : '—')}</dd></div>
-              {seeCosts ? <div><dt>Costo</dt><dd>{editing ? <input aria-label="Costo de la serie" inputMode="numeric" value={shared.cost ? `$ ${shared.cost}` : '$ 0'} onChange={(event) => setShared((current) => ({ ...current, cost: formatInputMoney(parseMoney(event.target.value)) }))} /> : (parseMoney(shared.cost) ? `$ ${shared.cost}` : '$ 0')}</dd></div> : null}
+              <div><dt>Precio de venta</dt><dd data-ph-mask>{editing ? <input aria-label="Precio de la serie" className={!parseMoney(shared.price) ? 'need' : ''} inputMode="numeric" value={shared.price ? `$ ${shared.price}` : '$ 0'} onChange={(event) => setShared((current) => ({ ...current, price: formatInputMoney(parseMoney(event.target.value)) }))} /> : (parseMoney(shared.price) ? `$ ${shared.price}` : '—')}</dd></div>
+              {seeCosts ? <div><dt>Costo</dt><dd data-ph-mask>{editing ? <input aria-label="Costo de la serie" inputMode="numeric" value={shared.cost ? `$ ${shared.cost}` : '$ 0'} onChange={(event) => setShared((current) => ({ ...current, cost: formatInputMoney(parseMoney(event.target.value)) }))} /> : (parseMoney(shared.cost) ? `$ ${shared.cost}` : '$ 0')}</dd></div> : null}
               <div><dt>Estado</dt><dd>{statusLabel(shared.status)}</dd></div>
             </dl>
             {missingShared ? <p className="scan-miss"><i />Falta el modelo o el precio para guardar</p> : null}
@@ -272,7 +272,7 @@ export function BatchLoad() {
                   <button type="button" className="batch-row-main" onClick={() => setRows((current) => current.map((item) => item.id === row.id ? { ...item, open: !item.open } : item))}>
                     <span className="batch-n">{row.order}</span>
                     <span>
-                      <b>{formatImei(row.imei)}</b>
+                      <b data-ph-mask>{formatImei(row.imei)}</b>
                       <small className={klass.tone}>{klass.tone === 'ok' ? '✓ ' : klass.tone === 'bad' ? '' : '⚠ '}{summary}</small>
                     </span>
                     <span className="batch-chevron" aria-hidden="true">{row.open ? '⌃' : '›'}</span>
@@ -281,7 +281,7 @@ export function BatchLoad() {
                   {row.open ? (
                     <div className="batch-edit">
                       {row.partNumber ? <div className="scan-kv"><div><dt>Part number</dt><dd>{row.partNumber}</dd></div></div> : null}
-                      {row.serial ? <div className="scan-kv"><div><dt>Serie</dt><dd>{row.serial}</dd></div></div> : null}
+                      {row.serial ? <div className="scan-kv"><div><dt>Serie</dt><dd data-ph-mask>{row.serial}</dd></div></div> : null}
                       <div className="frow">
                         <Field label="Color"><input aria-label={`Color ${row.order}`} value={values.color} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, color: event.target.value } : item))} /></Field>
                         <Field label="Batería %"><input aria-label={`Batería ${row.order}`} inputMode="numeric" value={values.battery} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, battery: event.target.value.replace(/\D/g, '').slice(0, 3) } : item))} /></Field>

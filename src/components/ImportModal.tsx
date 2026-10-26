@@ -1,3 +1,4 @@
+import { ReplayValue } from '../desk/replay-privacy';
 import { DeskSelect } from '../desk/select';
 import { toActionMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
@@ -391,7 +392,7 @@ export const ImportModal: React.FC<Props> = ({
         {excluded.size > 0 && <p className="text-sm text-gray-600">{excluded.size} filas excluidas · <button type="button" className="underline" onClick={() => setExcluded(new Set())}>Restaurar filas</button></p>}
         {editing !== null && rows[editing] && <fieldset ref={editorRef} className="rounded-xl border border-gray-200 p-3 space-y-3" data-testid="import-row-editor">
           <legend className="text-sm font-bold px-1">Revisar equipo · línea {review[editing]?.line}</legend>
-          <p className="text-xs text-gray-600 whitespace-pre-wrap break-words">{review[editing]?.original}</p>
+          <p data-ph-mask className="text-xs text-gray-600 whitespace-pre-wrap break-words">{review[editing]?.original}</p>
           {review[editing]?.dudas.map((duda, index) => <p key={index} className="text-xs text-amber-900">{duda}</p>)}
           <div className="grid grid-cols-2 gap-3">
             {[...fields.filter((field) => !['grade', 'status'].includes(field.key)), { key: 'currency', label: 'Moneda' }, { key: 'serial', label: 'Serie' }, { key: 'quantity', label: 'Cantidad' }].map((field) => <label key={field.key} className="text-xs font-medium text-gray-700 min-w-0">{field.label}
@@ -410,7 +411,7 @@ export const ImportModal: React.FC<Props> = ({
       </div>}
       {step === 'summary' && textPreview && discarded.length > 0 && <details className="mt-3 rounded-xl border border-gray-200 p-3" data-testid="import-discarded">
         <summary className="text-sm font-medium cursor-pointer">{discarded.length} {discarded.length === 1 ? 'línea descartada' : 'líneas descartadas'}</summary>
-        <ul className="mt-2 space-y-2">{discarded.map((item) => <li key={item.line} className="text-xs text-gray-600 break-words">Línea {item.line}: {item.original} — {item.reason}</li>)}</ul>
+        <ul className="mt-2 space-y-2">{discarded.map((item) => <li key={item.line} className="text-xs text-gray-600 break-words">Línea {item.line}: <ReplayValue>{item.original}</ReplayValue> — {item.reason}</li>)}</ul>
       </details>}
 
       {step === 'adjust' && active && (
@@ -458,7 +459,7 @@ export const ImportModal: React.FC<Props> = ({
                     : { background: '#fff', color: '#374151', border: '1px solid #e5e7eb' }}
                 >
                   <span className="w-6 shrink-0 font-mono text-xs opacity-70">{index + 1}</span>
-                  <span className="truncate">{row.filter(Boolean).slice(0, 5).join(' · ') || 'fila vacía'}</span>
+                  <span data-ph-mask={selectedRow ? undefined : true} className="truncate">{row.filter(Boolean).slice(0, 5).join(' · ') || 'fila vacía'}</span>
                 </button>
               );
             })}

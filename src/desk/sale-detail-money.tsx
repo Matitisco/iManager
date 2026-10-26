@@ -1,3 +1,4 @@
+import { ReplayValue } from './replay-privacy';
 import { formatMoney } from './format';
 import { projectAmount, type MoneyCurrency } from './money';
 
@@ -18,5 +19,5 @@ export function SaleDetailMoney({ amount, source, display, secondary, rate, pref
   amount: number; source: MoneyCurrency; display: MoneyCurrency; secondary: MoneyCurrency | null; rate: number | null; prefix?: string;
 }) {
   const values = saleDetailAmounts(amount, source, display, secondary, rate);
-  return <span className="vsm-value"><b>{prefix}{values.primary}</b>{values.secondary ? <small>≈ {values.secondary}</small> : null}</span>;
+  return <span className="vsm-value"><b>{prefix}<ReplayValue>{values.primary}</ReplayValue></b>{values.secondary ? <small>≈ <ReplayValue>{values.secondary}</ReplayValue></small> : null}</span>;
 }

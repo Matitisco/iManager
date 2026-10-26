@@ -170,7 +170,7 @@ export function SupplierDetail({ id }: { id: string }) {
           {detail.deletedAt ? <span className="spill mid">Archivado</span> : null}
           {investmentFirst ? <div className="tracking-summary">
             <div className="dhero"><div className="eb">Total invertido</div><div className="big sup-detail-totals">
-              {detail.costTotals?.map(total => <span className="sup-detail-amount" key={total.currency}>{money.show(total.totalCost, total.currency)}</span>)}
+              {detail.costTotals?.map(total => <span data-ph-mask className="sup-detail-amount" key={total.currency}>{money.show(total.totalCost, total.currency)}</span>)}
             </div></div>
             {historyButton}
           </div> : null}

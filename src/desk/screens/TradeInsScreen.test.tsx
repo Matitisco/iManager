@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PointerEventsCheckLevel } from '@testing-library/user-event';
@@ -102,7 +103,7 @@ describe('Trade-ins table', () => {
     expect(screen.queryByRole('button', { name: 'Rechazado' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Peritaje téc.' })).not.toBeInTheDocument();
     expect(screen.getByText('Entregado 1')).toBeInTheDocument();
-    expect(screen.getByText('Dif. $ -500')).toBeInTheDocument();
+    expect(screen.getByText(textContent('Dif. $ -500'))).toBeInTheDocument();
     expect(screen.getByText('Consumidor final')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Sin estado' }));
     expect(rows()).toHaveLength(1);

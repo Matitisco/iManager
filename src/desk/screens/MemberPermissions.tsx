@@ -67,14 +67,14 @@ export function MemberPermissions({ member, onBack, onSaved, onRemoved, draft = 
   };
   return <div className={`dscreen team-permissions${phone && saveBar ? ' has-save' : ''}`}>
     {phone ? <BackButton onClick={onBack} /> : <button type="button" className="team-back" onClick={onBack}>‹ Equipo</button>}
-    <div className="team-member-head"><div className="av-c">{initials(name)}</div><PageHead title={name} action={phone ? undefined : saveBar} /></div>
+    <div className="team-member-head"><div className="av-c">{initials(name)}</div><PageHead maskTitle={!member.user.displayName} title={name} action={phone ? undefined : saveBar} /></div>
     <div className="team-profiles" role="group" aria-label="Perfiles rápidos">{[...Object.keys(PERMISSION_PROFILES), 'Personalizado'].map(label => <button type="button" key={label} className={`gchip${profile === label ? ' on' : ''}`} aria-pressed={profile === label} disabled={locked || busy || label === 'Personalizado'} onClick={() => setSections([...PERMISSION_PROFILES[label as keyof typeof PERMISSION_PROFILES]])}>{label}</button>)}</div>
     <div className="team-perm-columns"><div className="card">{ORDER.slice(0, 6).map(row)}</div><div className="card">{ORDER.slice(6).map(row)}</div></div>
     <div className="card team-sensitive"><div className="perm team-perm"><span className="team-perm-icon"><DeskIcon name="lock" size={19} /></span><div><b>Acciones sensibles</b><small>Anular, borrar, cambiar precio o costo</small></div><button type="button" className={`sw${sensitive ? ' on' : ''}`} role="switch" aria-checked={sensitive} aria-label="Acciones sensibles" disabled={locked || busy} onClick={() => setSensitive(current => !current)}><i /></button></div></div>
     {locked ? <p className="perm-note">{member.role === 'OWNER' ? 'El propietario conserva el acceso a todas las secciones.' : 'Solo el propietario puede editar estos permisos.'}</p> : null}
     {!draft && !locked ? <button type="button" className="team-remove" disabled={busy} onClick={() => { setError(''); setConfirmRemove(true); }}>Quitar del equipo</button> : null}
     {error ? <div className="ferr" role="alert">{error}</div> : null}
-    {confirmRemove ? <div className="ov center"><div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-member-title"><h2 id="remove-member-title">¿Quitar a {name} del equipo?</h2><p>Va a perder el acceso a la tienda.</p><Actions primary="Quitar del equipo" secondary="Volver" danger busy={busy} onPrimary={() => { void remove(); }} onSecondary={() => setConfirmRemove(false)} />{error ? <p role="alert" className="ferr">{error}</p> : null}</div></div> : null}
+    {confirmRemove ? <div className="ov center"><div className="dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-member-title"><h2 id="remove-member-title">¿Quitar a <span data-ph-mask={!member.user.displayName || undefined}>{name}</span> del equipo?</h2><p>Va a perder el acceso a la tienda.</p><Actions primary="Quitar del equipo" secondary="Volver" danger busy={busy} onPrimary={() => { void remove(); }} onSecondary={() => setConfirmRemove(false)} />{error ? <p role="alert" className="ferr">{error}</p> : null}</div></div> : null}
     {phone && saveBar ? <div className="phone-save" data-testid="permissions-save">{saveBar}</div> : null}
   </div>;
 }

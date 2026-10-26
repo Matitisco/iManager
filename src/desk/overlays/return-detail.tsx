@@ -5,7 +5,7 @@ import { Pill } from '../ui';
 import './return-detail.css';
 
 function Row({ label, children, testId }: { label: string; children: ReactNode; testId?: string }) {
-  return <div className="kv" data-testid={testId}><span>{label}</span><b>{children}</b></div>;
+  return <div className="kv" data-testid={testId}><span>{label}</span><b data-ph-mask={label === 'IMEI' || undefined}>{children}</b></div>;
 }
 
 function Text({ label, children }: { label: string; children: string }) {
@@ -18,7 +18,7 @@ export function ReturnDetailContent({ current, historyButton }: { current: Retur
 
   return <>
     <div className="tracking-summary rcl-identity">
-      <div><h4>{current.deviceLabel || 'Sin equipo'}</h4><p>{current.clientName || 'Sin cliente'}</p></div>
+      <div><h4>{current.deviceLabel || 'Sin equipo'}</h4><p data-ph-mask>{current.clientName || 'Sin cliente'}</p></div>
       {historyButton}
     </div>
     <div className="rcl-rows" data-testid="return-detail">

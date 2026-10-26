@@ -140,13 +140,13 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
   );
 }
 
-export function PageHead({ title, action, back }: { title: string; action?: React.ReactNode; back?: () => void }) {
+export function PageHead({ title, action, back, maskTitle = false }: { maskTitle?: boolean; title: string; action?: React.ReactNode; back?: () => void }) {
   return (
     <>
       <div className="whead">
         {back ? <BackButton onClick={back} /> : null}
         <div className="whead-copy">
-          <h1>{title}</h1>
+          <h1 data-ph-mask={maskTitle || undefined}>{title}</h1>
         </div>
         {action}
       </div>
@@ -402,7 +402,7 @@ function isSheetFooter(node: React.ReactNode) {
   return typeof className === 'string' && className.split(/\s+/).includes('sacts');
 }
 
-export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer, variant = 'default', overlayClassName, mobileBack = false }: { title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string; variant?: 'default' | 'detail'; overlayClassName?: string; mobileBack?: boolean }) {
+export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy = false, wide, className, footer, variant = 'default', overlayClassName, mobileBack = false, maskTitle = false, maskSubtitle = false }: { maskTitle?: boolean; maskSubtitle?: boolean; title: string; titleAccessory?: React.ReactNode; subtitle?: string; children: React.ReactNode; footer?: React.ReactNode; onClose: () => void; busy?: boolean; wide?: boolean; className?: string; variant?: 'default' | 'detail'; overlayClassName?: string; mobileBack?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const modal = useModalLayer({ ref, onClose, busy });
   const phone = usePhoneLayout();
@@ -418,9 +418,9 @@ export function Sheet({ title, titleAccessory, subtitle, children, onClose, busy
         <div className="sheet-h">
           {phone && mobileBack ? <BackButton onClick={modal.requestClose} /> : null}
           <div className="sheet-title">
-            <h3>{title}</h3>
+            <h3 data-ph-mask={maskTitle || undefined}>{title}</h3>
             {titleAccessory}
-            {subtitle ? <p className="sub">{subtitle}</p> : null}
+            {subtitle ? <p data-ph-mask={maskSubtitle || undefined} className="sub">{subtitle}</p> : null}
           </div>
           {!phone || !mobileBack ? <ModalCloseButton onClick={modal.requestClose} disabled={busy} /> : null}
         </div>
