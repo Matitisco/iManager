@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { daysBetween, latestDuePeriod, periodLabel } from "./schedule.js";
-import { startPeriodicReports } from "./service.js";
+
 
 describe("cierre del reporte en la zona de la tienda", () => {
   const zone = "America/Argentina/Buenos_Aires";
@@ -43,32 +43,30 @@ describe("cierre del reporte en la zona de la tienda", () => {
   });
 });
 
-describe("programación", () => {
-  afterEach(() => { vi.useRealTimers(); });
-
-  it("apagada no programa nada", () => {
-    vi.useFakeTimers();
-    const run = vi.fn(async () => undefined);
-    const stop = startPeriodicReports({ info: vi.fn(), warn: vi.fn() }, { enabled: false, run });
-    vi.advanceTimersByTime(3 * 60 * 60 * 1000);
-    expect(run).not.toHaveBeenCalled();
-    stop();
+describe('weekly schedule', () => {
+  const zone = 'America/Argentina/Buenos_Aires';
+  it('closes Monday to Monday at the exact local minute', () => {
+    expect(latestDuePeriod(new Date('2026-10-26T11:59:59Z'), zone, 'WEEKLY').start).toBe('2026-10-12');
+    expect(latestDuePeriod(new Date('2026-10-26T12:00:00Z'), zone, 'WEEKLY')).toMatchObject({ start: '2026-10-19', end: '2026-10-26' });
   });
-
-  it("revisa a los 15 segundos y después cada hora", async () => {
-    vi.useFakeTimers();
-    const run = vi.fn(async () => undefined);
-    const info = vi.fn();
-    const stop = startPeriodicReports({ info, warn: vi.fn() }, { enabled: true, run });
-    expect(info).toHaveBeenCalledWith("Reporte automático: revisión cada hora, envío a las 08:00, hora de la tienda.");
-    await vi.advanceTimersByTimeAsync(14_000);
-    expect(run).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(run).toHaveBeenCalledTimes(1);
-    await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
-    expect(run).toHaveBeenCalledTimes(2);
-    stop();
-    await vi.advanceTimersByTimeAsync(2 * 60 * 60 * 1000);
-    expect(run).toHaveBeenCalledTimes(2);
+  it('Wednesday delivery still reports the previous Monday-to-Monday week', () => {
+    const config = { sendDay: 3, sendTime: '14:35' };
+    expect(latestDuePeriod(new Date('2026-10-28T17:34:59Z'), zone, 'WEEKLY', config).start).toBe('2026-10-12');
+    expect(latestDuePeriod(new Date('2026-10-28T17:35:00Z'), zone, 'WEEKLY', config).start).toBe('2026-10-19');
+    expect(latestDuePeriod(new Date('2026-11-01T18:00:00Z'), zone, 'WEEKLY', config).end).toBe('2026-10-26');
   });
+  it('handles DST, year changes and midnight in the store zone', () => {
+    expect(latestDuePeriod(new Date('2026-03-09T13:00:00Z'), 'America/New_York', 'WEEKLY').end).toBe('2026-03-09');
+    expect(latestDuePeriod(new Date('2026-11-02T14:00:00Z'), 'America/New_York', 'WEEKLY').end).toBe('2026-11-02');
+    expect(latestDuePeriod(new Date('2027-01-04T03:00:00Z'), zone, 'WEEKLY', { sendTime: '00:00' }).start).toBe('2026-12-28');
+  });
+  it('honors configurable monthly and half-monthly day/time', () => {
+    expect(latestDuePeriod(new Date('2026-10-05T12:00:00Z'), zone, 'MONTHLY', { sendDay: 5, sendTime: '09:00' }).start).toBe('2026-09-01');
+    expect(latestDuePeriod(new Date('2026-10-05T11:59:00Z'), zone, 'MONTHLY', { sendDay: 5, sendTime: '09:00' }).start).toBe('2026-08-01');
+    expect(latestDuePeriod(new Date('2026-10-18T12:00:00Z'), zone, 'BIWEEKLY', { sendDay: 3, sendTime: '09:00' }).start).toBe('2026-10-01');
+  });
+});
+
+it('clamps the second half-month delivery day to the end of February', () => {
+  expect(latestDuePeriod(new Date('2026-02-28T12:00:00Z'), 'America/Argentina/Buenos_Aires', 'BIWEEKLY', { sendDay: 15, sendTime: '09:00' })).toMatchObject({ start: '2026-02-01', end: '2026-02-16' });
 });

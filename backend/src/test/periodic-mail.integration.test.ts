@@ -1,0 +1,54 @@
+import { describe, expect, it, vi } from 'vitest';
+import { prisma } from '../plugins/prisma.js';
+import { buildAuthHeaders, seedStoreContext } from './db.js';
+import { useIntegrationApp } from './integration-helpers.js';
+import { loadMailReport } from '../modules/periodic-reports/report-data.js';
+import { latestDuePeriod } from '../modules/periodic-reports/schedule.js';
+import { renderMailReport } from '../modules/periodic-reports/template.js';
+import { runDueReports, sendTestReport } from '../modules/periodic-reports/service.js';
+const { getApp } = useIntegrationApp();
+const now = new Date('2026-10-26T12:00:00Z');
+const zone = 'America/Argentina/Buenos_Aires';
+describe('real periodic mail data and persistent idempotency', () => {
+  it('scopes metrics, excludes voids, converts currencies and uses current stock and debt', async () => {
+    const { store, user } = await seedStoreContext(); const storeId = store!.id;
+    const other = await seedStoreContext({ firebaseUid: 'other', email: 'other@test.local' });
+    await prisma.store.update({ where: { id: storeId }, data: { exchangeMode: 'manual', manualSell: 1000 } });
+    const inventory = await prisma.inventoryItem.create({ data: { storeId, model: 'iPhone', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%', cost: 60, currency: 'USD', price: 100000, status: 'DISPONIBLE', createdAt: new Date('2020-01-01') } });
+    const base = { storeId, soldAt: new Date('2026-10-20T15:00:00Z'), dateLabel: '20/10/2026', amount: 100000, amountCurrency: 'ARS', paymentMethod: 'EFECTIVO', status: 'COMPLETADA', inventoryItemId: inventory.id };
+    await prisma.sale.create({ data: base });
+    await prisma.sale.create({ data: { ...base, inventoryItemId: null, amount: 900000, status: 'ANULADA' } });
+    await prisma.sale.create({ data: { ...base, inventoryItemId: null, amount: 900000, cancelledAt: now } });
+    await prisma.sale.create({ data: { ...base, inventoryItemId: null, dateLabel: '26/10/2026', amount: 900000 } });
+    await prisma.sale.create({ data: { ...base, storeId: other.store!.id, inventoryItemId: null, amount: 999999 } });
+    await prisma.expense.create({ data: { storeId, amount: 5000, currency: 'ARS', spentAt: new Date('2026-10-21T15:00:00Z'), category: 'Alquiler' } });
+    await prisma.client.create({ data: { storeId, name: 'Cliente', pendingBalance: 20, balanceCurrency: 'USD' } });
+    await prisma.tradeIn.create({ data: { storeId, dateLabel: '20/10/2026', tradeAt: new Date('2026-10-20T15:00:00Z'), deviceReceived: 'iPhone', takeValue: 1, differencePaid: 0, status: 'COMPLETADO', confirmationStatus: 'CONFIRMED' } });
+    await prisma.stockCount.create({ data: { storeId, startedById: user.id, startedByName: 'Owner', status: 'CLOSED', closedAt: new Date('2026-10-23T15:00:00Z'), result: { missing: [{ imei: '123', model: 'iPhone' }], surplus: [], sold: [] } } });
+    const report = await loadMailReport(storeId, latestDuePeriod(now, zone, 'WEEKLY'), now);
+    expect(report).toMatchObject({ sales: 100000, sold: 1, profit: 35000, stock: 1, debt: 20000, debtors: 1, trades: 1, differences: 1 });
+    const mail = renderMailReport({ ...report, storeName: '<img src=x>' }, 'http://127.0.0.1:4680');
+    expect(mail.html).toContain('&lt;img src=x&gt;'); expect(mail.html).not.toContain('<img src=x>');
+    expect(mail.html).toContain('period=week%3A2026-10-19'); expect(mail.text).toContain('Ganancia neta: $ 35.000');
+    expect(mail.html).toContain('prefers-color-scheme:dark'); expect(Buffer.byteLength(mail.html)).toBeLessThan(102000);
+  });
+  it('unique DB constraint and atomic claim prevent concurrent and repeated sends', async () => {
+    const { store } = await seedStoreContext(); const storeId = store!.id;
+    await prisma.store.update({ where: { id: storeId }, data: { exchangeMode: 'manual', manualSell: 1000 } });
+    await prisma.periodicReportSettings.create({ data: { storeId, enabled: true, frequency: 'WEEKLY', recipients: 'a@test.local' } });
+    const mailer = vi.fn(async () => 'fake-provider-id');
+    await Promise.all([runDueReports({ now, mailer }), runDueReports({ now, mailer })]);
+    await runDueReports({ now, mailer });
+    expect(mailer).toHaveBeenCalledTimes(1);
+    expect(await prisma.periodicReportDelivery.findMany({ where: { storeId } })).toMatchObject([{ status: 'SENT', attempts: 1, providerId: 'fake-provider-id' }]);
+    await sendTestReport(storeId, { enabled: false, frequency: 'WEEKLY', recipients: ['test@test.local'] }, { now, mailer });
+    await expect(sendTestReport(storeId, { enabled: false, frequency: 'WEEKLY', recipients: ['test@test.local'] }, { now, mailer })).rejects.toMatchObject({ statusCode: 429 });
+    expect(await prisma.periodicReportDelivery.count({ where: { storeId } })).toBe(1);
+  });
+  it('denies test endpoint to staff and unauthenticated requests', async () => {
+    await seedStoreContext({ role: 'STAFF' });
+    const url = '/api/stores/current/periodic-report/test'; const payload = { enabled: true, frequency: 'WEEKLY', recipients: ['a@test.local'] };
+    expect((await getApp().inject({ method: 'POST', url, payload })).statusCode).toBe(401);
+    expect((await getApp().inject({ method: 'POST', url, payload, headers: buildAuthHeaders({ uid: 'test-owner' }) })).statusCode).toBe(403);
+  });
+});

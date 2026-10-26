@@ -91,6 +91,7 @@ model Store {
   cashCounts          CashCount[]
   followUpSettings    StoreFollowUpSettings?
   periodicReportSettings PeriodicReportSettings?
+  reportDeliveries PeriodicReportDelivery[]
   suppliers           Supplier[]
   stockPurchases      StockPurchase[]
   expenses            Expense[]
@@ -967,10 +968,34 @@ model PeriodicReportSettings {
   enabled       Boolean   @default(false)
   frequency     String    @default("MONTHLY") @db.VarChar(16)
   recipients    String    @default("") @db.Text
+  sendDay       Int       @default(1)
+  sendTime      String    @default("09:00") @db.VarChar(5)
+  lastTestAt    DateTime?
   lastPeriodKey String?   @db.VarChar(40)
   lastSentAt    DateTime?
   lastError     String?   @db.VarChar(280)
   store         Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+}
+
+// SMTP outbox: stable payload, claim before transport, no automatic ambiguous retry.
+model PeriodicReportDelivery {
+  id          String   @id @default(cuid())
+  storeId     String
+  periodKey   String   @db.VarChar(40)
+  recipient   String   @db.VarChar(255)
+  status      String   @default("PREPARED") @db.VarChar(20)
+  attempts    Int      @default(0)
+  subject     String   @db.Text
+  html        String   @db.Text
+  text        String   @db.Text
+  providerId  String?  @db.VarChar(255)
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, periodKey, recipient])
+  @@index([storeId])
 }
 
 // Daily cash ledger: original currency, no relation to deletable sale/payment rows.

@@ -1,5 +1,5 @@
 .periodic-period-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 2px 0 20px; }
-.periodic-picker { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.periodic-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .periodic-picker > button.sg { flex-shrink: 0; white-space: nowrap; }
 .periodic-previous { min-width: 0; max-width: 100%; }
 .desk-app .periodic-previous .ds-select-trigger { height: 38px; min-height: 38px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 700; gap: 8px; }
@@ -37,7 +37,7 @@
   .periodic-period-bar { margin-bottom: 16px; }
   .periodic-picker { gap: 6px; width: 100%; }
   .desk-app .periodic-picker > button.sg, .desk-app .periodic-previous .ds-select-trigger { padding: 0 12px; font-size: 12px; }
-  .periodic-previous { flex: 1; }
+  .periodic-previous { flex: 0 0 auto; }
   .periodic-period-date { font-size: 12px; }
   .periodic-card { padding: 18px 16px; }
   .periodic-card .periodic-list { margin-top: 14px; }

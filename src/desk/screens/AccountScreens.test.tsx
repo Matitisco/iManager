@@ -60,7 +60,7 @@ describe('Settings store contact', () => {
     const view = renderSettings();
     expect(screen.getByRole('button', { name: /Reporte automático/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Reporte automático/ }));
-    expect(open).toHaveBeenCalledWith({ type: 'periodic-report' });
+    expect(window.location.hash).toBe('#/analisis/resumen-periodico?view=mail');
     view.unmount();
     context.appSession.membership.role = 'MANAGER';
     renderSettings();

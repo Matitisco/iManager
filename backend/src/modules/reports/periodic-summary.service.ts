@@ -36,8 +36,8 @@ export function stockSummaryLines(result: Prisma.JsonValue) {
 export async function getPeriodicSummary(storeId: string, member: Member, selection = 'latest-half', now = new Date()) {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true } });
   const timeZone = store.timezone || SUMMARY_ZONE;
-  const { today, months, halves } = summaryPeriods(now, timeZone);
-  const period = selection === 'latest-half' ? halves[0] : selection === 'latest-month' ? months[0] : summaryPeriod(selection);
+  const { today, months, halves, weeks } = summaryPeriods(now, timeZone);
+  const period = selection === 'latest-week' ? weeks[0] : selection === 'latest-half' ? halves[0] : selection === 'latest-month' ? months[0] : summaryPeriod(selection);
   if (period.to >= today) throw new DomainError('Elegí un período cerrado', 400);
   const inPeriod = (day: string) => day >= period.from && day <= period.to;
   const salesAllowed = canAccessSection('sales', member);
@@ -86,7 +86,7 @@ export async function getPeriodicSummary(storeId: string, member: Member, select
     if (!differences.has(line.imei)) differences.set(line.imei, { ...line, id: `${count.id}:${line.imei}`, day: summaryDay(count.closedAt!, timeZone) });
   }
   return {
-    period, periods: { months, halves },
+    period, periods: { months, halves, weeks },
     sales: salesAllowed ? { total: summaryAmounts(sales.filter(sale => !sale.voided)), items: sales } : null,
     returns: salesAllowed ? { total: summaryAmounts(returns.filter(claim => claim.amount !== 0)), items: returns } : null,
     stock: stockAllowed ? { count: differences.size, counts: closed.length, latestDay: closed[0]?.closedAt ? summaryDay(closed[0].closedAt, timeZone) : null, items: [...differences.values()] } : null,

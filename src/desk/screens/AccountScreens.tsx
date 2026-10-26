@@ -389,7 +389,7 @@ export function SettingsScreen() {
             <div className="card">
               <MRow icon={<DeskIcon name="store" size={18} />} title={store?.name || 'Tienda'} sub={contactSummary(store)} onClick={() => open({ type: 'store' })} />
               <MRow icon={<DeskIcon name="cal" size={18} />} title="Garantías" sub="Usados, sellados y reparaciones" onClick={() => open({ type: 'warranty' })} />
-              {appSession?.membership?.role === 'OWNER' ? <MRow icon={<DeskIcon name="bars" size={18} />} title="Reporte automático" sub="Ventas, devoluciones y stock" onClick={() => open({ type: 'periodic-report' })} /> : null}
+              {appSession?.membership?.role === 'OWNER' ? <MRow icon={<DeskIcon name="bars" size={18} />} title="Reporte automático" sub="Ventas, devoluciones y stock" onClick={() => { window.location.hash = '#/analisis/resumen-periodico?view=mail'; }} /> : null}
             </div>
             {teamContent}
           </>

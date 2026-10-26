@@ -1,0 +1,35 @@
+.report-mail-card{max-width:760px;padding:22px 24px 24px;margin-top:20px}
+.report-mail-card .dch{margin-bottom:18px}
+.report-mail-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:14px;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.report-mail-toggle>b{font-size:15px;font-weight:700}
+.desk-app button.report-mail-switch{display:flex;align-items:center;justify-content:center;min-width:48px;height:44px;padding:0}
+.report-mail-switch .sw{display:block}
+.report-mail-controls{padding:0;margin:0;border:0;min-width:0}
+.report-mail-controls .fl{margin-bottom:18px}
+.report-mail-controls .frow{gap:14px}
+.report-mail-frequency{flex-wrap:nowrap;gap:8px}
+.report-mail-frequency .sg{justify-content:center}
+.report-mail-next{display:flex;justify-content:space-between;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:18px;margin:0 0 22px;font-size:12px}
+.report-mail-next span{color:var(--secondary)}
+.report-mail-next b{text-align:right;font-weight:700;overflow-wrap:anywhere}
+.report-mail-actions{display:flex;justify-content:space-between;gap:14px}
+.desk-app .report-mail-test{display:flex;align-items:center;justify-content:center;gap:9px;padding:0 24px}
+.report-mail-save{width:200px}
+.report-mail-feedback{margin:14px 0 0;padding:12px;background:var(--lime-soft);border-radius:12px;font-size:13px}
+.report-mail-tabs{margin-bottom:0}
+@media(min-width:761px){.desk-app .report-mail-dock{display:none}}
+@media(max-width:760px){
+.report-mail-card{padding:0;margin-top:20px;border:0;box-shadow:none;background:transparent}
+.report-mail-card .dch{display:none}
+.report-mail-toggle{padding-bottom:12px;margin-bottom:14px}
+.report-mail-controls .fl{margin-bottom:16px}
+.report-mail-controls .fl input{font-size:16px}
+.report-mail-frequency{gap:6px}
+.desk-app .report-mail-frequency button.sg{padding:0 12px}
+.report-mail-actions{display:block}
+.desk-app .report-mail-test{width:100%}
+.desk-app .report-mail-save{display:none}
+.report-mail-dock{justify-content:stretch}
+.report-mail-dock .dbtn{flex:1;justify-content:center}
+.periodic-summary:has(.report-mail-card){padding-bottom:var(--dock-clearance)}
+}

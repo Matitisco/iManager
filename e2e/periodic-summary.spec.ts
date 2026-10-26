@@ -55,7 +55,7 @@ test('periodic summary: periods, complete breakdown, empty and recovery at 390px
     await expect(page.locator('.periodic-void s')).toHaveText('$ 780.000');
     await expect(page.locator('.periodic-void .spill')).toHaveText('Anulado');
     const heights = await page.locator('.periodic-picker > button, .periodic-previous .ds-select-trigger').evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height));
-    expect(heights).toEqual([38, 38, 38]);
+    expect(heights).toEqual([38, 38, 38, 38]);
     const voidStyle = await page.locator('.periodic-void').evaluate(el => {
       const style = getComputedStyle(el);
       return { background: style.backgroundColor, border: style.borderColor, radius: style.borderRadius };

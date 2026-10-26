@@ -37,6 +37,7 @@ function show() { return render(<PeriodicSummary navigation={<div>Resumen perió
 async function loaded() { await screen.findByRole('region', { name: 'Ventas' }); }
 
 beforeEach(() => {
+  window.history.replaceState(null, '', '/');
   mocks.tab = 'reports'; mocks.phone = false; mocks.go.mockReset(); mocks.back.mockReset(); mocks.fetch.mockReset(); mocks.fetch.mockResolvedValue(fixture());
   context.backendStatus = 'ready'; context.sessionConfirmed = true;
   context.appSession.store.id = 'store'; context.appSession.membership.sections = null;

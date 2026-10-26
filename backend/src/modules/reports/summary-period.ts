@@ -1,7 +1,7 @@
 import { DomainError } from '../../lib/domain-error.js';
 
 export const SUMMARY_ZONE = 'America/Argentina/Buenos_Aires';
-export type SummaryPeriod = { id: string; kind: 'month' | 'half'; from: string; to: string; label: string };
+export type SummaryPeriod = { id: string; kind: 'month' | 'half' | 'week'; from: string; to: string; label: string };
 const iso = (date: Date) => date.toISOString().slice(0, 10);
 
 export function summaryDay(date: Date, timeZone: string) {
@@ -10,6 +10,13 @@ export function summaryDay(date: Date, timeZone: string) {
 }
 
 export function summaryPeriod(id: string): SummaryPeriod {
+  if (id.startsWith('week:')) {
+    const from = id.slice(5);
+    const date = new Date(`${from}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !Number.isFinite(date.getTime()) || iso(date) !== from || date.getUTCDay() !== 1) throw new DomainError('El período no es válido', 400);
+    const to = iso(new Date(date.getTime() + 6 * 86_400_000));
+    return { id, kind: 'week', from, to, label: `${from.split('-').reverse().join('/')} al ${to.split('-').reverse().join('/')}` };
+  }
   const match = /^(month|half):(\d{4})-(\d{2})(?:-(01|16))?$/.exec(id);
   if (!match || (match[1] === 'half') !== Boolean(match[4])) throw new DomainError('El período no es válido', 400);
   const [, kind, yearText, monthText, half] = match;
@@ -38,5 +45,8 @@ export function summaryPeriods(now = new Date(), timeZone = SUMMARY_ZONE) {
       ? new Date(Date.UTC(halfStart.getUTCFullYear(), halfStart.getUTCMonth(), 1))
       : new Date(Date.UTC(halfStart.getUTCFullYear(), halfStart.getUTCMonth() - 1, 16));
   }
-  return { today, months, halves };
+  const local = new Date(`${today}T00:00:00Z`);
+  const monday = local.getTime() - ((local.getUTCDay() + 6) % 7) * 86_400_000;
+  const weeks = Array.from({ length: 12 }, (_, index) => summaryPeriod(`week:${iso(new Date(monday - (index + 1) * 7 * 86_400_000))}`));
+  return { today, months, halves, weeks };
 }
