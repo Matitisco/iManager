@@ -212,10 +212,10 @@ describe('sidebar unread counts', () => {
     window.location.hash = width === 390 ? '#/mas' : '#/dashboard';
     render(<DeskApp />);
     const expectHidden = () => {
-      for (const id of ['cash', 'expenses', 'followups']) {
+      for (const id of ['cash', 'followups']) {
         expect(screen.queryByTestId(`sidebar-tab-${id}`)).not.toBeInTheDocument();
       }
-      expect(screen.queryByRole('tab', { name: /Gastos|Cajas|Seguimientos|Cuenta corriente/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('tab', { name: /Cajas|Seguimientos|Cuenta corriente/ })).not.toBeInTheDocument();
     };
     expectHidden();
     if (width === 390) {
@@ -236,7 +236,6 @@ describe('sidebar unread counts', () => {
   });
 
   it.each([
-    ['#/finanzas/gastos', '#/dashboard'], ['#/expenses', '#/dashboard'],
     ['#/finanzas/cajas/123', '#/dashboard'], ['#cash', '#/dashboard'],
     ['#/atencion/seguimientos', '#/atencion/clientes'],
     ['#/atencion/clientes/cuenta', '#/atencion/clientes'],

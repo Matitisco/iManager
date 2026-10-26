@@ -55,7 +55,7 @@ describe('ruta del escritorio', () => {
     expect(canonicalHash('#/catalogo')).toBe('#/stock/catalogo');
     expect(canonicalHash('#/servicio')).toBe('#/atencion/servicio');
     expect(canonicalHash('#/cajas')).toBe('#/dashboard');
-    expect(canonicalHash('#/gastos')).toBe('#/dashboard');
+    expect(canonicalHash('#/gastos')).toBe('#/finanzas/gastos');
     expect(canonicalHash('#/rep')).toBe('#/analisis/reportes');
     expect(canonicalHash('#/comisiones')).toBe('#/analisis/comisiones');
     expect(canonicalHash('#/historial')).toBe('#/analisis/historial');
@@ -69,7 +69,7 @@ describe('ruta del escritorio', () => {
     expect(tabFromHash('#/tradeins')).toBe('tradeins');
     expect(tabFromHash('#/returns')).toBe('returns');
     expect(tabFromHash('#/suppliers')).toBe('suppliers');
-    expect(tabFromHash('#/expenses')).toBe('dashboard');
+    expect(tabFromHash('#/expenses')).toBe('expenses');
     expect(tabFromHash('#/history')).toBe('history');
     expect(tabFromHash('#/commissions')).toBe('commissions');
     expect(tabFromHash('#/publicCatalog')).toBe('publicCatalog');
