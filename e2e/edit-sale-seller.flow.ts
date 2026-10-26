@@ -83,7 +83,7 @@ export function editSaleSellerTests(phone: boolean) {
       await expect(page.getByRole('heading', { name: 'Comisiones', exact: true })).toBeVisible();
       await page.locator(phone ? '.commission-person' : '.commission-name').filter({ hasText: seller.name }).click();
       const commission = page.locator('.commission-detail');
-      await expect(commission.locator('.commission-line').filter({ hasText: 'Equipo vendedor' })).toContainText('150,03');
+      await expect(commission.getByRole('tabpanel', { name: 'Ventas · 1', exact: true }).getByRole('article').filter({ hasText: 'Equipo vendedor' })).toContainText('150,03');
       await page.keyboard.press('Escape');
 
       // Clearing the seller persists and leaves no active accrual in the API view.

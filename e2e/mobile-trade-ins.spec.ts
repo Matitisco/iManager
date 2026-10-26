@@ -297,7 +297,8 @@ test.describe('trade-ins on a phone', () => {
     await expect(another.getByRole('option', { name: new RegExp(clientName) })).toBeVisible();
     await another.getByRole('option', { name: new RegExp(clientName) }).click();
     await expect(another.getByText(/Se crea un cliente nuevo al guardar/)).toHaveCount(0);
-    await another.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await another.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(another).toBeHidden();
 
     await card.click();
     const detail = page.getByRole('dialog', { name: new RegExp(clientName) });
@@ -325,7 +326,8 @@ test.describe('trade-ins on a phone', () => {
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/tradeins-390-edit.png` });
-    await editor.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await editor.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(editor).toBeHidden();
 
     await page.getByTestId('row-menu').click();
     await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
