@@ -475,7 +475,7 @@ export async function createInventoryItem(
     if (existing) {
       const row = await inventoryPrisma.inventoryItem.findFirst({ where: { id: existing.id }, select: { archivedAt: true } });
       if (row?.archivedAt) throw archivedMatch("Este equipo está archivado. ¿Restaurarlo?", existing.id, "inventory");
-      throw new InventoryError("Inventory item already exists", 409);
+      throw new InventoryError("Ya existe un equipo con ese IMEI en esta tienda", 409);
     }
   }
 
@@ -642,7 +642,7 @@ export async function updateInventoryItem(
       if (duplicate) {
         const archived = await tx.inventoryItem.findFirst({ where: { id: duplicate.id }, select: { archivedAt: true } });
         if (archived?.archivedAt) throw archivedMatch("Este equipo está archivado. ¿Restaurarlo?", duplicate.id, "inventory");
-        throw new InventoryError("Inventory item already exists", 409);
+        throw new InventoryError("Ya existe un equipo con ese IMEI en esta tienda", 409);
       }
     }
 
