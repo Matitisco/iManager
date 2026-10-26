@@ -1067,6 +1067,9 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     if (hasTrade && !nextClient) throw new OperationError("El canje confirmado requiere un cliente", 400);
     const nextDebt = Math.max(0, nextAmount - nextTakeValue - Number(sale.depositAppliedAmount));
     const priorDue = (trade ? toNum(trade.differencePaid) : toNum(sale.amount)) - Number(sale.depositAppliedAmount);
+    const priorOpenBalance = sale.openBalance == null ? priorDue : toNum(sale.openBalance);
+    const nextOpenBalance = Math.max(0, nextDebt - (priorDue - priorOpenBalance));
+    const collecting = sale.status === "PENDIENTE" && nextStatus === "COMPLETADA";
     const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: sale.status, hasClient: Boolean(nextClient) });
     if (rise.error) throw new OperationError(rise.error, 409);
     let archivedIncoming: InventoryItem | null = null;
@@ -1100,7 +1103,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
         amount: dec(nextAmount),
         ...(nextCurrency ? { amountCurrency: nextCurrency } : {}),
         status: nextStatus,
-        ...(rise.reopen ? { openBalance: dec(rise.extra) } : {}),
+        ...(rise.reopen ? { openBalance: dec(rise.extra) } : collecting ? { openBalance: dec(0) } : sale.openBalance != null ? { openBalance: dec(nextOpenBalance) } : {}),
         paymentMethod: input.paymentMethod ?? sale.paymentMethod,
         ...(input.warrantyDays !== undefined ? { warrantyDays: input.warrantyDays } : {}),
         dateLabel: formatArDate(nextDate),
@@ -1206,10 +1209,17 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     await refreshSaleCommission(tx, storeId, sale.id);
     if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id, entityLabel: saleCode(sale.saleNumber) });
-    if (sale.status === 'PENDIENTE' && nextStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.openBalance ?? priorDue), currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
+    if (collecting) {
+      await recordCash(tx, { storeId, amount: nextOpenBalance, currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
+      if (nextClientId) await recordSaleCollection(tx, { storeId, clientId: nextClientId, saleId: sale.id, amount: nextOpenBalance, currency: labelCurrency, method: updatedSale.paymentMethod });
+      const installments = await tx.saleInstallment.findMany({ where: { storeId, saleId: sale.id } });
+      for (const installment of installments) {
+        await tx.saleInstallment.update({ where: { id: installment.id }, data: { paidAmount: installment.amount } });
+      }
+    }
     const balanceStatus = rise.reopen ? "COMPLETADA" : nextStatus;
-    const balanceDebt = rise.reopen ? priorDue : nextDebt;
-    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorDue, balanceDebt, nextDate, { currency: await copyCurrency(tx, storeId, sale.amountCurrency), exchangeRate: sale.exchangeRate }, { currency: labelCurrency, exchangeRate: updatedSale.exchangeRate })).filter(present);
+    const balanceDebt = rise.reopen ? priorDue : nextOpenBalance;
+    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorOpenBalance, balanceDebt, nextDate, { currency: await copyCurrency(tx, storeId, sale.amountCurrency), exchangeRate: sale.exchangeRate }, { currency: labelCurrency, exchangeRate: updatedSale.exchangeRate })).filter(present);
     if (rise.reopen && nextClientId) {
       const raised = await recordPriceRise(tx, { storeId, clientId: nextClientId, saleId: sale.id, amount: rise.extra, currency: labelCurrency, actor });
       updatedClients = updatedClients.map((client) => client?.id === raised.id ? raised : client);
