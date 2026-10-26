@@ -222,6 +222,25 @@ describe("getReportsOverview", () => {
     await expect(getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null })).rejects.toMatchObject({ statusCode: 503 });
   });
 
+  it.each(['ARS', 'USD'])('descuenta el margen devuelto en el período actual y comparativo (%s)', async currency => {
+    storeFindMock.mockResolvedValue({ currency });
+    rateMock.mockResolvedValue(1250);
+    saleFindManyMock.mockResolvedValue([{ amount: 1000, amountCurrency: 'USD', status: 'COMPLETADA', paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10T12:00:00Z'), inventoryItem: { cost: 600, currency: 'USD' } }]);
+    const claim = (moneyAmount: number, date: string) => ({ settlement: 'REINTEGRO', resolvedAt: new Date(date), creditNote: null, events: [], moneyAmount, moneyCurrency: 'USD', sale: { amount: 200, inventoryItem: { cost: 80, currency: 'USD' } } });
+    returnCaseFindManyMock.mockResolvedValue([
+      claim(100, '2026-04-15T12:00:00Z'),
+      claim(20, '2026-03-15T12:00:00Z'),
+      claim(200, '2026-02-15T12:00:00Z'),
+    ]);
+    const result = await getReportsOverview('store-1', { rangeKey: 'custom', startDate: new Date('2026-04-01T03:00:00Z'), endDate: new Date('2026-05-01T02:59:59.999Z') });
+    const factor = currency === 'ARS' ? 1250 : 1;
+    expect(result.summary.grossProfit).toBe(340 * factor);
+    expect(result.summary.marginRate).toBe(34);
+    expect(result.summary.revenue).toBe(1000 * factor);
+    expect(result.comparison.grossProfit).toBe(388 * factor);
+    expect(result.comparison.grossProfitChange).toBeCloseTo((340 - 388) / 388 * 100);
+  });
+
   it("returns valuation and topProducts using completed sales only", async () => {
     const overview = await getReportsOverview("store-1", {
       rangeKey: "custom",
