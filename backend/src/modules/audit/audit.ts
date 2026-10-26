@@ -70,7 +70,8 @@ export async function writeAudit(
   });
 }
 
-export function moneyChanged(current: { toString(): string } | number | null | undefined, next: number) {
+export function moneyChanged(current: { toString(): string } | number | null | undefined, next: number | null) {
+  if (current == null || next == null) return current != null || next != null;
   const left = Number(current == null ? NaN : typeof current === "number" ? current : current.toString());
   if (!Number.isFinite(left) || !Number.isFinite(next)) return true;
   return left.toFixed(2) !== next.toFixed(2);

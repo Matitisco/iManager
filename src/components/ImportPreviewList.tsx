@@ -180,7 +180,7 @@ function CardRow({
       <div className="h-full px-3 py-2.5 flex flex-col justify-center gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
           <p className="text-sm font-medium text-gray-900 truncate">{row.model || '—'}</p>
-          <p className="text-sm font-medium text-gray-900 shrink-0">{[price, row.currency || currency].filter(Boolean).join(' ')}</p>
+          <p className="text-sm font-medium text-gray-900 shrink-0">{row.price?.trim() ? [price, row.currency || currency].filter(Boolean).join(' ') : 'A definir'}</p>
         </div>
         <p title={meta} className="text-xs text-gray-500 truncate">{meta || '—'}</p>
       </div>
@@ -244,7 +244,7 @@ function deviceLine(row: Record<string, string>): string {
 
 function display(row: Record<string, string>, key: string, currency: string): string {
   if (key === 'currency') return row.currency?.trim() || currency;
-  if (key === 'price') return formatAmount(row.price);
+  if (key === 'price') return row.price?.trim() ? formatAmount(row.price) : 'A definir';
   if (key === 'amount') return formatAmount(row.amount);
   if (key === 'device') return deviceLine(row);
   if (key === 'instagram') {

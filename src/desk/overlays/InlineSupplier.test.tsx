@@ -1,0 +1,34 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, expect, it, vi } from 'vitest';
+import { InlineSupplier } from './InlineSupplier';
+const saveSupplier = vi.hoisted(() => vi.fn());
+vi.mock('../../context/AppContext', () => ({ useAppContext: () => ({ suppliers: [], saveSupplier }) }));
+afterEach(() => { history.replaceState(null, '', '/'); saveSupplier.mockReset(); });
+it.each(['a', 'b'])('variante %s: persiste y selecciona el proveedor sin perder el formulario', async variant => {
+  history.replaceState(null, '', `/?importVariant=${variant}`);
+  const onChange = vi.fn();
+  let resolve: (value: { id: string; name: string }) => void;
+  saveSupplier.mockReturnValue(new Promise(done => { resolve = done; }));
+  render(<div className="desk-app"><InlineSupplier value="" onChange={onChange} /></div>);
+  await userEvent.click(screen.getByRole('combobox', { name: 'Proveedor' }));
+  await userEvent.click(screen.getByRole('option', { name: '+ Crear proveedor' }));
+  await userEvent.type(screen.getByLabelText('Nombre del proveedor'), 'Andes');
+  await userEvent.click(screen.getByRole('button', { name: 'Crear y seleccionar' }));
+  expect(saveSupplier).toHaveBeenCalledWith({ name: 'Andes' });
+  expect(onChange).not.toHaveBeenCalled();
+  resolve!({ id: 'new', name: 'Andes' });
+  await waitFor(() => expect(onChange).toHaveBeenCalledWith('new'));
+});
+it('conserva nombre y formulario al fallar el guardado', async () => {
+  saveSupplier.mockRejectedValue(new Error('No se pudo crear el proveedor.'));
+  const onChange = vi.fn();
+  render(<div className="desk-app"><InlineSupplier value="" onChange={onChange} /></div>);
+  await userEvent.click(screen.getByRole('combobox', { name: 'Proveedor' }));
+  await userEvent.click(screen.getByRole('option', { name: '+ Crear proveedor' }));
+  await userEvent.type(screen.getByLabelText('Nombre del proveedor'), 'Andes');
+  await userEvent.click(screen.getByRole('button', { name: 'Crear y seleccionar' }));
+  expect(await screen.findByText('No se pudo crear el proveedor.')).toBeVisible();
+  expect(screen.getByLabelText('Nombre del proveedor')).toHaveValue('Andes');
+  expect(onChange).not.toHaveBeenCalled();
+});

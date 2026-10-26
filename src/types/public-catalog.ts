@@ -11,7 +11,7 @@ export interface CatalogSettings {
 }
 export interface CatalogItem {
   model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string;
-  price?: number; currency?: string | null;
+  price?: number | null; currency?: string | null;
 }
 export interface ManagedCatalogItem extends CatalogItem {
   id: string; catalogVisible: boolean; reason: string | null;

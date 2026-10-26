@@ -255,7 +255,7 @@ export async function startStockCount(storeId: string, member: Member, actor: Ac
       capacity: row.capacity,
       color: row.color,
       statusAtSnapshot: row.status,
-      price: Number(row.price),
+      price: row.price == null ? null : Number(row.price),
       currency: row.currency ?? currency,
     }];
   });
@@ -283,7 +283,7 @@ export async function startStockCount(storeId: string, member: Member, actor: Ac
           capacity: row.capacity,
           color: row.color,
           statusAtSnapshot: row.statusAtSnapshot,
-          price: new Prisma.Decimal(row.price),
+          price: row.price == null ? null : new Prisma.Decimal(row.price),
           currency: row.currency,
         })),
       });
@@ -330,7 +330,7 @@ export async function scanStockCount(storeId: string, id: string, userId: string
         capacity: snapshot.capacity,
         color: snapshot.color,
         statusAtSnapshot: snapshot.statusAtSnapshot,
-        price: Number(snapshot.price),
+        price: snapshot.price == null ? null : Number(snapshot.price),
         currency: snapshot.currency,
       } : null,
       live,
@@ -374,7 +374,7 @@ async function buildCloseResult(db: Prisma.TransactionClient | typeof prisma, st
     capacity: row.capacity,
     color: row.color,
     statusAtSnapshot: row.statusAtSnapshot,
-    price: Number(row.price),
+    price: row.price == null ? null : Number(row.price),
     currency: row.currency,
   }));
   return classifyClose({

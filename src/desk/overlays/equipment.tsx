@@ -38,6 +38,7 @@ import { SupplierPurchaseDetail } from './supplier-purchases';
 import { fetchBackendInventoryItem, type InventoryItemDetail, restoreBackendInventoryItem } from '../../services/inventory-api';
 import { deviceCoverageLines } from '../../lib/warranty';
 import { CoverageBlock } from '../warranty';
+import { InlineSupplier } from './InlineSupplier';
 
 function batteryText(value: string) {
   return value.trim() ? formatBatteryDisplay(value) : '-';
@@ -101,7 +102,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       {error && <div className="ferr">{error}</div>}
       {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</div></div>
         <RecordHistoryButton entityType="inventory" entityId={item.id} label={equipmentTitle(item.model, item.capacity)} />
       </div>
       {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {
@@ -162,7 +163,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
-  const [price, setPrice] = useState(current ? money.inputValue(current.price, current.currency) : '');
+  const [price, setPrice] = useState(current?.price != null ? money.inputValue(current.price, current.currency) : '');
   const [cost, setCost] = useState(current && seeCosts ? money.inputValue(current.cost, current.currency) : '');
   const [status, setStatus] = useState(current?.status || 'DISPONIBLE');
   const [supplier, setSupplier] = useState(current?.supplierId ?? supplierId ?? '');
@@ -253,8 +254,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       </div>
       <Field label="Proveedor">
         {suppliers === null ? <FieldSkeleton /> : (
-          <DeskSelect label="Proveedor" disabled={!!supplierId} value={supplierId || supplier} onChange={setSupplier}
-            options={[{ value: '', label: 'Sin proveedor' }, ...(suppliers ?? []).map(row => ({ value: row.id, label: row.name }))]} />
+          <InlineSupplier disabled={!!supplierId} value={supplierId || supplier} onChange={setSupplier} />
         )}
       </Field>
       <Field label="Condición"><span /></Field>
@@ -269,7 +269,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         const raw = event.target.value;
         setPrice(raw);
         clearBad(setBad, 'price');
-      }} placeholder="$ 0" /></Field>
+      }} placeholder="A definir" /></Field>
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -282,7 +282,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
         if (seeCosts && cost.includes('-')) next.cost = 'El costo no puede ser negativo';
         if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
-        else if (!lockPrice && !parseMoney(price)) next.price = 'Completá este dato';
+        else if (!lockPrice && price.trim() && !parseMoney(price)) next.price = 'Ingresá un precio válido';
         setBad(next);
         if (Object.keys(next).length) return;
         const priced = current
@@ -302,7 +302,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           grade: isUsedCondition(condition) ? grade : '',
           batteryHealth: current && battery === current.batteryHealth.replace(/%$/, '') ? current.batteryHealth : parseBatteryHealth(battery) ?? '',
           cost: current && 'cost' in priced ? priced.cost : seeCosts ? parseMoney(cost) : 0,
-          price: priced.amounts[0]?.amount ?? parseMoney(price),
+          price: lockPrice ? current!.price : price.trim() ? priced.amounts[0]?.amount ?? parseMoney(price) : null,
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,
           categoryId: current?.categoryId,

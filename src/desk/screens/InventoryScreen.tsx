@@ -1,4 +1,5 @@
 import { DeskSelect } from '../select';
+import { consumePriceToDefineFilter, PRICE_TO_DEFINE_EVENT } from '../price-to-define-filter';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
@@ -106,7 +107,7 @@ function activeColumnCount(filters: InventoryColumnFilters) {
     + Number(filters.statuses.length > 0)
     + Number(filters.colors.length > 0)
     + Number(Boolean(filters.battery))
-  + Number(Boolean(filters.priceMin.trim() || filters.priceMax.trim()))
+  + Number(Boolean(filters.priceToDefine || filters.priceMin.trim() || filters.priceMax.trim()))
   + Number(Boolean(filters.equipo.trim()))
   + Number(filters.needsCompletion)
   + Number(Boolean(filters.supplierId));
@@ -147,6 +148,13 @@ export function InventoryScreen() {
     return () => window.removeEventListener('desk-eq-saved', reset);
   }, []);
 
+  useEffect(() => {
+    const show = () => { if (consumePriceToDefineFilter()) { setQuery(''); setArchivedMode(false); setColumns({ ...EMPTY_COLUMN_FILTERS, priceToDefine: true }); } };
+    window.addEventListener(PRICE_TO_DEFINE_EVENT, show);
+    show();
+    return () => window.removeEventListener(PRICE_TO_DEFINE_EVENT, show);
+  }, [setColumns, setQuery, setArchivedMode]);
+
   const source = archivedMode ? archived : mergeRecordRows(inventory, archived);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -154,10 +162,10 @@ export function InventoryScreen() {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
       return (archivedMode || columns.statuses.length === 0 || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
-    const priceOf = (item: { price: number; currency?: string | null }) => money.number(item.price, item.currency) ?? item.price;
+    const priceOf = (item: { price: number | null; currency?: string | null }) => money.number(item.price ?? 0, item.currency) ?? item.price ?? 0;
     const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);
-    if (sort === 'Precio ↑') list = [...list].sort((a, b) => priceOf(a) - priceOf(b));
-    if (sort === 'Precio ↓') list = [...list].sort((a, b) => priceOf(b) - priceOf(a));
+    if (sort === 'Precio ↑') list = [...list].sort((a, b) => a.price == null ? (b.price == null ? 0 : 1) : b.price == null ? -1 : priceOf(a) - priceOf(b));
+    if (sort === 'Precio ↓') list = [...list].sort((a, b) => a.price == null ? (b.price == null ? 0 : 1) : b.price == null ? -1 : priceOf(b) - priceOf(a));
     if (sort === 'Calidad ↑') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'best') || a.model.localeCompare(b.model, 'es'));
     if (sort === 'Calidad ↓') list = [...list].sort((a, b) => compareQuality(qualityOf(a), qualityOf(b), 'worst') || a.model.localeCompare(b.model, 'es'));
     if (sort === 'Color ↑') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'asc') || a.model.localeCompare(b.model, 'es'));
@@ -174,7 +182,7 @@ export function InventoryScreen() {
     const extra = [...new Set(inventory.map((item) => item.status))].filter((status) => status && !known.some((item) => item.id === status));
     return [...known, ...extra.map((id) => ({ id, label: statusLabel(id) }))];
   }, [catalogs?.options, inventory]);
-  const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions, { id: 'PARA_COMPLETAR', label: 'Para completar' }], [statusOptions]);
+  const filters = useMemo(() => [{ id: 'Todos', label: 'Todos' }, ...statusOptions, { id: 'PARA_COMPLETAR', label: 'Para completar' }, { id: 'PRECIO_A_DEFINIR', label: 'Precio a definir' }], [statusOptions]);
   const conditionOptions = useMemo(
     () => inventoryConditionOptions(
       catalogChoices(catalogs?.options ?? [], 'INVENTORY_CONDITION', CONDITION_FILTERS),
@@ -189,16 +197,19 @@ export function InventoryScreen() {
   const visibleColorOptions = searchInventoryColors(colorOptions, colorQuery);
   const setColumn = (patch: Partial<InventoryColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
   const toggleStatus = (id: string) => setColumns((current) => {
+    if (id === 'PRECIO_A_DEFINIR') return { ...current, priceToDefine: !current.priceToDefine, priceMin: '', priceMax: '' };
     if (id === 'PARA_COMPLETAR') return { ...current, needsCompletion: !current.needsCompletion };
     return {
       ...current,
       statuses: id === 'Todos' ? [] : withStatus(current.statuses, id, !current.statuses.includes(id)),
       needsCompletion: id === 'Todos' ? false : current.needsCompletion,
+      priceToDefine: id === 'Todos' ? false : current.priceToDefine,
     };
   });
   const statusPressed = (id: string) => {
+    if (id === 'PRECIO_A_DEFINIR') return Boolean(columns.priceToDefine);
     if (id === 'PARA_COMPLETAR') return columns.needsCompletion;
-    if (id === 'Todos') return columns.statuses.length === 0 && !columns.needsCompletion;
+    if (id === 'Todos') return columns.statuses.length === 0 && !columns.needsCompletion && !columns.priceToDefine;
     return columns.statuses.includes(id);
   };
   const filterCount = activeColumnCount(columns);
@@ -379,8 +390,8 @@ export function InventoryScreen() {
                 </th>
                 <th className="r">
                   <span className="thf">Precio
-                    <ColumnFilter label="precio" align="right" {...menu('precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '' })}>
-                      <MoneyRange min={columns.priceMin} max={columns.priceMax} onMin={(priceMin) => setColumn({ priceMin })} onMax={(priceMax) => setColumn({ priceMax })} />
+                    <ColumnFilter label="precio" align="right" {...menu('precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '', priceToDefine: false })}>
+                      <label className="inv-check"><input type="checkbox" checked={Boolean(columns.priceToDefine)} onChange={event => setColumn({ priceToDefine: event.target.checked, priceMin: '', priceMax: '' })} />Precio a definir</label><MoneyRange min={columns.priceMin} max={columns.priceMax} onMin={(priceMin) => setColumn({ priceMin })} onMax={(priceMax) => setColumn({ priceMax })} />
                     </ColumnFilter>
                   </span>
                 </th>
@@ -429,7 +440,7 @@ export function InventoryScreen() {
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r"><b>{item.price > 0 ? money.show(item.price, item.currency) : '-'}</b></td>
+                  <td className="r"><b>{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</b></td>
                   <td>
                     {item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
                     {item.reservedClientName ? <small className="reservation-label">Para {item.reservedClientName}</small> : null}
@@ -526,7 +537,7 @@ export function InventoryScreen() {
                 <button key={option.label} className={`wchip${draftFilters.battery === option.id ? ' on' : ''}`} type="button" aria-pressed={draftFilters.battery === option.id} onClick={() => setDraftFilters((current) => ({ ...current, battery: option.id }))}>{option.label}</button>
               ))}
             </div>
-            <p className="sec">Precio</p>
+            <p className="sec">Precio</p><label className="inv-check"><input type="checkbox" checked={Boolean(draftFilters.priceToDefine)} onChange={event => setDraftFilters(current => ({ ...current, priceToDefine: event.target.checked, priceMin: '', priceMax: '' }))} />Precio a definir</label>
             <div className="inv-range">
               <Field label={`Mínimo · ${money.active}`}>
                 <MoneyFilterInput label="Mínimo" value={draftFilters.priceMin} onChange={(digits) => setDraftFilters((current) => ({ ...current, priceMin: digits }))} />
@@ -599,7 +610,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
         {specs ? <small>{specs}</small> : null}
       </span>
       <span className="inv-price">
-        <b>{item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
+        <b>{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</b>
         {approx ? <small>{approx}</small> : null}
       </span>
     </span>

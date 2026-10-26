@@ -2,7 +2,7 @@ import { parseImportNumber } from './import-number';
 
 export function textRowError(row: Record<string, string>): string | null {
   if (!row.model?.trim() || row.model.trim().length > 120) return 'Revisá el modelo.';
-  if (parseImportNumber(row.price) === undefined || parseImportNumber(row.price)! < 0) return 'Completá un precio válido (0 si no tiene precio).';
+  if (row.price?.trim() && (parseImportNumber(row.price) === undefined || parseImportNumber(row.price)! < 0)) return 'Completá un precio válido o dejalo a definir.';
   if (row.cost?.trim() && (parseImportNumber(row.cost) === undefined || parseImportNumber(row.cost)! < 0)) return 'Revisá el costo.';
   if (!['ARS', 'USD'].includes(row.currency)) return 'Elegí una moneda.';
   if (!['NUEVO', 'USADO', 'PRE-OWNED', 'OUTLET'].includes(row.condition)) return 'Elegí una condición.';
@@ -20,6 +20,6 @@ export function expandTextRows(rows: Record<string, string>[]): Record<string, s
   return rows.flatMap((row) => {
     const error = textRowError(row);
     if (error) throw new Error(error);
-    return Array.from({ length: Number(row.quantity) }, () => ({ ...row, price: String(parseImportNumber(row.price)), cost: row.cost?.trim() ? String(parseImportNumber(row.cost)) : row.cost ?? '' }));
+    return Array.from({ length: Number(row.quantity) }, () => ({ ...row, price: row.price?.trim() ? String(parseImportNumber(row.price)) : '', cost: row.cost?.trim() ? String(parseImportNumber(row.cost)) : row.cost ?? '' }));
   });
 }

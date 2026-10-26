@@ -413,7 +413,7 @@ export function StockCountScreen() {
                   <span className="stock-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
                   <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? line.imei : `IMEI ${line.imei}`}</small>{!phone && line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
                   {!phone ? <span className="stock-color">{line.color}</span> : null}
-                  {!phone && line.price != null ? <b className="stock-price">{formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
+                  {!phone ? <b className="stock-price">{line.price == null ? 'A definir' : formatMoney(line.price, line.currency === 'USD' ? 'USD' : 'ARS').replace('$', '$ ')}</b> : null}
                   {phone ? <ChevronRight className="stock-line-go" size={16} aria-hidden="true" /> : null}
                 </div>
               ))}

@@ -1,0 +1,11 @@
+.eq-inline-supplier { width: 100%; min-width: 0; }
+.eq-supplier-editor { margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--row); }
+.eq-supplier-editor .sacts { margin: 16px 0 0; }
+.eq-supplier-editor .btn2 { white-space: normal; padding-inline: 12px; }
+.eq-supplier-layer > .ov { z-index: 120; }
+.eq-supplier-layer .sheet { width: 480px; }
+@media (max-width: 760px) {
+  .eq-supplier-layer .sheet { width: 100%; }
+  .eq-supplier-editor { padding: 12px; }
+  .eq-supplier-editor input { font-size: 16px; }
+}

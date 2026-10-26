@@ -14,7 +14,7 @@ export interface Product {
   grade: string;
   batteryHealth: string;
   cost?: number;
-  price: number;
+  price: number | null;
   currency?: string | null;
   status: string;
   pendingSaleRegistration?: boolean;

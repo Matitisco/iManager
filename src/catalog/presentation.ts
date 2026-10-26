@@ -13,7 +13,8 @@ export function catalogBatteryLabel(value: string) {
   return value.includes('-') ? `${value.replace(/%/g, '')}%` : `${minimum}%`;
 }
 export function catalogPrice(item: CatalogItem) {
-  if (item.price == null) return 'Consultá';
+  if (item.price === undefined) return 'Consultá';
+  if (item.price === null) return 'A definir';
   return `${item.currency === 'USD' ? 'US$' : '$'} ${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(item.price)}`;
 }
 export function catalogCondition(item: CatalogItem) {
@@ -89,8 +90,8 @@ export function filterCatalog(items: CatalogItem[], filters: CatalogFilters, sho
     if (filters.capacity && item.capacity !== filters.capacity) return false;
     if (filters.condition && catalogCondition(item) !== filters.condition) return false;
     if (filters.battery && (catalogBatteryMinimum(item.batteryHealth) ?? -1) < Number(filters.battery)) return false;
-    if (showPrice && filters.min && (item.price ?? 0) < Number(filters.min)) return false;
-    if (showPrice && filters.max && (item.price ?? 0) > Number(filters.max)) return false;
+    if (showPrice && filters.min && (item.price == null || item.price < Number(filters.min))) return false;
+    if (showPrice && filters.max && (item.price == null || item.price > Number(filters.max))) return false;
     return true;
   });
 }

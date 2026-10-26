@@ -40,6 +40,7 @@ export type ImportAnalysis = {
   plan: ImportSheetPlan[];
   rows: Record<string, string>[];
   summary: {
+    discardedRows?: number;
     sheetCount: number;
     rowCount: number;
     sheets: { name: string; rows: number; condition: string; included: boolean; diagnostics?: ImportDiagnostics }[];
@@ -112,7 +113,7 @@ export interface InventoryImportRow {
   grade?: string;
   batteryHealth?: string;
   cost?: number;
-  price: number;
+  price: number | null;
   currency?: 'ARS' | 'USD';
   status?: string;
   customFields?: Record<string, unknown>;
@@ -120,6 +121,7 @@ export interface InventoryImportRow {
 
 export interface ImportResult {
   diagnostics?: ImportDiagnostics;
+  priceToDefine?: number;
   imported: number;
   updated: number;
   errors: { row: number; message: string; imei?: string }[];
@@ -133,6 +135,9 @@ export async function importBackendRows(
   source: 'excel' | 'text' = 'excel',
 ): Promise<ImportResult> {
   try {
+    if (section === 'inventory' && rows.some(row => row.price != null && typeof row.price === 'number' && !Number.isFinite(row.price))) {
+      throw new Error('Revisá los precios inválidos del archivo o dejalos vacíos para definirlos después.');
+    }
     const result = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
       method: 'POST',
       body: supplierId ? { rows, supplierId } : { rows },

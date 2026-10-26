@@ -95,7 +95,7 @@ describe("store currency", () => {
     });
 
     const legacy = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: itemId } });
-    expect(legacy.price.toNumber()).toBe(100);
+    expect(legacy.price?.toNumber()).toBe(100);
     expect(legacy.currency).toBeNull();
 
     const sale = await app.inject({

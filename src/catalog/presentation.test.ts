@@ -19,6 +19,8 @@ describe('public price list', () => {
     expect(filterCatalog(items, { ...EMPTY_FILTERS, battery: '95' }, true)).toEqual([items[1]]);
   });
   it('ignores price filters when prices are hidden and says Consultá', () => {
+    expect(catalogPrice({ ...items[0], price: null })).toBe('A definir');
+    expect(filterCatalog([{ ...items[0], price: null }], { ...EMPTY_FILTERS, max: '500' }, true)).toEqual([]);
     expect(filterCatalog(items, { ...EMPTY_FILTERS, min: '9999' }, false)).toHaveLength(2);
     expect(catalogPrice({ ...items[0], price: undefined })).toBe('Consultá');
     expect(catalogPrice(items[0])).toBe('US$ 920');

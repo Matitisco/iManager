@@ -40,6 +40,7 @@ export type SheetSummary = {
 };
 
 export type ImportSummary = {
+  discardedRows?: number;
   sheetCount: number;
   rowCount: number;
   sheets: SheetSummary[];
@@ -358,7 +359,7 @@ function isFooter(cells: string[]): boolean {
   const filled = cells.map((cell) => cell.trim()).filter(Boolean);
   if (filled.length === 0 || filled.length > 2) return false;
   const blob = normalizeHeader(filled.join(" "));
-  return /precionoincluye|noincluyeiva|subtotal|^total|cotizacion/.test(blob);
+  return /precionoincluye|noincluyeiva|subtotal|^total|cotizacion|^precios?.*(efectivo|transferencia|promocion)/.test(blob);
 }
 
 export function cellCurrency(raw: string): "" | "ARS" | "USD" {
@@ -452,15 +453,17 @@ export function applyPlans(
         const filledCells = line.filter((cell) => cell.trim());
         if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
         if (section === "inventory" && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
-          sectionCondition = conditionFromName(filledCells[0]) || plan.condition;
-          countDiscard(diagnostics, "section_header");
-          continue;
+          const headingCondition = conditionFromName(filledCells[0]);
+          if (headingCondition) { sectionCondition = headingCondition; countDiscard(diagnostics, "section_header"); continue; }
+          if (/^(samsung|macbook|applewatch|airpodspro|ipads?|otrosaccesorios.*|accesorios)$/.test(normalizeHeader(filledCells[0].replace(/!+$/, "")))) { countDiscard(diagnostics, "section_header"); continue; }
         }
         const record: Record<string, string> = {};
         for (const column of mapping) {
           const index = indexByHeader(headers, column.header);
           record[column.field] = (line[index] ?? "").trim();
         }
+        // A repeated table header is metadata, even when price is optional.
+        if (section === "inventory" && record.model && mapping.some(column => column.field === "model" && normalizeHeader(column.header) === normalizeHeader(record.model))) continue;
         if (sectionCondition && !record.condition) record.condition = sectionCondition;
         if (plan.splitModelCapacity && record.model) {
           const split = splitModelCapacity(record.model);
@@ -473,6 +476,7 @@ export function applyPlans(
         if (record.price != null) {
           const rowCurrency = normalizeCurrencyToken(record.currency) || amountCellCurrency(record.price) || plan.priceCurrency || storeCurrency;
           if (section === "inventory") record.currency = rowCurrency;
+          const originalPrice = record.price;
           record.price = resolvePrice({
             direct: record.price,
             usd: usdIndex >= 0 ? line[usdIndex] ?? "" : "",
@@ -480,6 +484,7 @@ export function applyPlans(
             columnKind: plan.priceCurrency,
             rate,
           });
+          if (originalPrice.trim() && !record.price) record.price = originalPrice;
         }
         for (const field of MONEY_FIELDS) {
           if (field === "price" || !record[field]) continue;
@@ -494,10 +499,6 @@ export function applyPlans(
           continue;
         }
         if (section === "inventory" && !normalized.model?.trim()) { countDiscard(diagnostics, "missing_model"); continue; }
-        if (section === "inventory" && !normalized.price) {
-          countDiscard(diagnostics, rawPrice.trim() ? "invalid_price" : "missing_price");
-          continue;
-        }
         if (section === "trade-ins" && !normalized.clientName?.trim()) { countDiscard(diagnostics, "missing_client"); continue; }
         if (section === "trade-ins" && !normalized.deviceReceived?.trim()) { countDiscard(diagnostics, "missing_device"); continue; }
         const filled = Object.values(normalized).some((value) => value.trim());
@@ -542,6 +543,7 @@ export function applyPlans(
     plans,
     diagnostics,
     summary: {
+      discardedRows: diagnostics.discardedRows,
       sheetCount: includedSheets.length,
       rowCount: includedSheets.reduce((total, sheet) => total + sheet.rows, 0),
       sheets: summaries,

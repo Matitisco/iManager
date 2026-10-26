@@ -183,3 +183,10 @@ describe('análisis progresivo', () => {
     await expect(analyzeInventoryTextProgress(mockUser, 'texto', progress, new AbortController().signal)).rejects.toThrow(/interrumpió/);
   });
 });
+
+it('no convierte un precio inválido en null al serializar el pedido', async () => {
+  const { importBackendRows } = await import('./import-api');
+  vi.mocked(fetchWithTimeout).mockClear();
+  await expect(importBackendRows(mockUser, 'inventory', [{ imei: '', model: 'iPhone 13', price: NaN }])).rejects.toThrow('Revisá los precios inválidos');
+  expect(fetchWithTimeout).not.toHaveBeenCalled();
+});

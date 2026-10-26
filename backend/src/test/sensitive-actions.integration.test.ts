@@ -130,7 +130,7 @@ describe("sensitive actions", () => {
     expect(staffDeleteClient.statusCode).toBe(403);
     const staffDeleteSale = await app.inject({ method: "DELETE", url: `/api/sales/${importedSale.id}`, headers: staffHeaders });
     expect(staffDeleteSale.statusCode).toBe(403);
-    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } })).price.toNumber()).toBe(800);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } })).price?.toNumber()).toBe(800);
     expect(await prisma.auditEvent.count({ where: { storeId } })).toBe(0);
 
     const samePrice = await app.inject({

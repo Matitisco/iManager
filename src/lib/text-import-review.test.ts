@@ -6,7 +6,7 @@ describe('text import review validation', () => {
     expect(expandTextRows([row])).toEqual(Array(3).fill({ ...row, cost: '' }));
     expect(expandTextRows([row])[0]).not.toBe(expandTextRows([row])[1]);
   });
-  it.each([{ ...row, quantity: '0' }, { ...row, quantity: '1.5' }, { ...row, price: '' }, { ...row, price: '-1' }, { ...row, cost: 'bad' }, { ...row, model: '' }, { ...row, currency: 'EUR' }, { ...row, imei: '350000000000001' }, { ...row, serial: 'ABCD' }])('rejects invalid/unreviewed values %s', (bad) => {
+  it.each([{ ...row, quantity: '0' }, { ...row, quantity: '1.5' }, { ...row, price: '-1' }, { ...row, cost: 'bad' }, { ...row, model: '' }, { ...row, currency: 'EUR' }, { ...row, imei: '350000000000001' }, { ...row, serial: 'ABCD' }])('rejects invalid/unreviewed values %s', (bad) => {
     expect(textRowError(bad)).toBeTruthy();
     expect(() => expandTextRows([bad])).toThrow();
   });
@@ -19,4 +19,9 @@ describe('text import review validation', () => {
 it('accepts Argentine amounts entered from mobile keyboards', () => {
   const rows = expandTextRows([{ ...row, price: '420,50', cost: '1.200,25', quantity: '1' }]);
   expect(rows[0]).toMatchObject({ price: '420.5', cost: '1200.25' });
+});
+
+it('permite precio a definir sin convertir la ausencia a cero', () => {
+  expect(textRowError({ ...row, price: '' })).toBeNull();
+  expect(expandTextRows([{ ...row, price: '' }])[0].price).toBe('');
 });

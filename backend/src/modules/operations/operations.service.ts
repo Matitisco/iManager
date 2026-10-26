@@ -253,7 +253,7 @@ function serializeProduct(product: InventoryItem) {
     grade: product.grade,
     batteryHealth: product.batteryHealth,
     cost: toNum(product.cost),
-    price: toNum(product.price),
+    price: product.price == null ? null : toNum(product.price),
     currency: product.currency ?? null,
     status: product.status,
     reservedDepositId: product.reservedDepositId,
@@ -461,8 +461,8 @@ function canRegisterOutgoingSale(product: { status: string; pendingSaleRegistrat
   return !product.status || product.status === "DISPONIBLE" || (product.status === "VENDIDO" && product.pendingSaleRegistration);
 }
 
-function salePricePatch(price: { toNumber(): number }, amount: number, currency?: string): { price?: Decimal; currency?: string } {
-  if (price.toNumber() > 0 || !(amount > 0)) return {};
+function salePricePatch(price: { toNumber(): number } | null, amount: number, currency?: string): { price?: Decimal; currency?: string } {
+  if ((price?.toNumber() ?? 0) > 0 || !(amount > 0)) return {};
   return { price: dec(amount), ...(currency ? { currency } : {}) };
 }
 
@@ -518,7 +518,7 @@ export async function getOperationOptions(storeId: string) {
       orderBy: { name: "asc" },
     }),
   ]);
-  return { products: products.map((p) => ({ ...p, price: toNum(p.price), currency: p.currency ?? null })), clients };
+  return { products: products.map((p) => ({ ...p, price: p.price == null ? null : toNum(p.price), currency: p.currency ?? null })), clients };
 }
 
 export async function listOperationDrafts(storeId: string, source: OperationSource) {
@@ -628,6 +628,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (productId) await lockInventory(tx, storeId, productId);
     let product = productId ? await tx.inventoryItem.findFirst({ where: { id: productId, storeId, archivedAt: null } }) : null;
     if (productId && !product) throw new OperationError("Inventory item not found", 404);
+    if (product?.price === null && !((input.amount ?? 0) > 0)) throw new OperationError("Cargá el precio de venta del equipo con precio a definir");
     if (product && !canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
     if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
@@ -1058,6 +1059,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       nextProductId = nextProduct.id;
     }
     if (!nextProductId && !nextDeviceLabel) throw new OperationError("Indicá el equipo");
+    if (nextProduct?.price === null && !(nextAmount > 0)) throw new OperationError("Cargá el precio de venta del equipo con precio a definir");
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
     if (nextProduct && nextProductId !== sale.inventoryItemId) {
       if (!canRegisterOutgoingSale(nextProduct)) throw new OperationError("El equipo no está disponible", 409);
@@ -1096,7 +1098,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     }
     if (nextProduct && nextProduct.id !== sale.inventoryItemId) {
       await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null, ...salePricePatch(nextProduct.price, nextAmount, nextCurrency) } });
-    } else if (nextProduct && nextProduct.price.toNumber() <= 0 && nextAmount > 0) {
+    } else if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0) {
       await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);

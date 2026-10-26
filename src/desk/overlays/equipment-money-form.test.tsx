@@ -29,8 +29,8 @@ it.each(['alta', 'edición'])('conserva centavos al escribir y guardar un equipo
   if (!editing) await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone 13');
   await user.clear(screen.getByLabelText('Costo'));
   await user.type(screen.getByLabelText('Costo'), '450,25');
-  await user.clear(screen.getByPlaceholderText('$ 0'));
-  await user.type(screen.getByPlaceholderText('$ 0'), '600.50');
+  await user.clear(screen.getByPlaceholderText('A definir'));
+  await user.type(screen.getByPlaceholderText('A definir'), '600.50');
   await user.click(screen.getByRole('button', { name: editing ? 'Guardar cambios' : 'Guardar equipo' }));
   await waitFor(() => expect(editing ? ctx.updateProduct : ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ cost: 450.25, price: 600.5, currency: 'USD' })));
 });
@@ -53,7 +53,7 @@ it.each(['150', '-1', '85-83', '83-150', 'abc'])('rechaza batería inválida %s 
   render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1250, manualSell: 1300 }}><DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><EquipmentForm busy={false} error={null} run={async action => { await action(); }} /></DeskProvider></ExchangeProvider>);
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone QA');
-  await user.type(screen.getByPlaceholderText('$ 0'), '500');
+  await user.type(screen.getByPlaceholderText('A definir'), '500');
   await user.type(screen.getByPlaceholderText('Ej. 87'), value);
   await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
   expect(ctx.addProduct).not.toHaveBeenCalled();
@@ -63,7 +63,7 @@ it('guarda el rango escrito sin concatenar ni truncar sus límites', async () =>
   render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1250, manualSell: 1300 }}><DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><EquipmentForm busy={false} error={null} run={async action => { await action(); }} /></DeskProvider></ExchangeProvider>);
   const user = userEvent.setup();
   await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone QA');
-  await user.type(screen.getByPlaceholderText('$ 0'), '500');
+  await user.type(screen.getByPlaceholderText('A definir'), '500');
   await user.type(screen.getByPlaceholderText('Ej. 87'), '83-85');
   await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
   expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ batteryHealth: '83-85%' }));
