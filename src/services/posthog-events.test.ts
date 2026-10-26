@@ -37,16 +37,27 @@ describe('successful PostHog business events', () => {
     expect(deviceAdded).toHaveBeenCalledTimes(2);
     expect(capture).not.toHaveBeenCalled();
   });
-  it('reports only saved and failed row counts on a partial import', async () => {
+  it('reports aggregate and legacy counts on a partial import without private data', async () => {
     vi.mocked(apiRequest).mockResolvedValue({ imported: 2, updated: 1, errors: [{ row: 4, message: 'private customer' }] });
-    await importBackendRows(user, 'inventory', [{ model: 'Private Model', imei: 'private-imei', price: 1234 }]);
-    expect(vi.mocked(capture).mock.calls).toEqual([['excel_import_succeeded', { rows: 3 }], ['excel_import_failed', { rows: 1 }]]);
+    await importBackendRows(user, 'inventory', Array.from({ length: 4 }, () => ({ model: 'Private Model', imei: 'private-imei', price: 1234 })));
+    expect(vi.mocked(capture).mock.calls).toEqual([
+      ['import_result', { import_type: 'inventory', source: 'excel', phase: 'commit',
+        rows_detected: 4, rows_prepared: 4, rows_imported: 2, rows_updated: 1, rows_discarded: 1,
+        discarded_by_reason: {}, missing_required_fields: [], missing_recommended_fields: [] }],
+      ['excel_import_succeeded', { rows: 3 }], ['excel_import_failed', { rows: 1 }],
+    ]);
+    expect(JSON.stringify(vi.mocked(capture).mock.calls).toLowerCase()).not.toContain('private');
     expect(deviceAdded).toHaveBeenCalledOnce();
   });
   it('does not label pasted text as Excel, while still observing device additions', async () => {
     vi.mocked(apiRequest).mockResolvedValue({ imported: 1, updated: 0, errors: [] });
     await importBackendRows(user, 'inventory', [{ model: 'Private' }], undefined, 'text');
-    expect(capture).not.toHaveBeenCalled(); expect(deviceAdded).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledExactlyOnceWith('import_result', {
+      import_type: 'inventory', source: 'text', phase: 'commit',
+      rows_detected: 1, rows_prepared: 1, rows_imported: 1, rows_updated: 0, rows_discarded: 0,
+      discarded_by_reason: {}, missing_required_fields: [], missing_recommended_fields: [],
+    });
+    expect(deviceAdded).toHaveBeenCalledOnce();
   });
   it('emits sale and trade only when returned by a successful creation, and sale on draft confirmation', async () => {
     const result = { sale: { id: 's', amount: 1234, clientName: 'Private Client' }, tradeIn: { id: 't' }, inventory: [], clients: [], notifications: [] };

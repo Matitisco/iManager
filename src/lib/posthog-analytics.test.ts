@@ -100,6 +100,17 @@ describe('PostHog collection and privacy', () => {
       $initial_current_url: location.href, $referrer: 'https://test/?token=secret', $pathname: '/invite/secret', utm_source: 'private', $set_once: { $initial_current_url: location.href, role: 'OWNER' } } });
     expect(event!.properties).toEqual({ $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
   });
+  it.each(['import_analysis_completed', 'import_result'])('strips inherited names and email from %s before sending', async eventName => {
+    const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();
+    const beforeSend = vi.mocked(posthog.init).mock.calls[0][1]!.before_send;
+    if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
+    const event = beforeSend({ uuid: 'test-uuid', event: eventName, properties: {
+      store_id: 'internal-store', role: 'OWNER', store_name: 'private store', name: 'private name', email: 'private@email.test',
+      rows_detected: 2, discarded_by_reason: { missing_price: 2 },
+    } });
+    expect(event!.properties).toMatchObject({ store_id: 'internal-store', role: 'OWNER', rows_detected: 2, discarded_by_reason: { missing_price: 2 } });
+    expect(JSON.stringify(event)).not.toContain('private');
+  });
   it('identifies user, email, name and store, deduplicates rerenders and resets between users', async () => {
     const analytics = await import('./posthog-analytics'); analytics.initAnalytics();
     const details = { email: 'a@b.c', name: 'Ana', storeName: 'Tienda' };

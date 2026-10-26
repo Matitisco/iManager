@@ -102,6 +102,10 @@ export function initAnalytics(): void {
       before_send: event => {
         if (!event) return null;
         stripUrls(event.properties);
+        if (event.event === 'import_analysis_completed' || event.event === 'import_result') {
+          // Registered SDK superproperties are merged after capture's allowlist.
+          for (const key of ['name', 'email', 'store_name']) delete event.properties[key];
+        }
         event.properties.$current_url = pageUrl();
         event.properties.$pathname = new URL(pageUrl()).pathname;
         return event;
