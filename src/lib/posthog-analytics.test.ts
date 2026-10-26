@@ -100,6 +100,17 @@ describe('PostHog collection and privacy', () => {
       $initial_current_url: location.href, $referrer: 'https://test/?token=secret', $pathname: '/invite/secret', utm_source: 'private', $set_once: { $initial_current_url: location.href, role: 'OWNER' } } });
     expect(event!.properties).toEqual({ $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
   });
+  it.each(['import_analysis_completed', 'import_result'])('strips inherited names and email from %s before sending', async eventName => {
+    const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();
+    const beforeSend = vi.mocked(posthog.init).mock.calls[0][1]!.before_send;
+    if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
+    const event = beforeSend({ uuid: 'test-uuid', event: eventName, properties: {
+      store_id: 'internal-store', role: 'OWNER', store_name: 'private store', name: 'private name', email: 'private@email.test',
+      rows_detected: 2, discarded_by_reason: { missing_price: 2 },
+    } });
+    expect(event!.properties).toMatchObject({ store_id: 'internal-store', role: 'OWNER', rows_detected: 2, discarded_by_reason: { missing_price: 2 } });
+    expect(JSON.stringify(event)).not.toContain('private');
+  });
   it('identifies user, email, name and store, deduplicates rerenders and resets between users', async () => {
     const analytics = await import('./posthog-analytics'); analytics.initAnalytics();
     const details = { email: 'a@b.c', name: 'Ana', storeName: 'Tienda' };
@@ -123,6 +134,27 @@ describe('PostHog collection and privacy', () => {
     expect(posthog.capture).toHaveBeenNthCalledWith(3, 'onboarding_step_completed', { step: 'store' });
     expect(JSON.stringify(vi.mocked(posthog.capture).mock.calls)).not.toContain('private');
   });
+
+  it('allowlists aggregate import diagnostics at runtime, including nested keys and field arrays', async () => {
+    const analytics = await import('./posthog-analytics'); analytics.initAnalytics(); vi.mocked(posthog.capture).mockClear();
+    const props = { import_type: 'inventory' as const, source: 'excel' as const, phase: 'analyze' as const,
+      rows_detected: 2.8, rows_prepared: 0, rows_imported: NaN, rows_updated: -1, rows_discarded: 2,
+      discarded_by_reason: { missing_price: 2, duplicate: -2, invalid_imei: Infinity, 'private-imei': 5 },
+      missing_required_fields: ['price', 'private name', 'price'], missing_recommended_fields: ['imei', 'private cell'],
+      rows: [{ imei: 'private-imei' }], error: 'private error', sheet: 'private sheet' };
+    analytics.capture('import_analysis_completed', props);
+    analytics.capture('import_result', { ...props, phase: 'commit' });
+    expect(posthog.capture).toHaveBeenCalledWith('import_analysis_completed', {
+      import_type: 'inventory', source: 'excel', phase: 'analyze', rows_detected: 2, rows_prepared: 0,
+      rows_imported: 0, rows_updated: 0, rows_discarded: 2, discarded_by_reason: { missing_price: 2 },
+      missing_required_fields: ['price'], missing_recommended_fields: ['imei'],
+    });
+    expect(posthog.capture).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(vi.mocked(posthog.capture).mock.calls)).not.toContain('private');
+    analytics.capture('import_result', { ...props, import_type: 'private-section' } as never);
+    expect(posthog.capture).toHaveBeenCalledTimes(2);
+  });
+
   it('emits first-device only after a known empty read and deduplicates per store/browser', async () => {
     const a = await import('./posthog-analytics'); a.initAnalytics(); a.identify('u', 's', 'OWNER');
     vi.mocked(posthog.capture).mockClear(); a.deviceAdded(); expect(posthog.capture).not.toHaveBeenCalled();

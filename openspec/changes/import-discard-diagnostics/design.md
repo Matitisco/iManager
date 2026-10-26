@@ -1,0 +1,6 @@
+## Decisions
+Use a shared diagnostic shape with detectedRows, acceptedRows, discardedRows, discardedByReason, missingRequiredFields and missingRecommendedFields. Analysis counts physical rows inside each selected data range, including blanks/footers/section labels, with exactly one reason per rejected row. Existing rowCount still counts expanded units. Missing fields come from validated mappings, never model prose; aggregate missing lists are unions across included sheets (all plans when none included). Inventory model and price remain required; IMEI is recommended. Persistence counts submitted rows; updates are accepted, never duplicate discards.
+
+Reject purchase/cost headers for sale-price mappings in heuristic and model paths. Recognize Venta, PVP, Precio USD and $. Prompt both model paths explicitly; validate their output server side. Preserve manual mapping behavior.
+
+PostHog receives separate analysis/application and persistence events from the existing frontend service. Send only allowlisted sections, phases, counts, reason keys and field keys, never sheets, headers, rows, errors or cell values. No cached cross-request context. Analysis reports zero persisted rows; commit reports actual creates/updates.

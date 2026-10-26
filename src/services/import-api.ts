@@ -1,3 +1,4 @@
+import type { ImportDiagnostics } from '../lib/import-diagnostics';
 import { capture, deviceAdded } from '../lib/posthog-analytics';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
@@ -28,6 +29,9 @@ export type ImportSheetPlan = {
 };
 
 export type ImportAnalysis = {
+  diagnostics?: ImportDiagnostics;
+  missingRequiredFields?: string[];
+  missingRecommendedFields?: string[];
   review?: { line: number; original: string; dudas: string[] }[];
   discarded?: { line: number; original: string; reason: string }[];
   source: 'model' | 'heuristic' | 'manual';
@@ -38,9 +42,23 @@ export type ImportAnalysis = {
   summary: {
     sheetCount: number;
     rowCount: number;
-    sheets: { name: string; rows: number; condition: string; included: boolean }[];
+    sheets: { name: string; rows: number; condition: string; included: boolean; diagnostics?: ImportDiagnostics }[];
   };
 };
+
+function captureAnalysis(section: ImportSection, phase: 'analyze' | 'apply', result: ImportAnalysis): void {
+  // Older API deployments omit diagnostics. Never infer discarded counts from cell contents.
+  const diagnostic = result.diagnostics;
+  if (!diagnostic) return;
+  capture('import_analysis_completed', {
+    import_type: section, source: 'excel', phase,
+    rows_detected: diagnostic.detectedRows, rows_prepared: diagnostic.acceptedRows,
+    rows_imported: 0, rows_updated: 0, rows_discarded: diagnostic.discardedRows,
+    discarded_by_reason: diagnostic.discardedByReason,
+    missing_required_fields: diagnostic.missingRequiredFields,
+    missing_recommended_fields: diagnostic.missingRecommendedFields,
+  });
+}
 
 const ANALYZE_TIMEOUT_MS = 45_000;
 
@@ -49,12 +67,14 @@ export async function analyzeImport(
   section: ImportSection,
   sheets: ImportSheetPayload[],
 ): Promise<ImportAnalysis> {
-  return apiRequest<ImportAnalysis>(user, '/api/import/analyze', {
+  const result = await apiRequest<ImportAnalysis>(user, '/api/import/analyze', {
     method: 'POST',
     body: { section, sheets },
     fallback: 'No se pudo leer la planilla.',
     timeoutMs: ANALYZE_TIMEOUT_MS,
   });
+  captureAnalysis(section, 'analyze', result);
+  return result;
 }
 
 export async function analyzeInventoryText(user: AuthUserLike, text: string): Promise<ImportAnalysis> {
@@ -71,12 +91,14 @@ export async function applyImportPlan(
   plan: ImportSheetPlan[],
   refreshMapping = false,
 ): Promise<ImportAnalysis> {
-  return apiRequest<ImportAnalysis>(user, '/api/import/apply', {
+  const result = await apiRequest<ImportAnalysis>(user, '/api/import/apply', {
     method: 'POST',
     body: { section, sheets, plan, refreshMapping },
     fallback: 'No se pudo actualizar la importación.',
     timeoutMs: ANALYZE_TIMEOUT_MS,
   });
+  captureAnalysis(section, 'apply', result);
+  return result;
 }
 
 export interface InventoryImportRow {
@@ -97,6 +119,7 @@ export interface InventoryImportRow {
 }
 
 export interface ImportResult {
+  diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
   errors: { row: number; message: string; imei?: string }[];
@@ -116,6 +139,16 @@ export async function importBackendRows(
       fallback: (status) => `Error al importar (${status})`,
     });
     const saved = result.imported + result.updated;
+    const diagnostic = result.diagnostics;
+    capture('import_result', {
+      import_type: section, source, phase: 'commit',
+      rows_detected: diagnostic?.detectedRows ?? rows.length,
+      rows_prepared: rows.length, rows_imported: result.imported, rows_updated: result.updated,
+      rows_discarded: diagnostic?.discardedRows ?? result.errors.length,
+      discarded_by_reason: diagnostic?.discardedByReason ?? {},
+      missing_required_fields: diagnostic?.missingRequiredFields ?? [],
+      missing_recommended_fields: diagnostic?.missingRecommendedFields ?? [],
+    });
     if (source === 'excel' && saved > 0) capture('excel_import_succeeded', { rows: saved });
     if (source === 'excel' && result.errors.length) capture('excel_import_failed', { rows: result.errors.length });
     if (section === 'inventory' && result.imported > 0) deviceAdded();

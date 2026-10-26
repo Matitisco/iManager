@@ -5,6 +5,8 @@ import {
   plansFromAnswers,
   postDecisions,
 } from "./decisions-plan.js";
+import { isPurchaseHeader } from "./column-mapping.js";
+import type { ImportDiagnostics } from "./import-diagnostics.js";
 import { IMPORT_CATALOGS, type ImportSection } from "./import-catalog.js";
 import {
   DECISIONS_MODEL,
@@ -86,6 +88,9 @@ export type AnalysisResult = {
   plan: SheetPlan[];
   rows: Record<string, string>[];
   summary: ImportSummary;
+  diagnostics?: ImportDiagnostics;
+  missingRequiredFields?: string[];
+  missingRecommendedFields?: string[];
 };
 
 export type AnalyzeDeps = {
@@ -172,7 +177,7 @@ async function decideImport(
     return { outcome: call.kind === "quota" ? "quota" : "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
   }
   const raw = plansFromAnswers(context, call.answers, input.section, input.currency);
-  if (!importPlanUsable(raw, input.section)) {
+  if (!importPlanUsable(raw, input.section, sheets, input.currency)) {
     return { outcome: "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
   }
   const accepted = acceptModelPlan(sheets, { sheets: raw }, input.section, input.currency);
@@ -181,19 +186,24 @@ async function decideImport(
     ...item,
     include: raw.find((sheet) => sheet.name === item.name)?.include ?? false,
   }));
-  if (!importPlanUsable(plan, input.section)) {
+  if (!importPlanUsable(plan, input.section, sheets, input.currency)) {
     return { outcome: "skip", inputTokens: call.inputTokens, outputTokens: call.outputTokens };
   }
   return { outcome: "ready", plan, inputTokens: call.inputTokens, outputTokens: call.outputTokens };
 }
 
-function importPlanUsable(plans: SheetPlan[], section: ImportSection): boolean {
+function importPlanUsable(plans: SheetPlan[], section: ImportSection, sheets: ImportSheet[], currency: MoneyCurrency): boolean {
   const included = plans.filter((plan) => plan.include);
   if (included.length === 0) return false;
   if (section === "inventory") {
-    return included.every((plan) =>
-      plan.mapping.some((column) => column.field === "model")
-      && plan.mapping.some((column) => column.field === "price"));
+    return included.every((plan) => {
+      if (!plan.mapping.some((column) => column.field === "model")) return false;
+      if (plan.mapping.some((column) => column.field === "price")) return true;
+      const sheet = sheets.find((item) => item.name === plan.name);
+      // Retry the full mapper if Decisions overlooked an actual sale-price column.
+      return !sheet || !heuristicSheet(sheet, IMPORT_CATALOGS.inventory, currency, plan.headerRow)
+        .mapping.some((column) => column.field === "price");
+    });
   }
   if (section === "sales") {
     return included.every((plan) =>
@@ -240,6 +250,7 @@ export function acceptModelPlan(
       const header = headers.find((cell) => cell.trim() && cell.trim() === column.header.trim())
         ?? headers.find((cell) => cell.trim().toLowerCase() === column.header.trim().toLowerCase());
       if (!header || !known.has(column.field) || seen.has(column.field)) return [];
+      if ((column.field === "price" || column.field === "amount") && isPurchaseHeader(header)) return [];
       seen.add(column.field);
       return [{ header, field: column.field }];
     });
@@ -313,6 +324,9 @@ function finish(
     plan: applied.plans,
     rows: applied.rows,
     summary: applied.summary,
+    diagnostics: applied.diagnostics,
+    missingRequiredFields: applied.diagnostics.missingRequiredFields,
+    missingRecommendedFields: applied.diagnostics.missingRecommendedFields,
   };
   const estimatedUsd = billing === "decisions"
     ? estimateDecisionsUsd(inputTokens)

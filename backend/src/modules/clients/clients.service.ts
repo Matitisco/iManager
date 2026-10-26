@@ -1,3 +1,4 @@
+import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { recordCash } from '../cash/service.js';
 import { parseMoney } from "../import/sheet-plan.js";
@@ -429,6 +430,7 @@ export interface ClientImportRow {
 }
 
 export interface ClientImportResult {
+  diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
   errors: { row: number; message: string }[];
@@ -441,6 +443,7 @@ export async function importClients(
   let imported = 0;
   let updated = 0;
   const errors: { row: number; message: string }[] = [];
+  const collector = importErrorCollector(errors);
   const known = (await clientsRepository.list(storeId)).map((client) => ({
     id: client.id,
     name: client.name,
@@ -455,7 +458,7 @@ export async function importClients(
     const rowNum = i + 2;
     const name = r.name?.trim().replace(/\s+/g, " ") ?? "";
     if (!name) {
-      errors.push({ row: rowNum, message: "Nombre requerido" });
+      collector.reject({ row: rowNum, message: "Nombre requerido" }, "missing_name");
       continue;
     }
 
@@ -471,17 +474,17 @@ export async function importClients(
       const amount = hasHistory ? parseMoney(r.importedSpent!) : null;
       const currency = r.importedSpentCurrency?.trim().toUpperCase();
       if (hasHistory && (amount == null || amount < 0 || amount > 9999999999.99)) {
-        errors.push({ row: rowNum, message: "El histórico importado debe ser un monto válido, mayor o igual a cero" });
+        collector.reject({ row: rowNum, message: "El histórico importado debe ser un monto válido, mayor o igual a cero" }, "invalid_price");
         continue;
       }
       if (hasHistory && currency !== "ARS" && currency !== "USD") {
-        errors.push({ row: rowNum, message: "Indicá ARS o USD como moneda del histórico importado" });
+        collector.reject({ row: rowNum, message: "Indicá ARS o USD como moneda del histórico importado" }, "invalid_row");
         continue;
       }
       const history = hasHistory ? { importedSpent: new Decimal(amount!).toDecimalPlaces(2), importedSpentCurrency: currency! } : {};
       const decision = decideClientLink(known, { name, dni, phone, email });
       if (decision.action === "ambiguous") {
-        errors.push({ row: rowNum, message: "Hay más de un cliente con esos datos y no se duplicó" });
+        collector.reject({ row: rowNum, message: "Hay más de un cliente con esos datos y no se duplicó" }, "ambiguous_client");
         continue;
       }
       if (decision.action === "use") {
@@ -516,11 +519,11 @@ export async function importClients(
       });
       imported++;
     } catch (e) {
-      errors.push({ row: rowNum, message: e instanceof Error ? e.message : "Error desconocido" });
+      collector.reject({ row: rowNum, message: e instanceof Error ? e.message : "Error desconocido" }, "save_error");
     }
   }
 
-  return { imported, updated, errors };
+  return { imported, updated, errors, diagnostics: collector.finish(rows.length, imported + updated) };
 }
 
 // ── Client Categories ─────────────────────────────────────────────────────────

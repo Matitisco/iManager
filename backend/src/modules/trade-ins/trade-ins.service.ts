@@ -1,3 +1,4 @@
+import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -89,6 +90,7 @@ export interface TradeInImportRow {
 }
 
 export interface TradeInImportResult {
+  diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
   errors: { row: number; message: string }[];
@@ -432,6 +434,7 @@ export async function importTradeIns(
   let imported = 0;
   let updated = 0;
   const errors: { row: number; message: string }[] = [];
+  const collector = importErrorCollector(errors);
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -440,7 +443,7 @@ export async function importTradeIns(
     try {
       const clientName = row.clientName?.trim();
       if (!clientName) {
-        errors.push({ row: rowNum, message: "Nombre de cliente requerido" });
+        collector.reject({ row: rowNum, message: "Nombre de cliente requerido" }, "missing_client");
         continue;
       }
 
@@ -454,38 +457,38 @@ export async function importTradeIns(
       });
 
       if (!client) {
-        errors.push({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` });
+        collector.reject({ row: rowNum, message: `Cliente no encontrado: "${clientName}"` }, "client_not_found");
         continue;
       }
 
       const deviceReceived = row.deviceReceived?.trim();
       if (!deviceReceived) {
-        errors.push({ row: rowNum, message: "Equipo recibido requerido" });
+        collector.reject({ row: rowNum, message: "Equipo recibido requerido" }, "missing_device");
         continue;
       }
 
       const parsedImei = parseOptionalImei(row.deviceReceivedImei);
       if (parsedImei.ok === false) {
-        errors.push({ row: rowNum, message: parsedImei.message });
+        collector.reject({ row: rowNum, message: parsedImei.message }, "invalid_imei");
         continue;
       }
       const deviceReceivedImei = parsedImei.imei ?? "";
 
       const deviceGiven = row.deviceGiven?.trim();
       if (!deviceGiven) {
-        errors.push({ row: rowNum, message: "Equipo entregado requerido" });
+        collector.reject({ row: rowNum, message: "Equipo entregado requerido" }, "missing_device");
         continue;
       }
 
       const takeValue = parseImportAmount(row.takeValue);
       if (takeValue === null) {
-        errors.push({ row: rowNum, message: "Valor de toma invalido" });
+        collector.reject({ row: rowNum, message: "Valor de toma invalido" }, "invalid_price");
         continue;
       }
 
       const differencePaid = parseImportAmount(row.differencePaid);
       if (differencePaid === null) {
-        errors.push({ row: rowNum, message: "Diferencia abonada invalida" });
+        collector.reject({ row: rowNum, message: "Diferencia abonada invalida" }, "invalid_price");
         continue;
       }
 
@@ -556,14 +559,14 @@ export async function importTradeIns(
         imported++;
       }
     } catch (error) {
-      errors.push({
+      collector.reject({
         row: rowNum,
         message: error instanceof Error ? error.message : "Error desconocido",
-      });
+      }, "save_error");
     }
   }
 
-  return { imported, updated, errors };
+  return { imported, updated, errors, diagnostics: collector.finish(rows.length, imported + updated) };
 }
 
 // ── TradeIn Categories ────────────────────────────────────────────────────────

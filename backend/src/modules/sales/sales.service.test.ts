@@ -246,7 +246,7 @@ describe("sales.service", () => {
       seller: "Luis",
     }]);
 
-    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(result).toMatchObject({ imported: 1, updated: 0, errors: [], diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
     expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
     expect(prismaMock.sale.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -317,7 +317,7 @@ describe("sales.service", () => {
   it("imports a sale without an IMEI and without linking stock", async () => {
     const result = await importSales("store-1", [{ clientName: "Alguien", amount: "1000" }]);
 
-    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(result).toMatchObject({ imported: 1, updated: 0, errors: [], diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
     expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.sale.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ clientName: "Alguien", inventoryItemId: null }),
@@ -327,7 +327,7 @@ describe("sales.service", () => {
   it("keeps a sale when the IMEI is not 15 digits and does not link stock", async () => {
     const result = await importSales("store-1", [{ clientName: "Alguien", device: "iPhone 11", productImei: "12345", amount: "1000" }]);
 
-    expect(result).toEqual({ imported: 1, updated: 0, errors: [] });
+    expect(result).toMatchObject({ imported: 1, updated: 0, errors: [], diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
     expect(prismaMock.inventoryItem.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.sale.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ inventoryItemId: null, deviceLabel: "iPhone 11" }),
@@ -347,7 +347,7 @@ describe("sales.service", () => {
     prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
     const row = { clientName: 'Lucía Fernández', device: 'iPhone 13', date: '22/10/2026', amount: '1.250,50', currency: 'USD' };
     const result = await importSales('store-1', [row, row]);
-    expect(result).toMatchObject({ imported: 1, errors: [{ row: 3, message: 'Esta venta ya fue importada; no se duplicó' }] });
+    expect(result).toMatchObject({ imported: 1, errors: [{ row: 3, message: 'Esta venta ya fue importada; no se duplicó' }], diagnostics: { detectedRows: 2, acceptedRows: 1, discardedRows: 1, discardedByReason: { duplicate: 1 } } });
     expect(prismaMock.sale.create).toHaveBeenCalledTimes(1);
     expect(prismaMock.client.create).toHaveBeenCalledTimes(1);
     const writes = prismaMock.client.update.mock.calls.length;
