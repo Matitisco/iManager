@@ -1,0 +1,14 @@
+.cl-spending { display: inline-block; max-width: 100%; }
+.cl-spending-info { display: inline-flex; vertical-align: middle; color: var(--secondary); font-size: 13px; font-weight: 500; margin-left: 6px; }
+.cl-buy-stats:has(.cl-spending-total) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cl-buy-stats .cl-spending-total { grid-column: 1 / -1; padding: 14px 16px; border-radius: 16px; }
+.cl-buy-stats .cl-spending-total .big { font-size: 26px; font-weight: 800; }
+.cl-spending-breakdown summary { color: var(--secondary); font-size: 12px; font-weight: 700; cursor: pointer; padding: 14px 0; min-height: 44px; }
+.cl-spending-breakdown summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 8px; }
+.cl-spending-breakdown dl { margin: 0; border-top: 1px solid var(--border); padding-top: 10px; display: grid; gap: 10px; }
+.cl-spending-breakdown dl div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.cl-spending-breakdown dt { color: var(--secondary); }
+.cl-spending-breakdown dd { margin: 0; font-weight: 700; text-align: right; }
+.desk-app .cl-sheet .av-c, .desk-app .cl-card .av-c, .desk-app .cl-clients-screen .av-c { background: var(--row); color: var(--primary); }
+
+.desk-app .sheet.cl-sheet .sheet-foot .btn2 { min-height: 52px; }

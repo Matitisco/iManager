@@ -140,6 +140,9 @@ model Client {
   instagram      String?         @db.VarChar(80)
   lastPurchaseAt DateTime?
   totalSpent     Decimal         @default(0) @db.Decimal(12, 2)
+  // Opening purchase history from Excel, independent of mutable sales totals.
+  importedSpent  Decimal?        @db.Decimal(12, 2)
+  importedSpentCurrency String?  @db.VarChar(3)
   pendingBalance Decimal         @default(0) @db.Decimal(12, 2)
   // Null means the stored totals are read in the store currency of the moment.
   balanceCurrency String?        @db.VarChar(3)

@@ -200,7 +200,7 @@ function CardRow({
     );
   }
   if (kind === 'clients') {
-    const meta = [row.phone, row.instagram ? `@${row.instagram.replace(/^@/, '')}` : '', row.email, row.dni ? `DNI ${row.dni}` : '']
+    const meta = [row.importedSpent?.trim() ? `Histórico importado: ${row.importedSpentCurrency || 'Sin moneda'} ${row.importedSpent}` : '', row.phone, row.instagram ? `@${row.instagram.replace(/^@/, '')}` : '', row.email, row.dni ? `DNI ${row.dni}` : '']
       .map((value) => value?.trim())
       .filter(Boolean)
       .join(' · ');

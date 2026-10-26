@@ -139,6 +139,8 @@ export async function clientsRoutes(app: FastifyInstance) {
             email: z.string().trim().optional(),
             phone: z.string().trim().optional(),
             instagram: z.string().trim().optional(),
+            importedSpent: z.string().trim().optional(),
+            importedSpentCurrency: z.string().trim().optional(),
           })
         ),
       });
