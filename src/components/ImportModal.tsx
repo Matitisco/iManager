@@ -12,6 +12,7 @@ import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 import { ListSkeleton } from '../desk/list-skeleton';
 import './ImportModal.css';
 import { importVariant } from '../desk/import-variant';
+import { IMPORT_DISCARD_REASONS, IMPORT_DISCARD_LABELS, type ImportDiagnostics } from '../lib/import-diagnostics';
 
 export interface ImportFieldDef {
   key: string;
@@ -21,6 +22,7 @@ export interface ImportFieldDef {
 }
 
 export interface GenericImportResult {
+  diagnostics?: ImportDiagnostics;
   priceToDefine?: number;
   imported: number;
   updated: number;
@@ -60,6 +62,15 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
   return label;
 }
 
+function DiscardNotice({ diagnostics }: { diagnostics: ImportDiagnostics | null | undefined }) {
+  if (!diagnostics?.discardedRows) return null;
+  return <div className="import-guidance" role="status" data-testid="import-skipped-notice">
+    <b>{diagnostics.discardedRows} {diagnostics.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'}.</b>
+    <ul>{IMPORT_DISCARD_REASONS.filter(reason => (diagnostics.discardedByReason[reason] ?? 0) > 0).map(reason =>
+      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}</li>)}</ul>
+  </div>;
+}
+
 export const ImportModal: React.FC<Props> = ({
   fields, onImport, onClose, onStageChange, onFilterPriceToDefine, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
@@ -81,6 +92,9 @@ export const ImportModal: React.FC<Props> = ({
   const [plan, setPlan] = useState<ImportSheetPlan[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [summary, setSummary] = useState<ImportAnalysis['summary'] | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
+  const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
+  const [missingRecommendedFields, setMissingRecommendedFields] = useState<string[]>([]);
   const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
   const [notice, setNotice] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState('');
@@ -116,6 +130,9 @@ export const ImportModal: React.FC<Props> = ({
     setExcluded(new Set());
     setRows(analysis.review ? analysis.rows.map((row) => ({ ...row, currency: row.currency || analysis.currency, condition: row.condition || 'USADO' })) : analysis.rows);
     setSummary(analysis.summary);
+    setDiagnostics(analysis.diagnostics ?? null);
+    setMissingRequiredFields(analysis.missingRequiredFields ?? analysis.diagnostics?.missingRequiredFields ?? []);
+    setMissingRecommendedFields(analysis.missingRecommendedFields ?? analysis.diagnostics?.missingRecommendedFields ?? []);
     setCurrency(analysis.currency);
     setNotice(analysis.notice);
     setActiveSheet((current) => analysis.plan.some((item) => item.name === current) ? current : analysis.plan[0]?.name ?? '');
@@ -207,7 +224,8 @@ export const ImportModal: React.FC<Props> = ({
   };
 
   const included = plan.filter((item) => item.include);
-  const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
+  const requiredMissing = fields.filter((field) => missingRequiredFields.includes(field.key)
+    || (field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key))));
   const selectedRows = rows.filter((_, index) => !excluded.has(index));
   const existing = new Set(existingImeis);
   const updatingRows = selectedRows.filter(row => row.imei?.trim() && existing.has(row.imei.trim()));
@@ -223,7 +241,8 @@ export const ImportModal: React.FC<Props> = ({
   const headers = (activeRows[headerIndex] ?? []).filter((header) => header.trim());
   const selected = active ? fieldToColumn(active.mapping) : {};
   const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
-  const missingPriceColumn = isInventory && !textPreview && included.some(item => !item.mapping.some(column => column.field === 'price'));
+  const missingPriceColumn = isInventory && !textPreview && (missingRecommendedFields.includes('price')
+    || included.some(item => !item.mapping.some(column => column.field === 'price')));
   const noPriceRows = isInventory ? selectedRows.filter(row => !row.price?.trim()).length : 0;
   const adjustField = (key: string) => {
     const sheet = included.find(item => !item.mapping.some(column => column.field === key));
@@ -324,7 +343,8 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
-          {(summary.discardedRows ?? 0) > 0 && <div className="import-guidance missing" role="status" data-testid="import-skipped-notice"><b>{summary.discardedRows} {summary.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'} por falta de modelo.</b><button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button></div>}
+          <DiscardNotice diagnostics={diagnostics} />
+          {(diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
           {updatingCount > 0 && <div className="import-imei-warning" role="status" data-testid="import-imei-warning">
             <b>{updatingCount === 1 ? 'Se actualizará 1 equipo existente por IMEI' : `Se actualizarán ${updatingCount} equipos existentes por IMEI`}</b>
             <p>Campos del archivo que pueden reemplazar datos: {replacementFields.join(', ')}. Los campos omitidos se conservan.</p>
@@ -339,7 +359,7 @@ export const ImportModal: React.FC<Props> = ({
               </li>
             ))}
           </ul></details>}
-          {summary.rowCount === 0 && !(summary.discardedRows > 0) && <div className="import-guidance" role="status">
+          {summary.rowCount === 0 && !diagnostics?.discardedRows && <div className="import-guidance" role="status">
             <b>No encontramos filas para importar.</b>
             <p>{requiredMissing.length ? `Falta asignar ${requiredMissing.map(field => field.label).join(', ')}.` : 'Revisá el encabezado y las columnas asignadas.'}</p>
             <button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0]?.key ?? 'model')}>Ajustar importación</button>
@@ -449,17 +469,18 @@ export const ImportModal: React.FC<Props> = ({
               <tbody className="divide-y divide-gray-100">
                 {fields.map((field) => {
                   const taken = new Set(Object.entries(selected).filter(([key, value]) => key !== field.key && value).map(([, value]) => value));
+                  const required = field.required || missingRequiredFields.includes(field.key);
                   return (
-                    <tr key={field.key} className={field.required && !selected[field.key] ? 'import-field-missing' : field.key === 'price' && !selected.price ? 'import-field-price' : undefined}>
+                    <tr key={field.key} className={required && !selected[field.key] ? 'import-field-missing' : field.key === 'price' && !selected.price ? 'import-field-price' : undefined}>
                       <td className="px-4 py-3 font-medium text-gray-800">
                         {field.label}
-                        {field.required && <span className="text-red-500 text-xs"> *</span>}
-                        {field.required && !selected[field.key] && <small>Obligatorio sin asignar</small>}
+                        {required && <span className="text-red-500 text-xs"> *</span>}
+                        {required && !selected[field.key] && <small>Obligatorio sin asignar</small>}
                         {field.key === 'price' && !selected.price && <small>Opcional · a definir</small>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
-                          <DeskSelect label={field.label} invalid={field.required && !selected[field.key]} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
+                          <DeskSelect label={field.label} invalid={required && !selected[field.key]} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
                             onChange={(value) => {
                               const mapping = mappingFromFields(headers, assignColumn(selected, field.key, value));
                               void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name ? { ...sheetPlan, mapping } : sheetPlan), false);
@@ -493,6 +514,7 @@ export const ImportModal: React.FC<Props> = ({
             <b>{result.priceToDefine} {result.priceToDefine === 1 ? 'equipo quedó' : 'equipos quedaron'} con precio a definir</b>
             {onFilterPriceToDefine && <button type="button" className="wlink" onClick={onFilterPriceToDefine}>Ver equipos con precio a definir</button>}
           </div>}
+          <DiscardNotice diagnostics={result.diagnostics} />
           {result.errors.length > 0 && (
             <div className="border border-red-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
               <table className="w-full text-xs">
@@ -516,7 +538,7 @@ export const ImportModal: React.FC<Props> = ({
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
-      {step === 'summary' && requiredMissing.length > 0 && !(summary?.discardedRows > 0) && (
+      {step === 'summary' && requiredMissing.length > 0 && (
         <p className="mt-3 text-sm text-red-700">Falta mapear {requiredMissing.map((field) => field.label).join(', ')}.</p>
       )}
     </div>

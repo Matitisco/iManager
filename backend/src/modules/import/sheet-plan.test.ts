@@ -12,20 +12,20 @@ const withoutPrice: ImportSheet[] = [{ name: 'Stock', rows: [
 const apply = (sheets: ImportSheet[]) => applyPlans(sheets, heuristicPlan(sheets, 'inventory', 'USD'), 'inventory', 'USD');
 
 describe('spreadsheet diagnostics', () => {
-  it('counts every stock row without price and preserves the existing zero-row outcome', () => {
+  it('accepts stock rows without price and reports price as recommended', () => {
     const result = apply(withoutPrice);
-    expect(result.rows).toEqual([]);
-    expect(result.summary.rowCount).toBe(0);
+    expect(result.rows).toEqual([expect.objectContaining({ model: 'iPhone 13', cost: '420' }), expect.objectContaining({ model: 'iPhone 12', cost: '310' })]);
+    expect(result.summary.rowCount).toBe(2);
     expect(result.plans[0].mapping).toContainEqual({ header: 'Costo', field: 'cost' });
     expect(result.plans[0].mapping.some(column => column.field === 'price')).toBe(false);
-    expect(result.diagnostics).toEqual({ detectedRows: 2, acceptedRows: 0, discardedRows: 2,
-      discardedByReason: { missing_price: 2 }, missingRequiredFields: ['price'], missingRecommendedFields: [] });
+    expect(result.diagnostics).toEqual({ detectedRows: 2, acceptedRows: 2, discardedRows: 0,
+      discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: ['price'] });
     expect(result.summary.sheets[0].diagnostics).toEqual(result.diagnostics);
   });
 
   it.each(['Costo', 'Precio de compra', 'Precio compra USD', 'Cost price', 'Purchase price', 'Valor de compra'])('never maps %s to sale price', (header) => {
     const sheets = [{ name: 'Stock', rows: [['Modelo', header, 'Color'], ['iPhone 13', '420', 'Negro']] }];
-    expect(apply(sheets).diagnostics.missingRequiredFields).toContain('price');
+    expect(apply(sheets).diagnostics.missingRecommendedFields).toContain('price');
     const catalog = IMPORT_CATALOGS.inventory;
     expect(autoMap([header], catalog.fields, catalog.hints).price).toBeUndefined();
     const sales = IMPORT_CATALOGS.sales;
@@ -49,9 +49,9 @@ describe('spreadsheet diagnostics', () => {
       ['iPhone 14', '', 'Negro', ''],
       ['iPhone 15', 'a consultar', 'Negro', ''],
     ] }]);
-    expect(result.summary.rowCount).toBe(3);
-    expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 1, discardedRows: 6,
-      discardedByReason: { empty: 1, footer: 1, section_header: 1, missing_model: 1, missing_price: 1, invalid_price: 1 },
+    expect(result.summary.rowCount).toBe(4);
+    expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 2, discardedRows: 5,
+      discardedByReason: { empty: 1, footer: 1, section_header: 1, missing_model: 1, invalid_price: 1 },
       missingRequiredFields: [], missingRecommendedFields: ['imei'] });
   });
 
@@ -59,8 +59,8 @@ describe('spreadsheet diagnostics', () => {
     const sheets = [...withoutPrice, { name: 'Other', rows: [['Modelo', 'Precio'], ['iPhone 13', '500']] }];
     const plans = heuristicPlan(sheets, 'inventory', 'USD');
     const result = applyPlans(sheets, plans, 'inventory', 'USD');
-    expect(result.diagnostics.missingRequiredFields).toEqual(['price']);
-    expect(result.diagnostics.missingRecommendedFields).toEqual(['imei']);
+    expect(result.diagnostics.missingRequiredFields).toEqual([]);
+    expect(result.diagnostics.missingRecommendedFields).toEqual(['price', 'imei']);
     plans[0].include = false;
     const next = applyPlans(sheets, plans, 'inventory', 'USD');
     expect(next.diagnostics).toMatchObject({ detectedRows: 3, acceptedRows: 1, discardedRows: 2,

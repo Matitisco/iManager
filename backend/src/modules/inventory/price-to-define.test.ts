@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 it('guarda null real, admite precio omitido y cuenta los equipos sin precio', async () => {
   const result = await importInventoryItems('store', [{ model: 'iPhone 13', imei: '', price: null }, { model: 'iPhone 12', imei: '' }]);
-  expect(result).toEqual({ imported: 2, updated: 0, errors: [], priceToDefine: 2 });
+  expect(result).toEqual({ imported: 2, updated: 0, errors: [], priceToDefine: 2, diagnostics: { detectedRows: 2, acceptedRows: 2, discardedRows: 0, discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: [] } });
   expect(db.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({ price: null }) });
 });
 it('reimportar sin precio no borra un precio guardado', async () => {

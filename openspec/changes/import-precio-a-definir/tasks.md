@@ -5,3 +5,4 @@
 - [x] Dos variantes de avisos, mapeo y proveedor inline
 - [x] Tests relacionados, QA local y capturas 1440/390
 - [x] Push de rama y PR draft (#614)
+- [x] Integrar #613: motivos de descarte, campos faltantes y eventos, conservando precio null en variantes A/B

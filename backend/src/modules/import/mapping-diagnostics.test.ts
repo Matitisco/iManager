@@ -12,9 +12,9 @@ describe('analysis missing mapping fields', () => {
   it('returns stable missing fields for heuristic and manual analysis, recalculating after remapping', async () => {
     vi.stubEnv('OPENAI_API_KEY', '');
     const heuristic = await analyzeImport({ sheets, section: 'inventory', currency: 'USD' });
-    expect(heuristic).toMatchObject({ source: 'heuristic', missingRequiredFields: ['price'], missingRecommendedFields: ['imei'], diagnostics: { discardedByReason: { missing_price: 2 } } });
+    expect(heuristic).toMatchObject({ source: 'heuristic', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { acceptedRows: 2, discardedRows: 0, discardedByReason: {} } });
     const manual = applyImportPlan({ sheets, section: 'inventory', currency: 'USD', plan: heuristic.plan });
-    expect(manual).toMatchObject({ source: 'manual', missingRequiredFields: ['price'], missingRecommendedFields: ['imei'] });
+    expect(manual).toMatchObject({ source: 'manual', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] });
     const complete = [{ name: 'Stock', rows: [['Modelo', 'Costo', 'Color', 'Venta', 'IMEI'], ['iPhone 13', '420', 'Negro', '500', '']] }];
     const remapped = applyImportPlan({ sheets: complete, section: 'inventory', currency: 'USD', plan: heuristic.plan, refreshMapping: true });
     expect(remapped).toMatchObject({ missingRequiredFields: [], missingRecommendedFields: [], diagnostics: { acceptedRows: 1, discardedRows: 0 } });
@@ -31,7 +31,7 @@ describe('analysis missing mapping fields', () => {
     });
     const result = await analyzeImport({ sheets, section: 'inventory', currency: 'USD' }, { fetchImpl });
     expect(fetchImpl).toHaveBeenCalledOnce();
-    expect(result).toMatchObject({ source: 'model', rows: [], missingRequiredFields: ['price'], missingRecommendedFields: ['imei'], diagnostics: { detectedRows: 2, discardedByReason: { missing_price: 2 } } });
+    expect(result).toMatchObject({ source: 'model', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { detectedRows: 2, acceptedRows: 2, discardedRows: 0, discardedByReason: {} } });
   });
 
   it.each(['Precio de compra', 'Cost price', 'Purchase price'])('rejects a Decisions price assignment to %s', async (header) => {
@@ -43,7 +43,7 @@ describe('analysis missing mapping fields', () => {
       return response({ answers });
     });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(result).toMatchObject({ source: 'model', missingRequiredFields: ['price'], diagnostics: { discardedByReason: { missing_price: 1 } } });
+    expect(result).toMatchObject({ source: 'model', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
     expect(result.plan[0].mapping.some(column => column.field === 'price')).toBe(false);
   });
 
@@ -61,7 +61,7 @@ describe('analysis missing mapping fields', () => {
       return response({ output_text: JSON.stringify({ sheets: [{ ...plan, missingRequiredFields: [] }] }) });
     });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(result).toMatchObject({ source: 'model', missingRequiredFields: ['price'], missingRecommendedFields: ['imei'], diagnostics: { discardedByReason: { missing_price: 1 } } });
+    expect(result).toMatchObject({ source: 'model', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
   });
 
   it.each(['Venta', 'PVP', 'Precio USD', '$'])('accepts a mocked model price assignment from %s', async (header) => {

@@ -417,7 +417,7 @@ describe("analyzeImport model", () => {
     expect(logs[0]?.estimatedUsd).toBe(0.00027);
   });
 
-  it("falls back to Luna when Decisions fails; accepts a model without price", async () => {
+  it("retries the full mapper when Decisions overlooks an actual sale-price column", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
     const plan = {
       sheets: [{
@@ -468,9 +468,8 @@ describe("analyzeImport model", () => {
       currency: "USD",
       sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
     }, { fetchImpl: blank });
-    expect(blank).toHaveBeenCalledTimes(1);
-    expect(missingPrice.rows[0]).toMatchObject({ model: "13" });
-    expect(missingPrice.rows[0].price).toBeUndefined();
+    expect(blank).toHaveBeenCalledTimes(2);
+    expect(missingPrice.rows[0]).toMatchObject({ model: "13", price: "500" });
   });
 
   it("does not call Luna when Decisions has no balance", async () => {

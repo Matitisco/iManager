@@ -32,3 +32,11 @@ El sistema SHALL permitir crear un proveedor desde el selector del formulario de
 #### Scenario: Error de persistencia
 - **WHEN** la API rechaza la creación del proveedor
 - **THEN** se conserva el nombre, se muestra el error y no se selecciona ni cierra como éxito
+
+### Requirement: Diagnósticos compatibles con precio a definir
+El sistema SHALL conservar los diagnósticos por motivo y los eventos de importación, tratar Precio como recomendado y usar los campos de diagnóstico en ambas variantes.
+
+#### Scenario: Archivo sin precio y con filas descartadas por otros motivos
+- **WHEN** el archivo incluye equipos reconocibles sin precio y filas sin modelo o con precio inválido
+- **THEN** los equipos reconocibles se conservan con precio null, los otros descartes se cuentan por su motivo real y no se registra missing_price
+- **AND** ambas variantes muestran los motivos, los obligatorios faltantes y el resultado con precio a definir sin exponer contenido de celdas en los eventos

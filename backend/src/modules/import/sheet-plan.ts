@@ -40,7 +40,6 @@ export type SheetSummary = {
 };
 
 export type ImportSummary = {
-  discardedRows?: number;
   sheetCount: number;
   rowCount: number;
   sheets: SheetSummary[];
@@ -463,7 +462,10 @@ export function applyPlans(
           record[column.field] = (line[index] ?? "").trim();
         }
         // A repeated table header is metadata, even when price is optional.
-        if (section === "inventory" && record.model && mapping.some(column => column.field === "model" && normalizeHeader(column.header) === normalizeHeader(record.model))) continue;
+        if (section === "inventory" && record.model && mapping.some(column => column.field === "model" && normalizeHeader(column.header) === normalizeHeader(record.model))) {
+          countDiscard(diagnostics, "section_header");
+          continue;
+        }
         if (sectionCondition && !record.condition) record.condition = sectionCondition;
         if (plan.splitModelCapacity && record.model) {
           const split = splitModelCapacity(record.model);
@@ -472,7 +474,6 @@ export function applyPlans(
         }
         if (plan.batteryAsPercent && record.batteryHealth) record.batteryHealth = normalizeBattery(record.batteryHealth);
         const rawAmount = record.amount ?? "";
-        const rawPrice = record.price ?? "";
         if (record.price != null) {
           const rowCurrency = normalizeCurrencyToken(record.currency) || amountCellCurrency(record.price) || plan.priceCurrency || storeCurrency;
           if (section === "inventory") record.currency = rowCurrency;
@@ -499,6 +500,10 @@ export function applyPlans(
           continue;
         }
         if (section === "inventory" && !normalized.model?.trim()) { countDiscard(diagnostics, "missing_model"); continue; }
+        if (section === "inventory" && normalized.price?.trim()) {
+          const price = parseMoney(normalized.price);
+          if (price == null || price < 0) { countDiscard(diagnostics, "invalid_price"); continue; }
+        }
         if (section === "trade-ins" && !normalized.clientName?.trim()) { countDiscard(diagnostics, "missing_client"); continue; }
         if (section === "trade-ins" && !normalized.deviceReceived?.trim()) { countDiscard(diagnostics, "missing_device"); continue; }
         const filled = Object.values(normalized).some((value) => value.trim());
@@ -543,7 +548,6 @@ export function applyPlans(
     plans,
     diagnostics,
     summary: {
-      discardedRows: diagnostics.discardedRows,
       sheetCount: includedSheets.length,
       rowCount: includedSheets.reduce((total, sheet) => total + sheet.rows, 0),
       sheets: summaries,

@@ -40,7 +40,6 @@ export type ImportAnalysis = {
   plan: ImportSheetPlan[];
   rows: Record<string, string>[];
   summary: {
-    discardedRows?: number;
     sheetCount: number;
     rowCount: number;
     sheets: { name: string; rows: number; condition: string; included: boolean; diagnostics?: ImportDiagnostics }[];
