@@ -1,0 +1,4 @@
+- [x] Reproducir en rojo las cuotas y el saldo/pagos del cliente redondeados.
+- [x] Conservar centavos en presentación y conversión de estos importes.
+- [x] Pruebas relacionadas y typecheck/lint frontend/backend.
+- [x] Capturas antes/después, CI verde y PR abierto pendiente de revisión.

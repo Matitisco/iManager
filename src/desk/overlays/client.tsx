@@ -158,20 +158,20 @@ export function ClientDetail({ id }: { id: string }) {
       {error && !isNetworkErrorMessage(error) && <div className="ferr">{error}</div>}
       {client.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{client.archivedBy ? `por ${client.archivedBy}` : 'Este cliente está archivado'}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendClient(user, client.id); await reloadClients(); toast('Cliente restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency)}</div></div>
+        <div className="dhero"><div className="eb">{net < 0 ? 'Saldo a favor' : 'Saldo pendiente'}</div><div className="big">{money.show(Math.abs(net), client.balanceCurrency, 2)}</div></div>
         <RecordHistoryButton entityType="client" entityId={client.id} label={client.name} />
       </div>
       {credit > 0 ? (
         <>
-          <div className="kv"><span>Deuda</span><b>{money.show(client.pendingBalance, client.balanceCurrency)}</b></div>
-          <div className="kv"><span>Saldo a favor</span><b>{money.show(credit, client.balanceCurrency)}</b></div>
+          <div className="kv"><span>Deuda</span><b>{money.show(client.pendingBalance, client.balanceCurrency, 2)}</b></div>
+          <div className="kv"><span>Saldo a favor</span><b>{money.show(credit, client.balanceCurrency, 2)}</b></div>
         </>
       ) : null}
       <div className="kv"><span>Teléfono</span><b>{client.phone || '-'}</b></div>
       <div className="kv"><span>Instagram</span><b>{client.instagram ? `@${client.instagram.replace(/^@/, '')}` : '-'}</b></div>
       <div className="kv"><span>Email</span><b>{client.email || '-'}</b></div>
       {(creditNotes ?? []).filter((note) => note.clientId === client.id && note.remaining > 0 && !note.deletedAt).map((note) => (
-        <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency)}</b></div>
+        <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency, 2)}</b></div>
       ))}
       {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <ListSkeleton variant="lines" rows={3} /> : null}
       <ClientPurchases key={client.id} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
@@ -185,7 +185,7 @@ export function ClientDetail({ id }: { id: string }) {
         <>
           <Field label="Pagos"><span /></Field>
           {payments.map((payment) => (
-            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentCaption(payment)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency)}</b></div>
+            <div className="kv" key={payment.id}><span>{formatShortDate(payment.paidAt)} · {paymentCaption(payment)}</span><b>{money.show(payment.amount, payment.currency ?? client.balanceCurrency, 2)}</b></div>
           ))}
         </>
       ) : null}

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { combineAmounts, commitAmount, commitGroup, projectAmount } from './money';
 
 describe('projectAmount', () => {
+  it('conserva centavos al proyectar importes de cuenta con precisión explícita', () => {
+    expect(projectAmount(458325, 'ARS', 'USD', 1250, 2)).toEqual({ value: 366.66, currency: 'USD', blocked: false });
+    expect(projectAmount(458325, 'ARS', 'USD', 1250)).toEqual({ value: 367, currency: 'USD', blocked: false });
+    expect(projectAmount(366.66, 'USD', 'USD', 1250, 2).value).toBe(366.66);
+    expect(projectAmount(366.66, 'USD', 'ARS', null, 2)).toEqual({ value: 366.66, currency: 'USD', blocked: true });
+  });
   it('reads a missing currency as the active store currency', () => {
     expect(projectAmount(1500, null, 'ARS', 1200)).toEqual({ value: 1500, currency: 'ARS', blocked: false });
     expect(projectAmount(100, '', 'USD', 1200)).toEqual({ value: 100, currency: 'USD', blocked: false });
