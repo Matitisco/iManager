@@ -1,0 +1,4 @@
+- [x] Reproducir pérdida con regresión de API y formulario roja.
+- [x] Persistir, serializar y recuperar vendedor y garantía.
+- [x] Verificar confirmación, comisión, garantía cero, edición y pertenencia a tienda.
+- [x] Typecheck frontend/backend, pruebas relacionadas y CI; publicar PR.
