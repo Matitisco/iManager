@@ -52,7 +52,7 @@ export function normalizeCurrencyToken(raw: string | undefined): "" | "ARS" | "U
   const value = (raw ?? "").trim().toLowerCase();
   if (!value) return "";
   if (/usd|u\$s|u\$d|us\$|dolar|dólar|dls/.test(value)) return "USD";
-  if (/ars|peso/.test(value) || value === "$") return "ARS";
+  if (/ar\$|ars|peso/.test(value) || value === "$") return "ARS";
   return "";
 }
 
