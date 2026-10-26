@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import posthog from 'posthog-js';
 
 vi.mock('posthog-js', () => ({ default: {
-  init: vi.fn(), capture: vi.fn(), identify: vi.fn(), register: vi.fn(), reset: vi.fn(),
+  init: vi.fn(), capture: vi.fn(), identify: vi.fn(), group: vi.fn(), register: vi.fn(), reset: vi.fn(),
 } }));
 
 const pushState = window.history.pushState;
@@ -100,12 +100,14 @@ describe('PostHog collection and privacy', () => {
       $initial_current_url: location.href, $referrer: 'https://test/?token=secret', $pathname: '/invite/secret', utm_source: 'private', $set_once: { $initial_current_url: location.href, role: 'OWNER' } } });
     expect(event!.properties).toEqual({ $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
   });
-  it('identifies only internal IDs and role, deduplicates rerenders and resets between users', async () => {
+  it('identifies user, email, name and store, deduplicates rerenders and resets between users', async () => {
     const analytics = await import('./posthog-analytics'); analytics.initAnalytics();
-    analytics.identify('u', 's', 'OWNER'); analytics.identify('u', 's', 'OWNER');
-    expect(posthog.identify).toHaveBeenCalledExactlyOnceWith('u', { store_id: 's', role: 'OWNER' });
+    const details = { email: 'a@b.c', name: 'Ana', storeName: 'Tienda' };
+    analytics.identify('u', 's', 'OWNER', details); analytics.identify('u', 's', 'OWNER', details);
+    expect(posthog.identify).toHaveBeenCalledExactlyOnceWith('u', { store_id: 's', role: 'OWNER', email: 'a@b.c', name: 'Ana', store_name: 'Tienda' });
+    expect(posthog.group).toHaveBeenCalledExactlyOnceWith('store', 's', { name: 'Tienda' });
     analytics.identify('u', 'other-store', 'STAFF');
-    expect(posthog.register).toHaveBeenLastCalledWith({ store_id: 'other-store', role: 'STAFF' });
+    expect(posthog.register).toHaveBeenLastCalledWith({ store_id: 'other-store', role: 'STAFF', store_name: null });
     analytics.identify('other-user', null, null);
     expect(posthog.reset).toHaveBeenCalledOnce();
     analytics.reset(); expect(posthog.reset).toHaveBeenCalledTimes(2);
