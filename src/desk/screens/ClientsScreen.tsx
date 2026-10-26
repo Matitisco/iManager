@@ -4,7 +4,9 @@ import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { clientNet } from '../client-balance';
-import { clientSpendingById, formatClientSpending } from '../client-spending';
+import { clientSpendingById, combinedClientSpending } from '../client-spending';
+import { ClientSpending } from '../ClientSpending';
+import type { StoredAmount } from '../money';
 import { suppressLocalNetworkBanner } from '../offline-banner';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
@@ -84,8 +86,7 @@ export function ClientsScreen() {
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const spending = useMemo(() => clientSpendingById(sales, repairOrders, money.active), [sales, repairOrders, money.active]);
-  const spent = (client: Client) => money.sum(spending.get(client.id) ?? []);
-  const spentLabel = (client: Client) => formatClientSpending(spending.get(client.id) ?? [], money);
+  const spent = (client: Client) => money.sum(combinedClientSpending(spending.get(client.id) ?? [], client));
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('clients');
@@ -132,7 +133,7 @@ export function ClientsScreen() {
   };
 
   return (
-    <div className={`dscreen mobile-list-screen${phone ? ' has-dock' : ''}`}>
+    <div className={`dscreen mobile-list-screen cl-clients-screen${phone ? ' has-dock' : ''}`}>
       <ScreenTitle
         title="Clientes"
         back={back}
@@ -210,7 +211,7 @@ export function ClientsScreen() {
                       onActivate={() => { open({ type: 'cl', id: client.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                     >
-                      <ClientCard client={client} money={money} spentLabel={spentLabel(client)} />
+                      <ClientCard client={client} money={money} parts={spending.get(client.id) ?? []} />
                     </PhoneRecord>
                   </Fragment>
                 );
@@ -281,7 +282,7 @@ export function ClientsScreen() {
                   <td>{client.dni || '-'}</td>
                   <td>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
-                  <td className="r">{spentLabel(client)}</td>
+                  <td className="r"><ClientSpending client={client} parts={spending.get(client.id) ?? []} money={money} compact /></td>
                   <td>{clientNet(client) > 0 ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span> : clientNet(client) < 0 ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>
               ))}
@@ -354,7 +355,7 @@ export function ClientsScreen() {
   );
 }
 
-function ClientCard({ client, money, spentLabel }: { client: Client; money: MoneyApi; spentLabel: string }) {
+function ClientCard({ client, money, parts }: { client: Client; money: MoneyApi; parts: StoredAmount[] }) {
   const contact = [client.dni ? `DNI ${client.dni}` : '', client.phone].filter(Boolean).join(' · ');
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   return (
@@ -378,7 +379,7 @@ function ClientCard({ client, money, spentLabel }: { client: Client; money: Mone
       </span>
       <span className="cl-bot">
         <span><em>Última compra</em><b>{bought ? formatShortDate(client.lastPurchaseDate) : '—'}</b></span>
-        <span><em>Total comprado</em><b>{spentLabel}</b></span>
+        <span><em>Total comprado</em><ClientSpending client={client} parts={parts} money={money} compact /></span>
       </span>
     </span>
   );

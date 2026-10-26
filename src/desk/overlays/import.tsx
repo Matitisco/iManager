@@ -127,6 +127,8 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
     unrelatedNotice: 'Este archivo no parece tener clientes para importar.',
     fields: [
       { key: 'name', label: 'Nombre', required: true },
+      { key: 'importedSpent', label: 'Histórico importado', required: false, hint: 'Compras previas a iManager. No incluir ventas importadas como comprobantes.' },
+      { key: 'importedSpentCurrency', label: 'Moneda del histórico', required: false, hint: 'ARS o USD. Requerida si cargás un histórico.' },
       { key: 'phone', label: 'Teléfono', required: false },
       { key: 'instagram', label: 'Instagram', required: false },
       { key: 'email', label: 'Email', required: false },

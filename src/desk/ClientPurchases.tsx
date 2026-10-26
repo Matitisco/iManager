@@ -4,10 +4,10 @@ import { ArrowLeft } from 'lucide-react';
 import { ModalLayerContext, useModalLayer } from './modal-layer';
 import { ModalCloseButton } from './close-button';
 import { usePhoneLayout } from './section-notices';
-import type { Product, RepairOrder, Sale, TradeIn } from '../types';
+import type { Client, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { CommissionSeller } from '../types/commissions';
 import { useMoney, type MoneyApi } from './exchange';
-import { formatClientSpending } from './client-spending';
+import { ClientSpending } from './ClientSpending';
 import {
   clientPurchases,
   filterPurchases,
@@ -88,7 +88,8 @@ function PurchasesModal({ clientName, rows, money, initialFilter, onClose }: {
   </ModalLayerContext.Provider>, document.querySelector('.desk-app') ?? document.body);
 }
 
-export function ClientPurchases({ clientId, clientName, sales, tradeIns, repairs, inventory, sellers }: {
+export function ClientPurchases({ client, clientId, clientName, sales, tradeIns, repairs, inventory, sellers }: {
+  client?: Client;
   clientId: string;
   clientName: string;
   sales: Sale[];
@@ -111,7 +112,7 @@ export function ClientPurchases({ clientId, clientName, sales, tradeIns, repairs
   return (
     <section className="client-purchases" data-testid="client-purchases" aria-label="Compras">
       <div className="cl-buy-stats" data-testid="client-purchase-stats">
-        <div className="dstat"><div className="eb">Total comprado</div><div className="big">{formatClientSpending(totals.spent, money)}</div></div>
+        <ClientSpending client={client} parts={totals.spent} money={money} />
         <div className="dstat"><div className="eb">Compras</div><div className="big">{totals.count}</div></div>
         <div className="dstat"><div className="eb">Garantías</div><div className="big ok">{warrantiesLabel(totals.activeWarranties)}</div></div>
       </div>

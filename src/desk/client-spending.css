@@ -1,0 +1,9 @@
+.cl-spending { display: inline-flex; flex-direction: column; gap: 4px; max-width: 100%; }
+.cl-spending small, .cl-spending-note { display: block; color: var(--secondary); font-size: 11px; font-weight: 500; }
+.cl-buy-stats:has(.cl-spending-total) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cl-buy-stats .cl-spending-total { grid-column: 1 / -1; padding: 14px 16px; border-radius: 16px; }
+.cl-buy-stats .cl-spending-total .big { font-size: 26px; font-weight: 800; }
+.cl-spending-total .cl-spending-note { margin-top: 4px; }
+.desk-app .cl-sheet .av-c, .desk-app .cl-card .av-c, .desk-app .cl-clients-screen .av-c { background: var(--row); color: var(--primary); }
+
+.desk-app .sheet.cl-sheet .sheet-foot .btn2 { min-height: 52px; }

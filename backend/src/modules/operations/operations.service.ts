@@ -283,6 +283,8 @@ function serializeClient(client: Client) {
     phone: client.phone ?? "",
     lastPurchaseDate: client.lastPurchaseAt ? formatArDate(client.lastPurchaseAt) : "N/A",
     totalSpent: toNum(client.totalSpent),
+    importedSpent: client.importedSpent == null ? null : toNum(client.importedSpent),
+    importedSpentCurrency: client.importedSpentCurrency ?? null,
     pendingBalance: toNum(client.pendingBalance),
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,

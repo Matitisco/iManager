@@ -138,12 +138,10 @@ export function ClientDetail({ id }: { id: string }) {
       </Sheet>
     );
   }
-  const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
-  const dniNote = client.dni ? ` · DNI ${client.dni}` : '';
   const credit = !deposits.loading && !deposits.unavailable ? creditTotal(deposits.rows, client.balanceCurrency ?? null) : clientCredit(client);
   const net = client.pendingBalance - credit;
   return (
-    <Sheet title={client.name} subtitle={bought ? `Última compra ${formatShortDate(client.lastPurchaseDate)}${dniNote}` : `Sin compras todavía${dniNote}`} onClose={close} busy={busy} className="cl-sheet" footer={<SheetActions>
+    <Sheet title={client.name} onClose={close} busy={busy} className="cl-sheet" footer={<SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
       <SheetActionMenu>
         <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-deposit', id: client.id })}>Agregar seña</button>
@@ -174,7 +172,7 @@ export function ClientDetail({ id }: { id: string }) {
         <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b>{money.show(note.remaining, note.currency, 2)}</b></div>
       ))}
       {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <ListSkeleton variant="lines" rows={3} /> : null}
-      <ClientPurchases key={client.id} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
+      <ClientPurchases key={client.id} client={client} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <ListSkeleton variant="lines" rows={2} /> : null}
