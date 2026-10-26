@@ -102,8 +102,8 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
                 <button className="dolar-x" type="button" aria-label="Cerrar" onClick={() => setOpen(false)}>×</button>
               </div>
               <div className="dolar-stats">
-                <div className="dolar-stat"><span>Compra</span>{skeletonStat ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</div>
-                <div className="dolar-stat"><span>Venta</span>{skeletonStat ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</div>
+                <div className="dolar-stat"><span>Compra</span>{skeletonStat ? <i className="dolar-skel" /> : <b data-ph-mask>{quote ? formatMoney(quote.buy) : '—'}</b>}</div>
+                <div className="dolar-stat"><span>Venta</span>{skeletonStat ? <i className="dolar-skel" /> : <b data-ph-mask>{quote ? formatMoney(quote.sell) : '—'}</b>}</div>
                 <div className="dolar-stat"><span>Vs. ayer</span>{skeletonStat ? <i className="dolar-skel" /> : <b className={deltaView.tone === 'flat' ? undefined : deltaView.tone}>{deltaView.text}</b>}</div>
               </div>
               <SheetMeta compact={compact} phase={phase} quote={quote} manual={manual} clock={clock} sourceLine={sourceLine} />
@@ -122,7 +122,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
                   />
                 </label>
                 <span className="dolar-eq">=</span>
-                <b className="dolar-out" data-testid="blue-result">{quote ? formatMoney(pesos) : '—'}</b>
+                <b data-ph-mask className="dolar-out" data-testid="blue-result">{quote ? formatMoney(pesos) : '—'}</b>
                 <button className="dolar-side" type="button" data-testid="blue-rate-side" onClick={() => setSide((current) => current === 'sell' ? 'buy' : 'sell')}>
                   {side === 'sell' ? 'al precio de venta' : 'al precio de compra'}
                 </button>
@@ -166,14 +166,14 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
               </>
             ) : phase === 'error' && quote ? (
               <>
-                <span className="dolar-chip-px">{formatMoney(quote.sell)}</span>
+                <span data-ph-mask className="dolar-chip-px">{formatMoney(quote.sell)}</span>
                 {clock ? <><span className="dolar-chip-sep" aria-hidden="true">·</span><span className="dolar-chip-when">{clock}</span></> : null}
               </>
             ) : (
               <>
-                <span className="dolar-chip-px">{quote ? formatMoney(quote.buy) : '—'}</span>
+                <span data-ph-mask className="dolar-chip-px">{quote ? formatMoney(quote.buy) : '—'}</span>
                 <span className="dolar-chip-bar" aria-hidden="true" />
-                <span className="dolar-chip-px">{quote ? formatMoney(quote.sell) : '—'}</span>
+                <span data-ph-mask className="dolar-chip-px">{quote ? formatMoney(quote.sell) : '—'}</span>
               </>
             )}
             {phase === 'error' && !manual ? null : <span className="dolar-chip-go" aria-hidden="true">›</span>}
@@ -194,8 +194,8 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
             <b>{title}</b>
           </span>
           <span className="dolar-cols">
-            <span><small>Compra</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.buy) : '—'}</b>}</span>
-            <span><small>Venta</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b>{quote ? formatMoney(quote.sell) : '—'}</b>}</span>
+            <span><small>Compra</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b data-ph-mask>{quote ? formatMoney(quote.buy) : '—'}</b>}</span>
+            <span><small>Venta</small>{phase === 'loading' ? <i className="dolar-skel" /> : <b data-ph-mask>{quote ? formatMoney(quote.sell) : '—'}</b>}</span>
           </span>
           {phase !== 'error' ? (
             <span className="dolar-foot">{phase === 'loading' ? 'Actualizando...' : manual ? 'Cotización de la tienda' : `Act. ${clock} · DolarApi`}</span>

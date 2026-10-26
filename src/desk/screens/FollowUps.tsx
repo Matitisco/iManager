@@ -177,7 +177,7 @@ export function FollowUps({ query = '' }: { query?: string }) {
                     <b>{label.group}</b>
                     <span>· {group.rows.length}</span>
                   </span>
-                  {aside ? <span className="fu-aside">{aside}</span> : null}
+                  {aside ? <span data-ph-mask={group.kind === 'DEUDA' || undefined} className="fu-aside">{aside}</span> : null}
                 </header>
                 {group.rows.map((card) => {
                   const fact = followUpFact(card, today, show);
@@ -185,10 +185,10 @@ export function FollowUps({ query = '' }: { query?: string }) {
                   return (
                     <article className={`fu-row${link ? '' : ' has-extra'}`} key={card.id} data-testid={`follow-${card.kind}`}>
                       <div className="fu-who">
-                        <span className={`av-c ${avatarTone(card.name)}`}>{initials(card.name)}</span>
+                        <span data-ph-mask className={`av-c ${avatarTone(card.name)}`}>{initials(card.name)}</span>
                         <span>
-                          <b>{card.name}</b>
-                          {phone ? null : <small>{card.phone.trim() || 'Sin teléfono'}</small>}
+                          <b data-ph-mask>{card.name}</b>
+                          {phone ? null : <small data-ph-mask>{card.phone.trim() || 'Sin teléfono'}</small>}
                         </span>
                       </div>
                       {phone ? null : (
@@ -198,7 +198,7 @@ export function FollowUps({ query = '' }: { query?: string }) {
                         </span>
                       )}
                       <div className="fu-fact">
-                        {fact.primary ? <strong className={fact.debt ? 'debt' : undefined}>{fact.primary}</strong> : null}
+                        {fact.primary ? <strong data-ph-mask={fact.debt || undefined} className={fact.debt ? 'debt' : undefined}>{fact.primary}</strong> : null}
                         {fact.secondary ? <span>{fact.secondary}</span> : null}
                       </div>
                       {link ? null : (

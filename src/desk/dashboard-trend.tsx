@@ -38,8 +38,8 @@ export function DashboardTrend({ series, range, phone, format }: { series: Repor
   }).join(' ');
   return <svg ref={svg} className="dashboard-trend-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Ventas del período" preserveAspectRatio="none">
     <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--lime)" stopOpacity=".34" /><stop offset="100%" stopColor="var(--lime)" stopOpacity=".02" /></linearGradient></defs>
-    {[min, (tickMax + min) / 2, tickMax].map(value => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--row)" /><text x={left - 8} y={y(value) + 4} textAnchor="end">{format(value)}</text></g>)}
+    {[min, (tickMax + min) / 2, tickMax].map(value => <g key={value}><line x1={left} x2={right} y1={y(value)} y2={y(value)} stroke="var(--row)" /><text data-ph-mask x={left - 8} y={y(value) + 4} textAnchor="end">{format(value)}</text></g>)}
     {points.length ? <><path d={`${path} L${points.at(-1)!.x},${y(0)} L${points[0].x},${y(0)} Z`} fill={`url(#${id})`} /><path d={path} fill="none" stroke="var(--primary)" strokeWidth="2.4" vectorEffect="non-scaling-stroke" /></> : null}
-    {points.map((point, i) => <g key={point.start}><circle cx={point.x} cy={point.y} r={phone ? 3.5 : 4} fill="var(--card)" stroke="var(--primary)" strokeWidth="2" vectorEffect="non-scaling-stroke"><title>{point.label}: {format(point.revenue)}</title></circle>{i % Math.max(1, Math.ceil(points.length / 6)) === 0 || i === points.length - 1 ? <text x={point.x} y={height - 8} textAnchor="middle">{point.label}</text> : null}</g>)}
+    {points.map((point, i) => <g key={point.start}><circle cx={point.x} cy={point.y} r={phone ? 3.5 : 4} fill="var(--card)" stroke="var(--primary)" strokeWidth="2" vectorEffect="non-scaling-stroke"><title data-ph-mask>{point.label}: {format(point.revenue)}</title></circle>{i % Math.max(1, Math.ceil(points.length / 6)) === 0 || i === points.length - 1 ? <text x={point.x} y={height - 8} textAnchor="middle">{point.label}</text> : null}</g>)}
   </svg>;
 }

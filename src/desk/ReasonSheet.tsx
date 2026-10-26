@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Actions, Sheet } from './ui';
 
 const REASONS = ['Error de carga', 'Duplicado', 'Devolución', 'Otro'];
 
-export function ReasonSheet({ title, subtitle, note, ok, cancel = 'Cancelar', className, danger, busy, error, extra, onClose, onOk }: {
+export function ReasonSheet({ title, subtitle, maskTitle = false, maskSubtitle = false, note, ok, cancel = 'Cancelar', className, danger, busy, error, extra, onClose, onOk }: {
   title: string;
   subtitle?: string;
-  note: string;
+  maskTitle?: boolean;
+  maskSubtitle?: boolean;
+  note: ReactNode;
   ok: string;
   cancel?: string;
   className?: string;
@@ -20,7 +22,7 @@ export function ReasonSheet({ title, subtitle, note, ok, cancel = 'Cancelar', cl
   const [chip, setChip] = useState('');
   const [detail, setDetail] = useState('');
   const reason = [chip === 'Otro' ? '' : chip, detail.trim()].filter(Boolean).join(' · ').slice(0, 280);
-  return <Sheet className={className} title={title} subtitle={subtitle} onClose={onClose} busy={busy} footer={<Actions primary={ok} secondary={cancel} danger={danger} busy={busy} onPrimary={() => onOk(reason)} onSecondary={onClose} />}>
+  return <Sheet className={className} title={title} subtitle={subtitle} maskTitle={maskTitle} maskSubtitle={maskSubtitle} onClose={onClose} busy={busy} footer={<Actions primary={ok} secondary={cancel} danger={danger} busy={busy} onPrimary={() => onOk(reason)} onSecondary={onClose} />}>
     <div className="pending-sale"><div><b>Qué pasa</b><small>{note}</small></div></div>
     <p className="kicker">Motivo (opcional)</p>
     <div className="wchips">{REASONS.map((label) => <button key={label} type="button" className={`wchip${chip === label ? ' on' : ''}`} disabled={busy} aria-pressed={chip === label} onClick={() => setChip(current => current === label ? '' : label)}>{label}</button>)}</div>

@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { usePhoneLayout } from '../section-notices';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
@@ -189,7 +190,7 @@ export function SalePaymentsFields({
           <Field label="Recargo opcional" mark={currency}><input aria-label="Recargo" inputMode="numeric" value={surcharge} placeholder="$ 0" onChange={(event) => setSurcharge(formatMoneyInput(event.target.value))} /></Field>
           <label className="op-check"><input type="checkbox" checked={collectFirst} onChange={(event) => setCollectFirst(event.target.checked)} />Cobrar la primera cuota ahora</label>
           {collectFirst ? <><Field label="Medio de la primera cuota"><span /></Field><Segs options={PAYMENTS} value={firstMethod} onChange={setFirstMethod} /></> : null}
-          <p className="eqs-note">Se financia el saldo que queda después de los pagos iniciales{surcharge ? `. Recargo ${formatInputMoney(parseMoney(surcharge)) || surcharge}` : ''}.</p>
+          <p className="eqs-note">Se financia el saldo que queda después de los pagos iniciales<ReplayValue>{surcharge ? `. Recargo ${formatInputMoney(parseMoney(surcharge)) || surcharge}` : ''}</ReplayValue>.</p>
         </div>
       ) : null}
       {state.error && !state.error.includes('cotización') ? <div className="ferr" role="alert">{state.error}</div> : null}

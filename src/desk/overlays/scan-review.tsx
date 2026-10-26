@@ -194,8 +194,8 @@ export function ScanReviewSheet({
             </div>
           ) : null}
           <dl className="scan-kv">
-            <div><dt>IMEI</dt><dd>{editing ? <input aria-label="IMEI" inputMode="numeric" value={draft.imei} onChange={(event) => setField('imei', event.target.value.replace(/\D/g, '').slice(0, 15))} /> : (draft.imei ? formatImei(draft.imei) : '—')}</dd></div>
-            {labeled ? <div><dt>Serie</dt><dd>{editing ? <input aria-label="Serie" value={draft.serial} onChange={(event) => setField('serial', event.target.value.toUpperCase())} /> : (draft.serial || '—')}</dd></div> : null}
+            <div><dt>IMEI</dt><dd data-ph-mask>{editing ? <input aria-label="IMEI" inputMode="numeric" value={draft.imei} onChange={(event) => setField('imei', event.target.value.replace(/\D/g, '').slice(0, 15))} /> : (draft.imei ? formatImei(draft.imei) : '—')}</dd></div>
+            {labeled ? <div><dt>Serie</dt><dd data-ph-mask>{editing ? <input aria-label="Serie" value={draft.serial} onChange={(event) => setField('serial', event.target.value.toUpperCase())} /> : (draft.serial || '—')}</dd></div> : null}
             {labeled ? <div><dt>Part number</dt><dd>{editing ? <input aria-label="Part number" value={draft.partNumber} onChange={(event) => setField('partNumber', event.target.value.toUpperCase())} /> : (draft.partNumber || '—')}</dd></div> : null}
           </dl>
           {imeiError && tried ? <p className="ferr">{imeiError}</p> : null}

@@ -176,7 +176,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
         {hideLoadMessage ? null : periodLoading ? <div className="dashboard-payment-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: phone ? 64 : 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{periodFailed ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>
           <div className="dashboard-payment-stack" aria-hidden="true">{overview.paymentMethods.map((method, index) => <i key={method.label} style={{ width: `${method.share}%`, background: paymentColor(index) }} />)}</div>
           <div key={current?.key} className="dashboard-payment-list">{overview.paymentMethods.map((method, index) => <div key={method.label} className="dashboard-payment">
-            <span className="dashboard-payment-name"><i style={{ background: paymentColor(index) }} />{method.label}</span><span className="dashboard-payment-amount">{reportMoney(method.revenue)}</span><b>{Math.round(method.share)}%</b><div className="dashboard-payment-bar"><i style={{ width: `${method.share}%` }} /></div>
+            <span className="dashboard-payment-name"><i style={{ background: paymentColor(index) }} />{method.label}</span><span data-ph-mask className="dashboard-payment-amount">{reportMoney(method.revenue)}</span><b>{Math.round(method.share)}%</b><div className="dashboard-payment-bar"><i style={{ width: `${method.share}%` }} /></div>
           </div>)}</div>
         </>}
       </section>
@@ -190,14 +190,14 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
           </PhoneRecord>)}</PhoneRecords> : <table key={current?.key} className="dtable compact">
             <SalesTableHead />
             <tbody>{recent.map(sale => <PressTarget key={sale.id} as="tr" className={isVoidRow(sale) ? 'is-void' : undefined} onActivate={() => open({ type: 'sale', id: sale.id })} onMenu={point => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, ...point })}>
-              <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td><td>{saleBuyer(sale, clients)}</td><td>{saleEquipment(sale, displayedInventory)}</td><td className="r"><b>{money.show(sale.amount, sale.amountCurrency)}</b></td><td><Pill status={sale.status} kind="SALE_STATUS" /></td>
+              <td><b>#{saleCode(sale)}</b><small>{formatShortDate(sale.date)}</small></td><td data-ph-mask>{saleBuyer(sale, clients)}</td><td>{saleEquipment(sale, displayedInventory)}</td><td className="r"><b data-ph-mask>{money.show(sale.amount, sale.amountCurrency)}</b></td><td><Pill status={sale.status} kind="SALE_STATUS" /></td>
             </PressTarget>)}</tbody>
           </table>}
         </div>
       </section> : null}
       <div className="v3-side">
         {!phone ? <>{can('tradeins') ? <button type="button" className="dcard v3-link" data-testid="dashboard-trades" aria-busy={initialLoading} onClick={() => go('tradeins')}><span>Canjes en curso</span><b>{initialLoading ? <Skeleton style={{ width: 30, height: 26 }} /> : listsLoadFailed ? '—' : openTrades}</b><ChevronRight size={16} /></button> : null}
-        {can('clients') ? <button type="button" className="dcard v3-link" aria-busy={initialLoading} onClick={() => go('clients')}><span>Saldos a cobrar</span><b>{initialLoading ? <Skeleton style={{ width: 70, height: 26 }} /> : listsLoadFailed || balance == null ? '—' : money.showActive(balance)}</b><ChevronRight size={16} /></button> : null}</> : null}
+        {can('clients') ? <button type="button" className="dcard v3-link" aria-busy={initialLoading} onClick={() => go('clients')}><span>Saldos a cobrar</span><b data-ph-mask>{initialLoading ? <Skeleton style={{ width: 70, height: 26 }} /> : listsLoadFailed || balance == null ? '—' : money.showActive(balance)}</b><ChevronRight size={16} /></button> : null}</> : null}
         <DashboardContact />
       </div>
     </div>
@@ -205,7 +205,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
 }
 
 function Kpi({ label, value, suffix, suffixInFooter, loading, onClick, children }: { label: string; value: ReactNode; suffix?: string; suffixInFooter?: boolean; loading: boolean; onClick?: () => void; children?: ReactNode }) {
-  const content = <><div className="eb">{label || <Skeleton style={{ width: 100, height: '1lh' }} />}</div><div className="big">{loading ? <Skeleton style={{ width: 100, height: '1lh' }} /> : <><span className="dashboard-kpi-value">{value}</span>{suffix && !suffixInFooter ? <> <small className="mut">{suffix}</small></> : null}</>}</div><div className="dashboard-kpi-footer">{!loading && children ? children : <span className="spill dashboard-delta-reserve" aria-hidden="true">&nbsp;</span>}{!loading && suffix && suffixInFooter ? <small className="mut">{suffix}</small> : null}</div></>;
+  const content = <><div className="eb">{label || <Skeleton style={{ width: 100, height: '1lh' }} />}</div><div className="big">{loading ? <Skeleton style={{ width: 100, height: '1lh' }} /> : <><span data-ph-mask={['Ventas', 'Margen bruto'].includes(label) || undefined} className="dashboard-kpi-value">{value}</span>{suffix && !suffixInFooter ? <> <small className="mut">{suffix}</small></> : null}</>}</div><div className="dashboard-kpi-footer">{!loading && children ? children : <span className="spill dashboard-delta-reserve" aria-hidden="true">&nbsp;</span>}{!loading && suffix && suffixInFooter ? <small className="mut">{suffix}</small> : null}</div></>;
   return onClick ? <button type="button" className="dstat" aria-busy={loading} onClick={onClick}>{content}</button> : <div className="dstat" aria-busy={loading}>{content}</div>;
 }
 
@@ -224,8 +224,8 @@ function SalesLoading({ phone }: { phone: boolean }) {
 function RecentSaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: string; equipment: string; amount: string }) {
   return <span className="sale-card">
     <span className="sale-top"><span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span><Pill status={sale.status} kind="SALE_STATUS" /></span>
-    <span className="sale-who"><span className="av-c" aria-hidden="true" style={{ background: 'var(--section)', color: '#fff' }} /><span><b>{buyer}</b><small>{equipment}</small></span></span>
-    <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b>{amount}</b></span></span>
+    <span className="sale-who"><span className="av-c" aria-hidden="true" style={{ background: 'var(--section)', color: '#fff' }} /><span><b data-ph-mask>{buyer}</b><small>{equipment}</small></span></span>
+    <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b></span></span>
   </span>;
 }
 

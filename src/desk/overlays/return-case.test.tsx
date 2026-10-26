@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -253,7 +254,7 @@ describe('rediseño aprobado de reclamos', () => {
   });
   it('uses the danger sheet action and identifies the claim and client in confirmation', () => {
     mount(<ReturnDelete id="claim" />);
-    expect(screen.getByText('RMA-0001 · Lucía')).toHaveClass('rd-who');
+    expect(screen.getByText(textContent('RMA-0001 · Lucía'))).toHaveClass('rd-who');
     expect(screen.getByRole('button', { name: 'Anular' })).toHaveClass('btn2', 'danger', 'sheet-primary');
   });
 });

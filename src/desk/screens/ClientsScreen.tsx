@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { isSectionHidden } from '../../config/hiddenSections';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
@@ -275,15 +276,15 @@ export function ClientsScreen() {
                 >
                   <td>
                     <div className="dcell">
-                      <div className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
-                      <div><b>{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small>{client.email || '-'}</small><NoticeTag reason={noticeFor(client)} /></div>
+                      <div data-ph-mask className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</div>
+                      <div><b><ReplayValue>{client.name}</ReplayValue>{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b><small data-ph-mask>{client.email || '-'}</small><NoticeTag reason={noticeFor(client)} /></div>
                     </div>
                   </td>
-                  <td>{client.dni || '-'}</td>
-                  <td>{client.phone || '-'}</td>
+                  <td data-ph-mask>{client.dni || '-'}</td>
+                  <td data-ph-mask>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
                   <td className="r"><ClientSpending client={client} parts={spending.get(client.id) ?? []} money={money} compact /></td>
-                  <td>{clientNet(client) > 0 ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span> : clientNet(client) < 0 ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
+                  <td>{clientNet(client) > 0 ? <span className="spill off">Saldo <ReplayValue>{money.compact(clientNet(client), client.balanceCurrency)}</ReplayValue></span> : clientNet(client) < 0 ? <span className="spill mid">A favor <ReplayValue>{money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</ReplayValue></span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>
               ))}
             </tbody>
@@ -361,20 +362,20 @@ function ClientCard({ client, money, parts }: { client: Client; money: MoneyApi;
   return (
     <span className="cl-card">
       <span className="cl-top">
-        <span className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</span>
+        <span data-ph-mask className={`av-c ${avatarTone(client.name)}`}>{initials(client.name)}</span>
         <span className="cl-id">
-          <b className="cl-name">{client.name}{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b>
+          <b className="cl-name"><ReplayValue>{client.name}</ReplayValue>{client.tag ? <> <Pill status={client.tag} kind="CLIENT_TAG" /></> : null}</b>
           <span className="cl-line">
-            {contact ? <small className="cl-dni">{contact}</small> : null}
+            {contact ? <small data-ph-mask className="cl-dni">{contact}</small> : null}
             <span className="cl-balance">
               {clientNet(client) > 0
-                ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span>
+                ? <span className="spill off">Saldo <ReplayValue>{money.compact(clientNet(client), client.balanceCurrency)}</ReplayValue></span>
                 : clientNet(client) < 0
-                  ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span>
+                  ? <span className="spill mid">A favor <ReplayValue>{money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</ReplayValue></span>
                 : <span className="spill mid">Sin saldo</span>}
             </span>
           </span>
-          {client.email ? <small className="cl-email">{client.email}</small> : null}
+          {client.email ? <small data-ph-mask className="cl-email">{client.email}</small> : null}
         </span>
       </span>
       <span className="cl-bot">

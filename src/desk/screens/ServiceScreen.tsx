@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -175,10 +176,10 @@ export function ServiceScreen() {
                         {dateText ? <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dateText}</span> : null}
                       </div>
                       <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
-                      {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
+                      {order.clientName ? <div data-ph-mask className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
                       <div className="items svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div>
                       <div className="wbot">
-                        <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
+                        <span data-ph-mask className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
                     </PressTarget>
                   );
@@ -237,10 +238,10 @@ export function ServiceScreen() {
                         <span className={`date${late ? ' late' : ''}`}><DeskIcon name="cal" size={13} />{dayMonth(when)}</span>
                       </div>
                       <div className="store" data-testid={`repair-device-${order.id}`}>{order.device}</div>
-                      {order.clientName ? <div className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
+                      {order.clientName ? <div data-ph-mask className="svc-card-client" data-testid={`repair-client-${order.id}`}>{order.clientName}</div> : null}
                       <div className="items svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div>
                       <div className="wbot">
-                        <span className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
+                        <span data-ph-mask className="wamt">{repairPrice(order.estimate, 'quote', (value) => money.show(value, order.currency))}</span>
                       </div>
                     </PressTarget>
                   );
@@ -271,10 +272,10 @@ export function ServiceScreen() {
                     <PressTarget key={order.id} as="tr" className={isVoidRow(order) ? 'is-void' : undefined} testId={`repair-row-${order.id}`} onActivate={() => openOrder(order.id)} onMenu={openMenu(order)}>
                       <td><b>#{order.code}</b></td>
                       <td>{dayMonth(order.receivedAt) || formatShortDate(order.receivedAt)}</td>
-                      <td>{order.device}{order.imei ? <small>IMEI {order.imei}</small> : null}</td>
-                      <td>{order.clientName || '—'}</td>
+                      <td>{order.device}{order.imei ? <small>IMEI <ReplayValue>{order.imei}</ReplayValue></small> : null}</td>
+                      <td data-ph-mask>{order.clientName || '—'}</td>
                       <td><div className="svc-fault" data-testid={`repair-fault-${order.id}`}>{repairFault(order)}</div></td>
-                      <td>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
+                      <td data-ph-mask>{repairPrice(order.estimate, 'dash', (value) => money.show(value, order.currency))}</td>
                       <td className={repairOverdue(order) ? 'late' : ''}>{order.estimatedDelivery ? dayMonth(order.estimatedDelivery) : '—'}</td>
                       <td><Pill status={repairColumnStatus(order.status)} kind="REPAIR_STATUS" /></td>
                     </PressTarget>

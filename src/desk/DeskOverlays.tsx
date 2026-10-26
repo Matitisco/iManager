@@ -107,7 +107,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
     <div className="ov ctxov" onMouseDown={close}>
       <div ref={menuRef} tabIndex={overlay.kind === 'return' ? -1 : undefined} className={`ctx${overlay.kind === 'return' ? ' return-menu' : ''}`} onKeyDown={menuKeys} role={overlay.kind === 'return' ? 'menu' : undefined} aria-label={overlay.kind === 'return' ? `Acciones de ${overlay.label}` : undefined} style={phone ? undefined : { visibility: 'hidden' }} onMouseDown={(event) => event.stopPropagation()}>
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
-        <div className="ctxh">{claim ? `${claim.code} · ${claim.clientName || 'Sin cliente'}` : overlay.label}</div>
+        <div data-ph-mask={['cl', 'sale', 'cj', 'return'].includes(overlay.kind) || undefined} className="ctxh">{claim ? `${claim.code} · ${claim.clientName || 'Sin cliente'}` : overlay.label}</div>
         {!cancelledSale ? <button type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
         {overlay.kind === 'sale' && (() => {
           const sale = sales.find((row) => row.id === overlay.id);
@@ -215,8 +215,9 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
             : 'Queda archivado. Podés restaurarlo desde Archivados.';
     return (
       <ReasonSheet
+        maskTitle={overlay.kind === 'sale'}
         title={title}
-        subtitle={overlay.label}
+        subtitle={overlay.label} maskSubtitle={['cl', 'sale', 'cj', 'return'].includes(overlay.kind)}
         note={note}
         ok={voiding ? 'Anular' : 'Archivar'}
         danger={voiding}

@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
 import { depositAmount, depositAvailable } from '../deposits';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -547,7 +548,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {foldTrade ? null : tradeBlock}
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input ref={amountRef} value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
-      {dueCopy ? <p className="op-summary">{dueCopy}</p> : null}
+      {dueCopy ? <p data-ph-mask className="op-summary">{dueCopy}</p> : null}
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
       {!currentSale && openNotes.length ? (
         <div data-testid="sale-credit-notes">
@@ -560,7 +561,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
                 disabled={busy || settlement.active}
                 onChange={(event) => setCreditNoteIds((current) => event.target.checked ? [...current, note.id] : current.filter((id) => id !== note.id))}
               />
-              {note.code} · quedan {money.show(note.remaining, note.currency)}
+              {note.code} · quedan <ReplayValue>{money.show(note.remaining, note.currency)}</ReplayValue>
             </label>
           ))}
           {settlement.active ? <p className="eqs-note">La nota se aplica en un cobro simple, sin cuotas ni varios medios.</p> : null}
@@ -716,10 +717,10 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         <RecordHistoryButton entityType="sale" entityId={sale.id} label={saleCode(sale)} />
       </div>
       <div className="vsm-rate">
-        {saleCurrency !== money.active ? <span>{money.rate != null && money.rate > 0 ? `Cotización actual · US$ 1 = ${receiptMoney(money.rate, 'ARS')}` : 'Sin cotización: equivalente no disponible.'}</span> : null}
+        {saleCurrency !== money.active ? <span data-ph-mask>{money.rate != null && money.rate > 0 ? `Cotización actual · US$ 1 = ${receiptMoney(money.rate, 'ARS')}` : 'Sin cotización: equivalente no disponible.'}</span> : null}
         <time dateTime={sale.date} aria-label="Fecha de venta">{formatShortDate(sale.date)}</time>
       </div>
-      <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
+      <div className="kv"><span>Cliente</span><b data-ph-mask>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>

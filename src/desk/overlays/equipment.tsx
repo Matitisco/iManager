@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { parseBatteryHealth, BATTERY_HEALTH_MESSAGE } from '../../lib/battery-health';
 import { formatBatteryDisplay } from '../../utils/inventory';
 import { equipmentMoney, parseEquipmentMoney as parseMoney } from '../equipment-money';
@@ -102,7 +103,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       {error && <div className="ferr">{error}</div>}
       {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
+        <div className="dhero"><div className="eb">Precio de venta</div><div data-ph-mask className="big">{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
         <RecordHistoryButton entityType="inventory" entityId={item.id} label={equipmentTitle(item.model, item.capacity)} />
       </div>
       {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {
@@ -115,7 +116,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
-      {phone ? <div className="kv"><span>IMEI</span><b>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
+      {phone ? <div className="kv"><span>IMEI</span><b data-ph-mask>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
@@ -129,7 +130,7 @@ export function EquipmentDetail({ id }: { id: string }) {
         </div>
       </> : null}
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
-      {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para {item.reservedClientName}</b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
+      {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
       <Segs options={statuses} value={status} onChange={setStatus} onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}

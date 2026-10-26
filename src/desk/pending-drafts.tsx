@@ -1,3 +1,4 @@
+import { ReplayValue } from './replay-privacy';
 import type { TradeIn } from '../types';
 
 export function PendingDrafts({
@@ -17,7 +18,7 @@ export function PendingDrafts({
       <div><b>Canjes pendientes de confirmar</b><small>{hint}</small></div>
       <div className="op-draft-list">{drafts.map((trade) => (
         <button key={trade.id} type="button" onClick={() => onOpen(trade.id)}>
-          <span>{trade.clientName || 'Cliente por completar'} · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
+          <span><ReplayValue>{trade.clientName || 'Cliente por completar'}</ReplayValue> · {trade.deviceReceived || 'Equipo recibido'}</span><b>Retomar</b>
         </button>
       ))}</div>
     </div>

@@ -68,14 +68,15 @@ describe('PostHog runtime guard', () => {
 });
 
 describe('PostHog collection and privacy', () => {
-  it('initializes once, masks replay and disables UI, console and network collection', async () => {
+  it('initializes once, selectively masks replay and disables UI, console and network collection', async () => {
     const { initAnalytics } = await import('./posthog-analytics');
     initAnalytics(); initAnalytics();
     expect(posthog.init).toHaveBeenCalledOnce();
     const config = vi.mocked(posthog.init).mock.calls[0][1]!;
-    expect(config).toMatchObject({ autocapture: true, mask_all_text: true, mask_all_element_attributes: true,
+    expect(config).toMatchObject({ autocapture: true, mask_all_element_attributes: false,
       disable_surveys: true, disable_conversations: true, enable_recording_console_log: false,
-      session_recording: { maskAllInputs: true, maskTextSelector: '*', maskAllElementAttributes: true, recordHeaders: false, recordBody: false } });
+      session_recording: { maskAllInputs: true, maskTextSelector: '.ph-mask, [data-ph-mask], .ph-no-capture', maskAllElementAttributes: false, recordHeaders: false, recordBody: false } });
+    expect(config).not.toHaveProperty('mask_all_text');
     expect(config.session_recording!.maskCapturedNetworkRequestFn!({ name: 'https://test/api?token=private', duration: 0, startTime: 0, entryType: 'resource' })).toBeNull();
   });
   it('captures SPA sections once per transition without query values, tokens or record IDs', async () => {

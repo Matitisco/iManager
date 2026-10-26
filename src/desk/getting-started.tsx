@@ -102,8 +102,8 @@ export function OnboardingInventorySummary() {
       </span>
       <span>
         <small>{withoutPrice ? "Valor con precio" : "Valor del stock"}</small>
-        <b>{withoutPrice === stock.length && withoutPrice > 0 ? "A definir" : `US$ ${number(totals.usd)}`}</b>
-        <small>{withoutPrice ? `${withoutPrice} con precio a definir` : `≈ $ ${number(totals.ars)}`}</small>
+        <b data-ph-mask>{withoutPrice === stock.length && withoutPrice > 0 ? "A definir" : `US$ ${number(totals.usd)}`}</b>
+        <small data-ph-mask>{withoutPrice ? `${withoutPrice} con precio a definir` : `≈ $ ${number(totals.ars)}`}</small>
       </span>
     </div>
   );

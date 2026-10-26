@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { ImanagerIcon } from '../icons';
 import { isNetworkErrorMessage } from '../../lib/user-message';
 import { rememberArchivedReturns } from '../archive-cache';
@@ -50,8 +51,8 @@ export function ReturnsScreen() {
             <PressTarget as="button" key={row.id} className={`member return-row${isVoidRow(row) ? ' is-void' : row.status === 'RESUELTO' ? ' is-resolved' : ''}`} testId={`return-${row.id}`} onActivate={() => open({ type: 'return', id: row.id })} onMenu={isVoidRow(row) ? undefined : point => open({ type: 'ctx', kind: 'return', id: row.id, label: `${row.code} · ${row.clientName || 'Sin cliente'}`, ...point })}>
               <span className="ico-row"><ImanagerIcon name="canje" size={20} /></span>
               <span className="info">
-                <span className="name">{row.code} · {row.clientName || 'Sin cliente'}</span>
-                <span className="role">{[row.deviceLabel, row.imei ? `IMEI ${row.imei}` : ''].filter(Boolean).join(' · ') || 'Sin equipo'} · {formatShortDate(row.openedOn)}</span>
+                <span className="name">{row.code} · <ReplayValue>{row.clientName || 'Sin cliente'}</ReplayValue></span>
+                <span className="role"><ReplayValue>{[row.deviceLabel, row.imei ? `IMEI ${row.imei}` : ''].filter(Boolean).join(' · ') || 'Sin equipo'}</ReplayValue> · {formatShortDate(row.openedOn)}</span>
               </span>
               <span className="rtxt">{moneyOf(row)}</span>
               <Pill status={isVoidRow(row) ? 'ANULADO' : row.rmaStatus || row.status} />

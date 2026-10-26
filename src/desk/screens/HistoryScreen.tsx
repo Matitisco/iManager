@@ -1,3 +1,4 @@
+import { maskReplayHistoryValue } from '../replay-privacy';
 import { toUserMessage, isNetworkErrorMessage, toActionMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { DeskSelect } from '../select';
@@ -173,8 +174,8 @@ export function HistoryScreen() {
           const record = historyRecord(event);
           return <button key={event.id} type="button" className="history-row" data-entity={event.entityType} aria-label={`${event.actorName || 'Alguien'} · ${event.title} · ${record.title} · ${formatArTime(event.createdAt)}`} title={historySentence(event)} onClick={() => setSelected(event)}>
             <span className="history-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b></span>
-            <span className="history-action">{event.title}</span>
-            <span className="history-record"><b>{phone ? `${record.title} · ${event.actorName?.trim().split(/\s+/)[0] || 'Alguien'}` : record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span>{record.identifier || event.entitySubtitle}</span> : null}</span></span>
+            <span data-ph-mask={event.entityType === 'client' || undefined} className="history-action">{event.title}</span>
+            <span className="history-record"><b data-ph-mask={event.entityType === 'client' || undefined}>{phone ? `${record.title} · ${event.actorName?.trim().split(/\s+/)[0] || 'Alguien'}` : record.title}</b><span className="history-record-meta">{record.identifier || event.entitySubtitle ? <span data-ph-mask>{record.identifier || event.entitySubtitle}</span> : null}</span></span>
             <time className="history-time" dateTime={event.createdAt}>{formatArTime(event.createdAt)}</time>
             <svg className="history-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>;
@@ -217,7 +218,7 @@ function HistoryStockDevices({ lines, label }: { lines: StockCountLine[]; label:
     <div className="history-stock-scroll" ref={scrollRef} onScroll={measure} role="region" aria-label={`Equipos: ${label}`} tabIndex={0}>
       <ul>{lines.map(line => <li key={line.key}>
         <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
-        <div><b>{[line.model, line.capacity].filter(Boolean).join(' · ') || 'Sin modelo'}</b><small>{line.imei}</small></div>
+        <div><b>{[line.model, line.capacity].filter(Boolean).join(' · ') || 'Sin modelo'}</b><small data-ph-mask>{line.imei}</small></div>
       </li>)}</ul>
     </div>
   </div>;
@@ -301,21 +302,21 @@ function HistoryDetail({ event, onClose }: { event: HistoryEvent; onClose: () =>
     catch (err) { setOpenError(toActionMessage(err, 'No se pudo abrir el registro')); }
     finally { setOpening(false); }
   };
-  return <Sheet variant="detail" className={`history-detail${lines.length ? ' history-detail-stock' : ''}`} title={event.title} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
+  return <Sheet variant="detail" className={`history-detail${lines.length ? ' history-detail-stock' : ''}`} title={event.title} maskTitle={event.entityType === 'client'} onClose={onClose} busy={opening} footer={phone && !canOpen ? null : <div className="sheet-detail-actions">
     {!phone ? <button className="btn2 s" type="button" disabled={opening} onClick={onClose}>Cerrar</button> : null}
     {canOpen ? <button className="btn2 p" type="button" disabled={opening} onClick={() => void openRecord()}>
       {canOpenControl ? 'Ver control' : event.recordState === 'archived' ? 'Ver en archivados' : event.entityType === 'inventory' ? 'Ver equipo' : 'Ver registro'}
     </button> : null}
   </div>}>
     <div className="history-detail-person"><HistoryAvatar name={event.actorName} /><b>{event.actorName || 'Alguien'}</b><time dateTime={event.createdAt}>{relativeDay} · {formatArTime(event.createdAt)}</time></div>
-    {!stockCount ? <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b>{record.title}</b>{record.identifier || event.entitySubtitle ? <p>{record.identifier || event.entitySubtitle}</p> : null}</div></div> : null}
+    {!stockCount ? <div className="history-detail-record">{event.entityType === 'inventory' ? <span className="history-device-icon" aria-hidden="true"><AuditDeviceIcon /></span> : null}<div><b data-ph-mask={event.entityType === 'client' || undefined}>{record.title}</b>{record.identifier || event.entitySubtitle ? <p data-ph-mask>{record.identifier || event.entitySubtitle}</p> : null}</div></div> : null}
     {counts.length ? <div className="history-detail-counts" role="group" aria-label="Resultado del control">{counts.map(count => <button key={count.field} type="button" className={count.field === bucket ? 'on' : undefined} aria-label={`${count.label} ${count.value}`} aria-pressed={count.field === bucket} onClick={() => setBucket(count.field)}><b>{count.value}</b><span>{count.label}</span></button>)}</div> : null}
     {lines.length ? <HistoryStockDevices key={bucket} lines={lines} label={groupLabel} /> : null}
     {rows.length ? <table className={`history-diff${hasBefore ? ' comparison' : ' values'}${rows.length === 1 && rows[0].hasBefore && /precio/i.test(rows[0].label) ? ' single' : ''}`}>{hasBefore ? <thead><tr><th>Campo</th><th>Antes</th><th>Después</th></tr></thead> : null}<tbody>
       {rows.map((change, index) => <tr key={`${change.label}-${index}`} className={change.hasBefore ? undefined : 'history-diff-after-only'}>
         <th scope="row">{change.label}</th>
-        {change.hasBefore ? <td><span className="history-diff-label" aria-hidden="true">Antes</span><span className="history-diff-before">{change.before}</span></td> : null}
-        <td colSpan={!change.hasBefore && hasBefore ? 2 : 1}>{change.hasBefore ? <span className="history-diff-label" aria-hidden="true">Después</span> : null}<b>{change.after ?? '—'}</b></td>
+        {change.hasBefore ? <td><span className="history-diff-label" aria-hidden="true">Antes</span><span data-ph-mask={maskReplayHistoryValue(change.label, event.entityType)} className="history-diff-before">{change.before}</span></td> : null}
+        <td colSpan={!change.hasBefore && hasBefore ? 2 : 1}>{change.hasBefore ? <span className="history-diff-label" aria-hidden="true">Después</span> : null}<b data-ph-mask={maskReplayHistoryValue(change.label, event.entityType)}>{change.after ?? '—'}</b></td>
       </tr>)}
     </tbody></table> : !counts.length && event.detail?.trim() ? <p className="history-plain-detail">{event.detail}</p> : null}
     {event.reason?.trim() ? <p className="history-reason"><b>Motivo</b> {event.reason}</p> : null}

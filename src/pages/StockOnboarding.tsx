@@ -1,3 +1,4 @@
+import { ReplayValue } from '../desk/replay-privacy';
 import { capture } from '../lib/posthog-analytics';
 import { track, rowBucket } from '../lib/analytics';
 import { parseImportNumber } from "../lib/import-number";
@@ -555,10 +556,10 @@ function StockFlow({
                 <section className="onb-value">
                   <h2>Valor de tu stock</h2>
                   <strong data-testid="onboarding-stock-usd">
-                    US$ {fmt(totals.usd)}
+                    US$ <ReplayValue>{fmt(totals.usd)}</ReplayValue>
                   </strong>
                   <p>
-                    ≈ $ {fmt(totals.ars)}{" "}
+                    ≈ $ <ReplayValue>{fmt(totals.ars)}</ReplayValue>{" "}
                     {appSession?.store?.exchangeMode === "manual"
                       ? "al dólar manual"
                       : `al ${appSession?.store?.exchangeSource ?? "blue"}`}
@@ -625,7 +626,7 @@ function StockFlow({
                           ? "Sin moneda"
                           : row._review
                             ? "Revisar"
-                            : row.price?.trim() ? `${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}` : "A definir"}
+                            : row.price?.trim() ? <ReplayValue>{`${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}`}</ReplayValue> : "A definir"}
                       </button>
                     </div>
                   ))}

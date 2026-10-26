@@ -1,3 +1,4 @@
+import { ReplayValue } from './replay-privacy';
 import { useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { createWedgeBuffer } from '../lib/keyboard-wedge';
@@ -115,13 +116,13 @@ export function EquipmentField<T extends Product | OperationProductOption>({
                 }}
               >
                 <b>{equipmentTitle(item.model, item.capacity)}</b>
-                <small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', item.price == null ? 'A definir' : money.compact(item.price, item.currency)].filter(Boolean).join(' · ')}</small>
+                <small data-ph-mask>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', item.price == null ? 'A definir' : money.compact(item.price, item.currency)].filter(Boolean).join(' · ')}</small>
               </button>
             </li>
           ))}
         </ul>
       ) : null}
-      {reservedName ? <p className="eqs-note" role="status">Reservado para {reservedName}</p> : value.trim() && !linked && !imeiMissing ? <p className="eqs-note">No está en stock. Se guarda para completar después.</p> : null}
+      {reservedName ? <p className="eqs-note" role="status">Reservado para <ReplayValue>{reservedName}</ReplayValue></p> : value.trim() && !linked && !imeiMissing ? <p className="eqs-note">No está en stock. Se guarda para completar después.</p> : null}
     </div>
   );
 }

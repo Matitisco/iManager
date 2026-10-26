@@ -222,7 +222,7 @@ export function ProfileForm({ run, busy, error }: FormProps) {
           <div className="av-c k">{initials(shown)}</div>
           <div>
             <b>{shown}</b>
-            <small>{email}</small>
+            <small data-ph-mask>{email}</small>
           </div>
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -62,7 +63,7 @@ describe('pantalla de caja', () => {
     expect(within(dialog).queryByText('Esperado', { exact: true })).not.toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Cantidad de 100', { exact: true }), '2');
     await user.type(within(dialog).getByLabelText('Cantidad de 0.1', { exact: true }), '3');
-    expect(within(dialog).getByText('Total contado: USD 200,30')).toBeVisible();
+    expect(within(dialog).getByText(textContent('Total contado: USD 200,30'))).toBeVisible();
     await user.type(within(dialog).getByLabelText('Nota', { exact: true }), 'Revisado');
     await user.click(within(dialog).getByRole('button', { name: 'Guardar conteo' }));
     expect(api.mutateCash).toHaveBeenCalledWith({ path: '/sessions/session-USD/count', method: 'POST', body: { denominations: { '100': 2, '0.1': 3 }, note: 'Revisado' } });

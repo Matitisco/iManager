@@ -80,7 +80,7 @@ function FallasContent() {
       <div className="dch"><h3>Reclamos recientes</h3><button type="button" className="wlink" onClick={showClaims}>Ver todos ({summary.claims})</button></div>
       <div className="dcard flush"><table className="dtable compact pat-recent-table"><thead><tr><th>Reclamo</th><th>Equipo / cliente</th><th>Motivo</th><th>Estado</th><th><span className="sr-only">Acción</span></th></tr></thead><tbody>{recent.map(claim => <tr key={claim.id}>
         <td><b>{claim.caseNumber}</b><small>{new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date(claim.openedAt))}</small></td>
-        <td><b>{claim.deviceLabel}</b><small>{claim.clientName}</small></td><td>{claim.reason}</td><td><Pill status={claim.rmaStatus || claim.status} /></td>
+        <td><b>{claim.deviceLabel}</b><small data-ph-mask>{claim.clientName}</small></td><td>{claim.reason}</td><td><Pill status={claim.rmaStatus || claim.status} /></td>
         <td><button type="button" className="pat-recent-open" aria-label={`Ver reclamo ${claim.caseNumber}`} onClick={event => { recentTrigger.current = event.currentTarget; setClaimId(claim.id); }}><span aria-hidden="true">›</span></button></td>
       </tr>)}</tbody></table></div>
     </section> : null}

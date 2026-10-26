@@ -163,7 +163,7 @@ export function CameraScanner({
       {parsed?.imei ? (
         <section className="scan-ok" data-testid="scan-ok">
           <p className="scan-ok-title"><span>✓</span> IMEI leído</p>
-          <b className="scan-ok-imei">{formatImei(parsed.imei)}</b>
+          <b data-ph-mask className="scan-ok-imei">{formatImei(parsed.imei)}</b>
           <p className="scan-ok-meta">{imeiPassesLuhn(parsed.imei) ? '15 dígitos · control de dígito correcto' : '15 dígitos'}</p>
           {modelLine ? (
             <div className="scan-ok-card">

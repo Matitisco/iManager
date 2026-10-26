@@ -28,12 +28,13 @@ interface Props {
   describedBy?: string;
   placeholder?: string;
   'data-testid'?: string;
+  maskValues?: boolean;
 }
 
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 
 /** Controlled single select. The native control only handles form data/validation. */
-export function DeskSelect({ className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId }: Props) {
+export function DeskSelect({ className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId, maskValues = false }: Props) {
   const autoId = useId();
   const id = suppliedId ?? autoId;
   const listId = `${id}-list`;
@@ -178,13 +179,13 @@ export function DeskSelect({ className, triggerClassName, displayValue, id: supp
         onChange={(event) => { setValidationError(false); onChange(event.target.value); }}
         onInvalid={(event) => { event.preventDefault(); setValidationError(true); trigger.current?.focus(); show(); }}>
         {!options.some((option) => option.value === '') && <option value="">{placeholder}</option>}
-        {options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
+        {options.map((option) => <option data-ph-mask={maskValues && Boolean(option.value) || undefined} key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}
       </select>
       <button ref={trigger} id={id} data-testid={testId} type="button" role="combobox" className={`ds-select-trigger${triggerClassName ? ` ${triggerClassName}` : ''}${open ? ' on' : ''}`}
         disabled={disabled} aria-label={label} aria-expanded={open} aria-haspopup={phone ? 'dialog' : 'listbox'} aria-controls={open ? phone ? `${id}-popup` : listId : undefined}
         aria-activedescendant={!phone ? activeId : undefined} aria-required={required} aria-invalid={invalid || validationError || undefined} aria-describedby={describedBy}
         onClick={() => open ? close() : show()} onKeyDown={keys}>
-        <span>{displayValue ?? selected?.label ?? placeholder}</span><ChevronDown size={16} aria-hidden="true" />
+        <span data-ph-mask={maskValues && Boolean(selected) || undefined}>{displayValue ?? selected?.label ?? placeholder}</span><ChevronDown size={16} aria-hidden="true" />
       </button>
       {open && createPortal(
         <AnimatePresence>
@@ -213,7 +214,7 @@ export function DeskSelect({ className, triggerClassName, displayValue, id: supp
                 {options.map((option, index) => <div key={option.value} id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
                   className={`ds-select-option${option.value === value ? ' selected' : ''}${index === activeIndex ? ' active' : ''}`}
                   onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}>
-                  <span>{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
+                  <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
                 </div>)}
               </div>
             </motion.div>

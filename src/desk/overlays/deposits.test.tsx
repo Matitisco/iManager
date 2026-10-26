@@ -1,3 +1,4 @@
+import { textContent } from '../../test/text-content';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -13,7 +14,7 @@ beforeEach(() => { ctx.clientDeposits = {}; ctx.loadClientDeposits.mockReset().m
 it('shows original receipt cents and frozen value independent of the toolbar quote', () => {
   render(<DepositReceipt row={row} />);
   expect(screen.getByText('$ 100.000,5 ARS')).toBeInTheDocument();
-  expect(screen.getByText(/USD 100,00 fijos/)).toBeInTheDocument();
+  expect(screen.getByText(textContent(/USD 100,00 fijos/))).toBeInTheDocument();
 });
 it('keeps a failed deposit sheet open with the same idempotency key for retry', async () => {
   ctx.addClientDeposit.mockRejectedValueOnce(new Error('No se pudo guardar')).mockResolvedValueOnce(row);

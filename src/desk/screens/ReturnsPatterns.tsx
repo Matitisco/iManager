@@ -82,7 +82,7 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary,
   const claims = (row: ReturnPatternView, complete: boolean) => <div className="pat-claims ledger-list">
     {(complete ? row.claimsDetail : row.claimsDetail.slice(0, 3)).map(claim => <button ref={node => { if (node) claimButtons.current.set(claim.id, node); else claimButtons.current.delete(claim.id); }} className="member return-row" type="button" key={claim.id} onClick={() => { lastClaim.current = claim.id; setClaimId(claim.id); }}>
       <span className="ico-row" aria-hidden="true"><DeskIcon name="list" size={16} /></span>
-      <span className="info"><span className="name">{[claim.caseNumber, claim.clientName].filter(Boolean).join(' · ')}</span><span className="role">{[claim.deviceLabel, claim.reason].filter(Boolean).join(' · ')}</span></span>
+      <span className="info"><span data-ph-mask className="name">{[claim.caseNumber, claim.clientName].filter(Boolean).join(' · ')}</span><span className="role">{[claim.deviceLabel, claim.reason].filter(Boolean).join(' · ')}</span></span>
       <Pill status={claim.rmaStatus || claim.status} />
     </button>)}
     {!row.claimsDetail.length ? <div className="wempty">No hay reclamos registrados.</div> : null}

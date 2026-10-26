@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -44,7 +45,7 @@ export function SaleAccountPanel({ saleId, currency, revision = '', onDue, rende
     return () => { active = false; };
   }, [user, saleId, revision, refresh]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
-  const amountView = renderAmount ?? ((amount: number, source?: string | null) => <b>{money.show(amount, source, 2)}</b>);
+  const amountView = renderAmount ?? ((amount: number, source?: string | null) => <b data-ph-mask>{money.show(amount, source, 2)}</b>);
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">
       {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span>{amountView(tender.amount, tender.currency)}</div>) : null}
@@ -89,19 +90,19 @@ export function AccountCurrent({ query }: { query: string }) {
               <div className="acct-head">
                 <span className={`acct-tone ${row.tone}`}>{TONE_LABEL[row.tone]}</span>
                 <div>
-                  <b>{row.name}</b>
+                  <b data-ph-mask>{row.name}</b>
                   <small>{row.days} días</small>
                 </div>
-                <strong data-testid={`account-balance-${row.clientId}`}>{accountHeadline(row.pendingBalance - (row.creditBalance ?? 0), row.currency, money.show)}</strong>
+                <strong data-ph-mask data-testid={`account-balance-${row.clientId}`}>{accountHeadline(row.pendingBalance - (row.creditBalance ?? 0), row.currency, money.show)}</strong>
               </div>
-              {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency, 2)}. Ese saldo no se suma al de la cuenta.</p> : null}
-              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency, 2)}</p> : null}
+              {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones <ReplayValue>{money.show(row.repairBalance, row.currency, 2)}</ReplayValue>. Ese saldo no se suma al de la cuenta.</p> : null}
+              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor <ReplayValue>{money.show(row.creditBalance, row.currency, 2)}</ReplayValue></p> : null}
               <div className="acct-lines">
                 {row.lines.map((line) => (
                   <div className="acct-line" key={line.id}>
                     <span><b>{line.label}</b> · {STATE_LABEL[line.state]} · {line.days} días</span>
-                    <span>{money.show(line.amount, line.currency, 2)}</span>
-                    {line.installments.length ? <ul className="acct-installments">{line.installments.map((item) => <li key={item.sequence}>Cuota {item.sequence} · {item.dueDate.split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status} · {money.show(item.amount - item.paidAmount, line.currency, 2)}</li>)}</ul> : null}
+                    <span data-ph-mask>{money.show(line.amount, line.currency, 2)}</span>
+                    {line.installments.length ? <ul className="acct-installments">{line.installments.map((item) => <li key={item.sequence}>Cuota {item.sequence} · {item.dueDate.split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status} · <ReplayValue>{money.show(item.amount - item.paidAmount, line.currency, 2)}</ReplayValue></li>)}</ul> : null}
                   </div>
                 ))}
               </div>
@@ -163,7 +164,7 @@ function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pa
     }
   };
   return (
-    <Sheet title={title} subtitle={row.name} onClose={() => { if (!busy) onClose(); }}>
+    <Sheet title={title} subtitle={row.name} maskSubtitle onClose={() => { if (!busy) onClose(); }}>
       {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
       {mode === 'pago' ? (
         payable.length ? payable.map((line) => (

@@ -47,7 +47,7 @@ export function ExpensesScreen() {
                 <span className="name">{row.category}</span>
                 <span className="role">{formatShortDate(row.date)}{row.notes ? ` · ${row.notes}` : ''}</span>
               </span>
-              <span className="rtxt">{formatMoney(row.amount, row.currency)}</span>
+              <span data-ph-mask className="rtxt">{formatMoney(row.amount, row.currency)}</span>
             </button>
           ))}
         </div>

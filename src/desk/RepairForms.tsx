@@ -213,7 +213,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
     }
   };
 
-  const clientRow = order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b>{order.clientName}</b></div> : null;
+  const clientRow = order.clientName ? <div className="kv" data-testid="repair-client"><span>Cliente</span><b data-ph-mask>{order.clientName}</b></div> : null;
   const received = dayMonth(order.receivedAt) || formatShortDate(order.receivedAt);
   const coverage = repairWarrantyView(order);
   const shareReceipt = () => {
@@ -257,10 +257,10 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       {order.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{order.archivedBy ? `por ${order.archivedBy}` : 'Esta orden está archivada'}{order.archiveReason ? ` · ${order.archiveReason}` : ''}</small></div><button type="button" disabled={busy || saving} onClick={() => { if (!user || !restoreRepairOrder) return; setSaving(true); void restoreRepairOrder(order.id).then(() => { toast('Orden restaurada'); close(); }).catch((cause) => setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.'))).finally(() => setSaving(false)); }}>Restaurar</button></div> : null}
       <div className="tracking-history-action"><RecordHistoryButton entityType="repair" entityId={order.id} label={`#${order.code} · ${order.device}`} /></div>
       {clientRow}
-      <div className="kv"><span>IMEI</span><b>{order.imei || '—'}</b></div>
+      <div className="kv"><span>IMEI</span><b data-ph-mask>{order.imei || '—'}</b></div>
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
-      <div className="kv"><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
-      <div className="kv"><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      <div className="kv"><span>Presupuesto</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
+      <div className="kv"><span>Seña</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       {order.whatsappUrl ? (
@@ -300,12 +300,12 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         <b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b>
       </div>
       <div className="svc-pair">
-        <div><span>IMEI</span><b>{order.imei || '—'}</b></div>
+        <div><span>IMEI</span><b data-ph-mask>{order.imei || '—'}</b></div>
         <div><span>Entrega estimada</span><b className={late ? 'late' : ''}>{dueLabel}</b></div>
       </div>
       <div className="svc-pair">
-        <div><span>Presupuesto</span><b>{repairPrice(order.estimate, 'dash', show)}</b></div>
-        <div><span>Seña</span><b>{repairPrice(order.deposit, 'dash', show)}</b></div>
+        <div><span>Presupuesto</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
+        <div><span>Seña</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
       </div>
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>

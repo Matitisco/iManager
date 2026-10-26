@@ -1,3 +1,4 @@
+import { textContent } from '../test/text-content';
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -390,7 +391,7 @@ describe('operation detail', () => {
     await openMoreActions(user);
     await user.click(screen.getByRole('button', { name: 'Anular' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
-    expect(screen.getByText('V-0004 se anulará y quedará en el historial. Se devolverán $ 500.')).toBeInTheDocument();
+    expect(screen.getByText(textContent('V-0004 se anulará y quedará en el historial. Se devolverán $ 500.'))).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Anular' }));
     await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledWith('s1', ''));
@@ -415,7 +416,7 @@ describe('operation detail', () => {
     await user.click(screen.getByRole('button', { name: 'Anular' }));
     expect(ctx.updateSale).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog', { name: /Anular (canje|venta)/ });
-    expect(await within(dialog).findByText(/Se devolverán \$ 300/)).toBeInTheDocument();
+    expect(await within(dialog).findByText(textContent(/Se devolverán \$ 300/))).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
 
@@ -633,7 +634,7 @@ describe('operation detail', () => {
     renderOverlay({ type: 'sale', id: 's1' });
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     expect(within(dialog).getByText('Sin pago')).toBeInTheDocument();
-    expect(within(dialog).getByText('Deuda $ 70')).toBeInTheDocument();
+    expect(within(dialog).getByText(textContent('Deuda $ 70'))).toBeInTheDocument();
   });
 
   it('muestra las cuotas y el primer cobro con centavos que suman el total', async () => {
@@ -654,7 +655,7 @@ describe('operation detail', () => {
     expect(within(panel).getAllByText('US$ 366,66')).toHaveLength(2);
     expect(within(panel).getByText('US$ 366,68')).toBeInTheDocument();
     expect(panel).not.toHaveTextContent('US$ 367');
-    expect(screen.getByText('Deuda US$ 733,34')).toBeInTheDocument();
+    expect(screen.getByText(textContent('Deuda US$ 733,34'))).toBeInTheDocument();
   });
 
   it('conserva centavos en el saldo y los pagos de la ficha del cliente', async () => {
@@ -694,8 +695,8 @@ describe('operation detail', () => {
     })];
     renderOverlay({ type: 'sale', id: 's1' });
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
-    await waitFor(() => expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument());
-    expect(within(dialog).queryByText('Deuda US$ 100')).not.toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(textContent('Deuda US$ 70'))).toBeInTheDocument());
+    expect(within(dialog).queryByText(textContent('Deuda US$ 100'))).not.toBeInTheDocument();
     expect(within(dialog).getByText(/Cuota 1/)).toBeInTheDocument();
   });
 
@@ -798,8 +799,8 @@ describe('operation detail', () => {
     </ExchangeProvider>);
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     const panel = await screen.findByRole('region', { name: 'Cuotas y pagos' });
-    expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument();
-    expect(within(dialog).getByText('≈ $ 109.550')).toBeInTheDocument();
+    expect(within(dialog).getByText(textContent('Deuda US$ 70'))).toBeInTheDocument();
+    expect(within(dialog).getByText(textContent('≈ $ 109.550'))).toBeInTheDocument();
     expect(dialog.querySelector('.dhero b')).toHaveTextContent('US$ 100');
     const first = within(panel).getByText(/Cuota 1/).closest('.kv')!;
     expect(first.querySelector('b')).toHaveTextContent('US$ 20');
@@ -820,7 +821,7 @@ describe('operation detail', () => {
     render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: null, manualSell: null }}>
       <DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}><DeskOverlays overlay={{ type: 'sale', id: 's1' }} /></DeskProvider>
     </ExchangeProvider>);
-    expect(await screen.findByText('Deuda US$ 70,25')).toBeInTheDocument();
+    expect(await screen.findByText(textContent('Deuda US$ 70,25'))).toBeInTheDocument();
     expect(screen.getByText('Sin cotización: equivalente no disponible.')).toBeInTheDocument();
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     expect(dialog.querySelectorAll('.vsm-value small')).toHaveLength(0);

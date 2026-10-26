@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -35,10 +36,10 @@ export function receiptMoney(amount: number, currency: string) {
 export function DepositReceipt({ row }: { row: ClientDeposit }) {
   // Receipt amounts always keep the original currency, independent of the toolbar projection.
   return <div className="deposit-receipt">
-    <div><b>{receiptMoney(row.amount, row.currency)} {row.currency}</b><span>{depositStatus[row.status]} · {formatShortDate(row.createdAt)}</span></div>
-    <small>USD {row.usdAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} fijos · cotización ARS {row.exchangeRate.toLocaleString('es-AR')}</small>
+    <div><b data-ph-mask>{receiptMoney(row.amount, row.currency)} {row.currency}</b><span>{depositStatus[row.status]} · {formatShortDate(row.createdAt)}</span></div>
+    <small>USD <ReplayValue>{row.usdAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</ReplayValue> fijos · cotización ARS <ReplayValue>{row.exchangeRate.toLocaleString('es-AR')}</ReplayValue></small>
     {row.productLabel ? <small>{row.status === 'ACTIVE' ? 'Equipo reservado: ' : 'Equipo: '}{row.productLabel}</small> : null}
-    {row.appliedAt ? <small>{row.saleId ? 'Venta' : 'Reparación'} · aplicada el {formatShortDate(row.appliedAt)}{row.appliedAmount != null ? ` · ${receiptMoney(row.appliedAmount, row.appliedCurrency ?? 'ARS')} ${row.appliedCurrency}` : ''}</small> : null}
+    {row.appliedAt ? <small>{row.saleId ? 'Venta' : 'Reparación'} · aplicada el {formatShortDate(row.appliedAt)}<ReplayValue>{row.appliedAmount != null ? ` · ${receiptMoney(row.appliedAmount, row.appliedCurrency ?? 'ARS')} ${row.appliedCurrency}` : ''}</ReplayValue></small> : null}
   </div>;
 }
 export function DepositForm({ clientId }: { clientId: string }) {
@@ -78,14 +79,14 @@ export function DepositForm({ clientId }: { clientId: string }) {
     } catch (cause) { setError(toActionMessage(cause, 'No se pudo registrar la seña')); }
     finally { saving.current = false; setBusy(false); }
   };
-  return <Sheet title="Agregar seña" subtitle={clients.find(client => client.id === clientId)?.name} onClose={back} className="deposit-sheet">
+  return <Sheet title="Agregar seña" subtitle={clients.find(client => client.id === clientId)?.name} maskSubtitle onClose={back} className="deposit-sheet">
     {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
     <Field label="Moneda"><span /></Field><Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={currency} onChange={id => setCurrency(id as 'ARS' | 'USD')} />
     <Field label="Monto de la seña" mark={currency}><input value={amount} inputMode="decimal" placeholder="0" onChange={event => setAmount(event.target.value)} /></Field>
     <Field label="Cotización guardada" mark="ARS por USD"><input value={rate} inputMode="decimal" placeholder="Cotización del día" onChange={event => { rateDirty.current = true; setRate(event.target.value); }} /></Field>
-    <p className="eqs-note">{Number.isFinite(value) && exchangeRate > 0 ? `Equivalente fijo: USD ${(currency === 'USD' ? value : value / exchangeRate).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : 'El equivalente en USD queda fijo al registrar la seña.'}</p>
+    <p data-ph-mask={Number.isFinite(value) && exchangeRate > 0 ? true : undefined} className="eqs-note">{Number.isFinite(value) && exchangeRate > 0 ? `Equivalente fijo: USD ${(currency === 'USD' ? value : value / exchangeRate).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : 'El equivalente en USD queda fijo al registrar la seña.'}</p>
     <Field label="Forma de pago"><span /></Field><Segs options={PAYMENTS} value={method} onChange={setMethod} />
-    <Field label="Equipo a reservar (opcional)"><DeskSelect label="Equipo a reservar (opcional)" value={productId} options={[{ value: '', label: 'Sin reserva de equipo' }, ...products.map(item => ({ value: item.id, label: `${equipmentTitle(item.model, item.capacity)}${item.imei ? ` · ${item.imei}` : ''}` }))]} onChange={setProductId} disabled={busy} /></Field>
+    <Field label="Equipo a reservar (opcional)"><DeskSelect maskValues label="Equipo a reservar (opcional)" value={productId} options={[{ value: '', label: 'Sin reserva de equipo' }, ...products.map(item => ({ value: item.id, label: `${equipmentTitle(item.model, item.capacity)}${item.imei ? ` · ${item.imei}` : ''}` }))]} onChange={setProductId} disabled={busy} /></Field>
     <p className="eqs-note">La seña se registra como un cobro. Podés aplicarla en una venta o reparación de este cliente.</p>
     <Actions busy={busy} primary="Registrar seña" onPrimary={() => { void save(); }} onSecondary={back} secondary="Volver" />
   </Sheet>;
@@ -116,7 +117,7 @@ export function CancelDeposit({ row, onClose }: { row: ClientDeposit; onClose: (
   return <Sheet title="Cancelar seña" subtitle="Elegí qué hacer con el pago" className="deposit-sheet" onClose={back}>
     {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}<DepositReceipt row={row} />
     <Segs options={[{ id: 'CREDIT', label: 'Dejar saldo a favor' }, { id: 'REFUND', label: 'Devolver dinero' }]} value={mode} onChange={setMode} />
-    <p className="eqs-note">{mode === 'CREDIT' ? 'El crédito quedará disponible para una venta o reparación. No se devuelve dinero.' : `Se registra una devolución de ${receiptMoney(row.amount, row.currency)} ${row.currency} por ${row.method.toLocaleLowerCase('es')}.`}{row.status === 'ACTIVE' && row.productId ? ' El equipo vuelve a estar disponible.' : ''}</p>
+    <p className="eqs-note"><span data-ph-mask={mode === 'REFUND' || undefined}>{mode === 'CREDIT' ? 'El crédito quedará disponible para una venta o reparación. No se devuelve dinero.' : `Se registra una devolución de ${receiptMoney(row.amount, row.currency)} ${row.currency} por ${row.method.toLocaleLowerCase('es')}.`}</span>{row.status === 'ACTIVE' && row.productId ? ' El equipo vuelve a estar disponible.' : ''}</p>
     <Actions busy={busy} primary={mode === 'CREDIT' ? 'Confirmar saldo a favor' : 'Confirmar devolución'} onPrimary={() => { void save(); }} onSecondary={back} secondary="Volver" />
   </Sheet>;
 }
@@ -163,11 +164,11 @@ export function RepairDepositSheet({ repairId }: { repairId: string }) {
     finally { saving.current = false; setBusy(false); }
   };
   const active = rows.filter(depositAvailable);
-  return <Sheet title="Aplicar seña a reparación" subtitle={`${order.code} · ${order.clientName}`} className="deposit-sheet" onClose={back}>
+  return <Sheet title="Aplicar seña a reparación" subtitle={`${order.code} · ${order.clientName}`} maskSubtitle className="deposit-sheet" onClose={back}>
     {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}</div> : null}
     {loading ? <ListSkeleton variant="lines" rows={2} /> : null}
     {!loading && !active.length ? <p className="eqs-note">Sin señas para mostrar.</p> : null}
-    <p className="eqs-note">Se agrega al anticipo existente de la orden sin registrar otro cobro. Pendiente: {formatMoney(maximum, currency === 'USD' ? 'USD' : 'ARS')} {currency}.</p>
+    <p className="eqs-note">Se agrega al anticipo existente de la orden sin registrar otro cobro. Pendiente: <ReplayValue>{formatMoney(maximum, currency === 'USD' ? 'USD' : 'ARS')}</ReplayValue> {currency}.</p>
     {active.map(row => {
       const value = depositAmount(row, currency, money.rate);
       const disabled = busy || value == null || value > maximum || order.estimate == null || row.status === 'ACTIVE' && Boolean(row.productId);

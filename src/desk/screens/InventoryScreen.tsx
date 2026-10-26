@@ -1,3 +1,4 @@
+import { ReplayValue } from '../replay-privacy';
 import { DeskSelect } from '../select';
 import { consumePriceToDefineFilter, PRICE_TO_DEFINE_EVENT } from '../price-to-define-filter';
 import { useArchivedRows } from '../use-archived-rows';
@@ -284,7 +285,7 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   {item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : null}
-                  {item.reservedClientName ? <small className="reservation-label">Reservado para {item.reservedClientName}</small> : null}
+                  {item.reservedClientName ? <small className="reservation-label">Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
               );
@@ -440,10 +441,10 @@ export function InventoryScreen() {
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r"><b>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b></td>
+                  <td className="r"><b data-ph-mask>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b></td>
                   <td>
                     {item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
-                    {item.reservedClientName ? <small className="reservation-label">Para {item.reservedClientName}</small> : null}
+                    {item.reservedClientName ? <small className="reservation-label">Para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
                   <td>{item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : '—'}</td>
@@ -599,7 +600,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
   const approx = approxUsd(item.price, item.currency, money.active, sell);
   return (
     <span className="inv-card">
-      <span className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
+      <span data-ph-mask className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
       <span className="inv-status">{item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">
         <b>{equipmentTitle(item.model, item.capacity)}</b>
@@ -610,8 +611,8 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
         {specs ? <small>{specs}</small> : null}
       </span>
       <span className="inv-price">
-        <b>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
-        {approx ? <small>{approx}</small> : null}
+        <b data-ph-mask>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
+        {approx ? <small data-ph-mask>{approx}</small> : null}
       </span>
     </span>
   );

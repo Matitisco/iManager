@@ -93,8 +93,8 @@ export function ClientField<T extends Client | OperationClientOption>({
                   pick(client);
                 }}
               >
-                <b>{client.name}</b>
-                <small>{clientHint(client)}</small>
+                <b data-ph-mask>{client.name}</b>
+                <small data-ph-mask>{clientHint(client)}</small>
               </button>
             </li>
           ))}
