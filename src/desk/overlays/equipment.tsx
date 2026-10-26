@@ -158,7 +158,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [capacity, setCapacity] = useState(current?.capacity ?? '');
   const capacityOptions = uniqueCapacityChoices(catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item }))), capacity);
   const [color, setColor] = useState(current?.color ?? '');
-  const [battery, setBattery] = useState(current?.batteryHealth && current.batteryHealth !== '0%' ? String(batteryPercent(current.batteryHealth)) : '');
+  const [battery, setBattery] = useState(current?.batteryHealth?.replace(/%$/, '') ?? '');
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
@@ -299,7 +299,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           color: color.trim(),
           condition,
           grade: isUsedCondition(condition) ? grade : '',
-          batteryHealth: battery ? `${battery}%` : '',
+          batteryHealth: current && battery === current.batteryHealth.replace(/%$/, '') ? current.batteryHealth : battery ? `${battery}%` : '',
           cost: current && 'cost' in priced ? priced.cost : seeCosts ? parseMoney(cost) : 0,
           price: priced.amounts[0]?.amount ?? parseMoney(price),
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),

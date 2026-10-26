@@ -34,3 +34,17 @@ it.each(['alta', 'edición'])('conserva centavos al escribir y guardar un equipo
   await user.click(screen.getByRole('button', { name: editing ? 'Guardar cambios' : 'Guardar equipo' }));
   await waitFor(() => expect(editing ? ctx.updateProduct : ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ cost: 450.25, price: 600.5, currency: 'USD' })));
 });
+
+it.each(['83-85%', '0%', 'N/A'])('conserva batería %s y centavos al cambiar solo color', async batteryHealth => {
+  ctx.inventory = [{ id: 'eq', model: 'iPhone 13', imei: '', capacity: '', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth, cost: 300.25, price: 450.5, currency: 'USD', status: 'DISPONIBLE' }];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1250, manualSell: 1300 }}>
+    <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <EquipmentForm id="eq" busy={false} error={null} run={async action => { await action(); }} />
+    </DeskProvider>
+  </ExchangeProvider>);
+  const user = userEvent.setup();
+  await user.clear(screen.getByPlaceholderText('Ej. Azul'));
+  await user.type(screen.getByPlaceholderText('Ej. Azul'), 'Rojo');
+  await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+  await waitFor(() => expect(ctx.updateProduct).toHaveBeenCalledWith(expect.objectContaining({ color: 'Rojo', batteryHealth, cost: 300.25, price: 450.5, currency: 'USD' })));
+});
