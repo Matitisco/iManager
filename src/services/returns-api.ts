@@ -90,6 +90,7 @@ export interface ReturnCaseView {
   rmaStatus: string | null;
   status: string;
   resolvedOn: string | null;
+  compensatedOn?: string | null;
   deletedAt: string | null;
   refundable: number;
   saleAmount: number;

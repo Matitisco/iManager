@@ -2,6 +2,7 @@ import { reportSellRate } from "./net-profit.service.js";
 import { projectAmount, type MoneyCurrency } from "../periodic-reports/report-math.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
+import { returnCompensatedAt, returnRecognitionSelect } from "../returns/return-recognition.js";
 
 export type ReportsRangeKey =
   | "this_month"
@@ -599,14 +600,12 @@ export async function getReportsOverview(
       storeId,
       deletedAt: null,
       status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
-      resolvedAt: input.startDate || input.endDate
-        ? {
-          ...(input.startDate ? { gte: input.startDate } : {}),
-          ...(input.endDate ? { lte: input.endDate } : {}),
-        }
-        : { not: null },
     },
-    select: { moneyAmount: true },
+    select: { ...returnRecognitionSelect, moneyAmount: true },
+  });
+  const compensatedReturns = commercialReturns.filter(row => {
+    const issuedAt = returnCompensatedAt(row);
+    return issuedAt && (!input.startDate || issuedAt >= input.startDate) && (!input.endDate || issuedAt <= input.endDate);
   });
 
   return {
@@ -625,8 +624,8 @@ export async function getReportsOverview(
       pendingAmount,
       marginRate,
       approvedTradeIns,
-      returnsCount: commercialReturns.length,
-      returnsAmount: commercialReturns.reduce((total, row) => total + toNumber(row.moneyAmount), 0),
+      returnsCount: compensatedReturns.length,
+      returnsAmount: compensatedReturns.reduce((total, row) => total + toNumber(row.moneyAmount), 0),
     },
     comparison: {
       available: previousWindow !== null,

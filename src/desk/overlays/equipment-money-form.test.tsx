@@ -1,0 +1,36 @@
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, expect, it, vi } from 'vitest';
+import type { Product } from '../../types';
+import { ExchangeProvider } from '../exchange';
+import { DeskProvider } from '../ui';
+import { EquipmentForm } from './equipment';
+
+const ctx = vi.hoisted(() => ({
+  inventory: [] as Product[], addProduct: vi.fn(), updateProduct: vi.fn(),
+  appSession: { membership: { role: 'OWNER', sections: ['inventory'] } }, suppliers: null,
+}));
+vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
+beforeEach(() => {
+  vi.clearAllMocks();
+  ctx.inventory = [];
+  ctx.addProduct.mockResolvedValue({ id: 'created' });
+});
+
+it.each(['alta', 'edición'])('conserva centavos al escribir y guardar un equipo: %s', async mode => {
+  const editing = mode === 'edición';
+  if (editing) ctx.inventory = [{ id: 'eq', model: 'iPhone 13', imei: '', capacity: '', color: '', condition: 'NUEVO', grade: '', batteryHealth: '', cost: 400, price: 600, currency: 'USD', status: 'DISPONIBLE' }];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1250, manualSell: 1300 }}>
+    <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <EquipmentForm id={editing ? 'eq' : undefined} busy={false} error={null} run={async action => { await action(); }} />
+    </DeskProvider>
+  </ExchangeProvider>);
+  const user = userEvent.setup();
+  if (!editing) await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone 13');
+  await user.clear(screen.getByLabelText('Costo'));
+  await user.type(screen.getByLabelText('Costo'), '450,25');
+  await user.clear(screen.getByPlaceholderText('$ 0'));
+  await user.type(screen.getByPlaceholderText('$ 0'), '600.50');
+  await user.click(screen.getByRole('button', { name: editing ? 'Guardar cambios' : 'Guardar equipo' }));
+  await waitFor(() => expect(editing ? ctx.updateProduct : ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({ cost: 450.25, price: 600.5, currency: 'USD' })));
+});

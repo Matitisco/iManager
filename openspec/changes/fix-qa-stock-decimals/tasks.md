@@ -1,0 +1,3 @@
+- [x] Reproducir pérdida de decimales con test de helper en rojo.
+- [x] Corregir parser, entrada y guardado sin cambios visuales.
+- [x] Verificar TypeScript frontend/backend y tests relacionados.

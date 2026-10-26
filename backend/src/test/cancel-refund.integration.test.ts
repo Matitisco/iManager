@@ -284,6 +284,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("refunds the 160 collected on a sale and leaves an unrelated balance", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const created = await app.inject({
@@ -322,6 +323,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("refunds the 100 collected when the price was raised to 150 and keeps a manual debt of 15", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const created = await app.inject({
@@ -354,6 +356,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("refunds a payment of 30 on a pending sale without clearing another debt", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const created = await app.inject({
@@ -388,6 +391,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("lists the collection taken when the sale is confirmed", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const created = await app.inject({
@@ -446,6 +450,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("turns a general payment that covered an unpaid installment into credit and keeps the manual balance", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const saleId = await unpaidInstallment(headers, fixture.client.id);
@@ -499,6 +504,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("does not add a partial general payment to the manual balance when the installment is cancelled", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const saleId = await unpaidInstallment(headers, fixture.client.id);
@@ -535,6 +541,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("removes an unpaid installment and leaves the manual balance untouched", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     const saleId = await unpaidInstallment(headers, fixture.client.id);
@@ -563,6 +570,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("keeps a balance typed on the client when a general payment covered part of the sale", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     await prisma.client.update({ where: { id: fixture.client.id }, data: { pendingBalance: 50 } });
     const headers = headersFor(context.user.firebaseUid);
@@ -601,6 +609,7 @@ describe.each(["cancel", "void"] as const)("%s refund", (action) => {
   it("keeps the manual balance and credits a general payment once when later sales are cancelled", async () => {
     const app = getApp();
     const context = await seedStoreContext();
+    await prisma.store.update({ where: { id: context.store!.id }, data: { currency: "USD" } });
     const fixture = await seedCatalogFixture(context.store!.id);
     const headers = headersFor(context.user.firebaseUid);
     expect((await app.inject({

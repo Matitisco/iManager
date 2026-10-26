@@ -118,7 +118,7 @@ test.describe('dashboard on a phone', () => {
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/dashboard-390-sale.png` });
-    await form.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await form.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
     await expect(form).toBeHidden();
 
     const date = todayLabel();

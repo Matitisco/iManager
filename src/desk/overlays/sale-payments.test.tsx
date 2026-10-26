@@ -155,6 +155,14 @@ describe('removing additional sale and trade-in payments', () => {
   });
 });
 
+
+ it.each(['649,50', '649.50'])('sends a combined payment with cents typed as %s', async value => {
+  const user = userEvent.setup();
+  const onChange = mount('USD', 1000);
+  await user.type(screen.getByLabelText('Importe del pago 1'), value);
+  expect(onChange.mock.lastCall?.[0].payload.tenders).toEqual([{ amount: 649.5, currency: 'USD', method: 'EFECTIVO' }]);
+});
+
 it.each([1440, 390])('opens installment dates inside the mobile flow at %ipx', (width) => {
   const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
     matches: width <= 760, media: query, onchange: null,

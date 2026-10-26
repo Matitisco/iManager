@@ -1,3 +1,4 @@
+import { equipmentMoney, parseEquipmentMoney as parseMoney } from '../equipment-money';
 import { DeskSelect } from '../select';
 import { Skeleton, FieldSkeleton } from '../../components/Skeleton';
 import { formatShortDate } from '../format';
@@ -10,7 +11,7 @@ import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { frequentModels } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Product } from '../../types';
-import { batteryPercent, conditionLabel, equipmentTitle, isInStock, formatImei, formatInputMoney, parseMoney } from '../format';
+import { batteryPercent, conditionLabel, equipmentTitle, isInStock, formatImei } from '../format';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -261,14 +262,12 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       {isUsedCondition(condition) ? <QualityField value={grade} onChange={setGrade} /> : null}
       {seeCosts ? <Field label="Costo" mark={money.active} error={bad.cost}><input aria-label="Costo" value={cost} inputMode="decimal" onChange={(event) => {
         const raw = event.target.value;
-        if (raw.includes('-')) { setCost(raw); return; }
-        setCost(formatInputMoney(parseMoney(raw)));
+        setCost(raw);
         clearBad(setBad, 'cost');
       }} placeholder="Opcional" /></Field> : null}
       <Field label="Precio de venta" mark={money.active} error={bad.price}><input value={price} inputMode="decimal" disabled={lockPrice} onChange={(event) => {
         const raw = event.target.value;
-        if (raw.includes('-')) { setPrice(raw); return; }
-        setPrice(formatInputMoney(parseMoney(raw)));
+        setPrice(raw);
         clearBad(setBad, 'price');
       }} placeholder="$ 0" /></Field>
       <Field label="Estado"><span /></Field>
@@ -286,7 +285,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         setBad(next);
         if (Object.keys(next).length) return;
         const priced = current
-          ? money.commitGroup([{ typed: lockPrice ? current.price : parseMoney(price), original: current.price, currency: current.currency }])
+          ? equipmentMoney(current, price, cost, seeCosts, lockPrice, money.commitGroup)
           : { blocked: false, amounts: [{ amount: parseMoney(price), currency: money.active }] };
         if (priced.blocked) {
           setBad({ price: FX_WARNING });
@@ -301,7 +300,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           condition,
           grade: isUsedCondition(condition) ? grade : '',
           batteryHealth: battery ? `${battery}%` : '',
-          cost: seeCosts ? parseMoney(cost) : (current?.cost ?? 0),
+          cost: current && 'cost' in priced ? priced.cost : seeCosts ? parseMoney(cost) : 0,
           price: priced.amounts[0]?.amount ?? parseMoney(price),
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,

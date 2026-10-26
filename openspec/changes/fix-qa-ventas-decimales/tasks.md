@@ -1,0 +1,3 @@
+- [x] Reproducir el parseo defectuoso con tests fallidos.
+- [x] Corregir parseo y conservación de centavos sin modificar UI.
+- [x] Verificar tests relacionados y TypeScript de ambos proyectos.
