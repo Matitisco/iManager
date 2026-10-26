@@ -1072,6 +1072,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const collecting = sale.status === "PENDIENTE" && nextStatus === "COMPLETADA";
     const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: sale.status, hasClient: Boolean(nextClient) });
     if (rise.error) throw new OperationError(rise.error, 409);
+    if (rise.reopen) nextStatus = "PENDIENTE";
     let archivedIncoming: InventoryItem | null = null;
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
