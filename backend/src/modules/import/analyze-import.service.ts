@@ -23,6 +23,10 @@ import {
   heuristicPlan,
   heuristicSheet,
   priceCurrencyOf,
+  sheetHeaders,
+  mappingColumnIndex,
+  rowLooksLikeData,
+  repairBatteryMapping,
   sectionHasRelevantColumns,
   trimSheet,
   type ImportSheet,
@@ -56,6 +60,7 @@ const modelSheetSchema = z.object({
   dataEndRow: z.number().int(),
   mapping: z.array(z.object({
     header: z.string(),
+    columnIndex: z.number().int().min(0).optional(),
     field: z.string(),
   })),
   splitModelCapacity: z.boolean(),
@@ -241,20 +246,30 @@ export function acceptModelPlan(
     const model = byName.get(sheet.name);
     if (!model) return fallback();
     const rows = sheet.rows;
-    const headerCells = rows[model.headerRow - 1] ?? [];
+    // The model sees a sample and can mistake a product (or a repeated product)
+    // for column names. Recover the complete grid before accepting its range.
+    if (section === "inventory" && (model.headerRow === 0
+      || rows.slice(0, model.headerRow).some(rowLooksLikeData))) {
+      const inferred = heuristicSheet(sheet, catalog, currency, 0);
+      if (!inferred.mapping.some(column => column.field === "model")) return fallback();
+      accepted += 1;
+      return { ...inferred, include: model.include, condition: model.condition || inferred.condition };
+    }
+    const headerCells = sheetHeaders(rows, model.headerRow);
     const hasCore = ["model"].every((field) => model.mapping.some((column) => column.field === field && headerCells.some((cell) => cell.trim() && cell.trim().toLowerCase() === column.header.trim().toLowerCase())));
     if (!headerLooksValid(rows, model.headerRow, catalog) && !hasCore) return fallback();
-    const headers = rows[model.headerRow - 1] ?? [];
+    const headers = sheetHeaders(rows, model.headerRow);
     const seen = new Set<string>();
-    const mapping = model.mapping.flatMap((column) => {
-      const header = headers.find((cell) => cell.trim() && cell.trim() === column.header.trim())
-        ?? headers.find((cell) => cell.trim().toLowerCase() === column.header.trim().toLowerCase());
-      if (!header || !known.has(column.field) || seen.has(column.field)) return [];
+    const modelMapping = model.mapping.flatMap((column) => {
+      const columnIndex = mappingColumnIndex(headers, column);
+      const header = headers[columnIndex];
+      if (columnIndex < 0 || !known.has(column.field) || seen.has(column.field)) return [];
       if ((column.field === "price" || column.field === "amount") && isPurchaseHeader(header)) return [];
       seen.add(column.field);
-      return [{ header, field: column.field }];
+      return [{ header, columnIndex, field: column.field }];
     });
-    if (mapping.length === 0) return fallback();
+    if (modelMapping.length === 0) return fallback();
+    const mapping = section === "inventory" ? repairBatteryMapping(rows, model.headerRow, modelMapping) : modelMapping;
     accepted += 1;
     const priceHeader = mapping.find((column) => column.field === "price")?.header ?? "";
     const detectedCurrency = priceCurrencyOf(priceHeader);
@@ -270,7 +285,7 @@ export function acceptModelPlan(
       dataEndRow,
       mapping,
       splitModelCapacity: model.splitModelCapacity,
-      batteryAsPercent: model.batteryAsPercent,
+      batteryAsPercent: model.batteryAsPercent || mapping !== modelMapping,
       priceCurrency: detectedCurrency || model.priceCurrency,
     } satisfies SheetPlan;
   });
@@ -287,7 +302,7 @@ function alignPlan(
     const current = plan.find((item) => item.name === sheet.name);
     if (!current) return heuristicSheet(sheet, IMPORT_CATALOGS[section], currency);
     const rows = sheet.rows;
-    const headerRow = clamp(current.headerRow, 1, Math.max(1, rows.length));
+    const headerRow = clamp(current.headerRow, 0, Math.max(0, rows.length));
     return {
       ...current,
       name: sheet.name,

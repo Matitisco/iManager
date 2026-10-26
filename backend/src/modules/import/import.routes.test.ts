@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { registerApiErrorHandler } from "../../lib/api-error.js";
 import { ANALYSIS_NOTICES } from "./analyze-import.service.js";
 import { importRoutes } from "./import.routes.js";
+import { syntheticStockRows } from "../../../test/fixtures/headerless-stock.js";
 
 const { authenticateMock, resolveAppUserMock, findStoreMock } = vi.hoisted(() => ({
   authenticateMock: vi.fn(),
@@ -37,6 +38,30 @@ describe("importRoutes analyze", () => {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = previousKey;
     findStoreMock.mockClear();
+  });
+
+  it("roundtrips a headerless plan and its physical column indices through analyze/apply", async () => {
+    delete process.env.OPENAI_API_KEY;
+    authenticateMock.mockImplementation(async () => undefined);
+    resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
+      request.appUser = { storeId: "store-1", role: "OWNER", userId: "user-1" };
+    });
+    const app = buildApp();
+    await app.register(importRoutes);
+    try {
+      const payload = { section: "inventory", sheets: [{ name: "stock de equipos", rows: syntheticStockRows() }] };
+      const analyzed = await app.inject({ method: "POST", url: "/analyze", payload });
+      expect(analyzed.statusCode).toBe(200);
+      const analysis = analyzed.json();
+      expect(analysis.plan[0]).toMatchObject({ headerRow: 0, dataStartRow: 1 });
+      expect(analysis.plan[0].mapping.find((column: { field: string }) => column.field === "batteryHealth")).toMatchObject({ header: "E", columnIndex: 4 });
+      const applied = await app.inject({ method: "POST", url: "/apply", payload: { ...payload, plan: analysis.plan } });
+      expect(applied.statusCode).toBe(200);
+      expect(applied.json().rows).toEqual(analysis.rows);
+      expect(applied.json().diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0 });
+    } finally {
+      await app.close();
+    }
   });
 
 

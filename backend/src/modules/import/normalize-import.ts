@@ -1,4 +1,5 @@
 import { formatArDate, parseArDate } from "../../lib/ar-date.js";
+import { normalizeInventoryImportStatus } from "./inventory-status.js";
 import { normalizeInstagram } from "../stores/store-contact.js";
 import { normalizeHeader } from "./column-mapping.js";
 import type { ImportSection } from "./import-catalog.js";
@@ -93,6 +94,20 @@ export function normalizeSectionRow(
   rawAmount = record.amount ?? "",
   storeCurrency: "ARS" | "USD" = "ARS",
 ): Record<string, string> | null {
+  if (section === "inventory") {
+    const next = { ...record };
+    if (next.status?.trim()) Object.assign(next, normalizeInventoryImportStatus(next.status));
+    if (next.imei && /^(?:\d{14,16}\.0+|\d(?:\.\d+)?e\+?1[345])$/i.test(next.imei)) next.imei = String(Number(next.imei));
+    if (next.purchasedAt) {
+      let date = next.purchasedAt;
+      if (/^\d{1,2}[/.-]\d{1,2}$/.test(date)) date += `/${new Date().getFullYear()}`;
+      if (/^\d{5}(?:\.\d+)?$/.test(date) && Number(date) >= 20000 && Number(date) <= 80000) {
+        date = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(date)) * 86400000).toISOString().slice(0, 10);
+      }
+      next.purchasedAt = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : normalizeImportDate(date);
+    }
+    return next;
+  }
   if (section === "sales") return normalizeSaleRow(record, columnCurrency, rawAmount, storeCurrency);
   if (section === "clients") return normalizeClientRow(record);
   return record;
@@ -143,13 +158,14 @@ function normalizeClientRow(record: Record<string, string>): Record<string, stri
   return next;
 }
 
-export function preferWhatsappPhone<T extends { header: string; field: string }>(headers: string[], mapping: T[]): T[] {
+export function preferWhatsappPhone<T extends { header: string; field: string; columnIndex?: number }>(headers: string[], mapping: T[]): T[] {
   const whatsapp = headers.find((header) => /whatsapp|wsp|celular|celu/.test(normalizeHeader(header)));
   if (!whatsapp) return mapping;
   const rest = mapping.filter((column) => column.field !== "phone");
-  const template = mapping.find((column) => column.field === "phone") ?? mapping[0];
+  const template = mapping.find((column) => column.columnIndex === headers.indexOf(whatsapp))
+    ?? mapping.find((column) => column.header === whatsapp) ?? mapping[0];
   const phone = template
-    ? { ...template, header: whatsapp, field: "phone" }
+    ? { ...template, header: whatsapp, ...(template.columnIndex != null ? { columnIndex: headers.indexOf(whatsapp) } : {}), field: "phone" }
     : ({ header: whatsapp, field: "phone" } as T);
   return [...rest, phone];
 }

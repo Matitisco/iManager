@@ -16,7 +16,7 @@ describe('spreadsheet diagnostics', () => {
     const result = apply(withoutPrice);
     expect(result.rows).toEqual([expect.objectContaining({ model: 'iPhone 13', cost: '420' }), expect.objectContaining({ model: 'iPhone 12', cost: '310' })]);
     expect(result.summary.rowCount).toBe(2);
-    expect(result.plans[0].mapping).toContainEqual({ header: 'Costo', field: 'cost' });
+    expect(result.plans[0].mapping).toContainEqual({ header: 'Costo', columnIndex: 5, field: 'cost' });
     expect(result.plans[0].mapping.some(column => column.field === 'price')).toBe(false);
     expect(result.diagnostics).toEqual({ detectedRows: 2, acceptedRows: 2, discardedRows: 0,
       discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: ['price'] });

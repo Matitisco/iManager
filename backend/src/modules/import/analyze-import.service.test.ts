@@ -223,7 +223,7 @@ describe("battery and model normalization", () => {
       expect.objectContaining({ model: 'iPhone 14', price: '850000', currency: 'ARS', cost: '700000' }),
       expect.objectContaining({ model: 'iPhone 15', price: '650.5', currency: 'USD' }),
     ]));
-    expect(result.plan[0].mapping).toContainEqual({ header: 'Moneda', field: 'currency' });
+    expect(result.plan[0].mapping).toContainEqual({ header: 'Moneda', columnIndex: 2, field: 'currency' });
   });
 
   it('keeps the currency of a USD-only inventory price column in an ARS store', async () => {

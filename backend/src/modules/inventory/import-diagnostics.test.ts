@@ -52,3 +52,12 @@ it('accepts null prices while retaining discard reasons for other rows', async (
   expect(result.diagnostics?.discardedByReason).not.toHaveProperty('missing_price');
   expect(prismaMock.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({ price: null }) });
 });
+
+it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC', 'DESCONOCIDO FICTICIO'])('persists %s without a row error and retains its original value', async status => {
+  const result = await importInventoryItems('store-test', [{ imei: '', model: 'iPhone 13', status, customFields: { serial: 'FAKE' } }]);
+  expect(result).toMatchObject({ imported: 1, errors: [] });
+  expect(prismaMock.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+    status: status === 'DESCONOCIDO FICTICIO' ? 'DISPONIBLE' : 'EN_REVISION',
+    customFields: { serial: 'FAKE', originalStatus: status },
+  }) });
+});

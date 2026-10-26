@@ -12,6 +12,7 @@ export type ImportSheetPayload = {
 
 export type ImportColumnMapping = {
   header: string;
+  columnIndex?: number;
   field: string;
 };
 

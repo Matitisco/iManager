@@ -16,6 +16,9 @@ import {
   priceCurrencyOf,
   splitModelCapacity,
   trimSheet,
+  sheetHeaders,
+  rowLooksLikeData,
+  type ColumnMapping,
   type ImportSheet,
   type SheetPlan,
 } from "./sheet-plan.js";
@@ -96,7 +99,7 @@ export function buildDecisionContext(
 
   prepared.forEach((sheet, index) => {
     const first = sheet.candidates[0] ?? 1;
-    const width = Math.max(1, ...sheet.rows.slice(first - 1, first + 3).map((row) => row.length));
+    const width = sheetHeaders(sheet.rows, 0).length;
     input += `\n[H${index}] Hoja «${sheet.name}»\n`
       + sheet.candidates.map((row) => `fila ${row}: ${clip(sheet.rows[row - 1] ?? [])}`).join("\n")
       + `\nDatos bajo fila ${first}:\n`
@@ -161,7 +164,7 @@ export function plansFromAnswers(
       ? Number(choiceOf(byName.get(`h${index}_hdr`)) || sheet.candidates[0])
       : sheet.candidates[0];
     const headerRow = sheet.candidates.includes(chosen) ? chosen : (sheet.candidates[0] ?? 1);
-    const headers = rows[headerRow - 1] ?? [];
+    const headers = sheetHeaders(rows, headerRow);
     const picks = [...byName.entries()]
       .flatMap(([name, answer]) => {
         const match = new RegExp(`^h${index}_c(\\d+)$`).exec(name);
@@ -173,20 +176,20 @@ export function plansFromAnswers(
         field: item.field,
         confidence: 2,
       })))
-      .filter((pick) => pick.field !== "ignore" && pick.field !== "list_price" && known.has(pick.field) && headers[pick.column]?.trim())
+      .filter((pick) => pick.field !== "ignore" && pick.field !== "list_price" && known.has(pick.field) && pick.column >= 0 && pick.column < headers.length)
       .sort((left, right) => right.confidence - left.confidence);
 
     const seen = new Set<string>();
-    const mapping: { header: string; field: string }[] = [];
+    const mapping: ColumnMapping[] = [];
     for (const pick of picks) {
       if (seen.has(pick.field)) continue;
       if ((pick.field === "price" || pick.field === "amount") && isPurchaseHeader(headers[pick.column] ?? "")) continue;
       seen.add(pick.field);
-      mapping.push({ header: headers[pick.column] ?? "", field: pick.field });
+      mapping.push({ header: headers[pick.column] ?? "", columnIndex: pick.column, field: pick.field });
     }
     const resolved = section === "clients" ? preferWhatsappPhone(headers, mapping) : mapping;
 
-    const columnIndex = (field: string) => headers.indexOf(resolved.find((column) => column.field === field)?.header ?? "\u0000");
+    const columnIndex = (field: string) => resolved.find((column) => column.field === field)?.columnIndex ?? -1;
     const modelIndex = columnIndex("model");
     const batteryIndex = columnIndex("batteryHealth");
     const priceHeader = resolved.find((column) => column.field === "price" || column.field === "amount")?.header ?? "";
@@ -243,6 +246,7 @@ export async function postDecisions(options: {
 export function headerCandidates(rows: string[][], section: ImportSection = "inventory"): number[] {
   const scored: { row: number; score: number }[] = [];
   for (let index = 0; index < Math.min(rows.length - 1, 40); index += 1) {
+    if (rowLooksLikeData(rows[index] ?? [])) continue;
     const cells = (rows[index] ?? []).filter((cell) => cell.trim());
     const text = cells.filter((cell) => !isNumericCell(cell) && cell.length <= 30);
     if (text.length < 3 || text.length < cells.length * 0.6) continue;
