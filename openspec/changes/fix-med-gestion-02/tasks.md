@@ -1,0 +1,3 @@
+- [x] Regresión roja en ARS y USD
+- [x] Compartir cálculo y validar
+- [x] PR, CI y merge

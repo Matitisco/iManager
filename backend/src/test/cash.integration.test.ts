@@ -259,7 +259,7 @@ describe('caja diaria', () => {
     const { c, id, saleId, snapshot, original } = await paidSale();
     const raised = await getApp().inject({ method: 'PATCH', url: `/api/operations/sales/sales/${saleId}`, headers: headers(), payload: { amount: 130 } });
     expect(raised.statusCode, raised.body).toBe(200);
-    expect(raised.json().sale).toMatchObject({ amount: 130, status: 'COMPLETADA', openBalance: 30 });
+    expect(raised.json().sale).toMatchObject({ amount: 130, status: 'PENDIENTE', openBalance: 30 });
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: c.client.id } })).pendingBalance)).toBe(30);
     expect(await prisma.cashMovement.count({ where: { sourceId: saleId } })).toBe(1);
     const collected = await getApp().inject({ method: 'POST', url: '/api/accounts/collections', headers: headers(), payload: { clientId: c.client.id, saleId, amount: 30, currency: 'USD', method: 'EFECTIVO' } });
@@ -331,7 +331,7 @@ describe('caja diaria', () => {
     const current = await box('USD'); await open(current);
     const raised = await getApp().inject({ method: 'PATCH', url: `/api/operations/sales/sales/${saleId}`, headers: headers(), payload: { amount } });
     expect(raised.statusCode, raised.body).toBe(200);
-    expect(raised.json().sale).toMatchObject({ amount, status: 'COMPLETADA' });
+    expect(raised.json().sale).toMatchObject({ amount, status: amount > 100 ? 'PENDIENTE' : 'COMPLETADA' });
     expect(Number(raised.json().sale.openBalance)).toBe(amount > 100 ? 30 : 0);
     expect(await prisma.cashMovement.count({ where: { sourceId: saleId } })).toBe(1);
     expect(await balance(current)).toBe(0);

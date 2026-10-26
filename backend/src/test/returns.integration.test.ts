@@ -198,6 +198,32 @@ describe("devoluciones, notas de crédito y RMA", () => {
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: catalog.inventoryItem.id } })).status).toBe("DEVUELTO");
   });
 
+  it.each(['CAMBIO', 'REPARACION'])('recibe físicamente un RMA rechazado de %s sin duplicar compensación', async resolution => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    const catalog = await seedCatalogFixture(storeId);
+    const supplier = await prisma.supplier.create({ data: { storeId, name: 'Proveedor ficticio' } });
+    await prisma.inventoryItem.update({ where: { id: catalog.inventoryItem.id }, data: { supplierId: supplier.id } });
+    const saleId = await sell(storeId, catalog.client.id, catalog.inventoryItem.id, 1200);
+    const opened = await claim(saleId);
+    expect((await inject('POST', `/api/returns/${opened.id}/resolve`, { resolution, settlement: resolution === 'CAMBIO' ? 'NOTA_CREDITO' : 'NINGUNO', amount: resolution === 'CAMBIO' ? 1200 : 0, destination: 'PROVEEDOR' })).statusCode).toBe(200);
+    const rejected = await inject('POST', `/api/returns/${opened.id}/rma`, { status: 'RECHAZADO', note: 'Falta devolver el equipo' });
+    expect(rejected.statusCode).toBe(200);
+    const before = await prisma.returnCase.findUniqueOrThrow({ where: { id: opened.id } });
+    expect((await inject('POST', `/api/returns/${opened.id}/rma`, { status: 'APROBADO' })).statusCode).toBeGreaterThanOrEqual(400);
+    const received = await inject('POST', `/api/returns/${opened.id}/rma`, { status: 'RECIBIDO', stockStatus: 'EN_REVISION', note: 'Llegó físicamente' });
+    expect(received.statusCode, received.body).toBe(200);
+    expect(received.json().return).toMatchObject({ status: 'RESUELTO', rmaStatus: 'RECIBIDO' });
+    const after = await prisma.returnCase.findUniqueOrThrow({ where: { id: opened.id } });
+    expect(after.resolvedAt).toEqual(before.resolvedAt);
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: catalog.inventoryItem.id } })).status).toBe(resolution === 'CAMBIO' ? 'EN_REVISION' : 'VENDIDO');
+    const events = await prisma.returnEvent.findMany({ where: { caseId: opened.id } });
+    expect(events.map(event => event.status)).toEqual(expect.arrayContaining(['RECHAZADO', 'RECIBIDO']));
+    expect(await prisma.creditNote.count({ where: { returnCaseId: opened.id } })).toBe(resolution === 'CAMBIO' ? 1 : 0);
+    expect((await inject('POST', `/api/returns/${opened.id}/rma`, { status: 'RECIBIDO', stockStatus: 'EN_REVISION' })).statusCode).toBeGreaterThanOrEqual(400);
+    expect(await prisma.returnEvent.count({ where: { caseId: opened.id, status: 'RECIBIDO' } })).toBe(1);
+  });
+
   it("resuelve una reparación en garantía sin mover plata ni el stock", async () => {
     const store = await seedStoreContext();
     const catalog = await seedCatalogFixture(store.store!.id);

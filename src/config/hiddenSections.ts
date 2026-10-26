@@ -1,6 +1,6 @@
 /** Remove an id here to restore its navigation and screens. */
 export const HIDDEN_SECTIONS: readonly string[] = Object.freeze([
-  'gastos', 'caja', 'cuenta-corriente', 'seguimientos',
+  'caja', 'cuenta-corriente', 'seguimientos',
 ]);
 
 const SECTION_IDS: Readonly<Record<string, string>> = {

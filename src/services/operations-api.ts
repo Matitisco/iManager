@@ -1,3 +1,4 @@
+import { capture } from '../lib/posthog-analytics';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
@@ -104,7 +105,10 @@ export async function fetchOperationDrafts(user: AuthUserLike, source: Operation
 }
 
 export async function createOperation(user: AuthUserLike, source: OperationSource, input: OperationInput) {
-  return request<OperationResult>(user, `/api/operations/${source}`, 'POST', input);
+  const result = await request<OperationResult>(user, `/api/operations/${source}`, 'POST', input);
+  if (result.sale) capture('sale_created');
+  if (result.tradeIn) capture('trade_in_created');
+  return result;
 }
 
 export async function updateSaleOperation(user: AuthUserLike, id: string, input: OperationInput) {
@@ -116,7 +120,9 @@ export async function updateTradeOperation(user: AuthUserLike, source: Operation
 }
 
 export async function confirmTradeOperation(user: AuthUserLike, source: OperationSource, id: string, input: OperationInput) {
-  return request<OperationResult>(user, `/api/operations/${source}/trades/${id}/confirm`, 'POST', input);
+  const result = await request<OperationResult>(user, `/api/operations/${source}/trades/${id}/confirm`, 'POST', input);
+  if (result.sale) capture('sale_created');
+  return result;
 }
 
 export async function cancelSaleOperation(user: AuthUserLike, id: string, reason?: string) {

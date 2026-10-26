@@ -164,6 +164,8 @@ export interface TradeIn {
   draftSaleCategoryId?: string | null;
   draftPaymentMethod?: string | null;
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
+  draftSellerMemberId?: string | null;
+  draftWarrantyDays?: number | null;
   cancelledBy?: string | null;
   cancelledAt?: string | null;
   voidedAt?: string | null;

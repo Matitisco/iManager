@@ -1,3 +1,4 @@
+import { capture, identify } from '../lib/posthog-analytics';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
 import { apiRequest } from './api-client';
@@ -77,7 +78,7 @@ export async function createInvitation(
   role: InvitationRole,
   access?: { sections?: string[]; sensitiveAccess?: boolean },
 ): Promise<CreatedInvitation> {
-  return apiRequest<CreatedInvitation>(user, '/api/invitations', {
+  const result = await apiRequest<CreatedInvitation>(user, '/api/invitations', {
     method: 'POST',
     body: {
       ...(email ? { email } : {}),
@@ -87,6 +88,8 @@ export async function createInvitation(
     },
     fallback: 'Error al crear invitación',
   });
+  capture('employee_invite_sent');
+  return result;
 }
 
 export async function listInvitations(user: AuthUserLike): Promise<Invitation[]> {
@@ -176,9 +179,12 @@ export async function resolveInvitationPreview(
 }
 
 export async function acceptInvitation(user: AuthUserLike, token: string) {
-  return apiRequest<{ session: AppSession }>(user, '/api/invitations/accept', {
+  const result = await apiRequest<{ session: AppSession }>(user, '/api/invitations/accept', {
     method: 'POST',
     body: { token },
     fallback: 'Error al aceptar invitación',
   });
+  identify(result.session.user.id, result.session.store?.id ?? null, result.session.membership?.role ?? null);
+  capture('employee_invite_accepted');
+  return result;
 }

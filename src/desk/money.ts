@@ -19,13 +19,15 @@ export function projectAmount(
   storedCurrency: string | null | undefined,
   active: MoneyCurrency,
   sellRate: number | null,
+  fractionDigits: 0 | 2 = 0,
 ): MoneyProjection {
   const from = recordCurrency(storedCurrency, active);
   const value = Number.isFinite(amount) ? amount : 0;
   if (from === active) return { value, currency: active, blocked: false };
   if (sellRate == null || !(sellRate > 0)) return { value, currency: from, blocked: true };
   const converted = from === 'USD' ? value * sellRate : value / sellRate;
-  return { value: Math.round(converted), currency: active, blocked: false };
+  const scale = 10 ** fractionDigits;
+  return { value: Math.round(converted * scale) / scale, currency: active, blocked: false };
 }
 
 export function combineAmounts(

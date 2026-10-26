@@ -1,0 +1,3 @@
+- [x] Regresión roja de visibilidad y permisos
+- [x] Habilitar sección y validar rutas/navegación
+- [x] Capturas 1440/390 y PR con CI verde

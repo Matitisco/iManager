@@ -1,3 +1,4 @@
+import { capture, identify } from '../lib/posthog-analytics';
 import type { AppSessionResponse } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
@@ -23,5 +24,7 @@ export async function completeBackendOnboarding(user: AuthUserLike, input: Onboa
     throw new Error('Respuesta inválida al completar onboarding');
   }
 
+  identify(data.session.user.id, data.session.store?.id ?? null, data.session.membership?.role ?? null);
+  capture('onboarding_step_completed', { step: 'store' });
   return data.session;
 }

@@ -69,7 +69,7 @@ describe("cuenta corriente y cuotas", () => {
     const saleId = closed.json().sale.id as string;
     const raised = await getApp().inject({ method: "PATCH", url: `/api/operations/sales/sales/${saleId}`, headers: f.headers, payload: { amount: 1300 } });
     expect(raised.statusCode, raised.body).toBe(200);
-    expect(raised.json().sale).toMatchObject({ status: "COMPLETADA", openBalance: 300, amount: 1300 });
+    expect(raised.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 300, amount: 1300 });
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(300);
     expect(await prisma.clientPayment.findFirst({ where: { saleId, kind: "CARGO", note: "Diferencia por corrección de precio" } })).toBeTruthy();
     const listed = await getApp().inject({ url: "/api/accounts/debtors", headers: f.headers });

@@ -1,5 +1,5 @@
 import { fetchBackendInventory, fetchArchivedInventory } from '../../services/inventory-api';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { parseImportNumber } from '../../lib/import-number';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
@@ -11,6 +11,7 @@ import { signalDesk, useDesk } from '../ui';
 export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string; onSaved?: () => void | Promise<void> }) {
   const phone = usePhoneLayout();
   const [existingImeis, setExistingImeis] = useState<string[]>([]);
+  const source = useRef<'excel' | 'text'>('excel');
   const { user, reloadInventory, reloadSales, reloadClients, reloadLedger } = useAppContext();
   const { close, toast } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
@@ -36,8 +37,8 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
     setExistingImeis([...active, ...archived].map(item => item.imei).filter(Boolean));
     return analysis;
   };
-  return <ImportModal existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => withExistingImeis(() => analyzeInventoryText(user, text)) : undefined} onAnalyze={(sheets) => withExistingImeis(() => analyzeImport(user, section, sheets))} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows) => {
-    const result = await config.onImport(user, rows);
+  return <ImportModal existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows) => {
+    const result = await config.onImport(user, rows, source.current);
     if ((result.imported ?? 0) + (result.updated ?? 0) > 0) await onSaved?.();
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     if (count > 0) toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -72,7 +73,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
+      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
         const payload: InventoryImportRow[] = rows.map((row) => ({
           imei: row.imei ?? '',
           model: row.model ?? '',
@@ -87,7 +88,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
           customFields: row.serial ? { serial: row.serial } : undefined,
           status: row.status,
         }));
-        const result = await importBackendRows(user, 'inventory', payload, supplier?.id);
+        const result = await importBackendRows(user, 'inventory', payload, supplier?.id, source);
         await after();
         return result;
       },
@@ -110,8 +111,8 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'seller', label: 'Vendedor', required: false },
         { key: 'status', label: 'Estado', required: false },
       ],
-      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-        const result = await importBackendRows(user, 'sales', rows);
+      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
+        const result = await importBackendRows(user, 'sales', rows, undefined, source);
         await after();
         return result;
       },
@@ -128,8 +129,8 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
       { key: 'email', label: 'Email', required: false },
       { key: 'dni', label: 'DNI', required: false },
     ],
-    onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[]) => {
-      const result = await importBackendRows(user, 'clients', rows);
+    onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
+      const result = await importBackendRows(user, 'clients', rows, undefined, source);
       await after();
       return result;
     },

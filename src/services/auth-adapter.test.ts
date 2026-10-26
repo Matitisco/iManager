@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const firebase = vi.hoisted(() => ({
   signInWithPopup: vi.fn(), signInWithRedirect: vi.fn(), getRedirectResult: vi.fn(),
   signInWithEmailAndPassword: vi.fn(), createUserWithEmailAndPassword: vi.fn(),
-  signOut: vi.fn(), onAuthStateChanged: vi.fn(),
+  signOut: vi.fn(), onAuthStateChanged: vi.fn(), getAdditionalUserInfo: vi.fn(),
 }));
+const analytics = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock('../lib/posthog-analytics', () => analytics);
 vi.mock('firebase/auth', () => firebase);
 vi.mock('../firebase', () => ({ auth: { currentUser: null }, googleProvider: { providerId: 'google.com' } }));
 const environment = vi.hoisted(() => ({ ios: false, standalone: false }));
@@ -14,6 +16,8 @@ beforeEach(() => {
   vi.resetModules(); vi.clearAllMocks();
   environment.ios = false; environment.standalone = false;
   firebase.getRedirectResult.mockResolvedValue(null);
+  firebase.signInWithPopup.mockResolvedValue(undefined);
+  firebase.getAdditionalUserInfo.mockReturnValue({ isNewUser: false });
 });
 describe('Firebase authentication in installed apps', () => {
   it('uses redirect on iOS standalone', async () => {
@@ -46,4 +50,25 @@ describe('Firebase authentication in installed apps', () => {
     await getAuthAdapter().loginWithEmail('owner@test.com', 'secret123');
     expect(firebase.signInWithEmailAndPassword).toHaveBeenCalledWith(expect.anything(), 'owner@test.com', 'secret123');
   });
+  it('emits signup once for email and only new Google accounts, including redirects', async () => {
+    const { getAuthAdapter } = await import('./auth-adapter');
+    await getAuthAdapter().registerWithEmail('private@example.com', 'secret');
+    expect(analytics.capture).toHaveBeenCalledExactlyOnceWith('signup_completed');
+    firebase.signInWithPopup.mockResolvedValue({ user: {} });
+    await getAuthAdapter().loginWithGoogle();
+    expect(analytics.capture).toHaveBeenCalledOnce();
+    firebase.getAdditionalUserInfo.mockReturnValue({ isNewUser: true });
+    await getAuthAdapter().loginWithGoogle();
+    firebase.getRedirectResult.mockResolvedValue({ user: {} });
+    await Promise.all([getAuthAdapter().completeGoogleRedirect!(), getAuthAdapter().completeGoogleRedirect!()]);
+    expect(analytics.capture).toHaveBeenCalledTimes(3);
+    expect(analytics.capture.mock.calls).toEqual(Array.from({ length: 3 }, () => ['signup_completed']));
+  });
+  it('does not report signup when registration fails', async () => {
+    firebase.createUserWithEmailAndPassword.mockRejectedValueOnce(new Error('failed'));
+    const { getAuthAdapter } = await import('./auth-adapter');
+    await expect(getAuthAdapter().registerWithEmail('private@example.com', 'secret')).rejects.toThrow('failed');
+    expect(analytics.capture).not.toHaveBeenCalled();
+  });
+
 });
