@@ -1,0 +1,4 @@
+- [x] Implementar presentación de importes coherente.
+- [x] Verificar TypeScript y regresiones relacionadas.
+- [x] Capturar y revisar 1440 y 390 con datos fake.
+- [x] Preparar entrega para PR draft sin merge.

@@ -16,7 +16,7 @@ const paymentsApi = vi.hoisted(() => ({
 }));
 
 const accountsApi = vi.hoisted(() => ({
-  fetchSaleAccount: vi.fn(async () => null as { due?: number; installments?: unknown[]; tenders?: unknown[] } | null),
+  fetchSaleAccount: vi.fn(async () => null as { due?: number; installments?: unknown[]; tenders?: unknown[]; plan?: unknown } | null),
 }));
 
 const ctx = vi.hoisted(() => ({
@@ -782,4 +782,55 @@ describe('operation detail', () => {
     expect(await within(history).findByText('anuló la operación')).toBeInTheDocument();
     expect(within(history).getByText(/Luis Socio/)).toHaveTextContent('09/10/2026 15:30');
   });
+  it('unifica precio, deuda, cuota parcial, recargo y pago ARS de una venta USD en tienda ARS', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    ctx.tradeIns = [];
+    ctx.sales = [sale({ status: 'PENDIENTE', amount: 100, amountCurrency: 'USD', openBalance: 100, tradeInId: '', clientId: 'c1' })];
+    accountsApi.fetchSaleAccount.mockResolvedValue({ due: 70,
+      plan: { count: 2, frequency: 'MENSUAL', firstDueDate: '2026-11-14', surcharge: 10 },
+      installments: [
+        { sequence: 1, dueDate: '2026-11-14', status: 'PARCIAL', amount: 50, paidAmount: 30 },
+        { sequence: 2, dueDate: '2026-12-14', status: 'PENDIENTE', amount: 50, paidAmount: 0 },
+      ], tenders: [{ id: 'pago', amount: 46950, currency: 'ARS', method: 'EFECTIVO', role: 'COBRO' }],
+    });
+    render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1545, manualSell: 1565 }}>
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}><DeskOverlays overlay={{ type: 'sale', id: 's1' }} /></DeskProvider>
+    </ExchangeProvider>);
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    const panel = await screen.findByRole('region', { name: 'Cuotas y pagos' });
+    expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument();
+    expect(within(dialog).getByText('≈ $ 109.550')).toBeInTheDocument();
+    expect(dialog.querySelector('.dhero b')).toHaveTextContent('US$ 100');
+    const first = within(panel).getByText(/Cuota 1/).closest('.kv')!;
+    expect(first.querySelector('b')).toHaveTextContent('US$ 20');
+    expect(first.querySelector('small')).toHaveTextContent('≈ $ 31.300');
+    expect(within(panel).getByText(/Pago · Efectivo/).closest('.kv')?.querySelector('b')).toHaveTextContent('US$ 30');
+    expect(panel.querySelector('.eqs-note b')).toHaveTextContent('US$ 10');
+    expect(dialog).toHaveTextContent('US$ 1 = $ 1.565');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'ARS' }));
+    expect(within(dialog).getByText('Deuda $ 109.550')).toBeInTheDocument();
+    expect(first.querySelector('b')).toHaveTextContent('$ 31.300');
+    expect(dialog.querySelector('.dhero b')).toHaveTextContent('$ 156.500');
+    expect(panel.querySelector('.eqs-note b')).toHaveTextContent('$ 15.650');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'USD' }));
+    expect(within(dialog).getByText('Deuda US$ 70')).toBeInTheDocument();
+    expect(ctx.updateSale).not.toHaveBeenCalled();
+    expect(ctx.deleteSale).not.toHaveBeenCalled();
+  });
+
+  it('identifica la falta de cotización sin inventar equivalentes ni perder centavos', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    ctx.tradeIns = [];
+    ctx.sales = [sale({ status: 'PENDIENTE', amount: 100, amountCurrency: 'USD', tradeInId: '', clientId: 'c1' })];
+    accountsApi.fetchSaleAccount.mockResolvedValue({ due: 70.25, installments: [{ sequence: 1, dueDate: '2026-11-14', status: 'PARCIAL', amount: 100, paidAmount: 29.75 }], tenders: [] });
+    render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: null, manualSell: null }}>
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}><DeskOverlays overlay={{ type: 'sale', id: 's1' }} /></DeskProvider>
+    </ExchangeProvider>);
+    expect(await screen.findByText('Deuda US$ 70,25')).toBeInTheDocument();
+    expect(screen.getByText('Sin cotización: equivalente no disponible.')).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'V-0004' });
+    expect(dialog.querySelectorAll('.vsm-value small')).toHaveLength(0);
+    expect(dialog.querySelector('.dhero .eb')).toHaveTextContent('USD');
+  });
+
 });
