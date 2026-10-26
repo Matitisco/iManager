@@ -201,7 +201,7 @@ function catalogMoneyField(catalog: ImportCatalog): string | null {
 
 function columnMapping(headers: string[], priceHeader: string | null, rejected: Set<string>, catalog: ImportCatalog): ColumnMapping[] {
   const moneyField = catalogMoneyField(catalog);
-  const available = headers.filter((header) => header.trim() && header !== priceHeader && !rejected.has(header));
+  const available = headers.filter((header) => header.trim() && (catalog.section === "clients" || (header !== priceHeader && !rejected.has(header))));
   const mapped = autoMap(available, fieldLabels(catalog), catalog.hints);
   if (priceHeader && moneyField) delete mapped[moneyField];
   const fieldByHeader = new Map<string, string>();

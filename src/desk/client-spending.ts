@@ -1,4 +1,4 @@
-import type { RepairOrder, Sale } from '../types';
+import type { Client, RepairOrder, Sale } from '../types';
 import { clientPurchases, purchaseTotals } from './client-purchases';
 import type { MoneyApi } from './exchange';
 import { formatMoney } from './format';
@@ -19,9 +19,24 @@ export function clientSpendingById(sales: Sale[], repairs: RepairOrder[], active
   }), active).spent]));
 }
 
-export function formatClientSpending(parts: StoredAmount[], money: MoneyApi) {
+export function formatClientSpending(parts: StoredAmount[], money: MoneyApi, preserveCurrency = false) {
   if (parts.length === 0) return money.showActive(0);
-  if (parts.length === 1) return money.show(parts[0].amount, parts[0].currency);
+  if (parts.length === 1 && !preserveCurrency) return money.show(parts[0].amount, parts[0].currency, parts[0].amount % 1 ? 2 : 0);
   // Mixed currencies remain explicit even when an exchange rate is available.
-  return parts.map(part => formatMoney(part.amount, recordCurrency(part.currency, money.active))).join(' + ');
+  return parts.map(part => formatMoney(part.amount, recordCurrency(part.currency, money.active), part.amount % 1 ? 2 : 0)).join(' + ');
+}
+
+/** Only explicitly imported opening history; never infer it from totalSpent. */
+export function importedClientSpending(client?: Client): StoredAmount[] {
+  if (client?.importedSpent == null || !['ARS', 'USD'].includes(client.importedSpentCurrency ?? '')) return [];
+  return [{ amount: client.importedSpent, currency: client.importedSpentCurrency! }];
+}
+
+export function combinedClientSpending(parts: StoredAmount[], client?: Client): StoredAmount[] {
+  const totals = new Map<string | null, number>();
+  for (const part of [...parts, ...importedClientSpending(client)]) {
+    const key = part.currency ?? null;
+    totals.set(key, (totals.get(key) ?? 0) + part.amount);
+  }
+  return [...totals].sort(([a], [b]) => (a ?? '').localeCompare(b ?? '')).map(([currency, amount]) => ({ currency, amount }));
 }

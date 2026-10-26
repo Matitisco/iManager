@@ -1,5 +1,6 @@
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { recordCash } from '../cash/service.js';
+import { parseMoney } from "../import/sheet-plan.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
 import { normalizeCustomFields } from "../../lib/custom-fields.js";
@@ -40,6 +41,8 @@ export interface ClientResponse {
   instagram: string;
   lastPurchaseDate: string;
   totalSpent: number;
+  importedSpent: number | null;
+  importedSpentCurrency: string | null;
   pendingBalance: number;
   creditBalance: number;
   balanceCurrency: string | null;
@@ -67,6 +70,8 @@ type ClientRecord = {
   instagram?: string | null;
   lastPurchaseAt: Date | null;
   totalSpent: Decimal;
+  importedSpent?: Decimal | null;
+  importedSpentCurrency?: string | null;
   pendingBalance: Decimal;
   balanceCurrency?: string | null;
   categoryId: string | null;
@@ -117,6 +122,8 @@ export function serializeClient(client: ClientRecord, creditBalance = 0): Client
     instagram: client.instagram ?? "",
     lastPurchaseDate: formatDate(client.lastPurchaseAt),
     totalSpent: client.totalSpent.toNumber(),
+    importedSpent: client.importedSpent?.toNumber() ?? null,
+    importedSpentCurrency: client.importedSpentCurrency ?? null,
     pendingBalance: client.pendingBalance.toNumber(),
     creditBalance,
     balanceCurrency: client.balanceCurrency ?? null,
@@ -412,6 +419,8 @@ export async function restoreClient(storeId: string, id: string, actor?: Actor |
 }
 
 export interface ClientImportRow {
+  importedSpent?: string;
+  importedSpentCurrency?: string;
   name?: string;
   dni?: string;
   email?: string;
@@ -456,6 +465,20 @@ export async function importClients(
     const instagram = normalizeImportedInstagram(r.instagram);
 
     try {
+      // A snapshot replaces the previous opening history. Never add it to the
+      // mutable accumulator, balances or the count of actual receipts.
+      const hasHistory = Boolean(r.importedSpent?.trim());
+      const amount = hasHistory ? parseMoney(r.importedSpent!) : null;
+      const currency = r.importedSpentCurrency?.trim().toUpperCase();
+      if (hasHistory && (amount == null || amount < 0 || amount > 9999999999.99)) {
+        errors.push({ row: rowNum, message: "El histórico importado debe ser un monto válido, mayor o igual a cero" });
+        continue;
+      }
+      if (hasHistory && currency !== "ARS" && currency !== "USD") {
+        errors.push({ row: rowNum, message: "Indicá ARS o USD como moneda del histórico importado" });
+        continue;
+      }
+      const history = hasHistory ? { importedSpent: new Decimal(amount!).toDecimalPlaces(2), importedSpentCurrency: currency! } : {};
       const decision = decideClientLink(known, { name, dni, phone, email });
       if (decision.action === "ambiguous") {
         errors.push({ row: rowNum, message: "Hay más de un cliente con esos datos y no se duplicó" });
@@ -465,7 +488,7 @@ export async function importClients(
         const current = known.find((client) => client.id === decision.clientId);
         if (!current) continue;
         const dniTaken = Boolean(dni && known.some((client) => client.id !== current.id && normalizeImportedDni(client.dni ?? "") === dni));
-        const patch = blankFieldsToFill(current, { dni, phone, email, instagram }, dniTaken);
+        const patch = { ...blankFieldsToFill(current, { dni, phone, email, instagram }, dniTaken), ...history };
         if (Object.keys(patch).length > 0) {
           await clientsRepository.update(current.id, patch);
           Object.assign(current, patch);
@@ -477,6 +500,7 @@ export async function importClients(
       const created = await clientsRepository.create({
         storeId,
         name: name.slice(0, 120),
+        ...history,
         dni: dni || null,
         email: email || null,
         phone: phone || null,
