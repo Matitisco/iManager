@@ -30,6 +30,7 @@ type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
 export const UNRELATED_IMPORT_NOTICE = 'Este archivo no parece tener equipos para importar.';
 
 interface Props {
+  existingImeis?: readonly string[];
   fields: ImportFieldDef[];
   onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
   onClose: () => void;
@@ -57,7 +58,7 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
 }
 
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, onStageChange, title = 'Importar',
+  fields, onImport, onClose, onStageChange, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
@@ -196,6 +197,10 @@ export const ImportModal: React.FC<Props> = ({
   const included = plan.filter((item) => item.include);
   const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
   const selectedRows = rows.filter((_, index) => !excluded.has(index));
+  const existing = new Set(existingImeis);
+  const updatingRows = selectedRows.filter(row => row.imei?.trim() && existing.has(row.imei.trim()));
+  const updatingCount = new Set(updatingRows.map(row => row.imei.trim())).size;
+  const replacementFields = fields.filter(field => field.key !== 'imei' && updatingRows.some(row => row[field.key] !== undefined && (field.key !== 'cost' || parseImportNumber(row.cost) !== undefined))).map(field => field.label);
   const equipmentCount = textPreview ? selectedRows.reduce((sum, row) => sum + Number(row.quantity), 0) : selectedRows.length;
   const validationError = textPreview ? selectedRows.map(textRowError).find(Boolean) ?? (equipmentCount > 2000 ? 'El listado supera los 2000 equipos.' : null) : null;
   const canImport = !applying && selectedRows.length > 0 && !validationError && (textPreview || (requiredMissing.length === 0 && included.length > 0));
@@ -291,6 +296,10 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
+          {updatingCount > 0 && <div className="import-imei-warning" role="status" data-testid="import-imei-warning">
+            <b>{updatingCount === 1 ? 'Se actualizará 1 equipo existente por IMEI' : `Se actualizarán ${updatingCount} equipos existentes por IMEI`}</b>
+            <p>Campos del archivo que pueden reemplazar datos: {replacementFields.join(', ')}. Los campos omitidos se conservan.</p>
+          </div>}
           {summary.sheetCount > 1 && <details className="import-sheets">
           <summary>{summary.sheetCount} hojas</summary>
           <ul className="border border-gray-200 rounded-xl divide-y divide-gray-100">

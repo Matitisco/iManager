@@ -1,4 +1,5 @@
-import { useMemo, useRef } from 'react';
+import { fetchBackendInventory, fetchArchivedInventory } from '../../services/inventory-api';
+import { useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { parseImportNumber } from '../../lib/import-number';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
@@ -9,6 +10,7 @@ import { signalDesk, useDesk } from '../ui';
 
 export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string; onSaved?: () => void | Promise<void> }) {
   const phone = usePhoneLayout();
+  const [existingImeis, setExistingImeis] = useState<string[]>([]);
   const source = useRef<'excel' | 'text'>('excel');
   const { user, reloadInventory, reloadSales, reloadClients, reloadLedger } = useAppContext();
   const { close, toast } = useDesk();
@@ -29,7 +31,13 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
     cl: ['cliente importado', 'clientes importados'],
   };
   const section = sectionFor(kind);
-  return <ImportModal title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return analyzeInventoryText(user, text); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return analyzeImport(user, section, sheets); }} onApply={(sheets, plan, refreshMapping) => applyImportPlan(user, section, sheets, plan, refreshMapping)} onImport={async (rows) => {
+  const withExistingImeis = async <T,>(analyze: () => Promise<T>): Promise<T> => {
+    if (kind !== 'inv') return analyze();
+    const [analysis, active, archived] = await Promise.all([analyze(), fetchBackendInventory(user), fetchArchivedInventory(user)]);
+    setExistingImeis([...active, ...archived].map(item => item.imei).filter(Boolean));
+    return analysis;
+  };
+  return <ImportModal existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows) => {
     const result = await config.onImport(user, rows, source.current);
     if ((result.imported ?? 0) + (result.updated ?? 0) > 0) await onSaved?.();
     const count = (result.imported ?? 0) + (result.updated ?? 0);
