@@ -10,6 +10,22 @@ async function context() {
 const row = { imei: '', model: 'iPhone ficticio', price: null };
 const definitions = [{ entity: 'inventory', key: 'reparaciones', label: 'Reparaciones', type: 'number', order: 0 }, { entity: 'inventory', key: 'garantia', label: 'Garantía hasta', type: 'date', order: 1 }];
 describe('custom equipment fields and import', () => {
+  it('persists repair status and original value alongside typed fields and entry date', async () => {
+    const { headers, store } = await context();
+    const result = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: {
+      definitions, rows: [{ ...row, sourceRow: 7, status: 'SERVICIO TECNICO', entryDate: '2026-10-15',
+        batteryHealth: '85%', batteryNote: 'Batería cambiada', supplierName: 'Proveedor ficticio',
+        customFields: { serial: 'SERIE-FICTICIA', reparaciones: '2', garantia: '2026-12-31' } }],
+    } });
+    expect(result.statusCode).toBe(200);
+    expect(result.json()).toMatchObject({ imported: 1, errors: [] });
+    const item = await prisma.inventoryItem.findFirstOrThrow({ where: { storeId: store!.id } });
+    expect(item).toMatchObject({ status: 'EN_REVISION', entryDate: expect.any(Date), batteryHealth: '85%',
+      batteryNote: 'Batería cambiada', supplierId: expect.any(String), customFields: {
+        serial: 'SERIE-FICTICIA', originalStatus: 'SERVICIO TECNICO', reparaciones: 2, garantia: '2026-12-31',
+      } });
+    expect(item.entryDate!.toISOString().slice(0, 10)).toBe('2026-10-15');
+  });
   it('commits definitions and valid typed rows; errors identify original Excel rows', async () => {
     const { headers, store } = await context();
     const result = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { definitions, rows: [

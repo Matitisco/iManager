@@ -4,7 +4,7 @@ import { acceptModelPlan, analyzeImport, applyImportPlan } from './analyze-impor
 import { headerCandidates } from './decisions-plan.js';
 import { normalizeInventoryImportStatus } from './inventory-status.js';
 import { applyPlans, heuristicPlan, sheetHeaders, type ImportSheet } from './sheet-plan.js';
-import { RESPONSES_URL } from './responses-client.js';
+import { DECISIONS_URL, RESPONSES_URL } from './responses-client.js';
 
 const sheets = (): ImportSheet[] => [{ name: 'stock de equipos', rows: syntheticStockRows() }];
 const apply = (input: ImportSheet[]) => applyPlans(input, heuristicPlan(input, 'inventory', 'USD'), 'inventory', 'USD');
@@ -15,12 +15,15 @@ describe('stock sin encabezado', () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
     const input = sheets();
     const fetchImpl = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      if (String(url) === DECISIONS_URL) return new Response('', { status: 404 });
       expect(String(url)).toBe(RESPONSES_URL);
       return stockModelResponse(mistakenStockPlan(input[0].rows));
     });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledOnce();
-    const request = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const responsesCall = fetchImpl.mock.calls.filter(([url]) => String(url) === RESPONSES_URL);
+    expect(responsesCall).toHaveLength(1);
+    const request = JSON.parse(String(responsesCall[0][1]?.body));
     expect(request.input[0].content).toContain('headerRow=0, dataStartRow=1');
     expect(request.input[1].content).toContain('P=15');
     expect(request.text.format.schema.properties.sheets.items.properties.mapping.items.required).toContain('columnIndex');
@@ -28,10 +31,14 @@ describe('stock sin encabezado', () => {
     expect(result.notice).toBeNull();
     expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60, batteryAsPercent: true });
     expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toEqual({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
-    expect(result.plan[0].mapping[9].field).toBe('');
+    expect(result.plan[0].mapping[9].field).toBe('batteryNote');
     expect(result.rows).toHaveLength(60);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%' });
     expect(result.rows[9].cost).toBe('');
+    expect(result.rows[0].entryDate).toBe(input[0].rows[0][0]);
+    expect(result.rows[1].entryDate).toBe(input[0].rows[1][0]);
+    expect(result.rows[1].batteryNote).toBe('BATERIA');
+    expect(result.rows.every(row => row.purchasedAt === undefined)).toBe(true);
     expect(result.rows.every(row => !row.price && row.batteryHealth !== 'BATERIA')).toBe(true);
     expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' }).rows).toEqual(result.rows);
@@ -46,6 +53,51 @@ describe('stock sin encabezado', () => {
     raw.sheets[0].headerRow = 5;
     raw.sheets[0].mapping = [{ header: 'Modelo', field: 'model' }];
     expect(acceptModelPlan(input, raw, 'inventory', 'USD')?.[0]).toMatchObject({ headerRow: 0, dataStartRow: 1 });
+  });
+
+  it('conserva proveedor del modelo y notas de reparación junto con fecha de ingreso y salud inferidas', () => {
+    const input = sheets();
+    const plan = heuristicPlan(input, 'inventory', 'USD')[0];
+    plan.mapping = [
+      { header: 'A', columnIndex: 0, field: 'purchasedAt' },
+      { header: 'B', columnIndex: 1, field: 'supplierName' },
+      { header: 'C', columnIndex: 2, field: 'model' },
+      { header: 'J', columnIndex: 9, field: 'batteryHealth' },
+    ];
+    const accepted = acceptModelPlan(input, { sheets: [plan] }, 'inventory', 'USD')!;
+    const result = applyPlans(input, accepted, 'inventory', 'USD');
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
+    expect(result.rows[1]).not.toHaveProperty('purchasedAt');
+  });
+
+  it('mantiene el analizador Decisions para hojas sin encabezado y corrige sus campos en conflicto', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
+      expect(String(url)).toBe(DECISIONS_URL);
+      return Response.json({ answers: [
+        { name: 'h0_inc', probability: 1 },
+        ...['entryDate', 'supplierName', 'model', 'capacity', 'ignore', 'imei', 'ignore', 'color', 'cost', 'batteryHealth', 'status']
+          .map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
+      ] });
+    });
+    const result = await analyzeImport({ sheets: sheets(), section: 'inventory', currency: 'USD' }, { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(result.source).toBe('model');
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
+  });
+
+  it('normaliza seriales de Excel en fecha de ingreso y conserva fechas ISO e incompletas', () => {
+    const input = [{ name: 'Stock', rows: [
+      ['Fecha ingreso', 'Modelo', 'Detalle batería'],
+      ['46310', 'iPhone 13', 'Batería cambiada'],
+      ['2026-10-15', 'iPhone 14', 'Original'],
+      ['15/10', 'iPhone 15', 'Reparada'],
+    ] }];
+    const result = apply(input);
+    expect(result.rows.map(row => row.entryDate)).toEqual(['2026-10-15', '2026-10-15', '15/10']);
+    expect(result.rows.every(row => !row.batteryHealth)).toBe(true);
   });
 
   it('conserva exactamente un plan correcto de OpenAI con encabezado real y sus decisiones', async () => {
@@ -97,7 +149,7 @@ describe('stock sin encabezado', () => {
     expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60 });
     expect(result.plan[0].mapping.map(column => column.header)).toEqual('ABCDEFGHIJKLMNOP'.split(''));
     expect(result.plan[0].mapping.filter(column => column.field)).toEqual(expect.arrayContaining([
-      { header: 'A', columnIndex: 0, field: 'purchasedAt' },
+      { header: 'A', columnIndex: 0, field: 'entryDate' },
       { header: 'C', columnIndex: 2, field: 'model' },
       { header: 'D', columnIndex: 3, field: 'capacity' },
       { header: 'E', columnIndex: 4, field: 'batteryHealth' },
@@ -117,8 +169,8 @@ describe('stock sin encabezado', () => {
       expect(row.price).toBeUndefined();
     }
     expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
-    expect(result.plan[0].mapping[9].field).toBe(''); // BATERIA is a repair value.
-    expect(headerCandidates(input[0].rows)).toEqual([]);
+    expect(result.plan[0].mapping[9].field).toBe('batteryNote'); // BATERIA is a repair note, never health.
+    expect(headerCandidates(input[0].rows)).toEqual([0]);
     const reapplied = applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' });
     expect(reapplied.rows).toEqual(result.rows);
     expect(reapplied.plan[0].headerRow).toBe(0);

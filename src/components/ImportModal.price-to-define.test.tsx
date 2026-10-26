@@ -124,8 +124,10 @@ it('reincluye una hoja sin encabezado al asignar Modelo y conserva los índices 
   render(<ImportModal fields={fields} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={onApply} onImport={vi.fn()} />);
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['iPhone 13,300\niPhone 14,400'], 'stock.csv', { type: 'text/csv' }));
   await userEvent.click(await screen.findByTestId('import-adjust-open'));
-  await userEvent.click(screen.getByTestId('import-field-model'));
-  await userEvent.click(screen.getByRole('option', { name: /^A$/ }));
+  const card = within(screen.getByRole('article', { name: 'Columna A' }));
+  await userEvent.click(card.getByRole('button', { name: 'Campo existente' }));
+  await userEvent.click(card.getByRole('combobox', { name: 'Importar A como' }));
+  await userEvent.click(screen.getByRole('option', { name: 'Modelo' }));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(onApply.mock.calls[0][1][0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1,
     mapping: [{ header: 'A', columnIndex: 0, field: 'model' }, { header: 'B', columnIndex: 1, field: 'cost' }] });

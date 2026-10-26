@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { analyzeImport } from '../../backend/src/modules/import/analyze-import.service';
+import { DECISIONS_URL } from '../../backend/src/modules/import/responses-client';
 import { cellText, parseWorkbook } from './parse-workbook';
 import { syntheticStockRows as fixtureStockRows } from '../../backend/test/fixtures/headerless-stock';
 
@@ -119,9 +120,10 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     expect(grid[0][4]).toBe('0.8');
     expect(grid[0][5]).toBe('990000000000000');
     const input = { section: 'inventory' as const, currency: 'USD' as const, sheets: [{ name: workbook.sheetNames[0], rows: grid }] };
-    const fetchImpl = vi.fn(async () => stockModelResponse(mistakenStockPlan(grid)));
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => String(url) === DECISIONS_URL
+      ? new Response('', { status: 404 }) : stockModelResponse(mistakenStockPlan(grid)));
     const analysis = await analyzeImport(input, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledTimes(source === 'model' ? 1 : 0);
+    expect(fetchImpl).toHaveBeenCalledTimes(source === 'model' ? 2 : 0);
     expect(analysis.source).toBe(source);
     expect(analysis.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1 });
     expect(analysis.plan[0].mapping).toHaveLength(16);
@@ -131,6 +133,8 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     expect(analysis.rows[7].batteryHealth).toBe('8*%');
     expect(analysis.rows.every(row => !row.price)).toBe(true);
     expect(analysis.rows[9].cost).toBe('');
+    expect(analysis.rows[1]).toMatchObject({ entryDate: grid[1][0], batteryNote: 'BATERIA' });
+    expect(analysis.rows[1]).not.toHaveProperty('purchasedAt');
     expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ ...input, plan: analysis.plan }).rows).toEqual(analysis.rows);
   } finally {

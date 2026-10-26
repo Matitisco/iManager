@@ -59,6 +59,12 @@ describe("importRoutes analyze", () => {
       expect(applied.statusCode).toBe(200);
       expect(applied.json().rows).toEqual(analysis.rows);
       expect(applied.json().diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0 });
+      const customField = `custom:${'c'.repeat(60)}`;
+      analysis.plan[0].mapping[1].field = customField;
+      const custom = await app.inject({ method: "POST", url: "/apply", payload: { ...payload, plan: analysis.plan } });
+      expect(custom.statusCode).toBe(200);
+      expect(custom.json().rows[0]).toMatchObject({ [customField]: 'PROV1', entryDate: '1/10', batteryHealth: '80%', _sourceRow: '1' });
+      expect(custom.json().rows[2]).toMatchObject({ status: 'EN_REVISION', originalStatus: 'SIN SERVICIO' });
     } finally {
       await app.close();
     }

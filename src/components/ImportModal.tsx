@@ -451,7 +451,11 @@ export const ImportModal: React.FC<Props> = ({
               <button type="button" aria-pressed={active.headerRow > 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 1, dataStartRow: 2 } : item), true); }}>Fila 1 es encabezado</button>
             </div>
             {active.headerRow > 0 && <label className="fl"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={activeRows.length} value={active.headerRow} disabled={busy} onChange={event => { const headerRow = Number(event.target.value); if (headerRow >= 1 && headerRow <= activeRows.length) void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true); }} /></label>}
-            <ImportColumnCards active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => { void reapply(plan.map(item => item.name === active.name ? next : item), false); }} />
+            <ImportColumnCards active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
+              const required = [...new Set([...fields.filter(field => field.required).map(field => field.key), ...missingRequiredFields])];
+              const updated = updatePlanMapping(active, next.mapping, required);
+              void reapply(plan.map(item => item.name === active.name ? updated : item), false);
+            }} />
           </> : (
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Encabezado</p>
