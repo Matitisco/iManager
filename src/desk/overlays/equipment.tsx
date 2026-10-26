@@ -124,7 +124,7 @@ export function EquipmentDetail({ id }: { id: string }) {
         <div className="kv sup-origin" data-testid="equipment-purchase"><span>Compra</span><b><button type="button" disabled={busy} onClick={() => setPurchaseOpen(true)}>{item.purchaseName || formatShortDate(item.purchasedAt)}</button></b></div>
         <div className="eq-purchase-problems" aria-busy={summaryPending}>
           {summaryPending ? <Skeleton className="eq-purchase-skeleton" /> : null}
-          {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} equipos de esta compra tuvieron problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
+          {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} {summary.devices === 1 ? 'equipo' : 'equipos'} de esta compra {summary.problems === 1 ? 'tuvo' : 'tuvieron'} problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
         </div>
       </> : null}
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
