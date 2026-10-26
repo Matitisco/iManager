@@ -73,7 +73,7 @@ for (const device of [
       const net = clientRecord.pendingBalance - (clientRecord.creditBalance ?? 0);
       const formatted = new Intl.NumberFormat('es-AR').format(Math.abs(Math.round(net)));
       await expect(clientRow).toContainText(net > 0 ? `Saldo $ ${formatted}` : net < 0 ? `A favor $ ${formatted}` : 'Sin saldo');
-      await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total comprado' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
+      await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total iManager' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
       await openDeskSection(page, 'sales');
       await expandListOptions(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();

@@ -159,7 +159,7 @@ describe('Clients on a phone', () => {
     expect(rows()[0].querySelector('.cl-email')).toHaveTextContent('zoe@ejemplo.com');
     expect(rows()[0]).toHaveTextContent('Saldo');
     expect(rows()[0]).toHaveTextContent('Última compra');
-    expect(rows()[0]).toHaveTextContent('Total comprado');
+    expect(rows()[0]).toHaveTextContent('Total iManager');
     expect(rows()[1]).toHaveTextContent('Ana Pérez');
     expect(rows()[1]).toHaveTextContent('Sin saldo');
     expect(screen.getByText('Con saldo')).toBeInTheDocument();
@@ -226,8 +226,8 @@ describe('Client purchase totals', () => {
       <ClientPurchases clientId="1" clientName="Cliente 1" sales={context.sales} repairs={[]} tradeIns={[]} inventory={[]} sellers={[]} />
     </ExchangeProvider>);
     expect(screen.getByTestId('client-row-1')).toHaveTextContent('$ 939.000');
-    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total comprado$ 939.000');
-    expect(screen.getAllByText('Total comprado')).toHaveLength(2);
+    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total iManager$ 939.000');
+    expect(screen.getAllByText('Total iManager')).toHaveLength(2);
   });
 
   it('filters by purchases rather than the legacy total', async () => {

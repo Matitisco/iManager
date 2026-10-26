@@ -1,0 +1,10 @@
+.cl-spending { display: inline-flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.cl-spending-history { display: flex; flex-direction: column; gap: 2px; padding-top: 6px; border-top: 1px solid var(--border); }
+.cl-spending-history small { color: var(--secondary); font-size: 11px; font-weight: 500; }
+.cl-spending-history b { color: var(--secondary); font-weight: 600; }
+.cl-buy-stats:has(> .dstat:nth-child(4)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cl-buy-stats:has(> .dstat:nth-child(4)) .dstat { padding: 12px; border-radius: 16px; }
+.cl-buy-stats:has(> .dstat:nth-child(4)) .dstat:nth-child(-n+2) .big { font-size: 20px; font-weight: 800; }
+.desk-app .cl-sheet .av-c, .desk-app .cl-card .av-c, .desk-app .cl-clients-screen .av-c { background: var(--row); color: var(--primary); }
+
+.desk-app .sheet.cl-sheet .sheet-foot .btn2 { min-height: 52px; }

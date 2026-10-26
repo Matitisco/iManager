@@ -44,7 +44,7 @@ describe('client purchase history sources', () => {
     expect(row).toHaveTextContent('Lucía');
     expect(row).toHaveTextContent('Anulada');
     expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('0');
-    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total comprado$ 0');
+    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total iManager$ 0');
     expect(screen.queryByTestId('purchase-sale-other-client')).not.toBeInTheDocument();
     expect(api.sales).toHaveBeenCalledWith(state.user);
     expect(state.loadCommissionSellers).toHaveBeenCalledOnce();
