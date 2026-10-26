@@ -79,6 +79,8 @@ export async function applyImportPlan(
 }
 
 export interface InventoryImportRow {
+  purchasedAt?: string;
+  purchaseName?: string;
   imei: string;
   model: string;
   capacity?: string;

@@ -1,0 +1,1 @@
+Agregar campos opcionales al catálogo/mapeo/payload. Agrupar equipos nuevos por fecha y nombre, validar fechas antes de guardar y mantener reimportación sin compras duplicadas. Sin cambios de Prisma o CSS.

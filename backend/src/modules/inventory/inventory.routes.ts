@@ -239,6 +239,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
               price: z.coerce.number().finite().nonnegative(),
               currency: z.enum(["ARS", "USD"]).optional(),
               status: z.string().optional(),
+              purchasedAt: z.string().trim().optional(),
+              purchaseName: z.string().trim().max(120).optional(),
               customFields: z.record(z.unknown()).optional(),
             })
           )

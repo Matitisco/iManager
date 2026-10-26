@@ -1,3 +1,4 @@
+import { parseArDate } from "../../lib/ar-date.js";
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -945,6 +946,8 @@ export async function bulkMoveCategory(storeId: string, ids: string[], categoryI
 // ─── Import ───────────────────────────────────────────────────────────────────
 
 export interface ImportRow {
+  purchasedAt?: string;
+  purchaseName?: string;
   imei: string;
   model: string;
   capacity?: string;
@@ -1014,7 +1017,8 @@ export async function importInventoryItems(
   const purchaseName = readPurchaseName(options ?? {});
   const result: ImportResult = { imported: 0, updated: 0, errors: [] };
   const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
-  const createdIds: string[] = [];
+  const defaultPurchasedAt = new Date();
+  const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
   if (options?.supplierId) {
     const supplier = await prisma.supplier.findFirst({
       where: { id: options.supplierId, storeId, deletedAt: null },
@@ -1027,6 +1031,13 @@ export async function importInventoryItems(
     const raw = rows[i];
     const rowNum = i + 1;
     let rowCurrency = raw.currency ?? importedCurrency;
+    const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt) : defaultPurchasedAt;
+    if (!purchasedAt) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: "Fecha de compra inválida" });
+      continue;
+    }
+    const rowPurchaseName = raw.purchaseName === undefined ? purchaseName : readPurchaseName(raw);
+    const purchaseKey = JSON.stringify([purchasedAt.toISOString().slice(0, 10), rowPurchaseName]);
 
     if (!raw.model?.trim()) {
       result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
@@ -1166,7 +1177,9 @@ export async function importInventoryItems(
             customFields: raw.customFields ?? {},
           },
         });
-        createdIds.push(created.id);
+        const group = purchases.get(purchaseKey) ?? { name: rowPurchaseName, purchasedAt, ids: [] };
+        group.ids.push(created.id);
+        purchases.set(purchaseKey, group);
         result.imported++;
       }
     } catch {
@@ -1174,8 +1187,10 @@ export async function importInventoryItems(
     }
   }
 
-  if (options?.supplierId && createdIds.length) {
-    await attachItemsToPurchase(storeId, options.supplierId, createdIds, options.actor, purchaseName);
+  if (options?.supplierId) {
+    for (const group of purchases.values()) {
+      await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt);
+    }
   }
   return result;
 }
