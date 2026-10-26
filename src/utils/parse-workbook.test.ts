@@ -1,8 +1,10 @@
+import ExcelJS from 'exceljs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { analyzeImport } from '../../backend/src/modules/import/analyze-import.service';
 import { cellText, parseWorkbook } from './parse-workbook';
+import { syntheticStockRows as fixtureStockRows } from '../../backend/test/fixtures/headerless-stock';
 
 describe('cellText', () => {
   it('reads rich text, formula results and numbers without turning them into objects', () => {
@@ -99,7 +101,7 @@ describe('ejemplo-stock.xlsx', () => {
 
 
 it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX rows through the real parser (%s)', async source => {
-  const { syntheticStockXlsx, mistakenStockPlan, stockModelResponse } = await import('../../backend/test/fixtures/headerless-stock');
+  const { syntheticStockRows, mistakenStockPlan, stockModelResponse } = await import('../../backend/test/fixtures/headerless-stock');
   const { applyImportPlan } = await import('../../backend/src/modules/import/analyze-import.service');
   const previousKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -136,3 +138,26 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     else process.env.OPENAI_API_KEY = previousKey;
   }
 });
+
+async function syntheticStockXlsx(): Promise<Uint8Array> {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('stock de equipos');
+  fixtureStockRows().forEach((values, index) => {
+    const row = sheet.addRow(values);
+    if (index % 4 !== 0) {
+      // Numeric Excel dates, formatted as dates, rather than strings in the XLSX.
+      row.getCell(1).value = 46311 + index;
+      row.getCell(1).numFmt = 'dd/mm/yyyy';
+    }
+    if (index !== 7) row.getCell(5).value = Number(values[4]);
+    row.getCell(5).numFmt = '0%';
+    row.getCell(6).value = Number(values[5]);
+    row.getCell(6).numFmt = '0';
+    if (index !== 9) row.getCell(9).value = Number(values[8]);
+    if (index) {
+      row.getCell(12).value = { formula: `IFERROR(A${index + 1}+1,"")` };
+      row.getCell(16).value = Number(values[15]);
+    }
+  });
+  return new Uint8Array(await workbook.xlsx.writeBuffer());
+}

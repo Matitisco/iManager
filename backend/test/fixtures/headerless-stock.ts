@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 
 // Entirely fabricated data, generated in memory. No external spreadsheet is read.
 export function syntheticStockRows(count = 60): string[][] {
@@ -42,27 +41,4 @@ export function stockModelResponse(plan: unknown) {
     output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(plan) }] }],
     usage: { input_tokens: 4000, output_tokens: 900 },
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-}
-
-export async function syntheticStockXlsx(): Promise<Uint8Array> {
-  const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('stock de equipos');
-  syntheticStockRows().forEach((values, index) => {
-    const row = sheet.addRow(values);
-    if (index % 4 !== 0) {
-      // Numeric Excel dates, formatted as dates, rather than strings in the XLSX.
-      row.getCell(1).value = 46311 + index;
-      row.getCell(1).numFmt = 'dd/mm/yyyy';
-    }
-    if (index !== 7) row.getCell(5).value = Number(values[4]);
-    row.getCell(5).numFmt = '0%';
-    row.getCell(6).value = Number(values[5]);
-    row.getCell(6).numFmt = '0';
-    if (index !== 9) row.getCell(9).value = Number(values[8]);
-    if (index) {
-      row.getCell(12).value = { formula: `IFERROR(A${index + 1}+1,"")` };
-      row.getCell(16).value = Number(values[15]);
-    }
-  });
-  return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
