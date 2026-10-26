@@ -1,0 +1,2 @@
+# Diseño
+Derivar la fecha económica de la nota emitida o del primer evento de resolución/envío al proveedor, ya persistidos en la misma transacción. Usar resolvedAt solamente como respaldo histórico si falta esa evidencia. Compartir la regla entre la API de reclamos, overview y ganancia neta; exponer compensatedOn para el filtro de datos del reporte existente. Conservar resolvedOn para el cierre logístico, sin migración ni cambios en JSX, estilos o textos.
