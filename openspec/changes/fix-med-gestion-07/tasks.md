@@ -1,0 +1,3 @@
+- [x] Regresión roja ARS/USD y cotización ausente
+- [x] Convertir y validar
+- [x] PR, CI y merge

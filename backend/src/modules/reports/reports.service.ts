@@ -447,7 +447,8 @@ export async function getReportsOverview(
     prisma.inventoryItem.count({
       where: { ...inventoryWhere, status: "EN_REVISION" },
     }),
-    prisma.inventoryItem.aggregate({
+    prisma.inventoryItem.groupBy({
+      by: ["currency"],
       where: { ...inventoryWhere, status: "DISPONIBLE" },
       _sum: {
         cost: true,
@@ -459,6 +460,7 @@ export async function getReportsOverview(
       select: {
         createdAt: true,
         cost: true,
+        currency: true,
       },
     }),
     prisma.inventoryItem.findMany({
@@ -466,6 +468,7 @@ export async function getReportsOverview(
       select: {
         createdAt: true,
         cost: true,
+        currency: true,
       },
     }),
   ]);
@@ -489,6 +492,7 @@ export async function getReportsOverview(
   const needsConversion = [...sales.filter(sale => sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE'), ...previousSales].some(sale =>
     (sale.amountCurrency != null && sale.amountCurrency !== currency) ||
     (sale.inventoryItem?.currency != null && sale.inventoryItem.currency !== currency)) ||
+    [...inventoryValuation, ...availableStock, ...inboundStock].some(row => row.currency != null && row.currency !== currency) ||
     commercialReturns.some(row => (row.moneyCurrency != null && row.moneyCurrency !== currency) ||
       (row.sale?.inventoryItem?.currency != null && row.sale.inventoryItem.currency !== currency));
   const rate = needsConversion ? await reportSellRate(store) : null;
@@ -653,7 +657,7 @@ export async function getReportsOverview(
       marginRate,
       approvedTradeIns,
       returnsCount: compensatedReturns.length,
-      returnsAmount: compensatedReturns.reduce((total, row) => total + toNumber(row.moneyAmount), 0),
+      returnsAmount: compensatedReturns.reduce((total, row) => total + convert(row.moneyAmount, row.moneyCurrency), 0),
     },
     comparison: {
       available: previousWindow !== null,
@@ -681,19 +685,19 @@ export async function getReportsOverview(
       soldItems,
       inReviewItems,
       valuation: {
-        costValue: toNumber(inventoryValuation._sum.cost),
-        retailValue: toNumber(inventoryValuation._sum.price),
+        costValue: inventoryValuation.reduce((total, row) => total + convert(row._sum.cost, row.currency), 0),
+        retailValue: inventoryValuation.reduce((total, row) => total + convert(row._sum.price, row.currency), 0),
       },
       aging: buildInventoryAging(
         availableStock.map((item) => ({
           createdAt: item.createdAt,
-          cost: toNumber(item.cost),
+          cost: convert(item.cost, item.currency),
         }))
       ),
       series: buildActivitySeries(
         inboundStock.map((item) => ({
           at: item.createdAt,
-          amount: toNumber(item.cost),
+          amount: convert(item.cost, item.currency),
         })),
         input.startDate,
         input.endDate
