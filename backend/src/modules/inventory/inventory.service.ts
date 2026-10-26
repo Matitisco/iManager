@@ -1,3 +1,4 @@
+import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
@@ -984,17 +985,6 @@ const CONDITION_MAP: Record<string, string> = {
   "pre owned": "PRE-OWNED",
 };
 
-const STATUS_MAP: Record<string, string> = {
-  disponible: "DISPONIBLE",
-  available: "DISPONIBLE",
-  vendido: "VENDIDO",
-  sold: "VENDIDO",
-  "en revision": "EN_REVISION",
-  en_revision: "EN_REVISION",
-  review: "EN_REVISION",
-  reservado: "RESERVADO",
-  reserved: "RESERVADO",
-};
 
 function foldKey(value: string) {
   return value.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -1034,7 +1024,7 @@ export async function importInventoryItems(
   }
 
   for (let i = 0; i < rows.length; i++) {
-    const raw = rows[i];
+    const raw = { ...rows[i] };
     const rowNum = i + 1;
     let rowCurrency = raw.currency ?? importedCurrency;
     const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt) : defaultPurchasedAt;
@@ -1061,13 +1051,9 @@ export async function importInventoryItems(
       collector.reject({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` }, "invalid_row");
       continue;
     }
-    const status = raw.status?.trim()
-      ? lookupEnum(raw.status, STATUS_MAP)
-      : "DISPONIBLE";
-    if (!status) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: `Estado «${raw.status}» no existe` }, "invalid_row");
-      continue;
-    }
+    const normalizedStatus = normalizeInventoryImportStatus(raw.status);
+    const status = normalizedStatus.status;
+    if (normalizedStatus.originalStatus) raw.customFields = { ...raw.customFields, originalStatus: normalizedStatus.originalStatus };
 
     const parsedImei = parseOptionalImei(raw.imei);
     if (parsedImei.ok === false) {

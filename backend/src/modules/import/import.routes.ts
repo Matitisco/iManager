@@ -31,11 +31,12 @@ const planSchema = z.object({
   name: z.string().trim().min(1).max(80),
   include: z.boolean(),
   condition: z.enum(CONDITIONS),
-  headerRow: z.number().int().min(1).max(MAX_IMPORT_ROWS),
+  headerRow: z.number().int().min(0).max(MAX_IMPORT_ROWS),
   dataStartRow: z.number().int().min(1).max(MAX_IMPORT_ROWS + 1),
   dataEndRow: z.number().int().min(0).max(MAX_IMPORT_ROWS),
   mapping: z.array(z.object({
     header: z.string().max(200),
+    columnIndex: z.number().int().min(0).max(39).optional(),
     field: z.string().max(40),
   })).max(40),
   splitModelCapacity: z.boolean(),

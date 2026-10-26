@@ -1,0 +1,192 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mistakenStockPlan, stockModelResponse, syntheticStockRows } from '../../../test/fixtures/headerless-stock.js';
+import { acceptModelPlan, analyzeImport, applyImportPlan } from './analyze-import.service.js';
+import { headerCandidates } from './decisions-plan.js';
+import { normalizeInventoryImportStatus } from './inventory-status.js';
+import { applyPlans, heuristicPlan, sheetHeaders, type ImportSheet } from './sheet-plan.js';
+import { RESPONSES_URL } from './responses-client.js';
+
+const sheets = (): ImportSheet[] => [{ name: 'stock de equipos', rows: syntheticStockRows() }];
+const apply = (input: ImportSheet[]) => applyPlans(input, heuristicPlan(input, 'inventory', 'USD'), 'inventory', 'USD');
+afterEach(() => vi.unstubAllEnvs());
+
+describe('stock sin encabezado', () => {
+  it('repara la respuesta de OpenAI de producción: detecta y acepta 60 filas, incluida la primera', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+    const input = sheets();
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      expect(String(url)).toBe(RESPONSES_URL);
+      return stockModelResponse(mistakenStockPlan(input[0].rows));
+    });
+    const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const request = JSON.parse(String(fetchImpl.mock.calls[0][1]?.body));
+    expect(request.input[0].content).toContain('headerRow=0, dataStartRow=1');
+    expect(request.input[1].content).toContain('P=15');
+    expect(request.text.format.schema.properties.sheets.items.properties.mapping.items.required).toContain('columnIndex');
+    expect(result.source).toBe('model');
+    expect(result.notice).toBeNull();
+    expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60, batteryAsPercent: true });
+    expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toEqual({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
+    expect(result.plan[0].mapping[9].field).toBe('');
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%' });
+    expect(result.rows[9].cost).toBe('');
+    expect(result.rows.every(row => !row.price && row.batteryHealth !== 'BATERIA')).toBe(true);
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' }).rows).toEqual(result.rows);
+  });
+
+  it('admite headerRow=0 del modelo y detecta datos arriba de un falso encabezado de texto', () => {
+    const input = sheets();
+    const raw = mistakenStockPlan(input[0].rows);
+    raw.sheets[0].headerRow = 0;
+    expect(acceptModelPlan(input, raw, 'inventory', 'USD')?.[0].headerRow).toBe(0);
+    input[0].rows[4] = ['Fecha', 'Proveedor', 'Modelo', 'Capacidad', 'Salud', 'IMEI', 'Calidad', 'Color', 'Costo'];
+    raw.sheets[0].headerRow = 5;
+    raw.sheets[0].mapping = [{ header: 'Modelo', field: 'model' }];
+    expect(acceptModelPlan(input, raw, 'inventory', 'USD')?.[0]).toMatchObject({ headerRow: 0, dataStartRow: 1 });
+  });
+
+  it('conserva exactamente un plan correcto de OpenAI con encabezado real y sus decisiones', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+    const input = [{ name: 'Stock', rows: [
+      ['Listado de equipos'], ['Modelo', 'Descripción', 'Precio', 'Costo', 'Salud'],
+      ['iPhone 13', 'iPhone 14', '600', '400', '85%'],
+    ] }];
+    const expected = { name: 'Stock', include: true, condition: 'PRE-OWNED' as const, headerRow: 2, dataStartRow: 3, dataEndRow: 3,
+      mapping: [{ header: 'Descripción', columnIndex: 1, field: 'model' }, { header: 'Precio', columnIndex: 2, field: 'price' }, { header: 'Salud', columnIndex: 4, field: 'batteryHealth' }],
+      splitModelCapacity: false, batteryAsPercent: true, priceCurrency: 'USD' as const };
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => String(url) === RESPONSES_URL
+      ? stockModelResponse({ sheets: [expected] }) : new Response('', { status: 500 }));
+    const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
+    expect(result.source).toBe('model');
+    expect(result.plan).toEqual([expected]);
+    expect(result.rows[0]).toMatchObject({ model: 'iPhone 14', price: '600', batteryHealth: '85%', condition: 'PRE-OWNED' });
+  });
+
+  it('corrige solo batería de reparaciones cuando el encabezado sí es real', () => {
+    const input = [{ name: 'Stock', rows: [['Modelo', 'Reparaciones', 'Salud'], ['iPhone 13', 'BATERIA', '0.85']] }];
+    const plan = heuristicPlan(input, 'inventory', 'USD')[0];
+    Object.assign(plan, { headerRow: 1, dataStartRow: 2, include: true });
+    plan.mapping = [{ header: 'Modelo', columnIndex: 0, field: 'model' }, { header: 'Reparaciones', columnIndex: 1, field: 'batteryHealth' }];
+    plan.batteryAsPercent = false;
+    const accepted = acceptModelPlan(input, { sheets: [plan] }, 'inventory', 'USD')!;
+    expect(accepted[0]).toMatchObject({ headerRow: 1, batteryAsPercent: true });
+    expect(accepted[0].mapping.find(column => column.field === 'batteryHealth')?.columnIndex).toBe(2);
+    expect(applyPlans(input, accepted, 'inventory', 'USD').rows[0].batteryHealth).toBe('85%');
+    input[0].rows[1][2] = '';
+    expect(acceptModelPlan(input, { sheets: [plan] }, 'inventory', 'USD')![0].mapping.some(column => column.field === 'batteryHealth')).toBe(false);
+  });
+
+  it('conserva modelos de una sola celda que parecen secciones en modo sin encabezado', () => {
+    const input = sheets();
+    input[0].rows.push(['', '', 'Samsung'], ['', '', 'MacBook']);
+    const result = apply(input);
+    expect(result.rows.slice(-2).map(row => row.model)).toEqual(['Samsung', 'MacBook']);
+    expect(result.diagnostics.discardedByReason).toEqual({});
+  });
+
+  it('infiere A-P por contenido y conserva la fila 1 y todos los iPhone 13, sin OpenAI', async () => {
+    vi.stubEnv('OPENAI_API_KEY', '');
+    const fetchImpl = vi.fn();
+    const input = sheets();
+    const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.source).toBe('heuristic');
+    expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60 });
+    expect(result.plan[0].mapping.map(column => column.header)).toEqual('ABCDEFGHIJKLMNOP'.split(''));
+    expect(result.plan[0].mapping.filter(column => column.field)).toEqual(expect.arrayContaining([
+      { header: 'A', columnIndex: 0, field: 'purchasedAt' },
+      { header: 'C', columnIndex: 2, field: 'model' },
+      { header: 'D', columnIndex: 3, field: 'capacity' },
+      { header: 'E', columnIndex: 4, field: 'batteryHealth' },
+      { header: 'F', columnIndex: 5, field: 'imei' },
+      { header: 'H', columnIndex: 7, field: 'color' },
+      { header: 'I', columnIndex: 8, field: 'cost' },
+      { header: 'K', columnIndex: 10, field: 'status' },
+    ]));
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', capacity: '128GB', batteryHealth: '80%', imei: '990000000000000', cost: '300', status: 'DISPONIBLE' });
+    expect(result.rows.filter(row => row.model === 'iPhone 13')).toHaveLength(20);
+    for (const row of result.rows) {
+      const i = Number(row.imei) - 990000000000000;
+      expect(row.cost).toBe(i === 9 ? '' : String(300 + i * 10));
+      expect(row.batteryHealth).toBe(i === 7 ? '8*%' : `${80 + i % 20}%`);
+      expect(row.status).toBe(['DISPONIBLE', 'VENDIDO', 'EN_REVISION', 'EN_REVISION'][i % 4]);
+      expect(row.price).toBeUndefined();
+    }
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(result.plan[0].mapping[9].field).toBe(''); // BATERIA is a repair value.
+    expect(headerCandidates(input[0].rows)).toEqual([]);
+    const reapplied = applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' });
+    expect(reapplied.rows).toEqual(result.rows);
+    expect(reapplied.plan[0].headerRow).toBe(0);
+    expect(applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD', refreshMapping: true }).rows).toEqual(result.rows);
+  });
+
+  it('corrige un encabezado inventado por el modelo sin rechazar su plan', () => {
+    const input = sheets();
+    const plan = heuristicPlan(input, 'inventory', 'USD')[0];
+    expect(acceptModelPlan(input, { sheets: [{ ...plan, headerRow: 2, mapping: [{ header: 'BATERIA', field: 'batteryHealth' }, { header: input[0].rows[1][2], field: 'model' }] }] }, 'inventory', 'USD')).toEqual([plan]);
+  });
+
+  it('mantiene todas las columnas aun si la fila 1 es corta y genera AA después de Z', () => {
+    const input = sheets();
+    input[0].rows[0] = input[0].rows[0].slice(0, 11);
+    input[0].rows[1][26] = 'dato falso';
+    input[0].rows[1] = Array.from(input[0].rows[1], value => value ?? '');
+    const result = apply(input);
+    expect(result.plans[0].mapping).toHaveLength(27);
+    expect(result.plans[0].mapping[26]).toEqual({ header: 'AA', columnIndex: 26, field: '' });
+    expect(result.rows[0].model).toBe('iPhone 13');
+  });
+
+  it('solo descarta encabezados repetidos con un nombre real para modelo', () => {
+    const input = [{ name: 'Stock', rows: [['Modelo', 'Costo'], ['iPhone 13', '300'], ['Modelo', 'Costo'], ['iPhone 13', '310']] }];
+    expect(apply(input).diagnostics.discardedByReason).toEqual({ section_header: 1 });
+    const plan = heuristicPlan(input, 'inventory', 'USD');
+    plan[0].mapping[0].header = 'iPhone 13';
+    expect(applyPlans(input, plan, 'inventory', 'USD').rows.filter(row => row.model === 'iPhone 13')).toHaveLength(2);
+  });
+
+  it('distingue columnas vacías/repetidas por índice y conserva planes antiguos', () => {
+    const input = [{ name: 'Stock', rows: [['Modelo', '', 'Valor', 'Valor', ''], ['iPhone 13', '990000000000001', '300', '500', 'Black']] }];
+    const plan = heuristicPlan(input, 'inventory', 'USD');
+    plan[0].mapping = [
+      { header: 'Modelo', columnIndex: 0, field: 'model' }, { header: '', columnIndex: 1, field: 'imei' },
+      { header: 'Valor', columnIndex: 2, field: 'cost' }, { header: 'Valor', columnIndex: 3, field: 'price' },
+      { header: '', columnIndex: 4, field: 'color' },
+    ];
+    expect(applyPlans(input, plan, 'inventory', 'USD').rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000001', cost: '300', price: '500', color: 'Black' });
+    const accepted = acceptModelPlan(input, { sheets: plan }, 'inventory', 'USD')!;
+    expect(accepted[0].mapping).toEqual(plan[0].mapping);
+    expect(applyPlans(input, accepted, 'inventory', 'USD').rows[0]).toMatchObject({ imei: '990000000000001', cost: '300', price: '500', color: 'Black' });
+    plan[0].mapping = [{ header: 'Modelo', field: 'model' }];
+    expect(applyPlans(input, plan, 'inventory', 'USD').rows[0].model).toBe('iPhone 13');
+    expect(sheetHeaders(input[0].rows, 1)).toHaveLength(5);
+  });
+
+  it.each(['83-85', '91% 92%', '0.85', '85', '85%', 'N/A', ''])('conserva un mapeo correcto de batería con valor %s', battery => {
+    const input = [{ name: 'Stock', rows: [['Modelo', 'Batería'], ['iPhone 13', battery]] }];
+    const plan = heuristicPlan(input, 'inventory', 'USD');
+    expect(acceptModelPlan(input, { sheets: plan }, 'inventory', 'USD')).toEqual(plan);
+  });
+
+  it.each(['abc', '123abc', '=I1', '-10'])('vacía costo no válido %s y conserva el equipo', cost => {
+    const result = apply([{ name: 'Stock', rows: [['Modelo', 'Costo'], ['iPhone 13', cost]] }]);
+    expect(result.rows).toEqual([{ model: 'iPhone 13', cost: '' }]);
+    expect(result.diagnostics.discardedByReason).toEqual({});
+  });
+
+  it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC'])('normaliza %s al estado existente EN_REVISION', status => {
+    const result = apply([{ name: 'Stock', rows: [['Modelo', 'Estado'], ['iPhone 13', status]] }]);
+    expect(result.rows[0]).toMatchObject({ status: 'EN_REVISION', originalStatus: status });
+  });
+
+  it('conserva estados desconocidos y fracciones de batería desde cero', () => {
+    expect(normalizeInventoryImportStatus('RARO FICTICIO')).toEqual({ status: 'DISPONIBLE', originalStatus: 'RARO FICTICIO' });
+    const result = apply([{ name: 'Stock', rows: [['Modelo', 'Batería'], ['iPhone 13', '0'], ['iPhone 14', '1']] }]);
+    expect(result.rows.map(row => row.batteryHealth)).toEqual(['0%', '100%']);
+  });
+});

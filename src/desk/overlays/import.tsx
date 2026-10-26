@@ -87,7 +87,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
           batteryHealth: row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
           cost: parseImportNumber(row.cost),
           currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
-          customFields: row.serial ? { serial: row.serial } : undefined,
+          customFields: row.serial || row.originalStatus ? { ...(row.serial ? { serial: row.serial } : {}), ...(row.originalStatus ? { originalStatus: row.originalStatus } : {}) } : undefined,
           status: row.status,
           purchasedAt: row.purchasedAt,
           purchaseName: row.purchaseName,

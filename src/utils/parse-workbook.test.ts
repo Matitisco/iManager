@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { analyzeImport } from '../../backend/src/modules/import/analyze-import.service';
 import { cellText, parseWorkbook } from './parse-workbook';
 
@@ -95,4 +95,44 @@ describe('ejemplo-stock.xlsx', () => {
       else process.env.OPENAI_API_KEY = previousKey;
     }
   });
+});
+
+
+it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX rows through the real parser (%s)', async source => {
+  const { syntheticStockXlsx, mistakenStockPlan, stockModelResponse } = await import('../../backend/test/fixtures/headerless-stock');
+  const { applyImportPlan } = await import('../../backend/src/modules/import/analyze-import.service');
+  const previousKey = process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  if (source === 'model') process.env.OPENAI_API_KEY = 'sk-test';
+  try {
+    const bytes = await syntheticStockXlsx();
+    const workbook = await parseWorkbook(new File([bytes as Uint8Array<ArrayBuffer>], 'stock-sintetico.xlsx'));
+    expect(workbook.sheetNames).toEqual(['stock de equipos']);
+    const grid = workbook.getSheet('stock de equipos');
+    expect(grid).toHaveLength(60);
+    expect(grid[0]).toHaveLength(16);
+    expect(grid[0].slice(11)).toEqual(['', '', '', '', '']);
+    expect(grid[1][11]).toBe('=IFERROR(A2+1,"")');
+    expect(grid[1][0]).toMatch(/^2026-10-/);
+    expect(grid[0][4]).toBe('0.8');
+    expect(grid[0][5]).toBe('990000000000000');
+    const input = { section: 'inventory' as const, currency: 'USD' as const, sheets: [{ name: workbook.sheetNames[0], rows: grid }] };
+    const fetchImpl = vi.fn(async () => stockModelResponse(mistakenStockPlan(grid)));
+    const analysis = await analyzeImport(input, { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(source === 'model' ? 1 : 0);
+    expect(analysis.source).toBe(source);
+    expect(analysis.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1 });
+    expect(analysis.plan[0].mapping).toHaveLength(16);
+    expect(analysis.rows).toHaveLength(60);
+    expect(analysis.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%', status: 'DISPONIBLE' });
+    expect(analysis.rows[2]).toMatchObject({ status: 'EN_REVISION', originalStatus: 'SIN SERVICIO' });
+    expect(analysis.rows[7].batteryHealth).toBe('8*%');
+    expect(analysis.rows.every(row => !row.price)).toBe(true);
+    expect(analysis.rows[9].cost).toBe('');
+    expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(applyImportPlan({ ...input, plan: analysis.plan }).rows).toEqual(analysis.rows);
+  } finally {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  }
 });

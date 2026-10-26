@@ -15,6 +15,8 @@ export type ImportSheet = {
 
 export type ColumnMapping = {
   header: string;
+  /** Zero-based physical column; absent only in legacy plans. */
+  columnIndex?: number;
   field: string;
 };
 
@@ -90,7 +92,7 @@ export function normalizeBattery(raw: string): string {
   const spaced = value.match(/(\d+(?:[.,]\d+)?)\s*%\s+(\d+(?:[.,]\d+)?)\s*%?/);
   if (spaced) return `${roundPart(spaced[1])}-${roundPart(spaced[2])}%`;
   const amount = Number(value.replace("%", "").replace(",", ".").trim());
-  if (Number.isFinite(amount) && amount > 0 && amount <= 1) return `${Math.round(amount * 100)}%`;
+  if (Number.isFinite(amount) && amount >= 0 && amount <= 1) return `${Math.round(amount * 100)}%`;
   if (Number.isFinite(amount) && amount > 1 && amount <= 100) return `${Math.round(amount)}%`;
   const percent = value.match(/(\d+(?:[.,]\d+)?)\s*%/);
   if (percent) return `${roundPart(percent[1])}%`;
@@ -137,6 +139,7 @@ function headerScore(row: string[], catalog: ImportCatalog): number {
   const cells = row.map((cell) => cell.trim()).filter(Boolean);
   if (cells.length < 2) return -100;
   if (new Set(cells.map((cell) => normalizeHeader(cell))).size < 2) return -100;
+  if (rowLooksLikeData(row)) return -100;
   let matches = 0;
   let score = 0;
   for (const cell of cells) {
@@ -154,6 +157,100 @@ function headerScore(row: string[], catalog: ImportCatalog): number {
 function looksLikeField(header: string, catalog: ImportCatalog): boolean {
   const mapped = autoMap([header], fieldLabels(catalog), catalog.hints);
   return Object.keys(mapped).length > 0;
+}
+
+const MODEL_VALUE = /\b(?:iphone\s*\d+|galaxy\s*(?:[asmz]\s*\d+|fold|flip)|samsung\s+\w*\d+|pixel\s*\d+|redmi\s+\w*\d+|moto\s*\w*\d+|ipad|macbook|apple\s*watch|airpods)\b/i;
+const CAPACITY_VALUE = /^\d+(?:[.,]\d+)?\s*(?:GB|TB|MB)$/i;
+const IMEI_VALUE = /^\d{14,16}(?:\.0+)?$/;
+const DATE_VALUE = /^(?:\d{4}-\d{2}-\d{2}(?:T.*)?|\d{1,2}[/.-]\d{1,2}(?:[/.-]\d{2,4})?)$/;
+const COLOR_VALUE = /^(?:black|white|red|blue|green|yellow|purple|pink|gold|silver|gray|grey|graphite|midnight|starlight|(?:deep |sierra |pacific )?blue|(?:natural |white |black |desert |blue )?titanium|space (?:gray|grey|black)|negro|blanco|rojo|azul|verde|amarillo|violeta|rosa|dorado|plateado|gris)$/i;
+const STATUS_VALUE = /^(?:disponible|available|vendido|sold|reservado|reserved|en[ _]revision|review|sin servicio|servicio t[eé]cnico|servicio tec)$/i;
+
+export function rowLooksLikeData(row: string[]): boolean {
+  // An incidental repair value such as BATERIA must never turn a data row into a header.
+  return row.filter(value => MODEL_VALUE.test(value) || CAPACITY_VALUE.test(value)
+    || IMEI_VALUE.test(value) || DATE_VALUE.test(value) || /^\d+(?:[.,]\d+)?%$/.test(value)).length >= 2;
+}
+
+export function sheetHeaders(rows: string[][], headerRow: number): string[] {
+  const width = Math.max(0, ...rows.map(row => row.length));
+  return Array.from({ length: width }, (_, index) => headerRow === 0
+    ? columnName(index) : rows[headerRow - 1]?.[index] ?? "");
+}
+
+function columnName(index: number): string {
+  let n = index + 1;
+  let name = "";
+  while (n > 0) {
+    name = String.fromCharCode(65 + (n - 1) % 26) + name;
+    n = Math.floor((n - 1) / 26);
+  }
+  return name;
+}
+
+function contentMapping(rows: string[][]): ColumnMapping[] {
+  const mapping = sheetHeaders(rows, 0).map((header, columnIndex) => ({ header, columnIndex, field: "" }));
+  const columns = mapping.map(column => rows.slice(0, 100).map(row => row[column.columnIndex]?.trim() ?? "").filter(Boolean));
+  const claim = (field: string, test: (value: string) => boolean, threshold = 0.7) => {
+    let best = -1;
+    let score = threshold;
+    columns.forEach((values, index) => {
+      if (mapping[index].field || values.length === 0) return;
+      const ratio = values.filter(test).length / values.length;
+      if (ratio >= score) { best = index; score = ratio + 0.000001; }
+    });
+    if (best >= 0) mapping[best].field = field;
+  };
+  claim("model", value => MODEL_VALUE.test(value));
+  // Only equipment lists qualify for content inference; arbitrary numeric sheets stay excluded.
+  if (!mapping.some(column => column.field === "model")) return mapping;
+  claim("imei", value => IMEI_VALUE.test(value) || /^\d(?:\.\d+)?e\+?1[345]$/i.test(value));
+  claim("capacity", value => CAPACITY_VALUE.test(value));
+  claim("batteryHealth", value => isBatteryValue(value, false));
+  claim("color", value => COLOR_VALUE.test(value));
+  claim("status", value => STATUS_VALUE.test(value));
+  claim("purchasedAt", value => DATE_VALUE.test(value));
+  // Date serials without Excel formatting are accepted only in the leading date column.
+  if (!mapping.some(column => column.field === "purchasedAt") && columns[0]?.length
+    && columns[0].every(value => Number(value) >= 20000 && Number(value) <= 80000)) mapping[0].field = "purchasedAt";
+  claim("cost", value => {
+    const amount = parseMoney(value);
+    return amount != null && amount >= 0 && amount < 10_000_000 && !value.includes("%");
+  });
+  return mapping;
+}
+
+function isBatteryValue(value: string, allowWholeNumber: boolean): boolean {
+  if (!/^\d[\d.,%\s–-]*$/.test(value)) return false;
+  const normalized = normalizeBattery(value);
+  if (!/^\d+(?:-\d+)?%$/.test(normalized)) return false;
+  return normalized.slice(0, -1).split('-').every(part => Number(part) <= 100)
+    && (allowWholeNumber || value.includes('%') || Number(value.replace(',', '.')) <= 1);
+}
+
+/** Keep valid model mappings; repair a battery column that actually contains repairs. */
+export function repairBatteryMapping(rows: string[][], headerRow: number, mapping: ColumnMapping[]): ColumnMapping[] {
+  const headers = sheetHeaders(rows, headerRow);
+  const body = rows.slice(headerRow, headerRow + 100);
+  const matches = (index: number, allowWholeNumber: boolean) => {
+    const values = body.map(row => row[index]?.trim() ?? "").filter(Boolean);
+    return values.length > 0 && values.filter(value => isBatteryValue(value, allowWholeNumber)).length / values.length >= 0.7;
+  };
+  const battery = mapping.find(column => column.field === "batteryHealth");
+  if (!battery) return mapping;
+  const batteryIndex = mappingColumnIndex(headers, battery);
+  if (body.every(row => !row[batteryIndex]?.trim() || /^N\/?A$/i.test(row[batteryIndex].trim()))
+    || matches(batteryIndex, true)) return mapping;
+  const candidate = headers.findIndex((_, index) => matches(index, false)
+    && !mapping.some(column => column.field && column.field !== "batteryHealth" && mappingColumnIndex(headers, column) === index));
+  const repaired = mapping.filter(column => column.field !== "batteryHealth");
+  if (candidate >= 0) {
+    const existing = repaired.findIndex(column => mappingColumnIndex(headers, column) === candidate);
+    const column = { header: headers[candidate], columnIndex: candidate, field: "batteryHealth" };
+    if (existing >= 0) repaired[existing] = column;
+    else repaired.push(column);
+  }
+  return repaired;
 }
 
 function findHeaderRow(rows: string[][], catalog: ImportCatalog): number {
@@ -209,15 +306,19 @@ function columnMapping(headers: string[], priceHeader: string | null, rejected: 
   const fieldByHeader = new Map<string, string>();
   for (const [field, header] of Object.entries(mapped)) fieldByHeader.set(header, field);
   if (priceHeader && moneyField) fieldByHeader.set(priceHeader, moneyField);
-  const mapping = headers.filter((header) => header.trim()).map((header) => ({
-    header,
-    field: fieldByHeader.get(header) ?? "",
-  }));
-  return catalog.section === "clients" ? preferWhatsappPhone(headers, mapping) : mapping;
+  const seen = new Set<string>();
+  const mapping = headers.map((header, columnIndex) => {
+    const field = fieldByHeader.get(header) ?? "";
+    const assigned = field && !seen.has(field) ? field : "";
+    if (assigned) seen.add(assigned);
+    return { header, columnIndex, field: assigned };
+  });
+  if (catalog.section !== "clients") return mapping;
+  return preferWhatsappPhone(headers, mapping);
 }
 
-function samples(rows: string[][], headerRow: number, header: string, headers: string[]): string[] {
-  const index = headers.indexOf(header);
+function samples(rows: string[][], headerRow: number, columnIndex: number): string[] {
+  const index = columnIndex;
   if (index < 0) return [];
   const values: string[] = [];
   for (let rowIndex = headerRow; rowIndex < rows.length && values.length < 8; rowIndex += 1) {
@@ -227,20 +328,20 @@ function samples(rows: string[][], headerRow: number, header: string, headers: s
   return values;
 }
 
-function shouldSplit(rows: string[][], headerRow: number, modelHeader: string | undefined, headers: string[]): boolean {
-  if (!modelHeader) return false;
-  const values = samples(rows, headerRow, modelHeader, headers);
+function shouldSplit(rows: string[][], headerRow: number, modelIndex: number | undefined): boolean {
+  if (modelIndex == null) return false;
+  const values = samples(rows, headerRow, modelIndex);
   if (values.length === 0) return false;
   const hits = values.filter((value) => CAPACITY_RE.test(value.trim())).length;
   return hits >= Math.ceil(values.length / 2);
 }
 
-function shouldNormalizeBattery(rows: string[][], headerRow: number, header: string | undefined, headers: string[]): boolean {
-  if (!header) return false;
-  return samples(rows, headerRow, header, headers).some((value) => {
+function shouldNormalizeBattery(rows: string[][], headerRow: number, columnIndex: number | undefined): boolean {
+  if (columnIndex == null) return false;
+  return samples(rows, headerRow, columnIndex).some((value) => {
     if (value.includes("%")) return true;
     const amount = Number(value.replace(",", "."));
-    return Number.isFinite(amount) && amount > 0 && amount <= 1;
+    return Number.isFinite(amount) && amount >= 0 && amount <= 1;
   });
 }
 
@@ -251,34 +352,37 @@ export function heuristicSheet(
   headerOverride?: number,
 ): SheetPlan {
   const rows = trimSheet(sheet.rows);
-  const detected = headerOverride && headerOverride >= 1 && headerOverride <= rows.length
+  const detected = headerOverride != null && headerOverride >= 0 && headerOverride <= rows.length
     ? headerOverride
     : findHeaderRow(rows, catalog);
-  const headerRow = detected || 1;
-  const headers = rows[headerRow - 1] ?? [];
+  const headerRow = detected;
+  const headers = sheetHeaders(rows, headerRow);
   const chosen = choosePrice(headers, storeCurrency);
   const rejected = new Set(headers.filter((header) => {
     const kind = priceKind(header);
     return kind != null && header !== chosen?.header;
   }));
-  const mapping = columnMapping(headers, chosen?.header ?? null, rejected, catalog);
-  const modelHeader = mapping.find((column) => column.field === "model")?.header;
-  const capacityHeader = mapping.find((column) => column.field === "capacity")?.header;
-  const batteryHeader = mapping.find((column) => column.field === "batteryHealth")?.header;
+  const mapping = headerRow === 0
+    ? (catalog.section === "inventory" ? contentMapping(rows) : headers.map((header, columnIndex) => ({ header, columnIndex, field: "" })))
+    : columnMapping(headers, chosen?.header ?? null, rejected, catalog);
+  const modelHeader = mapping.find((column) => column.field === "model")?.columnIndex;
+  const capacityHeader = mapping.find((column) => column.field === "capacity")?.columnIndex;
+  const batteryHeader = mapping.find((column) => column.field === "batteryHealth")?.columnIndex;
   const condition = catalog.section === "inventory" ? conditionFromName(sheet.name) : "";
   const dataStartRow = Math.min(rows.length + 1, headerRow + 1);
   let dataEndRow = rows.length;
   while (dataEndRow >= dataStartRow && (rows[dataEndRow - 1] ?? []).every((cell) => !cell)) dataEndRow -= 1;
   return {
     name: sheet.name,
-    include: detected > 0,
+    include: (detected > 0 || mapping.some(column => column.field === "model"))
+      && missingFields(catalog.section, mapping.map(column => column.field)).missingRequiredFields.length === 0,
     condition,
     headerRow,
     dataStartRow,
     dataEndRow: Math.max(dataStartRow - 1, dataEndRow),
     mapping,
-    splitModelCapacity: !capacityHeader && shouldSplit(rows, headerRow, modelHeader, headers),
-    batteryAsPercent: shouldNormalizeBattery(rows, headerRow, batteryHeader, headers),
+    splitModelCapacity: capacityHeader == null && shouldSplit(rows, headerRow, modelHeader),
+    batteryAsPercent: shouldNormalizeBattery(rows, headerRow, batteryHeader),
     priceCurrency: chosen?.kind === "usd" ? "USD" : chosen?.kind === "ars" ? "ARS" : "",
   };
 }
@@ -298,14 +402,11 @@ const CLIENT_CONTACT_FIELDS = new Set(["phone", "email", "dni", "instagram"]);
 function sheetMapsFields(sheet: ImportSheet, section: ImportSection, fields: Set<string>, also?: string): boolean {
   const catalog = IMPORT_CATALOGS[section];
   const rows = trimSheet(sheet.rows);
-  const limit = Math.min(rows.length, 40);
-  for (let index = 0; index < limit; index += 1) {
-    const cells = (rows[index] ?? []).map((cell) => cell.trim()).filter((cell) => cell.length > 0 && cell.length <= 40);
-    if (cells.length < 2) continue;
-    const mapped = Object.keys(autoMap(cells, catalog.fields, catalog.hints));
-    if (also && !mapped.includes(also)) continue;
-    if (mapped.some((field) => fields.has(field))) return true;
-  }
+  const headerRow = findHeaderRow(rows, catalog);
+  if (!headerRow) return false;
+  const mapped = Object.keys(autoMap(rows[headerRow - 1] ?? [], catalog.fields, catalog.hints));
+  if (also && !mapped.includes(also)) return false;
+  if (mapped.some((field) => fields.has(field))) return true;
   return false;
 }
 
@@ -337,15 +438,10 @@ export function inventoryHasEquipmentColumns(sheets: ImportSheet[]): boolean {
   const catalog = IMPORT_CATALOGS.inventory;
   return sheets.some((sheet) => {
     const rows = trimSheet(sheet.rows);
-    const limit = Math.min(rows.length, 40);
-    for (let index = 0; index < limit; index += 1) {
-      const cells = (rows[index] ?? []).map((cell) => cell.trim()).filter((cell) => cell.length > 0 && cell.length <= 40);
-      if (cells.length < 2) continue;
-      if (cells.some((cell) => namesEquipment(cell))) return true;
-      const mapped = autoMap(cells, catalog.fields, catalog.hints);
-      if (Object.keys(mapped).some((field) => EQUIPMENT_COLUMN_FIELDS.has(field))) return true;
-    }
-    return false;
+    const headers = rows.slice(0, 40).filter(row => !rowLooksLikeData(row));
+    if (headers.some(row => row.filter(Boolean).length >= 2 && row.some(namesEquipment))) return true;
+    const plan = heuristicSheet(sheet, catalog, "USD");
+    return plan.mapping.some(column => EQUIPMENT_COLUMN_FIELDS.has(column.field));
   });
 }
 
@@ -392,9 +488,13 @@ function resolvePrice(options: {
   return direct == null ? "" : moneyString(direct);
 }
 
-function indexByHeader(headers: string[], header: string): number {
-  const wanted = normalizeHeader(header);
-  return headers.findIndex((cell) => normalizeHeader(cell) === wanted);
+export function mappingColumnIndex(headers: string[], column: ColumnMapping): number {
+  if (column.columnIndex != null) {
+    return Number.isInteger(column.columnIndex) && column.columnIndex >= 0 && column.columnIndex < headers.length
+      ? column.columnIndex : -1;
+  }
+  const wanted = normalizeHeader(column.header);
+  return wanted ? headers.findIndex((cell) => normalizeHeader(cell) === wanted) : -1;
 }
 
 export function applyPlans(
@@ -412,22 +512,24 @@ export function applyPlans(
   for (const plan of plans) {
     const grid = byName.get(plan.name);
     if (!grid) continue;
-    const headers = grid[plan.headerRow - 1] ?? [];
+    const headers = sheetHeaders(grid, plan.headerRow);
     // Quantity is file metadata; keep the visible field catalog and mappings intact.
-    const quantityIndex = section === "inventory"
+    const quantityIndex = section === "inventory" && plan.headerRow > 0
       ? headers.findIndex((header) => QUANTITY_HEADERS.has(normalizeHeader(header)))
       : -1;
-    const usable = plan.mapping.filter((column) => column.field && known.has(column.field) && indexByHeader(headers, column.header) >= 0);
+    const usable = plan.mapping.filter((column) => column.field && known.has(column.field) && mappingColumnIndex(headers, column) >= 0);
     const seen = new Set<string>();
     const mapping = usable.filter((column) => {
       if (seen.has(column.field)) return false;
       seen.add(column.field);
       return true;
     });
+    const realModelHeader = plan.headerRow > 0 && mapping.some(column => column.field === "model"
+      && autoMap([headers[mappingColumnIndex(headers, column)]], fieldLabels(catalog), catalog.hints).model);
     const diagnostics = { ...emptyDiagnostics(), ...missingFields(section, mapping.map((column) => column.field)) };
     const rate = findRate(grid);
     const usdHeader = headers.find((header) => priceKind(header) === "usd") ?? "";
-    const usdIndex = usdHeader ? indexByHeader(headers, usdHeader) : -1;
+    const usdIndex = usdHeader ? headers.indexOf(usdHeader) : -1;
     let count = 0;
     const start = Math.max(plan.headerRow + 1, plan.dataStartRow);
     const end = Math.min(grid.length, Math.max(start - 1, plan.dataEndRow));
@@ -451,18 +553,18 @@ export function applyPlans(
         if (isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
         const filledCells = line.filter((cell) => cell.trim());
         if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
-        if (section === "inventory" && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
+        if (section === "inventory" && realModelHeader && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
           const headingCondition = conditionFromName(filledCells[0]);
           if (headingCondition) { sectionCondition = headingCondition; countDiscard(diagnostics, "section_header"); continue; }
           if (/^(samsung|macbook|applewatch|airpodspro|ipads?|otrosaccesorios.*|accesorios)$/.test(normalizeHeader(filledCells[0].replace(/!+$/, "")))) { countDiscard(diagnostics, "section_header"); continue; }
         }
         const record: Record<string, string> = {};
         for (const column of mapping) {
-          const index = indexByHeader(headers, column.header);
+          const index = mappingColumnIndex(headers, column);
           record[column.field] = (line[index] ?? "").trim();
         }
         // A repeated table header is metadata, even when price is optional.
-        if (section === "inventory" && record.model && mapping.some(column => column.field === "model" && normalizeHeader(column.header) === normalizeHeader(record.model))) {
+        if (section === "inventory" && realModelHeader && record.model && mapping.some(column => column.field === "model" && normalizeHeader(headers[mappingColumnIndex(headers, column)]) === normalizeHeader(record.model))) {
           countDiscard(diagnostics, "section_header");
           continue;
         }
@@ -491,6 +593,9 @@ export function applyPlans(
           if (field === "price" || !record[field]) continue;
           const amount = parseMoney(record[field]);
           if (amount != null) record[field] = moneyString(amount);
+        }
+        if (section === "inventory" && record.cost?.trim() && (parseMoney(record.cost) == null || Number(record.cost) < 0)) {
+          record.cost = "";
         }
         const normalized = normalizeSectionRow(section, record, plan.priceCurrency, rawAmount, storeCurrency);
         if (!normalized) {

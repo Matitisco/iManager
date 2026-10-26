@@ -116,3 +116,19 @@ it('conserva el error de mapeo cuando hay filas para revisar', async () => {
   expect(screen.getByText('Falta mapear Modelo.')).toBeVisible();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
 });
+
+it('reincluye una hoja sin encabezado al asignar Modelo y conserva los índices del plan', async () => {
+  const value = analysis(false);
+  value.plan[0] = { ...value.plan[0], include: false, headerRow: 0, dataStartRow: 1,
+    mapping: [{ header: 'A', columnIndex: 0, field: '' }, { header: 'B', columnIndex: 1, field: 'cost' }] };
+  value.missingRequiredFields = ['model'];
+  const onApply = vi.fn(async (_sheets, plan) => ({ ...value, plan, rows: [{ model: 'iPhone 13', cost: '300' }], missingRequiredFields: [] }));
+  render(<ImportModal fields={fields} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={onApply} onImport={vi.fn()} />);
+  await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['iPhone 13,300\niPhone 14,400'], 'stock.csv', { type: 'text/csv' }));
+  await userEvent.click(await screen.findByTestId('import-adjust-open'));
+  await userEvent.click(screen.getByTestId('import-field-model'));
+  await userEvent.click(screen.getByRole('option', { name: /^A$/ }));
+  await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
+  expect(onApply.mock.calls[0][1][0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1,
+    mapping: [{ header: 'A', columnIndex: 0, field: 'model' }, { header: 'B', columnIndex: 1, field: 'cost' }] });
+});

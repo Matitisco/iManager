@@ -4,7 +4,7 @@ import { toActionMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
 import { Upload, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
 import { Sheet } from '../desk/ui';
-import { assignColumn, fieldToColumn, mappingFromFields } from '../lib/import-mapping';
+import { assignColumn, columnKey, fieldToColumn, mappingFromFields, planColumns, updatePlanMapping } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
 import { expandTextRows, textRowError } from '../lib/text-import-review';
@@ -243,8 +243,7 @@ export const ImportModal: React.FC<Props> = ({
   const unrelated = rows.length === 0 && (notice === unrelatedNotice || notice === 'Este texto no parece tener equipos para importar');
   const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
   const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
-  const headerIndex = Math.max(0, (active?.headerRow ?? 1) - 1);
-  const headers = (activeRows[headerIndex] ?? []).filter((header) => header.trim());
+  const columns = active ? planColumns(activeRows, active) : [];
   const selected = active ? fieldToColumn(active.mapping) : {};
   const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
   const missingPriceColumn = isInventory && !textPreview && (missingRecommendedFields.includes('price')
@@ -489,10 +488,15 @@ export const ImportModal: React.FC<Props> = ({
                         <div className="relative">
                           <DeskSelect label={field.label} invalid={required && !selected[field.key]} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
                             onChange={(value) => {
-                              const mapping = mappingFromFields(headers, assignColumn(selected, field.key, value));
-                              void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name ? { ...sheetPlan, mapping } : sheetPlan), false);
+                              const mapping = mappingFromFields(columns, assignColumn(selected, field.key, value));
+                              const required = [...new Set([
+                                ...fields.filter(item => item.required).map(item => item.key),
+                                ...(summary.sheets.find(item => item.name === active.name)?.diagnostics?.missingRequiredFields ?? missingRequiredFields),
+                              ])];
+                              void reapply(plan.map(sheetPlan => sheetPlan.name === active.name
+                                ? updatePlanMapping(sheetPlan, mapping, required) : sheetPlan), false);
                             }}
-                            options={[{ value: '', label: '— Sin mapear —' }, ...headers.map(header => ({ value: header, label: header, disabled: selected[field.key] !== header && taken.has(header) }))]} />
+                            options={[{ value: '', label: '— Sin mapear —' }, ...columns.map(column => ({ value: columnKey(column), label: column.header, disabled: selected[field.key] !== columnKey(column) && taken.has(columnKey(column)) }))]} />
                         </div>
                       </td>
                     </tr>
