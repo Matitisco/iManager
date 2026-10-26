@@ -147,7 +147,7 @@ export async function importBackendRows(
     const result = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
       method: 'POST',
       body: { rows, ...(supplierId ? { supplierId } : {}), ...(definitions?.length ? { definitions } : {}) },
-      timeoutMs: 120_000,
+      ...(section === 'inventory' && (definitions?.length || rows.some(row => Boolean(row.supplierName?.trim()))) ? { timeoutMs: 120_000 } : {}),
       fallback: (status) => `Error al importar (${status})`,
     });
     const saved = result.imported + result.updated;
