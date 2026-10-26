@@ -3,6 +3,7 @@ import type { CommissionSeller } from '../types/commissions';
 import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate } from './format';
 import { parseArDate } from '../lib/ar-date';
 import { repairWarrantyView, saleWarrantyView, type WarrantyState } from '../lib/warranty';
+import { recordCurrency, type MoneyCurrency } from './money';
 
 export type PurchaseFilter = 'all' | 'sale' | 'trade' | 'repair';
 
@@ -144,19 +145,19 @@ export function visiblePurchases(rows: ClientPurchase[], expanded: boolean) {
   return expanded || rows.length <= PREVIEW_LIMIT ? rows : rows.slice(0, PREVIEW_LIMIT);
 }
 
-export function purchaseTotals(rows: ClientPurchase[]) {
+export function purchaseTotals(rows: ClientPurchase[], active: MoneyCurrency = 'ARS') {
   const counted = rows.filter((row) => row.countsInTotals && !row.annulled);
   const spent = new Map<string, { currency: string | null; amount: number }>();
   for (const row of counted) {
-    const key = row.currency ?? '';
-    const current = spent.get(key) ?? { currency: row.currency, amount: 0 };
+    const key = recordCurrency(row.currency, active);
+    const current = spent.get(key) ?? { currency: key, amount: 0 };
     current.amount += row.amount;
     spent.set(key, current);
   }
   return {
     count: counted.length,
     activeWarranties: rows.filter((row) => !row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer')).length,
-    spent: [...spent.values()],
+    spent: [...spent.values()].sort((left, right) => (left.currency ?? '').localeCompare(right.currency ?? '')),
   };
 }
 

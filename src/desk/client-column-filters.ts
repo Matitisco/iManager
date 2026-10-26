@@ -56,13 +56,13 @@ export function clientColumnActive(filters: ClientColumnFilters, column: 'name' 
   return filters.balanceMin.trim() !== '' || filters.balanceMax.trim() !== '';
 }
 
-export function matchesClientColumns(client: Client, filters: ClientColumnFilters) {
+export function matchesClientColumns(client: Client, filters: ClientColumnFilters, spent: number | null) {
   if (!includesText(client.name, filters.name)) return false;
   if (filters.tags.length > 0 && !filters.tags.includes(client.tag?.trim() || '')) return false;
   if (!includesText(client.dni, filters.dni)) return false;
   if (!includesText(client.phone, filters.phone)) return false;
   if (!matchesDateRange(client.lastPurchaseDate === 'N/A' ? '' : client.lastPurchaseDate, filters.dateFrom, filters.dateTo)) return false;
-  if (!matchesMoney(client.totalSpent, filters.spentMin, filters.spentMax)) return false;
+  if (spent == null ? Boolean(filters.spentMin || filters.spentMax) : !matchesMoney(spent, filters.spentMin, filters.spentMax)) return false;
   if (!matchesMoney(clientNet(client), filters.balanceMin, filters.balanceMax)) return false;
   return true;
 }

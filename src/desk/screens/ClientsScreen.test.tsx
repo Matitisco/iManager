@@ -1,16 +1,25 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Client } from '../../types';
+import type { Client, Sale } from '../../types';
+import { ClientPurchases } from '../ClientPurchases';
+import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { RoutePresentation } from '../route-viewport';
 import { ClientsScreen } from './ClientsScreen';
 
 const context = vi.hoisted(() => ({
   clients: [] as Client[],
+  sales: [] as Sale[],
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
+
+beforeEach(() => { context.sales = []; });
+
+function sale(clientId: string, amount: number, amountCurrency: 'ARS' | 'USD' = 'USD'): Sale {
+  return { id: `sale-${clientId}-${amount}`, clientId, productId: '', date: '25/10/2026', amount, amountCurrency, paymentMethod: 'EFECTIVO', status: 'COMPLETADA' };
+}
 
 function client(number: number, overrides: Partial<Client> = {}): Client {
   return {
@@ -150,7 +159,7 @@ describe('Clients on a phone', () => {
     expect(rows()[0].querySelector('.cl-email')).toHaveTextContent('zoe@ejemplo.com');
     expect(rows()[0]).toHaveTextContent('Saldo');
     expect(rows()[0]).toHaveTextContent('Última compra');
-    expect(rows()[0]).toHaveTextContent('Total gastado');
+    expect(rows()[0]).toHaveTextContent('Total comprado');
     expect(rows()[1]).toHaveTextContent('Ana Pérez');
     expect(rows()[1]).toHaveTextContent('Sin saldo');
     expect(screen.getByText('Con saldo')).toBeInTheDocument();
@@ -201,5 +210,47 @@ describe('temporary client tabs', () => {
     expect(screen.queryByTestId('account-current')).not.toBeInTheDocument();
     expect(screen.queryByTestId('follow-ups')).not.toBeInTheDocument();
     expect(document.querySelector('.acct-views')).toBeNull();
+  });
+});
+
+describe('Client purchase totals', () => {
+  const originalMatchMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = originalMatchMedia; });
+
+  it.each([false, true])('shares the detail total on phone=%s, independently of balance currency and the legacy accumulator', phone => {
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: phone, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.clients = [client(1, { totalSpent: 600, pendingBalance: 0, balanceCurrency: 'ARS' })];
+    context.sales = [sale('1', 600)];
+    render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1565 }}>
+      <DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ClientsScreen /></DeskProvider>
+      <ClientPurchases clientId="1" clientName="Cliente 1" sales={context.sales} repairs={[]} tradeIns={[]} inventory={[]} sellers={[]} />
+    </ExchangeProvider>);
+    expect(screen.getByTestId('client-row-1')).toHaveTextContent('$ 939.000');
+    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total comprado$ 939.000');
+    expect(screen.getAllByText('Total comprado')).toHaveLength(2);
+  });
+
+  it('filters by purchases rather than the legacy total', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.clients = [client(1, { totalSpent: 99999 }), client(2, { totalSpent: 1 })];
+    context.sales = [sale('1', 100, 'ARS'), sale('2', 200, 'ARS')];
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Filtrar gastado' }));
+    const dialog = screen.getByRole('dialog', { name: 'Filtrar gastado' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Mínimo' }), '150');
+    expect(screen.queryByTestId('client-row-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('client-row-2')).toBeInTheDocument();
+  });
+
+  it('orders by current purchases rather than the legacy total on mobile', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: true, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.clients = [client(1, { totalSpent: 99999, pendingBalance: 0 }), client(2, { totalSpent: 1, pendingBalance: 0 })];
+    context.sales = [sale('1', 100, 'ARS'), sale('2', 200, 'ARS')];
+    renderScreen();
+    await user.click(within(screen.getByTestId('clients-sort')).getByRole('button', { name: 'Ordenar' }));
+    await user.click(screen.getByRole('button', { name: 'Gastado' }));
+    expect(within(screen.getByTestId('phone-rows')).getAllByTestId(/^client-row-/)[0]).toHaveTextContent('Cliente 2');
   });
 });

@@ -544,7 +544,7 @@ describe('operation detail', () => {
     expect(within(desk).getByText('Saldo pendiente')).toBeInTheDocument();
     expect(within(desk).queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
     expect(within(desk).getByTestId('client-purchases')).toBeInTheDocument();
-    expect(within(desk).getByText('Total gastado')).toBeInTheDocument();
+    expect(within(desk).getByText('Total comprado')).toBeInTheDocument();
     cleanup();
 
     const original = window.matchMedia;
@@ -562,7 +562,7 @@ describe('operation detail', () => {
       renderOverlay({ type: 'cl', id: 'c1' });
       const phone = screen.getByRole('dialog', { name: 'Ana Pérez' });
       expect(phone).toHaveClass('cl-sheet');
-      expect(within(phone).getByText('Total gastado')).toBeInTheDocument();
+      expect(within(phone).getByText('Total comprado')).toBeInTheDocument();
       expect(within(phone).queryByLabelText('Monto')).not.toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Editar' })).toBeInTheDocument();
       expect(within(phone).getByRole('button', { name: 'Registrar pago' })).toBeInTheDocument();
