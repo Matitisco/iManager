@@ -861,3 +861,21 @@ describe('origen y filtro de proveedores #308', () => {
     expect(screen.getByRole('button', { name: 'Página 1' })).toHaveAttribute('aria-current', 'page');
   });
 });
+
+it('respeta Precio ↑ y ↓ aunque los archivados sean novedades', async () => {
+  window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  context.inventory = [item('1', { model: 'Barato', price: 500 }), item('2', { model: 'Caro', price: 1090, archivedAt: '2026-10-26T12:00:00Z' })];
+  context.sectionChanges = { inventory: [{ id: '2', updatedAt: '2026-10-26T12:00:00Z' }] };
+  renderScreen();
+  const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+  await user.click(screen.getByRole('button', { name: 'Recientes' }));
+  await user.click(screen.getByRole('button', { name: 'Precio ↑' }));
+  const models = () => screen.getAllByRole('row').slice(1).map(row => row.textContent);
+  expect(models()[0]).toContain('Barato');
+  expect(models()[1]).toContain('Caro');
+  await user.click(screen.getByRole('button', { name: 'Precio ↑' }));
+  await user.click(screen.getByRole('button', { name: 'Precio ↓' }));
+  expect(models()[0]).toContain('Caro');
+  expect(models()[1]).toContain('Barato');
+  context.sectionChanges = {};
+});

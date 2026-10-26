@@ -164,7 +164,7 @@ export function InventoryScreen() {
     if (sort === 'Color ↓') list = [...list].sort((a, b) => compareInventoryColor(a.color, b.color, 'desc') || a.model.localeCompare(b.model, 'es'));
     return list;
   }, [source, query, columns, sort, money, phone, archivedMode]);
-  const listed = notices.prioritize(rows);
+  const listed = sort === 'Recientes' ? notices.prioritize(rows) : rows;
   const page = usePagedRows(listed, `${query}|${columnFilterKey(columns)}|${sort}|${notices.key}`, undefined, 'Inventory');
   const scope = useBulkScope();
   const selection = useBulkSelection(listed, scope);
