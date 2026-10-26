@@ -1,3 +1,4 @@
+import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -1066,6 +1067,10 @@ export async function importInventoryItems(
     const color = raw.color?.trim() || "";
     if (color.length > 50) {
       result.errors.push({ row: rowNum, imei: raw.imei, message: "El color puede tener hasta 50 caracteres" });
+      continue;
+    }
+    if (!validBatteryHealth(normalizeBattery(raw.batteryHealth))) {
+      result.errors.push({ row: rowNum, imei: raw.imei, message: BATTERY_HEALTH_MESSAGE });
       continue;
     }
     const input = {
