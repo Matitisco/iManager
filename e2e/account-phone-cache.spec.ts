@@ -33,6 +33,8 @@ for (const device of [
       test.setTimeout(120_000);
       const email = buildTestEmail(info, `cobro-${device.name}`);
       await bootstrapStoreViaApi(page, request, email, 'iManager · Cobro');
+      // USD sale shown in a USD store: installments keep their own currency (no blue-rate conversion).
+      await updateStoreViaApi(request, email, { currency: 'USD' });
       const { client } = await createClientViaApi(request, email, { name: 'Ana Pérez', phone: '2615550191', dni: '30111991' });
       await post(request, email, '/api/operations/sales', {
         clientId: client.id, deviceLabel: 'Cuotas', amount: 100, currency: 'USD', paymentMethod: 'EFECTIVO',
@@ -69,8 +71,8 @@ for (const device of [
       const account = await accountResponse;
       expect(account.headers()['cache-control']).toContain('no-store');
       const dialog = page.getByRole('dialog', { name: /V-/ });
-      await expect(dialog.locator('.kv').filter({ hasText: 'Cuota 1' }).locator('b')).toContainText('20');
-      await expect(dialog.locator('.kv').filter({ hasText: 'Cuota 2' }).locator('b')).toContainText('50');
+      await expect(dialog.locator('.kv').filter({ hasText: 'Cuota 1' }).locator('b')).toHaveText('US$ 20');
+      await expect(dialog.locator('.kv').filter({ hasText: 'Cuota 2' }).locator('b')).toHaveText('US$ 50');
       await expect(dialog.getByText('Deuda US$ 70')).toBeVisible();
       await expect(dialog.getByText('Deuda US$ 100')).toHaveCount(0);
     });
