@@ -18,3 +18,9 @@ it('guarda costo y precio juntos en la moneda activa al editar un importe', () =
 it('conserva costo oculto sin enviarlo como importe convertido', () => {
   expect(equipmentMoney(current, '1.000', '', false, false, commit).cost).toBe(current.cost);
 });
+
+it.each([['600,50', '450,25', 600.50, 450.25], ['600.50', '450.25', 600.50, 450.25], ['1.600,50', '1.450,25', 1600.50, 1450.25], ['1,600.50', '1,450.25', 1600.50, 1450.25]])('guarda decimales al editar precio %s y costo %s', (price, cost, expectedPrice, expectedCost) => {
+  expect(equipmentMoney({ ...current, price: 600, cost: 450, currency: 'USD' }, price, cost, true, false, commit)).toMatchObject({
+    blocked: false, cost: expectedCost, amounts: [{ amount: expectedPrice, currency: 'USD' }, { amount: expectedCost, currency: 'USD' }],
+  });
+});

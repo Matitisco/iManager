@@ -69,7 +69,7 @@ export function commitGroup(
 ): { amounts: StoredAmount[]; blocked: boolean } {
   const states = fields.map((field) => {
     const projected = projectAmount(field.original, field.currency, active, sellRate);
-    const typed = Number.isFinite(field.typed) ? Math.round(field.typed) : 0;
+    const typed = Number.isFinite(field.typed) ? field.typed : 0;
     const same = projected.blocked ? typed === Math.round(field.original) : typed === Math.round(projected.value);
     return { projected, typed, same };
   });
