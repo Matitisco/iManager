@@ -8,7 +8,7 @@ const {
   clientCountMock,
   clientAggregateMock,
   inventoryCountMock,
-  inventoryAggregateMock,
+  inventoryGroupMock,
   inventoryFindManyMock,
   returnCaseFindManyMock,
 } = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ const {
   clientCountMock: vi.fn(),
   clientAggregateMock: vi.fn(),
   inventoryCountMock: vi.fn(),
-  inventoryAggregateMock: vi.fn(),
+  inventoryGroupMock: vi.fn(),
   inventoryFindManyMock: vi.fn(),
   returnCaseFindManyMock: vi.fn(),
 }));
@@ -41,7 +41,7 @@ vi.mock("../../plugins/prisma.js", () => ({
     },
     inventoryItem: {
       count: inventoryCountMock,
-      aggregate: inventoryAggregateMock,
+      groupBy: inventoryGroupMock,
       findMany: inventoryFindManyMock,
     },
     returnCase: {
@@ -181,12 +181,13 @@ describe("getReportsOverview", () => {
       .mockResolvedValueOnce(6)
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(1);
-    inventoryAggregateMock.mockResolvedValue({
+    inventoryGroupMock.mockResolvedValue([{
+      currency: null,
       _sum: {
         cost: { toNumber: () => 3000 },
         price: { toNumber: () => 4500 },
       },
-    });
+    }]);
     inventoryFindManyMock.mockResolvedValue([]);
   });
 
@@ -239,6 +240,30 @@ describe("getReportsOverview", () => {
     expect(result.summary.revenue).toBe(1000 * factor);
     expect(result.comparison.grossProfit).toBe(388 * factor);
     expect(result.comparison.grossProfitChange).toBeCloseTo((340 - 388) / 388 * 100);
+  });
+
+  it.each(['ARS', 'USD'])('convierte devoluciones y valuación mixta a %s', async currency => {
+    storeFindMock.mockResolvedValue({ currency });
+    rateMock.mockResolvedValue(1250);
+    saleFindManyMock.mockResolvedValue([]);
+    const claim = (moneyAmount: number, moneyCurrency: string) => ({ settlement: 'REINTEGRO', resolvedAt: new Date('2026-04-15'), creditNote: null, events: [], moneyAmount, moneyCurrency, sale: null });
+    returnCaseFindManyMock.mockResolvedValue([claim(701000, 'ARS'), claim(100, 'USD')]);
+    inventoryGroupMock.mockResolvedValue([
+      { currency: 'ARS', _sum: { cost: 16066000, price: 21866000 } },
+      { currency: 'USD', _sum: { cost: 28920, price: 36570 } },
+    ]);
+    const overview = await getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null });
+    const divisor = currency === 'USD' ? 1250 : 1;
+    expect(overview.summary.returnsAmount).toBe(Math.round(826000 / divisor));
+    expect(overview.inventory.valuation.costValue).toBe(Math.round(52216000 / divisor));
+    expect(overview.inventory.valuation.retailValue).toBe(Math.round(67578500 / divisor));
+  });
+
+  it('rechaza valuación en otra moneda sin cotización aunque no haya ventas', async () => {
+    saleFindManyMock.mockResolvedValue([]);
+    rateMock.mockResolvedValue(null);
+    inventoryGroupMock.mockResolvedValue([{ currency: 'USD', _sum: { cost: 400, price: 600 } }]);
+    await expect(getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null })).rejects.toMatchObject({ statusCode: 503 });
   });
 
   it("returns valuation and topProducts using completed sales only", async () => {
