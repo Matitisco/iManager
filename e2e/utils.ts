@@ -457,6 +457,8 @@ export async function expectRepairHistory(page: Page, detail: Locator, count: nu
   const history = page.getByRole('dialog', { name: 'Historial', exact: true });
   await expect(history.locator('.record-history-timeline > li')).toHaveCount(count);
   for (const status of statuses) await expect(history).toContainText(status);
-  await history.getByRole('button', { name: 'Cerrar', exact: true }).first().click();
+  const phone = await page.getByTestId('mobile-tab-bar').isVisible();
+  await history.getByRole('button', { name: phone ? 'Volver' : 'Cerrar', exact: true }).click();
   await expect(history).toBeHidden();
+  await expect(detail).toBeVisible();
 }
