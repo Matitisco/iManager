@@ -1,3 +1,4 @@
+import type { CustomFieldInput } from '../../services/custom-fields-api';
 import { fetchBackendInventory, fetchArchivedInventory } from '../../services/inventory-api';
 import { useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -13,10 +14,10 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
   const phone = usePhoneLayout();
   const [existingImeis, setExistingImeis] = useState<string[]>([]);
   const source = useRef<'excel' | 'text'>('excel');
-  const { user, reloadInventory, reloadSales, reloadClients, reloadLedger } = useAppContext();
+  const { user, reloadInventory, reloadSales, reloadClients, reloadLedger, customFieldDefinitions = [], customFieldDefinitionsError, reloadCustomFieldDefinitions } = useAppContext();
   const { close, toast, go } = useDesk();
   const config = useMemo(() => importConfig(kind, async () => {
-    if (kind === 'inv') await reloadInventory();
+    if (kind === 'inv') { await reloadInventory(); await reloadCustomFieldDefinitions?.(); }
     if (kind === 'sale') {
       await reloadSales();
       await reloadClients();
@@ -24,7 +25,7 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
     }
     if (kind === 'cl') await reloadClients();
     if (kind === 'inv' && supplierId) await reloadLedger();
-  }, supplierId ? { id: supplierId, name: supplierName } : undefined), [kind, reloadInventory, reloadSales, reloadClients, reloadLedger, supplierId, supplierName]);
+  }, supplierId ? { id: supplierId, name: supplierName } : undefined), [kind, reloadInventory, reloadSales, reloadClients, reloadLedger, reloadCustomFieldDefinitions, supplierId, supplierName]);
   if (!user) return null;
   const noun: Record<typeof kind, [string, string]> = {
     inv: ['equipo importado', 'equipos importados'],
@@ -38,8 +39,8 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
     setExistingImeis([...active, ...archived].map(item => item.imei).filter(Boolean));
     return analysis;
   };
-  return <ImportModal onFilterPriceToDefine={kind === 'inv' ? () => { go('inventory'); close(); requestPriceToDefineFilter(); } : undefined} existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows) => {
-    const result = await config.onImport(user, rows, source.current);
+  return <ImportModal customFieldDefinitions={kind === 'inv' ? customFieldDefinitions : undefined} customFieldDefinitionsError={kind === 'inv' ? customFieldDefinitionsError : undefined} onFilterPriceToDefine={kind === 'inv' ? () => { go('inventory'); close(); requestPriceToDefineFilter(); } : undefined} existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows, definitions) => {
+    const result = await config.onImport(user, rows, source.current, definitions);
     if ((result.imported ?? 0) + (result.updated ?? 0) > 0) await onSaved?.();
     const count = (result.imported ?? 0) + (result.updated ?? 0);
     if (count > 0) toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
@@ -71,12 +72,19 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'condition', label: 'Condición', required: false },
         { key: 'grade', label: 'Calidad', required: false, hint: 'A+ / A / B / C. Solo aplica si la condición es USADO' },
         { key: 'batteryHealth', label: 'Batería', required: false },
+        { key: 'supplierName', label: 'Proveedor', required: false },
+        { key: 'entryDate', label: 'Fecha de ingreso', required: false },
+        { key: 'batteryNote', label: 'Detalle batería', required: false },
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
         ...(supplier ? [{ key: 'purchasedAt', label: 'Fecha de compra', required: false }, { key: 'purchaseName', label: 'Nombre de compra', required: false }] : []),
       ],
-      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
+      onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text', definitions?: CustomFieldInput[]) => {
         const payload: InventoryImportRow[] = rows.map((row) => ({
+          sourceRow: row._sourceRow ? Number(row._sourceRow) : undefined,
+          entryDate: row.entryDate,
+          batteryNote: row.batteryNote,
+          supplierName: row.supplierName,
           imei: row.imei ?? '',
           model: row.model ?? '',
           price: row.price?.trim() ? parseImportNumber(row.price) ?? Number.NaN : null,
@@ -87,12 +95,14 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
           batteryHealth: row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
           cost: parseImportNumber(row.cost),
           currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
-          customFields: row.serial || row.originalStatus ? { ...(row.serial ? { serial: row.serial } : {}), ...(row.originalStatus ? { originalStatus: row.originalStatus } : {}) } : undefined,
+          customFields: { ...(row.serial ? { serial: row.serial } : {}), ...(row.originalStatus ? { originalStatus: row.originalStatus } : {}), ...Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value])) },
           status: row.status,
           purchasedAt: row.purchasedAt,
           purchaseName: row.purchaseName,
         }));
-        const result = await importBackendRows(user, 'inventory', payload, supplier?.id, source);
+        const result = definitions?.length
+          ? await importBackendRows(user, 'inventory', payload, supplier?.id, source, definitions)
+          : await importBackendRows(user, 'inventory', payload, supplier?.id, source);
         await after();
         return result;
       },

@@ -12,6 +12,8 @@ export interface Product {
   color: string;
   condition: string;
   grade: string;
+  entryDate?: string | null;
+  batteryNote?: string | null;
   batteryHealth: string;
   cost?: number;
   price: number | null;

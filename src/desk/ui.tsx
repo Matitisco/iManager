@@ -31,7 +31,7 @@ export function Pill({ status, kind }: { status: string; kind?: CatalogKind }) {
   const label = row?.label ?? statusLabel(status);
   const icon = statusIcon(status) ?? statusIcon(label);
   return (
-    <span className="spill cst" style={{ ['--pc' as string]: row?.color || statusColor(status) }}>
+    <span className="spill cst" style={{ ['--pc' as string]: kind === 'INVENTORY_STATUS' && status === 'RESERVADO' ? 'var(--secondary)' : row?.color || statusColor(status) }}>
       {icon ? <ImanagerIcon name={icon} size={16} /> : null}
       {label}
     </span>
@@ -322,7 +322,7 @@ export function RowMenu({ onMenu }: { onMenu: (point: { x: number; y: number }) 
   );
 }
 
-export function PressTarget({ as, className, testId, onActivate, onMenu, draggable, grabbed, onDragStart, onDragEnd, selection, children }: {
+export function PressTarget({ as, className, testId, onActivate, onMenu, draggable, grabbed, onDragStart, onDragEnd, selection, leadingCell, children }: {
   as: 'tr' | 'button';
   className?: string;
   testId?: string;
@@ -333,6 +333,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   onDragStart?: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd?: (event: React.DragEvent<HTMLElement>) => void;
   selection?: RowSelection;
+  leadingCell?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const bind = usePress(onMenu, () => as === 'button' && selection?.active ? selection.toggle() : onActivate());
@@ -358,7 +359,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
     );
   }
   // Keep the checkbox's record-specific label out of the cell's accessible name.
-  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{children}</tr>;
+  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{leadingCell}{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className, extra }: {

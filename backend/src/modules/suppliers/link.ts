@@ -105,10 +105,11 @@ export async function attachItemsToPurchase(
   actor?: Actor | null,
   purchaseName?: string | null,
   purchasedAt = new Date(),
+  transaction?: Db,
 ) {
   const ids = [...new Set(itemIds)];
   if (!ids.length) return null;
-  return prisma.$transaction(async (tx) => {
+  const save = async (tx: Db) => {
     const supplier = await activeSupplier(tx, storeId, supplierId);
     const purchase = await tx.stockPurchase.create({
       data: { storeId, supplierId, purchasedAt, name: readPurchaseName({ purchaseName }), notes: "Compra cargada desde un listado." },
@@ -132,5 +133,6 @@ export async function attachItemsToPurchase(
       });
     }
     return purchase;
-  });
+  };
+  return transaction ? save(transaction) : prisma.$transaction(save);
 }

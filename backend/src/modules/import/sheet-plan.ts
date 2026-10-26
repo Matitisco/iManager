@@ -175,17 +175,7 @@ export function rowLooksLikeData(row: string[]): boolean {
 export function sheetHeaders(rows: string[][], headerRow: number): string[] {
   const width = Math.max(0, ...rows.map(row => row.length));
   return Array.from({ length: width }, (_, index) => headerRow === 0
-    ? columnName(index) : rows[headerRow - 1]?.[index] ?? "");
-}
-
-function columnName(index: number): string {
-  let n = index + 1;
-  let name = "";
-  while (n > 0) {
-    name = String.fromCharCode(65 + (n - 1) % 26) + name;
-    n = Math.floor((n - 1) / 26);
-  }
-  return name;
+    ? columnLetter(index) : rows[headerRow - 1]?.[index] ?? "");
 }
 
 function contentMapping(rows: string[][]): ColumnMapping[] {
@@ -209,10 +199,12 @@ function contentMapping(rows: string[][]): ColumnMapping[] {
   claim("batteryHealth", value => isBatteryValue(value, false));
   claim("color", value => COLOR_VALUE.test(value));
   claim("status", value => STATUS_VALUE.test(value));
-  claim("purchasedAt", value => DATE_VALUE.test(value));
+  claim("entryDate", value => DATE_VALUE.test(value));
+  claim("grade", value => /^(?:A\+?|B|C)$/i.test(value));
+  claim("batteryNote", value => /bater[ií]a|reparaci[oó]n|cambio|pantalla|pin de carga/i.test(value));
   // Date serials without Excel formatting are accepted only in the leading date column.
-  if (!mapping.some(column => column.field === "purchasedAt") && columns[0]?.length
-    && columns[0].every(value => Number(value) >= 20000 && Number(value) <= 80000)) mapping[0].field = "purchasedAt";
+  if (!mapping.some(column => column.field === "entryDate") && columns[0]?.length
+    && columns[0].every(value => Number(value) >= 20000 && Number(value) <= 80000)) mapping[0].field = "entryDate";
   claim("cost", value => {
     const amount = parseMoney(value);
     return amount != null && amount >= 0 && amount < 10_000_000 && !value.includes("%");
@@ -343,6 +335,12 @@ function shouldNormalizeBattery(rows: string[][], headerRow: number, columnIndex
     const amount = Number(value.replace(",", "."));
     return Number.isFinite(amount) && amount >= 0 && amount <= 1;
   });
+}
+
+export function columnLetter(index: number): string {
+  let result = '';
+  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) result = String.fromCharCode(65 + (n - 1) % 26) + result;
+  return result;
 }
 
 export function heuristicSheet(
@@ -517,7 +515,7 @@ export function applyPlans(
     const quantityIndex = section === "inventory" && plan.headerRow > 0
       ? headers.findIndex((header) => QUANTITY_HEADERS.has(normalizeHeader(header)))
       : -1;
-    const usable = plan.mapping.filter((column) => column.field && known.has(column.field) && mappingColumnIndex(headers, column) >= 0);
+    const usable = plan.mapping.filter((column) => column.field && (known.has(column.field) || (section === "inventory" && /^custom:[a-z][a-z0-9_]{0,59}$/.test(column.field))) && mappingColumnIndex(headers, column) >= 0);
     const seen = new Set<string>();
     const mapping = usable.filter((column) => {
       if (seen.has(column.field)) return false;
@@ -619,7 +617,7 @@ export function applyPlans(
         if (quantityIndex >= 0) inventoryQuantitySchema.parse(rows.length + quantity);
         diagnostics.acceptedRows += 1;
         count += quantity;
-        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized });
+        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized, ...(section === "inventory" && (plan.headerRow === 0 || mapping.some(column => column.field.startsWith("custom:"))) ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
 

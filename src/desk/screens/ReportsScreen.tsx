@@ -18,6 +18,7 @@ import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
   saleBuyer,
+  formatShortDate,
   conditionLabel,
   equipmentTitle,
   isInStock,
@@ -89,6 +90,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const {
     sales,
     inventory,
+    customFieldDefinitions = [],
     tradeIns,
     clients,
     repairOrders = [],
@@ -246,7 +248,8 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
       });
     } else if (activeTab === 'Stock') {
-      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, ...moneyCells(item.price, item.currency), statusLabel(item.status)]));
+      rows[0].push('Fecha de ingreso', 'Detalle batería', ...customFieldDefinitions.map(field => field.label));
+      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, ...moneyCells(item.price, item.currency), statusLabel(item.status), item.entryDate ? formatShortDate(item.entryDate) : '', item.batteryNote || '', ...customFieldDefinitions.map(field => { const value = item.customFields?.[field.key]; return value != null && value !== '' && field.type === 'date' ? formatShortDate(String(value)) : String(value ?? ''); })]));
     } else if (activeTab === 'Canjes') {
       tradeRows.forEach((item) => {
         rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, ...moneyCells(item.differencePaid, item.currency), statusLabel(item.status)]);

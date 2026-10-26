@@ -58,3 +58,31 @@
   .import-mapping .ds-select-trigger { padding-inline: 10px; }
 }
 .import-actions > .btn2:only-child { width: 100%; }
+
+/* Variant B: physical columns retain their identity even with duplicate/empty headers. */
+.sheet.inv-import.imp-adjust-sheet { width: 1040px; max-width: calc(100vw - 48px); }
+.imp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.imp-card { min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); }
+.imp-card.new { border-color: var(--lime); }
+.imp-column-title { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 10px; padding: 6px 10px; background: var(--row); font-size: 13px; font-weight: 800; }
+.imp-prev { display: grid; padding: 4px 12px; background: var(--row); border-radius: 12px; }
+.imp-prev > span { min-height: 30px; padding: 6px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.imp-prev > span + span { border-top: 1px solid var(--border); }
+.imp-segments { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
+.desk-app .imp-segments button, .desk-app .imp-header-mode button { min-height: 38px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--primary); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.desk-app .imp-segments button[aria-pressed="true"], .desk-app .imp-header-mode button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.imp-header-mode { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.imp-discarded { display: flex; align-items: center; min-height: 48px; padding: 0 14px; font-size: 14px; color: var(--secondary); }
+.sheet.imp-new-field { width: 420px; }
+.imp-adjust-sheet .import-actions { display: grid; grid-template-columns: 1fr 1.5fr; }
+.imp-adjust-sheet .import-actions .btn2 { width: 100%; margin: 0; }
+@media (max-width: 760px) {
+  .sheet.inv-import.imp-adjust-sheet { width: 100%; max-width: 100%; }
+  .imp-grid { grid-template-columns: minmax(0, 1fr); }
+  .imp-segments { grid-template-columns: 1.2fr 1fr 1fr; }
+  .sheet.imp-new-field { width: 100%; }
+  .imp-adjust-sheet .import-actions { grid-template-columns: 1fr 1.5fr; }
+  .imp-adjust-sheet .import-actions .btn2 { white-space: normal; }
+}
+.imp-card .ds-select-trigger { background: var(--row); }
+.imp-card .ds-select-trigger:focus-visible { outline-color: var(--primary); }

@@ -37,7 +37,7 @@ const planSchema = z.object({
   mapping: z.array(z.object({
     header: z.string().max(200),
     columnIndex: z.number().int().min(0).max(39).optional(),
-    field: z.string().max(40),
+    field: z.string().max(67),
   })).max(40),
   splitModelCapacity: z.boolean(),
   batteryAsPercent: z.boolean(),

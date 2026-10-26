@@ -301,9 +301,10 @@ export function InventoryScreen() {
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
-        <table className="dtable">
+        <div className="dtable-scroll"><table className="dtable inv-stock-table">
             <thead>
               <tr>
+                <th className="inv-entry-col">Fecha de ingreso</th>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
                 <th>
                   <span className="thf">Equipo
@@ -425,6 +426,7 @@ export function InventoryScreen() {
               {page.visible.map((item) => (
                 <PressTarget
                   selection={selection.row(item.id, equipmentTitle(item.model, item.capacity))}
+                  leadingCell={<td className="inv-entry-col">{item.entryDate ? formatShortDate(item.entryDate) : '—'}</td>}
                   key={item.id}
                   as="tr"
                   className={[notices.reasonFor(item.id) ? 'novedad' : '', isVoidRow(item) ? 'is-void' : ''].filter(Boolean).join(' ')}
@@ -451,7 +453,7 @@ export function InventoryScreen() {
                 </PressTarget>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </>
         )}
         {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={phone ? 4 : 6} testId="inventory-loading" /> : listed.length === 0 ? (
@@ -600,6 +602,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
   const approx = approxUsd(item.price, item.currency, money.active, sell);
   return (
     <span className="inv-card">
+      <span className="inv-entry-date">Ingreso {item.entryDate ? formatShortDate(item.entryDate) : '—'}</span>
       <span data-ph-mask className="inv-imei">{item.imei ? `IMEI ${formatImei(item.imei)}` : 'Sin IMEI'}</span>
       <span className="inv-status">{item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : null}</span>
       <span className="inv-title">

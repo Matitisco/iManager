@@ -1,3 +1,4 @@
+import { useCustomFieldsState } from './custom-fields-state';
 import { identify as identifyPostHog, reset as resetPostHog } from '../lib/posthog-analytics';
 import { setTacReportUser } from '../lib/report-unknown-tac';
 import { createRefreshGate } from '../lib/list-sync';
@@ -40,7 +41,7 @@ import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 import { useReturnsState } from './returns-state';
 
-interface AppState extends ReturnType<typeof useSectionViewsState>, ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState>, ReturnType<typeof useReturnsState> {
+interface AppState extends ReturnType<typeof useCustomFieldsState>, ReturnType<typeof useSectionViewsState>, ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState>, ReturnType<typeof useReturnsState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -155,6 +156,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     noteLocalMutation,
     recordsGeneration, pendingWrites, initialReads, beginRead, refreshLists,
   } = useStoreRecords({ user, appSession, backendStatus });
+
+  const customFieldsState = useCustomFieldsState(user, backendInventoryEnabled, `${user?.uid ?? ''}:${appSession?.store?.id ?? ''}`);
 
   const writes = React.useRef({ scope: currentScope, count: 0, overlapped: false, active: new Map<string, number>() });
   const recordVersions = React.useRef(new Map<string, number>());
@@ -993,6 +996,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...commissions,
       ...catalogState,
       ...returnsState,
+      ...customFieldsState,
       inventory, sales, tradeIns, clients, listsLoaded, listsSettled, listsLoadFailed, customColumns,
       repairOrders, repairOrdersError, addRepairOrder: withListWrite(addRepairOrder), updateRepairOrder: withListWrite(updateRepairOrder, id => `repair:${id}`), changeRepairStatus: withListWrite(changeRepairStatus, id => `repair:${id}`), deleteRepairOrder: withListWrite(deleteRepairOrder, id => `repair:${id}`), restoreRepairOrder: withListWrite(restoreRepairOrder, id => `repair:${id}`),
       operationOptions, operationDrafts,
