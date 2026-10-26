@@ -42,7 +42,7 @@ describe("QA 06: compensación emitida independiente del cierre del RMA", () => 
     const listed = (await get("/api/returns")).json().returns[0];
     expect(listed).toMatchObject({ compensatedOn: "2026-09-30", resolvedOn: null });
     const overviewUrl = "/api/reports/overview?rangeKey=custom&startDate=2026-09-01T03:00:00.000Z&endDate=2026-10-01T02:59:59.999Z";
-    expect((await get(overviewUrl)).json().overview.summary.returnsCount).toBe(1);
+    expect((await get(overviewUrl)).json().overview.summary).toMatchObject({ returnsCount: 1, grossProfit: 0, marginRate: 0 });
     const beforeClose = await profit("2026-10-01", "2026-10-31");
     expect(beforeClose).toMatchObject({ netProfit: 0, revenue: 0, cost: 0 });
     const closed = await app.inject({ method: "POST", url: `/api/returns/${id}/rma`, headers, payload: { status, ...(status === "RECIBIDO" ? { stockStatus: "EN_REVISION" } : {}) } });
@@ -50,7 +50,7 @@ describe("QA 06: compensación emitida independiente del cierre del RMA", () => 
     expect(closed.json().return).toMatchObject({ status: "RESUELTO", compensatedOn: "2026-09-30", resolvedOn: expect.any(String) });
     expect(await profit("2026-09-01", "2026-09-30")).toMatchObject({ netProfit: 0, revenue: 0, cost: 0 });
     expect(await profit("2026-10-01", "2026-10-31")).toEqual(beforeClose);
-    expect((await get(overviewUrl)).json().overview.summary.returnsCount).toBe(1);
+    expect((await get(overviewUrl)).json().overview.summary).toMatchObject({ returnsCount: 1, grossProfit: 0, marginRate: 0 });
     expect((await get("/api/reports/overview?rangeKey=all_time")).json().overview.summary.returnsCount).toBe(1);
     expect(await prisma.creditNote.count({ where: { returnCaseId: id } })).toBe(settlement === "NOTA_CREDITO" ? 1 : 0);
     expect(await prisma.clientPayment.count({ where: { saleId: sale.json().sale.id, kind: "DEVOLUCION" } })).toBe(settlement === "REINTEGRO" ? 1 : 0);

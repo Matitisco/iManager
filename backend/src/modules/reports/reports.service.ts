@@ -1,3 +1,5 @@
+import { netProfit } from "./net-profit.js";
+import { returnReversal } from "../returns/returns-math.js";
 import { reportSellRate } from "./net-profit.service.js";
 import { projectAmount, type MoneyCurrency } from "../periodic-reports/report-math.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -468,9 +470,27 @@ export async function getReportsOverview(
     }),
   ]);
 
+  const commercialReturns = await prisma.returnCase.findMany({
+    where: {
+      storeId,
+      deletedAt: null,
+      status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
+    },
+    select: {
+      ...returnRecognitionSelect, moneyAmount: true, moneyCurrency: true,
+      sale: { select: { amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
+    },
+  });
+  const compensatedReturns = commercialReturns.filter(row => {
+    const issuedAt = returnCompensatedAt(row);
+    return issuedAt && (!input.startDate || issuedAt >= input.startDate) && (!input.endDate || issuedAt <= input.endDate);
+  });
+
   const needsConversion = [...sales.filter(sale => sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE'), ...previousSales].some(sale =>
     (sale.amountCurrency != null && sale.amountCurrency !== currency) ||
-    (sale.inventoryItem?.currency != null && sale.inventoryItem.currency !== currency));
+    (sale.inventoryItem?.currency != null && sale.inventoryItem.currency !== currency)) ||
+    commercialReturns.some(row => (row.moneyCurrency != null && row.moneyCurrency !== currency) ||
+      (row.sale?.inventoryItem?.currency != null && row.sale.inventoryItem.currency !== currency));
   const rate = needsConversion ? await reportSellRate(store) : null;
   const convert = (value: unknown, storedCurrency?: string | null) => {
     const projected = projectAmount(toNumber(value), storedCurrency, currency, rate);
@@ -505,7 +525,27 @@ export async function getReportsOverview(
       cost: convert(sale.inventoryItem?.cost, sale.inventoryItem?.currency),
     }))
   );
-  const { revenue, grossProfit, unitsSold, averageTicket } = currentMetrics;
+  const adjustedProfit = (metrics: typeof currentMetrics, from: Date | null, to: Date | null) => {
+    const returns = commercialReturns.flatMap(row => {
+      const at = returnCompensatedAt(row);
+      if (!at || (from && at < from) || (to && at > to)) return [];
+      const reversal = returnReversal({
+        saleAmount: toNumber(row.sale?.amount ?? row.moneyAmount),
+        moneyAmount: toNumber(row.moneyAmount),
+        itemCost: toNumber(row.sale?.inventoryItem?.cost),
+      });
+      return [{ ...reversal, currency: row.moneyCurrency ?? currency,
+        costCurrency: row.sale?.inventoryItem?.currency ?? row.moneyCurrency ?? currency }];
+    });
+    const figures = netProfit({ currency, sellRate: rate,
+      sales: [{ amount: metrics.revenue, cost: metrics.revenue - metrics.grossProfit, currency, costCurrency: currency }],
+      expenses: [], returns });
+    if (!figures) throw new ReportsError('No se pudo convertir el reporte. Revisá la cotización del local.', 503);
+    return figures.grossProfit;
+  };
+  const { revenue, unitsSold, averageTicket } = currentMetrics;
+  const grossProfit = adjustedProfit(currentMetrics, input.startDate, input.endDate);
+  if (previousWindow) previousMetrics.grossProfit = adjustedProfit(previousMetrics, previousWindow.startDate, previousWindow.endDate);
   const marginRate = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
   const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
@@ -595,18 +635,6 @@ export async function getReportsOverview(
   const openTradeInCash = sumDifference(openTradeInRows);
   const otherTradeInCash = sumDifference(otherTradeInRows);
   const openTradeIns = openTradeInRows.length;
-  const commercialReturns = await prisma.returnCase.findMany({
-    where: {
-      storeId,
-      deletedAt: null,
-      status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
-    },
-    select: { ...returnRecognitionSelect, moneyAmount: true },
-  });
-  const compensatedReturns = commercialReturns.filter(row => {
-    const issuedAt = returnCompensatedAt(row);
-    return issuedAt && (!input.startDate || issuedAt >= input.startDate) && (!input.endDate || issuedAt <= input.endDate);
-  });
 
   return {
     currency,
