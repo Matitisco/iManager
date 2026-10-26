@@ -408,7 +408,7 @@ export function StockCountScreen() {
           <section className="stock-results" aria-label={groupLabel}>
             <div className="stock-list-heading"><h3>{groupLabel}</h3><span>{lines.length} {lines.length === 1 ? 'equipo' : 'equipos'}</span></div>
             <div className="stock-lines">
-              {lines.length === 0 ? <div className="stock-line"><span>Nada en este grupo</span></div> : visibleLines.map((line) => (
+              {lines.length === 0 ? <div className="stock-line"><span className="stock-line-empty">Nada en este grupo</span></div> : visibleLines.map((line) => (
                 <div className="stock-line" key={line.key}>
                   <span className="stock-device-icon" aria-hidden="true"><AuditDeviceIcon /></span>
                   <div className="stock-device"><b>{deviceName(line.model, line.capacity) || 'Sin modelo'}</b><small>{phone ? line.imei : `IMEI ${line.imei}`}</small>{!phone && line.note && filter === 'sold' ? <small>{line.note}</small> : null}</div>
