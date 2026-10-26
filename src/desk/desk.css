@@ -2620,3 +2620,21 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sn-mobile .sn-children .ditem { font-size: 14px; }
   .sn-mobile .sn-label { white-space: normal; }
 }
+
+/* Sale detail: one display currency for the price, debt and payment plan. */
+.sale-detail-sheet .vsm-rate { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 12px 0; font-size: 12px; font-weight: 600; color: var(--secondary); }
+.sale-detail-sheet .vsm-value { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; color: var(--primary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.sheet.sale-detail-sheet .vsm-value b { max-width: 100%; white-space: nowrap; }
+.sale-detail-sheet .vsm-rate time { white-space: nowrap; }
+.sale-detail-sheet .vsm-value small { color: var(--secondary); font-size: 12px; font-weight: 600; line-height: 1.35; letter-spacing: 0; }
+.sale-detail-sheet .dhero .vsm-value { align-items: flex-start; }
+.sale-detail-sheet .dhero .vsm-value b { text-align: left; }
+.sale-detail-sheet .sale-detail-trade .vsm-value { align-items: flex-start; }
+.sheet.sale-detail-sheet .btn2 { min-height: 52px; }
+@media (max-width: 760px) {
+  .sale-detail-sheet .acct-plan .kv > span:first-child { max-width: 58%; }
+}
+@media (min-width: 761px) {
+  .sale-detail-sheet .vsm-value { flex-direction: row; align-items: baseline; gap: 10px; }
+  .sale-detail-sheet .dhero .vsm-value { align-items: baseline; }
+}

@@ -1,5 +1,5 @@
 import { ListSkeleton } from '../list-skeleton';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { whatsappLink } from '../../catalog/presentation';
 import { toActionMessage, toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -21,7 +21,7 @@ function useReload() {
   };
 }
 
-export function SaleAccountPanel({ saleId, currency, revision = '', onDue }: { saleId: string; currency?: string | null; revision?: string; onDue?: (due: number) => void }) {
+export function SaleAccountPanel({ saleId, currency, revision = '', onDue, renderAmount }: { saleId: string; currency?: string | null; revision?: string; onDue?: (due: number) => void; renderAmount?: (amount: number, currency?: string | null) => ReactNode }) {
   const { user } = useAppContext();
   const money = useMoney();
   const [account, setAccount] = useState<SaleAccount | null>(null);
@@ -44,11 +44,12 @@ export function SaleAccountPanel({ saleId, currency, revision = '', onDue }: { s
     return () => { active = false; };
   }, [user, saleId, revision, refresh]);
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
+  const amountView = renderAmount ?? ((amount: number, source?: string | null) => <b>{money.show(amount, source, 2)}</b>);
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">
-      {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span><b>{money.show(tender.amount, tender.currency, 2)}</b></div>) : null}
-      {account.plan ? <p className="eqs-note">{account.plan.count} cuotas {account.plan.frequency.toLowerCase()} · primer vencimiento {account.plan.firstDueDate.split('-').reverse().join('/')}{account.plan.surcharge ? ` · recargo ${money.show(account.plan.surcharge, currency, 2)}` : ''}</p> : null}
-      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {(item.dueDate || '').split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span><b>{money.show(Math.max(0, item.amount - item.paidAmount), currency, 2)}</b></div>)}
+      {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span>{amountView(tender.amount, tender.currency)}</div>) : null}
+      {account.plan ? <p className="eqs-note">{account.plan.count} cuotas {account.plan.frequency.toLowerCase()} · primer vencimiento {account.plan.firstDueDate.split('-').reverse().join('/')}{account.plan.surcharge ? <> · recargo {amountView(account.plan.surcharge, currency)}</> : null}</p> : null}
+      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {(item.dueDate || '').split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span>{amountView(Math.max(0, item.amount - item.paidAmount), currency)}</div>)}
       <p className="eqs-note">El pago se aplica primero a la cuota impaga más antigua.</p>
     </section>
   );
