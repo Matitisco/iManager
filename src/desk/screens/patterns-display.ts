@@ -4,5 +4,5 @@ export function patternPercent({ percent, problems }: { percent: number; problem
 }
 
 export function patternBarWidth(row: { percent: number; problems: number; devices: number }) {
-  return `${row.percent === 0 && row.problems > 0 && row.devices > 0 ? row.problems / row.devices * 100 : row.percent}%`;
+  return `${row.problems > 0 ? Math.max(2, row.percent) : 0}%`;
 }

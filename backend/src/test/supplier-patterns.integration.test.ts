@@ -120,15 +120,18 @@ describe("contratos backend proveedores/patrones #308", () => {
     const get = async (groupBy: string, headers = ownerHeaders) => app.inject({ method: "GET", url: `/api/returns/patterns?groupBy=${groupBy}`, headers });
     const purchases = await get("purchase");
     expect(purchases.statusCode, purchases.body).toBe(200);
-    expect(purchases.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 4, percent: 33, topReason: { family: "bateria", claims: 2 } });
+    expect(purchases.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 4, openClaims: 3, percent: 33, topReason: { family: "bateria", claims: 2 } });
     const rows: ReturnPatternView[] = purchases.json().patterns;
-    expect(rows.map(row => row.key)).toHaveLength(3);
-    expect(rows[0]).toMatchObject({ key: f.purchase.id, label: "Importadora Andes · Septiembre", supplierId: f.supplier.id, purchaseId: f.purchase.id, devices: 5, problems: 2, claims: 3, percent: 40, hot: true, topReason: { family: "bateria", label: "batería", claims: 2 }, claimsTruncated: false });
-    expect(rows[0].claimsDetail.map(claim => claim.caseNumber)).toEqual(["RMA-0003", "RMA-0002", "RMA-0001"]);
-    expect(rows[0].claimsDetail[0]).toMatchObject({ deviceLabel: "iPhone 15 Pro · 256GB", imei: f.fallback.imei, reason: "BATERIA se agota", status: "ABIERTO", openedAt: "2026-10-03T15:00:00.000Z", clientName: "Julián" });
+    expect(rows.map(row => row.key)).toHaveLength(4);
+    expect(rows.find(row => row.key === "none")).toMatchObject({ label: "Sin compra asignada", supplierId: null, purchaseId: null, devices: 2, problems: 1, claims: 1 });
+    const purchased = rows.find(row => row.key === f.purchase.id)!;
+    expect(purchased).toMatchObject({ key: f.purchase.id, label: "Importadora Andes · Septiembre", supplierId: f.supplier.id, purchaseId: f.purchase.id, devices: 5, problems: 2, claims: 3, percent: 40, hot: true, topReason: { family: "bateria", label: "batería", claims: 2 }, claimsTruncated: false });
+    expect(purchased.claimsDetail.map(claim => claim.caseNumber)).toEqual(["RMA-0003", "RMA-0002", "RMA-0001"]);
+    expect(purchased.claimsDetail[0]).toMatchObject({ deviceLabel: "iPhone 15 Pro · 256GB", imei: f.fallback.imei, reason: "BATERIA se agota", status: "ABIERTO", openedAt: "2026-10-03T15:00:00.000Z", clientName: "Julián" });
     expect(rows.find(row => row.key === f.previous.id)?.label).toBe("Importadora Andes · 05/09/2026");
     expect(purchases.body).not.toMatch(/"(?:cost|totalCost|price|moneyAmount)":/);
     const suppliers = (await get("supplier")).json().patterns;
+    expect(suppliers.find((row: ReturnPatternView) => row.key === "none")).toMatchObject({ label: "Sin proveedor asignado", supplierId: null, purchaseId: null, devices: 1, problems: 1, claims: 1 });
     expect(suppliers.find((row: ReturnPatternView) => row.key === f.supplier.id)).toMatchObject({ devices: 7, problems: 2, claims: 3, percent: 29 });
     const models: ReturnPatternView[] = (await get("model")).json().patterns;
     expect(models[0].label).toBe("iPhone SE · 64GB"); // 1/1 outranks 2/7.
@@ -146,6 +149,41 @@ describe("contratos backend proveedores/patrones #308", () => {
     expect((await get("model", buildAuthHeaders({ uid: other.user.firebaseUid, email: other.user.email! }))).json().patterns).toEqual([]);
   });
 
+  it("conserva 1 reclamo resuelto entre 268 equipos sin origen y mantiene los orígenes parciales", async () => {
+    const owner = await seedStoreContext();
+    const storeId = owner.store!.id;
+    await prisma.inventoryItem.createMany({ data: Array.from({ length: 268 }, (_, i) => ({
+      id: `device-${i}`, storeId, model: "iPhone 14", capacity: "128GB", color: "Negro", condition: "USADO", grade: "A", batteryHealth: "90%", cost: 100, price: 200, currency: "USD", status: "DISPONIBLE",
+    })) });
+    await prisma.returnCase.create({ data: { storeId, caseNumber: 1, inventoryItemId: "device-0", openedAt: new Date("2026-10-24T15:00:00Z"), reason: "asd", status: "RESUELTO" } });
+    const get = async (groupBy: string) => {
+      const response = await getApp().inject({ method: "GET", url: `/api/returns/patterns?groupBy=${groupBy}`, headers: ownerHeaders });
+      expect(response.statusCode, response.body).toBe(200);
+      return response.json();
+    };
+    for (const [by, label] of [["supplier", "Sin proveedor asignado"], ["purchase", "Sin compra asignada"]]) {
+      const response = await get(by);
+      expect(response.summary).toMatchObject({ devices: 268, problems: 1, claims: 1, openClaims: 0, percent: 0, topReason: { label: "asd" } });
+      expect(response.patterns).toHaveLength(1);
+      expect(response.patterns[0]).toMatchObject({ key: "none", label, supplierId: null, purchaseId: null, devices: 268, problems: 1, claims: 1 });
+      expect(response.patterns[0].claimsDetail).toHaveLength(1);
+    }
+    const supplier = await prisma.supplier.create({ data: { storeId, name: "Andes" } });
+    await prisma.inventoryItem.update({ where: { id: "device-0" }, data: { supplierId: supplier.id } });
+    expect((await get("purchase")).patterns.find((row: ReturnPatternView) => row.key === "none")).toMatchObject({ problems: 1, supplierId: null, purchaseId: null });
+    const purchase = await prisma.stockPurchase.create({ data: { storeId, supplierId: supplier.id, name: "Octubre", purchasedAt: new Date("2026-10-01T15:00:00Z") } });
+    await prisma.inventoryItem.update({ where: { id: "device-0" }, data: { stockPurchaseId: purchase.id } });
+    expect((await get("purchase")).patterns.find((row: ReturnPatternView) => row.key === purchase.id)).toMatchObject({ label: "Andes · Octubre", supplierId: supplier.id, purchaseId: purchase.id, problems: 1 });
+    await prisma.inventoryItem.update({ where: { id: "device-0" }, data: { supplierId: null } });
+    expect((await get("purchase")).patterns.find((row: ReturnPatternView) => row.key === purchase.id)).toMatchObject({ label: "Octubre", supplierId: null, problems: 1 });
+    await prisma.stockPurchase.update({ where: { id: purchase.id }, data: { deletedAt: new Date() } });
+    expect((await get("purchase")).patterns).toEqual([expect.objectContaining({ key: "none", devices: 268, problems: 1, claims: 1 })]);
+    for (const [index, status] of ["ABIERTO", "EN_DIAGNOSTICO", "EN_PROVEEDOR", "CERRADO", "ANULADO"].entries()) {
+      await prisma.returnCase.create({ data: { storeId, caseNumber: index + 2, inventoryItemId: "device-0", openedAt: new Date("2026-10-24T15:00:00Z"), reason: "asd", status } });
+    }
+    expect((await get("model")).summary).toMatchObject({ devices: 268, problems: 1, claims: 5, openClaims: 3 });
+  });
+
   it("acota el detalle a 50 sin truncar los contadores ni el motivo común", async () => {
     const f = await fixture();
     await prisma.returnCase.createMany({ data: Array.from({ length: 51 }, (_, index) => ({ storeId: f.storeId, caseNumber: 100 + index, inventoryItemId: f.fallback.id, supplierId: f.supplier.id, imei: f.fallback.imei!, reason: "Audio", openedAt: new Date() })) });
@@ -153,7 +191,7 @@ describe("contratos backend proveedores/patrones #308", () => {
     const pattern: ReturnPatternView = result.json().patterns.find((row: ReturnPatternView) => row.key === f.purchase.id);
     expect(pattern).toMatchObject({ devices: 5, problems: 2, claims: 54, claimsTruncated: true, topReason: { family: "audio", claims: 51 } });
     expect(pattern.claimsDetail).toHaveLength(50);
-    expect(result.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 55, percent: 33, topReason: { family: "audio", claims: 51 } });
+    expect(result.json().summary).toMatchObject({ devices: 9, problems: 3, claims: 55, openClaims: 54, percent: 33, topReason: { family: "audio", claims: 51 } });
   });
 
   it("inventario devuelve metadata en ambas listas y resumen sólo en detalle, con filtro seguro", async () => {

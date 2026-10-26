@@ -40,6 +40,7 @@ export interface ReturnPatternSummary {
   problems: number;
   percent: number;
   claims: number;
+  openClaims: number;
   topReason: ReturnPatternView['topReason'];
 }
 

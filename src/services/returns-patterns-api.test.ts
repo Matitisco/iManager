@@ -12,7 +12,7 @@ describe('return patterns contract', () => {
     expect(apiRequest).toHaveBeenLastCalledWith(user, `/api/returns/patterns?groupBy=${groupBy}`, expect.any(Object));
   });
   it('keeps the exact server summary alongside the complete ranking', async () => {
-    const response = { patterns: [], summary: { devices: 90, problems: 16, percent: 18, claims: 20, topReason: null } };
+    const response = { patterns: [], summary: { devices: 90, problems: 16, percent: 18, claims: 20, openClaims: 7, topReason: null } };
     vi.mocked(apiRequest).mockResolvedValueOnce(response);
     expect(await fetchReturnAnalysis(user, 'model')).toEqual(response);
   });
