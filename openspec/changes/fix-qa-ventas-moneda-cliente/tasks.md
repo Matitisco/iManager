@@ -1,0 +1,3 @@
+- [x] Reproducir el bug 01 con integración local fallida.
+- [x] Corregir conversión y verificar altas y reversión.
+- [x] Ejecutar TypeScript y tests relacionados; preparar entrega por PR.
