@@ -1,3 +1,4 @@
+import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { trackFirstSale } from '../analytics/first-sale.js';
 import { createHash } from 'node:crypto';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
@@ -558,6 +559,7 @@ export interface SaleImportRow {
 }
 
 export interface SaleImportResult {
+  diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
   errors: { row: number; message: string }[];
@@ -580,6 +582,7 @@ export async function importSales(
 ): Promise<SaleImportResult> {
   let imported = 0;
   const errors: { row: number; message: string }[] = [];
+  const collector = importErrorCollector(errors);
   const clients: ImportClient[] = await prisma.client.findMany({
     where: { storeId },
     select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
@@ -604,11 +607,11 @@ export async function importSales(
       const seller = r.seller?.trim() ?? "";
       const amount = parseMoney(r.amount ?? "");
       if (amount == null) {
-        errors.push({ row: rowNum, message: "Importe inválido" });
+        collector.reject({ row: rowNum, message: "Importe inválido" }, "invalid_price");
         continue;
       }
       if (!clientName && !device && !imei) {
-        errors.push({ row: rowNum, message: "La venta no tiene cliente ni equipo" });
+        collector.reject({ row: rowNum, message: "La venta no tiene cliente ni equipo" }, "missing_identity");
         continue;
       }
 
@@ -738,14 +741,14 @@ export async function importSales(
       void trackFirstSale(storeId, committed.saleId, 'import', actor?.userId);
       imported++;
     } catch (e) {
-      errors.push({
+      collector.reject({
         row: rowNum,
         message: e instanceof Error ? e.message : "Error desconocido",
-      });
+      }, e instanceof SalesError && e.statusCode === 409 ? "duplicate" : "save_error");
     }
   }
 
-  return { imported, updated: 0, errors };
+  return { imported, updated: 0, errors, diagnostics: collector.finish(rows.length, imported) };
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────

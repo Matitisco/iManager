@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
-import { autoMap, normalizeHeader } from "./column-mapping.js";
+import { autoMap, isPurchaseHeader, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
+import { countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
 export type SheetCondition = (typeof CONDITIONS)[number];
@@ -35,6 +36,7 @@ export type SheetSummary = {
   rows: number;
   condition: SheetCondition;
   included: boolean;
+  diagnostics?: ImportDiagnostics;
 };
 
 export type ImportSummary = {
@@ -120,8 +122,8 @@ export function priceCurrencyOf(header: string): "" | "ARS" | "USD" {
 
 function priceKind(header: string): PriceKind | null {
   const normalized = normalizeHeader(header);
-  if (/costo|cost/.test(normalized)) return null;
-  if (!/precio|price|valor|importe/.test(normalized)) return null;
+  if (isPurchaseHeader(header)) return null;
+  if (!/precio|price|valor|importe/.test(normalized) && !/^(venta|pvp)(usd|ars|us\$|\$)?$/.test(normalized) && !/^(\$|us\$|u\$s)$/.test(normalized)) return null;
   if (/usd|dolar|us\$/.test(normalized)) return "usd";
   if (/ars|peso/.test(normalized)) return "ars";
   return "generic";
@@ -400,12 +402,12 @@ export function applyPlans(
   plans: SheetPlan[],
   section: ImportSection,
   storeCurrency: MoneyCurrency,
-): { rows: Record<string, string>[]; summary: ImportSummary; plans: SheetPlan[] } {
+): { rows: Record<string, string>[]; summary: ImportSummary; plans: SheetPlan[]; diagnostics: ImportDiagnostics } {
   const catalog = IMPORT_CATALOGS[section];
   const known = new Set(catalog.fields.map((field) => field.key));
   const byName = new Map(sheets.map((sheet) => [sheet.name, trimSheet(sheet.rows)]));
   const rows: Record<string, string>[] = [];
-  const summaries: SheetSummary[] = [];
+  const summaries: (SheetSummary & { diagnostics: ImportDiagnostics })[] = [];
 
   for (const plan of plans) {
     const grid = byName.get(plan.name);
@@ -422,6 +424,7 @@ export function applyPlans(
       seen.add(column.field);
       return true;
     });
+    const diagnostics = { ...emptyDiagnostics(), ...missingFields(section, mapping.map((column) => column.field)) };
     const rate = findRate(grid);
     const usdHeader = headers.find((header) => priceKind(header) === "usd") ?? "";
     const usdIndex = usdHeader ? indexByHeader(headers, usdHeader) : -1;
@@ -429,6 +432,10 @@ export function applyPlans(
     const start = Math.max(plan.headerRow + 1, plan.dataStartRow);
     const end = Math.min(grid.length, Math.max(start - 1, plan.dataEndRow));
 
+    diagnostics.detectedRows = Math.max(0, end - start + 1);
+    if (!plan.include) {
+      for (let index = start; index <= end; index += 1) countDiscard(diagnostics, "excluded_sheet");
+    }
     if (plan.include) {
       let sectionCondition: SheetCondition = plan.condition;
       for (let above = plan.headerRow - 1; above >= 1 && above >= plan.headerRow - 3; above -= 1) {
@@ -440,11 +447,13 @@ export function applyPlans(
       }
       for (let rowIndex = start; rowIndex <= end; rowIndex += 1) {
         const line = grid[rowIndex - 1] ?? [];
-        if (line.every((cell) => !cell.trim()) || isFooter(line)) continue;
+        if (line.every((cell) => !cell.trim())) { countDiscard(diagnostics, "empty"); continue; }
+        if (isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
         const filledCells = line.filter((cell) => cell.trim());
-        if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) continue;
+        if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
         if (section === "inventory" && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
           sectionCondition = conditionFromName(filledCells[0]) || plan.condition;
+          countDiscard(diagnostics, "section_header");
           continue;
         }
         const record: Record<string, string> = {};
@@ -460,6 +469,7 @@ export function applyPlans(
         }
         if (plan.batteryAsPercent && record.batteryHealth) record.batteryHealth = normalizeBattery(record.batteryHealth);
         const rawAmount = record.amount ?? "";
+        const rawPrice = record.price ?? "";
         if (record.price != null) {
           const rowCurrency = normalizeCurrencyToken(record.currency) || amountCellCurrency(record.price) || plan.priceCurrency || storeCurrency;
           if (section === "inventory") record.currency = rowCurrency;
@@ -477,15 +487,26 @@ export function applyPlans(
           if (amount != null) record[field] = moneyString(amount);
         }
         const normalized = normalizeSectionRow(section, record, plan.priceCurrency, rawAmount, storeCurrency);
-        if (!normalized) continue;
-        if (section === "inventory" && (!normalized.model?.trim() || !normalized.price)) continue;
-        if (section === "trade-ins" && (!normalized.clientName?.trim() || !normalized.deviceReceived?.trim())) continue;
+        if (!normalized) {
+          const missingName = section === "clients" && !record.name?.trim();
+          const missingIdentity = section === "sales" && !record.clientName?.trim() && !record.device?.trim() && !record.productImei?.trim();
+          countDiscard(diagnostics, missingName ? "missing_name" : missingIdentity ? "missing_identity" : "invalid_row");
+          continue;
+        }
+        if (section === "inventory" && !normalized.model?.trim()) { countDiscard(diagnostics, "missing_model"); continue; }
+        if (section === "inventory" && !normalized.price) {
+          countDiscard(diagnostics, rawPrice.trim() ? "invalid_price" : "missing_price");
+          continue;
+        }
+        if (section === "trade-ins" && !normalized.clientName?.trim()) { countDiscard(diagnostics, "missing_client"); continue; }
+        if (section === "trade-ins" && !normalized.deviceReceived?.trim()) { countDiscard(diagnostics, "missing_device"); continue; }
         const filled = Object.values(normalized).some((value) => value.trim());
-        if (!filled) continue;
+        if (!filled) { countDiscard(diagnostics, "empty"); continue; }
         const quantity = section === "inventory" && !normalized.imei?.trim()
           ? inventoryQuantitySchema.parse(line[quantityIndex]?.trim() || 1)
           : 1;
         if (quantityIndex >= 0) inventoryQuantitySchema.parse(rows.length + quantity);
+        diagnostics.acceptedRows += 1;
         count += quantity;
         for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized });
       }
@@ -496,13 +517,30 @@ export function applyPlans(
       rows: count,
       condition: plan.condition,
       included: plan.include && count > 0,
+      diagnostics,
     });
   }
 
   const includedSheets = summaries.filter((sheet) => sheet.included);
+  const diagnostics = emptyDiagnostics();
+  const selected = summaries.filter((sheet) => plans.find((plan) => plan.name === sheet.name)?.include);
+  const missingSheets = selected.length ? selected : summaries;
+  for (const sheet of summaries) {
+    const item = sheet.diagnostics;
+    diagnostics.detectedRows += item.detectedRows;
+    diagnostics.acceptedRows += item.acceptedRows;
+    diagnostics.discardedRows += item.discardedRows;
+    for (const [reason, count] of Object.entries(item.discardedByReason)) {
+      const key = reason as keyof ImportDiagnostics["discardedByReason"];
+      diagnostics.discardedByReason[key] = (diagnostics.discardedByReason[key] ?? 0) + count;
+    }
+  }
+  diagnostics.missingRequiredFields = [...new Set(missingSheets.flatMap((sheet) => sheet.diagnostics.missingRequiredFields))];
+  diagnostics.missingRecommendedFields = [...new Set(missingSheets.flatMap((sheet) => sheet.diagnostics.missingRecommendedFields))];
   return {
     rows,
     plans,
+    diagnostics,
     summary: {
       sheetCount: includedSheets.length,
       rowCount: includedSheets.reduce((total, sheet) => total + sheet.rows, 0),

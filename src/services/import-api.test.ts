@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from './import-api';
+import { capture } from '../lib/posthog-analytics';
 import { fetchWithTimeout } from './fetch-with-timeout';
+
+vi.mock('../lib/posthog-analytics', () => ({ capture: vi.fn(), deviceAdded: vi.fn() }));
 
 vi.mock('./fetch-with-timeout', () => ({
   fetchWithTimeout: vi.fn(),
@@ -25,6 +28,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 describe('import-api', () => {
   beforeEach(() => {
     vi.mocked(fetchWithTimeout).mockReset();
+    vi.mocked(capture).mockClear();
     mockUser.getIdToken.mockResolvedValue('token-123');
     setApiBaseUrl('https://api.imanager.test/');
   });
@@ -40,6 +44,35 @@ describe('import-api', () => {
       headers: { 'x-im-device': 'desktop', Authorization: 'Bearer token-123', Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ text }),
     }, 190_000);
+  });
+
+
+  it('reports zero prepared rows and stable reasons from analyze/apply without sending cell values', async () => {
+    const diagnostic = { detectedRows: 2, acceptedRows: 0, discardedRows: 2, discardedByReason: { missing_price: 2 }, missingRequiredFields: ['price'], missingRecommendedFields: ['imei'] };
+    const result = { rows: [], plan: [], diagnostics: diagnostic, missingRequiredFields: ['price'], missingRecommendedFields: ['imei'] };
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => json(result));
+    const sheets = [{ name: 'private sheet name', rows: [['Modelo', 'Costo'], ['private cell', '420']] }];
+    await analyzeImport(mockUser, 'inventory', sheets);
+    await applyImportPlan(mockUser, 'inventory', sheets, []);
+    for (const phase of ['analyze', 'apply']) expect(capture).toHaveBeenCalledWith('import_analysis_completed', {
+      import_type: 'inventory', source: 'excel', phase,
+      rows_detected: 2, rows_prepared: 0, rows_imported: 0, rows_updated: 0, rows_discarded: 2,
+      discarded_by_reason: { missing_price: 2 }, missing_required_fields: ['price'], missing_recommended_fields: ['imei'],
+    });
+    expect(JSON.stringify(vi.mocked(capture).mock.calls)).not.toContain('private');
+  });
+
+  it('emits actual creates, updates and failures from persistence without forwarding errors or rows', async () => {
+    const result = { imported: 1, updated: 1, errors: [{ row: 3, imei: 'private-imei', message: 'private name' }],
+      diagnostics: { detectedRows: 3, acceptedRows: 2, discardedRows: 1, discardedByReason: { invalid_imei: 1 }, missingRequiredFields: [], missingRecommendedFields: [] } };
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(result));
+    await importBackendRows(mockUser, 'inventory', Array.from({ length: 3 }, () => ({ model: 'private model', imei: 'private-imei', price: 500 })));
+    expect(capture).toHaveBeenCalledWith('import_result', {
+      import_type: 'inventory', source: 'excel', phase: 'commit',
+      rows_detected: 3, rows_prepared: 3, rows_imported: 1, rows_updated: 1, rows_discarded: 1,
+      discarded_by_reason: { invalid_imei: 1 }, missing_required_fields: [], missing_recommended_fields: [],
+    });
+    expect(JSON.stringify(vi.mocked(capture).mock.calls)).not.toContain('private');
   });
 
   it('requires a configured backend url', async () => {

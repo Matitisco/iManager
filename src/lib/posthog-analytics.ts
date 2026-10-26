@@ -1,8 +1,11 @@
 import posthog from 'posthog-js';
+import { sanitizeImportEvent, type ImportEventProperties } from './import-diagnostics';
 import { ROUTE, tabFromHash } from '../desk/hash-route';
 import type { AppMembershipRole } from '../types/app-session';
 
 type EventProps = {
+  import_analysis_completed: ImportEventProperties;
+  import_result: ImportEventProperties;
   signup_completed: undefined;
   onboarding_step_completed: { step: 'store' | 'stock' };
   onboarding_step_skipped: { step: 'stock' };
@@ -123,6 +126,11 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
   try {
     if (disabled() || !initialized) return;
     const input = args[0];
+    if (name === 'import_analysis_completed' || name === 'import_result') {
+      const props = sanitizeImportEvent(input as ImportEventProperties);
+      if (props) posthog.capture(name, props);
+      return;
+    }
     let props: { rows?: number; step?: string } | undefined;
     if (name === 'excel_import_succeeded' || name === 'excel_import_failed') {
       const rows = input && 'rows' in input ? input.rows : 0;

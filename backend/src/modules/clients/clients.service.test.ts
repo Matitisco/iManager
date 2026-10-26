@@ -121,6 +121,7 @@ describe("clients.service", () => {
     const result = await importClients("store-1", [{ name: "  " }, { name: "Juan", dni: "30111222" }]);
 
     expect(result.errors).toEqual([{ row: 2, message: "Nombre requerido" }]);
+    expect(result.diagnostics).toMatchObject({ detectedRows: 2, acceptedRows: 1, discardedRows: 1, discardedByReason: { missing_name: 1 } });
     expect(result.imported).toBe(1);
   });
 

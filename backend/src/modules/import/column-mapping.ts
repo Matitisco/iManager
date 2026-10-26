@@ -12,6 +12,11 @@ export function normalizeHeader(value: string): string {
     .replace(/ñ/g, "n");
 }
 
+/** Purchase amounts are never sale prices, including compound headers. */
+export function isPurchaseHeader(header: string): boolean {
+  return /costo|cost|compra|comprado|purchase|buy|adquisicion/.test(normalizeHeader(header));
+}
+
 // Three passes: hints, exact key/label, then substring. A file column is used at most once.
 export function autoMap(
   headers: string[],
@@ -22,7 +27,7 @@ export function autoMap(
   const used = new Set<string>();
 
   const claim = (fieldKey: string, header: string) => {
-    if (mapping[fieldKey] || used.has(header)) return false;
+    if (mapping[fieldKey] || used.has(header) || ((fieldKey === "price" || fieldKey === "amount") && isPurchaseHeader(header))) return false;
     mapping[fieldKey] = header;
     used.add(header);
     return true;

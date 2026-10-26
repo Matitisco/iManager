@@ -219,6 +219,7 @@ describe("trade-ins.service", () => {
     }]);
 
     expect(result.errors).toEqual([{ row: 2, message: "El IMEI tiene 15 dígitos" }]);
+    expect(result.diagnostics).toMatchObject({ detectedRows: 1, acceptedRows: 0, discardedRows: 1, discardedByReason: { invalid_imei: 1 } });
     expect(prismaMock.tradeIn.create).not.toHaveBeenCalled();
   });
 

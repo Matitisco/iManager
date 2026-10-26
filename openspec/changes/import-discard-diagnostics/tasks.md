@@ -1,0 +1,4 @@
+- [x] Add shared diagnostics and instrument existing rejection paths without changing outcomes.
+- [x] Harden heuristic and both OpenAI mapping paths; derive explicit missing field keys.
+- [x] Add privacy-filtered PostHog events in non-rendering service code.
+- [x] Validate related unit tests, TypeScript and existing import E2E with at most two workers and a dedicated fake local DB.

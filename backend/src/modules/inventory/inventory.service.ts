@@ -1,3 +1,4 @@
+import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
 import { ruleReason } from '../public-catalog/rules.js';
@@ -964,6 +965,7 @@ export interface ImportRow {
 }
 
 export interface ImportResult {
+  diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
   errors: { row: number; imei: string; message: string }[];
@@ -1017,6 +1019,7 @@ export async function importInventoryItems(
 ): Promise<ImportResult> {
   const purchaseName = readPurchaseName(options ?? {});
   const result: ImportResult = { imported: 0, updated: 0, errors: [] };
+  const collector = importErrorCollector(result.errors);
   const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
   const defaultPurchasedAt = new Date();
   const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
@@ -1034,18 +1037,18 @@ export async function importInventoryItems(
     let rowCurrency = raw.currency ?? importedCurrency;
     const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt) : defaultPurchasedAt;
     if (!purchasedAt) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: "Fecha de compra inválida" });
+      collector.reject({ row: rowNum, imei: raw.imei, message: "Fecha de compra inválida" }, "invalid_row");
       continue;
     }
     const rowPurchaseName = raw.purchaseName === undefined ? purchaseName : readPurchaseName(raw);
     const purchaseKey = JSON.stringify([purchasedAt.toISOString().slice(0, 10), rowPurchaseName]);
 
     if (!raw.model?.trim()) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
+      collector.reject({ row: rowNum, imei: raw.imei, message: "Modelo vacío" }, "missing_model");
       continue;
     }
     if (raw.price == null || isNaN(raw.price)) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: "Precio inválido" });
+      collector.reject({ row: rowNum, imei: raw.imei, message: "Precio inválido" }, "invalid_price");
       continue;
     }
 
@@ -1053,35 +1056,35 @@ export async function importInventoryItems(
       ? lookupEnum(raw.condition, CONDITION_MAP)
       : "USADO";
     if (!condition) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` });
+      collector.reject({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` }, "invalid_row");
       continue;
     }
     const status = raw.status?.trim()
       ? lookupEnum(raw.status, STATUS_MAP)
       : "DISPONIBLE";
     if (!status) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: `Estado «${raw.status}» no existe` });
+      collector.reject({ row: rowNum, imei: raw.imei, message: `Estado «${raw.status}» no existe` }, "invalid_row");
       continue;
     }
 
     const parsedImei = parseOptionalImei(raw.imei);
     if (parsedImei.ok === false) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: parsedImei.message });
+      collector.reject({ row: rowNum, imei: raw.imei, message: parsedImei.message }, "invalid_imei");
       continue;
     }
     const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
     const parsedGrade = inventoryGrade(condition, raw.grade);
     if (parsedGrade.ok === false) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: parsedGrade.message });
+      collector.reject({ row: rowNum, imei: raw.imei, message: parsedGrade.message }, "invalid_row");
       continue;
     }
     const color = raw.color?.trim() || "";
     if (color.length > 50) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: "El color puede tener hasta 50 caracteres" });
+      collector.reject({ row: rowNum, imei: raw.imei, message: "El color puede tener hasta 50 caracteres" }, "invalid_row");
       continue;
     }
     if (!validBatteryHealth(normalizeBattery(raw.batteryHealth))) {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: BATTERY_HEALTH_MESSAGE });
+      collector.reject({ row: rowNum, imei: raw.imei, message: BATTERY_HEALTH_MESSAGE }, "invalid_row");
       continue;
     }
     const input = {
@@ -1110,11 +1113,11 @@ export async function importInventoryItems(
         rowCurrency = raw.currency ?? existingCurrency;
         const updatedGrade = inventoryGrade(raw.condition !== undefined ? input.condition : existing.condition, raw.grade ?? existing.grade);
         if (updatedGrade.ok === false) {
-          result.errors.push({ row: rowNum, imei: raw.imei, message: updatedGrade.message });
+          collector.reject({ row: rowNum, imei: raw.imei, message: updatedGrade.message }, "invalid_row");
           continue;
         }
         if (options?.lockPrice && raw.currency !== undefined && existingCurrency !== rowCurrency) {
-          result.errors.push({ row: rowNum, imei: raw.imei, message: "No tenés permiso para cambiar la moneda de este equipo" });
+          collector.reject({ row: rowNum, imei: raw.imei, message: "No tenés permiso para cambiar la moneda de este equipo" }, "invalid_row");
           continue;
         }
         const mergedFields = {
@@ -1188,7 +1191,7 @@ export async function importInventoryItems(
         result.imported++;
       }
     } catch {
-      result.errors.push({ row: rowNum, imei: raw.imei, message: "Error al guardar" });
+      collector.reject({ row: rowNum, imei: raw.imei, message: "Error al guardar" }, "save_error");
     }
   }
 
@@ -1197,6 +1200,6 @@ export async function importInventoryItems(
       await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt);
     }
   }
-  return result;
+  return { ...result, diagnostics: collector.finish(rows.length, result.imported + result.updated) };
 }
 
