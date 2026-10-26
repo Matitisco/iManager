@@ -1,0 +1,4 @@
+- [x] Regresiones rojas de API y UI
+- [x] Corregir transición y control existente
+- [x] Tests relacionados, TypeScript/lint y capturas 1440/390
+- [x] Preparar entrega para PR pendiente de revisión, sin merge; seguimiento de CI en estado-gestion.md

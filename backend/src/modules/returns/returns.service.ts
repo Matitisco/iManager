@@ -480,8 +480,9 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
     if (!current || current.deletedAt || current.status === "ANULADO") return null;
-    if (current.status !== "EN_PROVEEDOR") throw new DomainError("Este reclamo no está en el proveedor.");
-    if (current.rmaStatus === "RECIBIDO" || current.rmaStatus === "RECHAZADO") {
+    const rejectedAtSupplier = current.status === "RESUELTO" && current.destination === "PROVEEDOR" && current.rmaStatus === "RECHAZADO";
+    if (current.status !== "EN_PROVEEDOR" && !rejectedAtSupplier) throw new DomainError("Este reclamo no está en el proveedor.");
+    if (current.rmaStatus === "RECIBIDO" || (current.rmaStatus === "RECHAZADO" && (!rejectedAtSupplier || input.status !== "RECIBIDO"))) {
       throw new DomainError("El RMA con el proveedor ya terminó.", 409);
     }
     if (input.status === current.rmaStatus) throw new DomainError("El RMA ya está en ese estado.");
@@ -501,7 +502,7 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
         await moveStock(tx, item.id, stockStatus);
       }
       status = "RESUELTO";
-      resolvedAt = new Date();
+      resolvedAt = current.resolvedAt ?? new Date();
     }
     if (input.status === "RECHAZADO") {
       status = "RESUELTO";
