@@ -104,7 +104,7 @@ export function normalizeSectionRow(
       if (/^\d{5}(?:\.\d+)?$/.test(date) && Number(date) >= 20000 && Number(date) <= 80000) {
         date = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(date)) * 86400000).toISOString().slice(0, 10);
       }
-      next.purchasedAt = normalizeImportDate(date);
+      next.purchasedAt = /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : normalizeImportDate(date);
     }
     return next;
   }
