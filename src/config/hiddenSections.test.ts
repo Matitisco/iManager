@@ -4,7 +4,7 @@ import { HIDDEN_SECTIONS, hiddenPathFallback, isPathHidden, isSectionHidden } fr
 describe('temporary section visibility', () => {
   it('keeps the central switch readonly and recognizes internal ids', () => {
     expect(Object.isFrozen(HIDDEN_SECTIONS)).toBe(true);
-    for (const id of ['gastos', 'expenses', 'caja', 'cajas', 'cash', 'cuenta-corriente', 'cuenta', 'seguimientos', 'followups']) {
+    for (const id of ['caja', 'cajas', 'cash', 'cuenta-corriente', 'cuenta', 'seguimientos', 'followups']) {
       expect(isSectionHidden(id)).toBe(true);
     }
     expect(isSectionHidden('clients')).toBe(false);
@@ -12,7 +12,7 @@ describe('temporary section visibility', () => {
   });
 
   it.each([
-    ['#/finanzas/gastos', '#/dashboard'], ['#/gastos?from=clients', '#/dashboard'], ['#cash', '#/dashboard'],
+    ['#cash', '#/dashboard'],
     ['/finanzas/cajas/123?tab=movimientos', '#/dashboard'],
     ['#/atencion/seguimientos', '#/atencion/clientes'],
     ['#/clientes/cuenta', '#/atencion/clientes'],
@@ -24,7 +24,7 @@ describe('temporary section visibility', () => {
     expect(hiddenPathFallback(path)).toBe(fallback);
   });
 
-  it.each(['#/cuenta/configuracion/equipo/cash', '#/cuenta/notificaciones', '#/atencion/clientes', '#/comercial/ventas', '#/stock/equipos', '#/analisis/reportes', '#/finanzas/proveedores', '#/gastos-extra'])('preserves %s', path => {
+  it.each(['#/finanzas/gastos', '#/expenses', '#/gastos?from=clients', '#/cuenta/configuracion/equipo/cash', '#/cuenta/notificaciones', '#/atencion/clientes', '#/comercial/ventas', '#/stock/equipos', '#/analisis/reportes', '#/finanzas/proveedores', '#/gastos-extra'])('preserves %s', path => {
     expect(isPathHidden(path)).toBe(false);
     expect(hiddenPathFallback(path)).toBeNull();
   });

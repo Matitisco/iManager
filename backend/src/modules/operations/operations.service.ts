@@ -232,6 +232,8 @@ function serializeTrade(trade: TradeForResponse) {
     draftAmount: trade.draftAmount ? toNum(trade.draftAmount) : null,
     draftPaymentMethod: trade.draftPaymentMethod ?? null,
     draftPaymentStatus: trade.draftPaymentStatus ?? null,
+    draftSellerMemberId: trade.draftSellerMemberId ?? null,
+    draftWarrantyDays: trade.draftWarrantyDays ?? null,
     voidedAt: trade.voidedAt?.toISOString() ?? null,
     voidedBy: trade.voidedBy ?? null,
     voidReason: trade.voidReason ?? null,
@@ -556,6 +558,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         if (existingSale) return replaySaleResult(tx, storeId, existingSale, "Canje recuperado");
         return { tradeIn: serializeTrade(prior), inventory: [], clients: [], notifications: [], summary: "Borrador de canje recuperado" };
       }
+      await assertSeller(tx, storeId, input.sellerMemberId);
       const date = parseArDateOr(input.date);
       const draftClient = input.clientId ? await tx.client.findFirst({ where: { id: input.clientId, storeId }, select: { id: true, name: true } }) : null;
       if (input.clientId && !draftClient) throw new OperationError("Client not found", 404);
@@ -594,6 +597,8 @@ export async function createOperation(storeId: string, source: OperationSource, 
         draftAmount: input.amount === undefined ? null : dec(input.amount),
         draftPaymentMethod: input.paymentMethod ?? null,
         draftPaymentStatus: input.status ?? null,
+        draftSellerMemberId: input.sellerMemberId ?? null,
+        draftWarrantyDays: input.warrantyDays ?? null,
       } });
       const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
         action: "draft-created",
@@ -908,14 +913,15 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       previousSaleStatus: null,
       ...salePricePatch(product.price, outgoingAmount, currency),
     } });
-    await assertSeller(tx, storeId, input.sellerMemberId);
+    const sellerMemberId = input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId;
+    await assertSeller(tx, storeId, sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-    const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays, product?.condition ?? input.unlistedEquipment?.condition);
+    const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays ?? trade.draftWarrantyDays ?? undefined, product?.condition ?? input.unlistedEquipment?.condition);
     let sale = await tx.sale.create({ data: {
       storeId,
       saleNumber,
-      sellerMemberId: input.sellerMemberId ?? null,
+      sellerMemberId: sellerMemberId ?? null,
       registeredByUserId: actor?.userId ?? null,
       exchangeRate,
       clientId: client.id,
@@ -1072,6 +1078,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     const collecting = sale.status === "PENDIENTE" && nextStatus === "COMPLETADA";
     const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: sale.status, hasClient: Boolean(nextClient) });
     if (rise.error) throw new OperationError(rise.error, 409);
+    if (rise.reopen) nextStatus = "PENDIENTE";
     let archivedIncoming: InventoryItem | null = null;
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
@@ -1265,6 +1272,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
       if (!trade) throw new OperationError("Trade-in not found", 404);
       if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje cambio mientras se editaba", 409);
+      await assertSeller(tx, storeId, input.sellerMemberId);
       await assertCategory(tx, storeId, "tradeins", input.categoryId);
       if (input.saleCategoryId !== undefined) await assertCategory(tx, storeId, "sales", input.saleCategoryId);
       const typedNameChanged = typeof input.clientName === "string"
@@ -1302,6 +1310,8 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftPaymentMethod: input.paymentMethod ?? trade.draftPaymentMethod, draftPaymentStatus: input.status ?? trade.draftPaymentStatus,
         categoryId: input.categoryId === undefined ? trade.categoryId : input.categoryId,
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
+        draftSellerMemberId: input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId,
+        draftWarrantyDays: input.warrantyDays ?? trade.draftWarrantyDays,
         dateLabel: input.date ? formatArDate(parseArDateOr(input.date)) : trade.dateLabel, tradeAt: input.date ? parseArDateOr(input.date) : trade.tradeAt,
       } });
       const labelCurrency = await copyCurrency(tx, storeId, trade.currency);

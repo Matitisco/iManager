@@ -1,3 +1,4 @@
+import { identify as identifyPostHog, reset as resetPostHog } from '../lib/posthog-analytics';
 import { setTacReportUser } from '../lib/report-unknown-tac';
 import { createRefreshGate } from '../lib/list-sync';
 import { authUserView, sameAuthIdentity } from '../lib/auth-identity';
@@ -273,6 +274,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     const unsubscribe = authAdapter.onAuthStateChanged((currentUser) => {
       if (!currentUser || firebaseUser.current?.uid !== currentUser.uid) clearDashboardCache();
+      if (!currentUser || (firebaseUser.current && firebaseUser.current.uid !== currentUser.uid)) resetPostHog();
       firebaseUser.current = currentUser;
       setAnalyticsUser(currentUser);
       setTacReportUser(currentUser);
@@ -368,6 +370,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
     };
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (user && sessionConfirmed && backendStatus === 'ready' && appSession?.user.firebaseUid === user.uid) {
+      identifyPostHog(appSession.user.id, appSession.store?.id ?? null, appSession.membership?.role ?? null, {
+        email: appSession.user.email,
+        name: appSession.user.displayName,
+        storeName: appSession.store?.name ?? null,
+      });
+    }
+  }, [user?.uid, sessionConfirmed, backendStatus, appSession?.user.id, appSession?.store?.id, appSession?.membership?.role, appSession?.user.email, appSession?.user.displayName, appSession?.store?.name]);
 
   const login = async () => {
     try {

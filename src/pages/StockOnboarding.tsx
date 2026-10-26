@@ -1,3 +1,4 @@
+import { capture } from '../lib/posthog-analytics';
 import { track, rowBucket } from '../lib/analytics';
 import { parseImportNumber } from "../lib/import-number";
 import { useEffect, useRef, useState } from "react";
@@ -132,6 +133,7 @@ function StockFlow({
     }
     void reloadInventory().catch(() => console.warn('No se pudo actualizar el inventario al salir de stock.'));
     void refreshGettingStarted();
+    capture(completedVia === 'skip' ? 'onboarding_step_skipped' : 'onboarding_step_completed', { step: 'stock' });
     onFinish(destination);
   };
   const run = async (action: () => Promise<void>) => {
@@ -233,7 +235,7 @@ function StockFlow({
     if (!user) return;
     const payload = onboardingPayload(rows);
     let result: Awaited<ReturnType<typeof importBackendRows>>;
-    try { result = await importBackendRows(user, "inventory", payload); }
+    try { result = await importBackendRows(user, "inventory", payload, undefined, "text"); }
     catch (cause) { importFinished('paste', payload.length, 1); throw cause; }
     importFinished('paste', result.imported + result.updated, result.errors.length);
     if (result.errors.length) {

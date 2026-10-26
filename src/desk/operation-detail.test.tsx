@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Sale, TradeIn } from '../types';
 import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
+import { ExchangeProvider } from './exchange';
 import { ReportsScreen } from './screens/ReportsScreen';
 import type { Overlay } from './types';
 import { fetchHistory, type HistoryEvent } from '../services/history-api';
 import { ACTION_ERROR_MESSAGE, NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 
 const paymentsApi = vi.hoisted(() => ({
-  fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null }>),
+  fetchClientPayments: vi.fn(async () => [] as Array<{ id: string; amount: number; method: string; paidAt: string; kind?: string; saleId?: string | null; currency?: string | null }>),
 }));
 
 const accountsApi = vi.hoisted(() => ({
@@ -633,6 +634,39 @@ describe('operation detail', () => {
     const dialog = screen.getByRole('dialog', { name: 'V-0004' });
     expect(within(dialog).getByText('Sin pago')).toBeInTheDocument();
     expect(within(dialog).getByText('Deuda $ 70')).toBeInTheDocument();
+  });
+
+  it('muestra las cuotas y el primer cobro con centavos que suman el total', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    ctx.tradeIns = [];
+    ctx.sales = [sale({ status: 'PENDIENTE', amount: 1000, amountCurrency: 'USD', openBalance: 733.34, tradeInId: '', clientId: 'c1' })];
+    accountsApi.fetchSaleAccount.mockResolvedValue({ due: 733.34,
+      installments: [
+        { sequence: 1, dueDate: '2026-11-11', status: 'PAGADA', amount: 366.66, paidAmount: 366.66 },
+        { sequence: 2, dueDate: '2026-12-11', status: 'PENDIENTE', amount: 366.66, paidAmount: 0 },
+        { sequence: 3, dueDate: '2027-01-11', status: 'PENDIENTE', amount: 366.68, paidAmount: 0 },
+      ], tenders: [{ id: 'pago', amount: 366.66, currency: 'USD', method: 'EFECTIVO', role: 'COBRO' }],
+    });
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1200, manualSell: 1250 }}>
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}><DeskOverlays overlay={{ type: 'sale', id: 's1' }} /></DeskProvider>
+    </ExchangeProvider>);
+    const panel = await screen.findByRole('region', { name: 'Cuotas y pagos' });
+    expect(within(panel).getAllByText('US$ 366,66')).toHaveLength(2);
+    expect(within(panel).getByText('US$ 366,68')).toBeInTheDocument();
+    expect(panel).not.toHaveTextContent('US$ 367');
+    expect(screen.getByText('Deuda US$ 733,34')).toBeInTheDocument();
+  });
+
+  it('conserva centavos en el saldo y los pagos de la ficha del cliente', async () => {
+    ctx.user = { getIdToken: async () => 'token' };
+    ctx.sales = []; ctx.tradeIns = [];
+    ctx.clients = [{ id: 'c1', name: 'Mateo · Ejemplo', pendingBalance: 733.34, balanceCurrency: 'USD' }];
+    paymentsApi.fetchClientPayments.mockResolvedValue([{ id: 'pago', amount: 366.66, method: 'EFECTIVO', paidAt: '2026-10-26', currency: 'USD' }]);
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1200, manualSell: 1250 }}>
+      <DeskProvider value={{ tab: 'clients', go: vi.fn(), open, openRecord: vi.fn(), close, toast, isStaff: false }}><DeskOverlays overlay={{ type: 'cl', id: 'c1' }} /></DeskProvider>
+    </ExchangeProvider>);
+    expect(screen.getByText('US$ 733,34')).toBeInTheDocument();
+    expect(await screen.findByText('US$ 366,66')).toBeInTheDocument();
   });
 
   it('uses the sale account due when the loaded balance is still the old debt', async () => {

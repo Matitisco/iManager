@@ -27,6 +27,10 @@ function group(role: string | null | undefined, stored: string[] | null | undefi
 }
 
 describe('navegación por rol', () => {
+  it('habilita Gastos solo para el dueño', () => {
+    expect(sectionAllowed('expenses', null, 'OWNER')).toBe(true);
+    for (const role of ['MANAGER', 'STAFF']) expect(sectionAllowed('expenses', ['expenses'], role)).toBe(false);
+  });
   it('omits the section row when only Clientes remains and leaves no hidden-only group', () => {
     expect(pageTabs('clients', ['clients'], 'STAFF')).toEqual([]);
     expect(group('STAFF', ['cash'], 'finanzas')).toBeNull();
@@ -39,7 +43,7 @@ describe('navegación por rol', () => {
     expect(group(null, null, 'comercial')).toEqual(['sales', 'tradeins', 'returns']);
     expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'stockCount', 'publicCatalog']);
     expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
-    expect(group('OWNER', null, 'finanzas')).toEqual(['suppliers']);
+    expect(group('OWNER', null, 'finanzas')).toEqual(['expenses', 'suppliers']);
     expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'patterns', 'commissions', 'history', 'periodicSummary']);
     expect(nav.cuenta.map((item) => item.label)).toEqual(['Notificaciones', 'Ayuda', 'Configuración']);
     const labels = nav.main.flatMap((block) => block.kind === 'group' ? [block.label, ...block.items.map((item) => item.label)] : [block.item.label]);

@@ -94,7 +94,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
   const [amount, setAmount] = useState(preset?.resumeAmount ? preset.resumeAmount : (seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : '')));
   if (preset?.resumeAmount) dirty.current.add('amount');
-  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? '');
+  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? '');
   const [sellerError, setSellerError] = useState('');
   useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
@@ -176,6 +176,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
     }
     if (currentTrade) {
+      if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftSellerMemberId ?? ''));
       update('hasTrade', () => setHasTrade(true));
       update('clientId', () => setClientId(currentTrade.clientId || ''));
       update('buyer', () => setBuyer(currentTrade.clientName?.trim() || clients.find((client) => client.id === currentTrade.clientId)?.name || ''));
@@ -247,9 +248,13 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       setWarrantyDays(currentSale.warrantyDays == null ? '' : String(currentSale.warrantyDays));
       return;
     }
+    if (currentTrade?.draftWarrantyDays != null) {
+      setWarrantyDays(String(currentTrade.draftWarrantyDays));
+      return;
+    }
     const condition = selectedProduct?.condition || outgoingCondition;
     setWarrantyDays(String(defaultSaleWarrantyDays(condition, { usedWarrantyDays, sealedWarrantyDays })));
-  }, [currentSale, selectedProduct?.id, selectedProduct?.condition, outgoingCondition, usedWarrantyDays, sealedWarrantyDays]);
+  }, [currentSale, currentTrade?.draftWarrantyDays, selectedProduct?.id, selectedProduct?.condition, outgoingCondition, usedWarrantyDays, sealedWarrantyDays]);
   const catalogItems: (OperationProductOption | Product)[] = [
     ...productOptions,
     ...(linkedProduct && !productOptions.some((item) => item.id === linkedProduct.id) ? [linkedProduct] : []),
@@ -712,7 +717,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" />}</b></div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
-      <SaleAccountPanel saleId={sale.id} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
+      <SaleAccountPanel saleId={sale.id} currency={sale.amountCurrency} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">

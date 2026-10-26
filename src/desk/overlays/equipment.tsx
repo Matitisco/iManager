@@ -1,3 +1,5 @@
+import { parseBatteryHealth, BATTERY_HEALTH_MESSAGE } from '../../lib/battery-health';
+import { formatBatteryDisplay } from '../../utils/inventory';
 import { equipmentMoney, parseEquipmentMoney as parseMoney } from '../equipment-money';
 import { DeskSelect } from '../select';
 import { Skeleton, FieldSkeleton } from '../../components/Skeleton';
@@ -11,7 +13,7 @@ import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { frequentModels } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Product } from '../../types';
-import { batteryPercent, conditionLabel, equipmentTitle, isInStock, formatImei } from '../format';
+import { conditionLabel, equipmentTitle, isInStock, formatImei } from '../format';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -38,9 +40,7 @@ import { deviceCoverageLines } from '../../lib/warranty';
 import { CoverageBlock } from '../warranty';
 
 function batteryText(value: string) {
-  if (!value.trim()) return '-';
-  if (/\d+\s*-\s*\d+/.test(value)) return value.includes('%') ? value : `${value}%`;
-  return `${batteryPercent(value)}%`;
+  return value.trim() ? formatBatteryDisplay(value) : '-';
 }
 
 export function EquipmentDetail({ id }: { id: string }) {
@@ -218,7 +218,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       <Segs options={capacityOptions} value={capacity} onChange={setCapacity} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_CAPACITY') : undefined} />
       <div className="frow">
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
-        <Field label="Batería %"><input value={battery} inputMode="numeric" placeholder="Ej. 87" onChange={(event) => setBattery(event.target.value.replace(/\D/g, '').slice(0, 3))} /></Field>
+        <Field label="Batería %" error={bad.battery}><input value={battery} inputMode="text" placeholder="Ej. 87" onChange={(event) => { setBattery(event.target.value); clearBad(setBad, 'battery'); }} /></Field>
       </div>
       <div className="scan-block">
         <div className="scan-imei">
@@ -278,6 +278,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         if (!model.trim()) next.model = 'Completá este dato';
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
         if (color.trim().length > INPUT_LIMITS.color) next.color = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
+        if (parseBatteryHealth(battery) === null) next.battery = BATTERY_HEALTH_MESSAGE;
         if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
         if (seeCosts && cost.includes('-')) next.cost = 'El costo no puede ser negativo';
         if (!lockPrice && price.includes('-')) next.price = 'El precio no puede ser negativo';
@@ -299,7 +300,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           color: color.trim(),
           condition,
           grade: isUsedCondition(condition) ? grade : '',
-          batteryHealth: current && battery === current.batteryHealth.replace(/%$/, '') ? current.batteryHealth : battery ? `${battery}%` : '',
+          batteryHealth: current && battery === current.batteryHealth.replace(/%$/, '') ? current.batteryHealth : parseBatteryHealth(battery) ?? '',
           cost: current && 'cost' in priced ? priced.cost : seeCosts ? parseMoney(cost) : 0,
           price: priced.amounts[0]?.amount ?? parseMoney(price),
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),

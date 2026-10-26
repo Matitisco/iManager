@@ -1,3 +1,4 @@
+import { identify as identifyPostHog, reset as resetPostHog } from '../lib/posthog-analytics';
 import type { ReactNode } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -21,6 +22,7 @@ const auth = vi.hoisted(() => ({ listener: null as null | ((user: AuthUserLike |
 vi.mock('../services/auth-adapter', () => ({ getAuthAdapter: () => auth.adapter }));
 vi.mock('../lib/list-sync', async importOriginal => ({ ...await importOriginal<typeof import('../lib/list-sync')>(), publishListMutation: vi.fn() }));
 vi.mock('../lib/analytics', () => ({ setAnalyticsUser: vi.fn() }));
+vi.mock('../lib/posthog-analytics', () => ({ identify: vi.fn(), reset: vi.fn() }));
 vi.mock('../hooks/useBillingState', () => ({ useBillingState: () => ({}) }));
 vi.mock('./cash-state', () => ({ useCashState: () => ({}) }));
 vi.mock('./ledger-state', () => ({ useLedgerState: () => ({}) }));
@@ -292,4 +294,18 @@ it('retains a structurally equal refreshed backend session and billing data', as
   await act(() => result.current.reloadSession());
   expect(result.current.backendStatus).toBe('ready');
   expect(result.current.appSession).toBe(before);
+});
+
+it('identifies only the confirmed business session, refreshes store/role and resets on logout', async () => {
+  const { result } = await mount();
+  expect(identifyPostHog).toHaveBeenCalledWith('u', 'store', 'OWNER', expect.any(Object));
+  await act(async () => auth.listener?.(auth.adapter.getCurrentUser()));
+  vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'ready', session: {
+    ...session, store: { ...session.store!, id: 'other-store' }, membership: { role: 'STAFF', isDefault: false },
+  }, message: null });
+  await act(() => result.current.reloadSession());
+  expect(identifyPostHog).toHaveBeenLastCalledWith('u', 'other-store', 'STAFF', expect.any(Object));
+  await act(async () => auth.listener?.(null));
+  expect(resetPostHog).toHaveBeenCalledOnce();
+  expect(result.current.user).toBeNull();
 });

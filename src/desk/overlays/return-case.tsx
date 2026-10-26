@@ -161,7 +161,8 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
   const voided = current ? isVoidRow(current) : false;
   const unresolved = current && !voided && !['RESUELTO', 'EN_PROVEEDOR'].includes(current.status);
   const resolving = unresolved && status === 'RESUELTO' && canManageSensitive;
-  const supplier = current?.status === 'EN_PROVEEDOR' && !voided;
+  const rejectedAtSupplier = current.status === 'RESUELTO' && current.destination === 'PROVEEDOR' && current.rmaStatus === 'RECHAZADO';
+  const supplier = (current.status === 'EN_PROVEEDOR' || rejectedAtSupplier) && !voided;
   const destinations = resolution === 'REPARACION'
     ? [{ id: 'CLIENTE', label: 'Con el cliente' }, { id: 'PROVEEDOR', label: 'Al proveedor' }]
     : [{ id: 'STOCK', label: 'Al stock' }, { id: 'PROVEEDOR', label: 'Al proveedor' }];
@@ -210,7 +211,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
       ? <Actions busyLabel="Restaurar" primary="Restaurar" onPrimary={() => { void restore(); }} onSecondary={close} busy={busy} />
       : <div className="sacts one"><button className="btn2 s" type="button" onClick={close}>Cerrar</button></div>
       : editing ? <Actions busyLabel="Guardar" primary="Guardar" onPrimary={() => { void save(); }} onSecondary={close} busy={busy} />
-        : <Actions secondary="Cerrar" primary={current.status === 'RESUELTO' ? 'Agregar nota' : 'Cambiar estado'} onSecondary={close} onPrimary={() => setEditing(true)} />}>
+        : <Actions secondary="Cerrar" primary={current.status === 'RESUELTO' && !supplier ? 'Agregar nota' : 'Cambiar estado'} onSecondary={close} onPrimary={() => setEditing(true)} />}>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
     {!editing ? <ReturnDetailContent current={current} historyButton={historyButton} /> : <>
     <ReturnSummary current={current} reason />
@@ -218,7 +219,9 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
       { id: 'ABIERTO', label: 'Abierto' }, { id: 'EN_DIAGNOSTICO', label: 'En diagnóstico' },
       ...(canManageSensitive ? [{ id: 'RESUELTO', label: 'Resuelto' }] : []),
     ]} /> : <Pill status={current.rmaStatus || current.status} />}
-    {supplier && canManageSensitive ? <Choices label="RMA con el proveedor" value={rma} onChange={setRma} disabled={busy} options={[
+    {supplier && canManageSensitive ? <Choices label="RMA con el proveedor" value={rma} onChange={setRma} disabled={busy} options={rejectedAtSupplier ? [
+      { id: 'RECHAZADO', label: 'Rechazado' }, { id: 'RECIBIDO', label: 'Recibido' },
+    ] : [
       { id: 'ENVIADO', label: 'Enviado' }, { id: 'EN_REVISION', label: 'En revisión' }, { id: 'APROBADO', label: 'Aprobado' },
       { id: 'RECHAZADO', label: 'Rechazado' }, { id: 'RECIBIDO', label: 'Recibido' },
     ]} /> : null}

@@ -1,0 +1,3 @@
+- [x] Reproducir con test rojo
+- [x] Corregir causa y verificar tests relacionados y typecheck
+- [x] Publicar PR y registrar resultado

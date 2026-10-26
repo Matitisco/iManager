@@ -30,6 +30,18 @@ beforeEach(() => {
   for (const fn of [ctx.updateReturn, ctx.resolveReturn, ctx.advanceRma, ctx.archiveReturn]) fn.mockResolvedValue(claim);
 });
 describe('cambio de estado de reclamo', () => {
+  it('permite recibir un RMA rechazado sin reabrir la resolución', async () => {
+    ctx.returns = [{ ...claim, status: 'RESUELTO', destination: 'PROVEEDOR', rmaStatus: 'RECHAZADO', resolution: 'CAMBIO' }];
+    mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
+    expect(screen.queryByRole('button', { name: 'Aprobado' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Recibido' }));
+    expect(screen.getByRole('button', { name: 'En revisión' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(ctx.advanceRma).toHaveBeenCalledWith('claim', 'RECIBIDO', 'EN_REVISION', null));
+    expect(ctx.resolveReturn).not.toHaveBeenCalled();
+  });
+
   it('saves a nested claim and closes only its local sheet', async () => {
     const onClose = vi.fn();
     mount(<ReturnDetail id="claim" onClose={onClose} overlayClassName="subov" />);

@@ -20,6 +20,8 @@ const context = vi.hoisted(() => ({
 }));
 const analytics = vi.hoisted(() => ({ track: vi.fn(), rowBucket: (n: number) => n <= 1 ? '1' : '2-10' }));
 const samples = vi.hoisted(() => ({ createSampleStock: vi.fn(async () => undefined) }));
+const posthog = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock('../lib/posthog-analytics', () => posthog);
 vi.mock('../lib/analytics', () => analytics);
 vi.mock('../services/getting-started-api', () => samples);
 const api = vi.hoisted(() => ({
@@ -294,5 +296,13 @@ describe('salida resiliente de stock', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Importar prueba' }));
     await waitFor(() => expect(finish).toHaveBeenCalledWith('inventory'));
     expect(api.importBackendRows).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PostHog onboarding completion', () => {
+  it('reports skipping stock without payload data', async () => {
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Saltar por ahora' }));
+    await waitFor(() => expect(posthog.capture).toHaveBeenCalledExactlyOnceWith('onboarding_step_skipped', { step: 'stock' }));
   });
 });

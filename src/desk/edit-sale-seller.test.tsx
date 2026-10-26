@@ -12,7 +12,7 @@ const ctx = vi.hoisted(() => ({
   operationOptions: {}, operationDrafts: [],
   commissionSellers: [{ id: 'seller', name: 'Ana Vendedora', role: 'STAFF' }],
   loadOperationOptions: vi.fn(), fetchSaleOperation: vi.fn(), fetchTradeOperation: vi.fn(),
-  loadCommissionSellers: vi.fn(), updateSaleOperation: vi.fn(),
+  loadCommissionSellers: vi.fn(), updateSaleOperation: vi.fn(), confirmTradeOperation: vi.fn(),
 }));
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 const close = vi.fn();
@@ -126,5 +126,24 @@ describe('sale seller editing', () => {
     expect(scroll.mock.contexts).toContain(notice);
     expect(close).not.toHaveBeenCalled();
     delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView;
+  });
+});
+
+describe('retomar canjes pendientes', () => {
+  it.each([90, 0])('recupera vendedor y garantía %s y los envía al confirmar', async warrantyDays => {
+    ctx.sales = [];
+    ctx.inventory[0].status = 'DISPONIBLE';
+    ctx.tradeIns = [{ id: 'trade', date: original.date, clientId: 'client', clientName: 'Ana Pérez',
+      deviceReceived: 'iPhone 11 ficticio', deviceReceivedImei: '', takeValue: 300,
+      currency: 'USD', deviceGiven: original.deviceLabel!, differencePaid: 0, status: 'PENDIENTE',
+      confirmationStatus: 'PENDING', draftProductId: 'product', draftAmount: 675,
+      draftSellerMemberId: 'seller', draftWarrantyDays: warrantyDays }];
+    ctx.confirmTradeOperation.mockResolvedValue({ summary: 'Canje confirmado' });
+    mount({ type: 'edit-cj', id: 'trade' }, 'USD');
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Ana Vendedora');
+    if (warrantyDays === 0) expect(screen.getByLabelText('Días de garantía')).toHaveValue('0');
+    else expect(screen.getByRole('button', { name: '90 días' })).toHaveClass('on');
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar canje' }));
+    await waitFor(() => expect(ctx.confirmTradeOperation).toHaveBeenCalledWith('tradeins', 'trade', expect.objectContaining({ sellerMemberId: 'seller', warrantyDays })));
   });
 });

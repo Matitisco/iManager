@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInputMoney, formatMoneyInput, parseMoney } from './format';
+import { formatInputMoney, formatMoney, formatMoneyInput, parseMoney } from './format';
 import { commitAmount, commitGroup } from './money';
 
 describe('QA 04: decimal money input', () => {
@@ -23,5 +23,17 @@ describe('QA 04: decimal money input', () => {
   });
   it('retains a stored decimal amount when unchanged', () => {
     expect(commitGroup([{ typed: 649.5, original: 649.5, currency: 'USD' }], 'USD', 1250).amounts[0].amount).toBe(649.5);
+  });
+});
+
+describe('QA 05: centavos de cuotas y cobros', () => {
+  it.each(['USD', 'ARS'] as const)('mantiene centavos sin alterar la presentación predeterminada en %s', currency => {
+    const prefix = currency === 'USD' ? 'US$' : '$';
+    expect(formatMoney(366.66, currency, 2)).toBe(`${prefix} 366,66`);
+    expect(formatMoney(366.68, currency, 2)).toBe(`${prefix} 366,68`);
+    expect(formatMoney(733.34, currency, 2)).toBe(`${prefix} 733,34`);
+    expect(formatMoney(-10.5, currency, 2)).toBe(`${prefix} -10,5`);
+    expect(formatMoney(366.66, currency)).toBe(`${prefix} 367`);
+    expect(formatMoney(100, currency, 2)).toBe(`${prefix} 100`);
   });
 });

@@ -21,7 +21,7 @@ function useReload() {
   };
 }
 
-export function SaleAccountPanel({ saleId, revision = '', onDue }: { saleId: string; revision?: string; onDue?: (due: number) => void }) {
+export function SaleAccountPanel({ saleId, currency, revision = '', onDue }: { saleId: string; currency?: string | null; revision?: string; onDue?: (due: number) => void }) {
   const { user } = useAppContext();
   const money = useMoney();
   const [account, setAccount] = useState<SaleAccount | null>(null);
@@ -46,9 +46,9 @@ export function SaleAccountPanel({ saleId, revision = '', onDue }: { saleId: str
   if (!account || (!account.installments.length && !account.tenders.length)) return null;
   return (
     <section className="acct-plan" aria-label="Cuotas y pagos">
-      {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span><b>{money.show(tender.amount, tender.currency)}</b></div>) : null}
-      {account.plan ? <p className="eqs-note">{account.plan.count} cuotas {account.plan.frequency.toLowerCase()} · primer vencimiento {account.plan.firstDueDate.split('-').reverse().join('/')}{account.plan.surcharge ? ` · recargo ${money.show(account.plan.surcharge, null)}` : ''}</p> : null}
-      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {(item.dueDate || '').split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span><b>{money.show(Math.max(0, item.amount - item.paidAmount), null)}</b></div>)}
+      {account.tenders.length ? account.tenders.map((tender) => <div className="kv" key={tender.id}><span>{tender.role === 'VUELTO' ? 'Vuelto' : 'Pago'} · {paymentLabel(tender.method)}</span><b>{money.show(tender.amount, tender.currency, 2)}</b></div>) : null}
+      {account.plan ? <p className="eqs-note">{account.plan.count} cuotas {account.plan.frequency.toLowerCase()} · primer vencimiento {account.plan.firstDueDate.split('-').reverse().join('/')}{account.plan.surcharge ? ` · recargo ${money.show(account.plan.surcharge, currency, 2)}` : ''}</p> : null}
+      {account.installments.map((item) => <div className="kv" key={item.sequence}><span>Cuota {item.sequence} · {(item.dueDate || '').split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status}</span><b>{money.show(Math.max(0, item.amount - item.paidAmount), currency, 2)}</b></div>)}
       <p className="eqs-note">El pago se aplica primero a la cuota impaga más antigua.</p>
     </section>
   );
@@ -93,14 +93,14 @@ export function AccountCurrent({ query }: { query: string }) {
                 </div>
                 <strong data-testid={`account-balance-${row.clientId}`}>{accountHeadline(row.pendingBalance - (row.creditBalance ?? 0), row.currency, money.show)}</strong>
               </div>
-              {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency)}. Ese saldo no se suma al de la cuenta.</p> : null}
-              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency)}</p> : null}
+              {row.repairBalance > 0 ? <p className="eqs-note">Reparaciones {money.show(row.repairBalance, row.currency, 2)}. Ese saldo no se suma al de la cuenta.</p> : null}
+              {row.creditBalance > 0 ? <p className="eqs-note">Saldo a favor {money.show(row.creditBalance, row.currency, 2)}</p> : null}
               <div className="acct-lines">
                 {row.lines.map((line) => (
                   <div className="acct-line" key={line.id}>
                     <span><b>{line.label}</b> · {STATE_LABEL[line.state]} · {line.days} días</span>
-                    <span>{money.show(line.amount, line.currency)}</span>
-                    {line.installments.length ? <ul className="acct-installments">{line.installments.map((item) => <li key={item.sequence}>Cuota {item.sequence} · {item.dueDate.split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status} · {money.show(item.amount - item.paidAmount, line.currency)}</li>)}</ul> : null}
+                    <span>{money.show(line.amount, line.currency, 2)}</span>
+                    {line.installments.length ? <ul className="acct-installments">{line.installments.map((item) => <li key={item.sequence}>Cuota {item.sequence} · {item.dueDate.split('-').reverse().join('/')} · {INSTALLMENT_LABEL[item.status] ?? item.status} · {money.show(item.amount - item.paidAmount, line.currency, 2)}</li>)}</ul> : null}
                   </div>
                 ))}
               </div>
@@ -120,9 +120,9 @@ export function AccountCurrent({ query }: { query: string }) {
   );
 }
 
-function accountHeadline(net: number, currency: string | null, show: (amount: number, currency?: string | null) => string) {
-  if (net < 0) return `A favor ${show(Math.abs(net), currency)}`;
-  return show(net, currency);
+function accountHeadline(net: number, currency: string | null, show: (amount: number, currency?: string | null, fractionDigits?: 0 | 2) => string) {
+  if (net < 0) return `A favor ${show(Math.abs(net), currency, 2)}`;
+  return show(net, currency, 2);
 }
 
 function MovementSheet({ row, mode, onClose, onSaved }: { row: Debtor; mode: 'pago' | 'deuda' | 'descuento'; onClose: () => void; onSaved: (message: string) => void }) {
