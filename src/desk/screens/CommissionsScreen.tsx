@@ -16,6 +16,8 @@ import { CommissionAvatar } from '../CommissionAvatar';
 import { CommissionMonthPicker } from '../CommissionMonthPicker';
 import { Actions, DeskCta, DeskIcon, IconButton, MenuButton, MobileDock, ScreenTitle, Sheet, useDesk } from '../ui';
 import { CommissionPaymentSheet, CommissionRuleSheet } from './commission-sheets';
+import { CommissionMemberLedger } from './commission-member-ledger';
+import './commission-member-detail.css';
 
 export function CurrencyTotals({ value }: { value: CommissionTotals }) {
   return <span className="commission-totals"><b>{value.ARS === 0 && value.USD !== 0 ? commissionAmount(value.USD, 'USD') : commissionAmount(value.ARS, 'ARS')}</b>{value.USD !== 0 && value.ARS !== 0 ? <small>+ {commissionAmount(value.USD, 'USD')}</small> : null}</span>;
@@ -64,20 +66,23 @@ export function CommissionLines({ person, financials, period, onConfirmChange }:
 }
 export function CommissionMemberSheet({ person, period, rule, onClose, onRule, onPay }: { person: CommissionPerson; period: string; rule?: CommissionRule; onClose: () => void; onRule: () => void; onPay: () => void }) {
   const { appSession } = useAppContext();
-  const phone = usePhoneLayout();
   const [confirming, setConfirming] = useState(false);
   const negative = hasDeduction(person.pending);
   const payable = person.pending.ARS > 0 || person.pending.USD > 0;
-  return <Sheet title={phone ? person.name : `${person.name} · ${monthLabel(period).replace(' de ', ' ')}`} subtitle={`${ROLE_LABEL[person.role]} · ${rule?.memberId ? 'regla personal' : 'regla del equipo'}: ${ruleLabel(rule)}`} onClose={() => { if (!confirming) onClose(); }} className="commission-detail" wide footer={<Actions secondary="Cambiar regla" onSecondary={onRule} primary={payable ? 'Registrar pago' : 'Listo'} onPrimary={payable ? onPay : onClose} />}>
-    <div className="commission-detail-kpis">
-      <div><span>{person.adjustments.length ? 'Comisión del mes' : 'Saldo anterior'}</span><CurrencyTotals value={person.adjustments.length ? person.earned : person.previousBalance} /></div>
-      <div className={person.adjustments.length ? 'commission-negative' : ''}><span>{person.adjustments.length ? 'Ajustes' : 'Comisión del mes'}</span><CurrencyTotals value={person.adjustments.length ? person.adjustmentsTotal : person.earned} /></div>
-      <div><span>Pagado</span><CurrencyTotals value={person.paid} /></div>
-      <div className={negative ? 'deduction' : 'pending'}><span>{negative ? 'A descontar' : 'Pendiente'}</span><CurrencyTotals value={person.pending} /></div>
+  const manage = canManageCommissions(appSession?.membership?.sections, appSession?.membership?.role);
+  const primary = manage && payable ? 'Registrar pago' : 'Listo';
+  return <Sheet title={person.name} onClose={() => { if (!confirming) onClose(); }} className="commission-detail comd-detail" footer={<Actions secondary={manage ? 'Cambiar regla' : 'Cerrar'} onSecondary={manage ? onRule : onClose} primary={primary} onPrimary={manage && payable ? onPay : onClose} busy={confirming} busyLabel={primary} />}>
+    <div className="comd-context"><span className="dsel"><DeskIcon name="cal" size={14} />{monthLabel(period).replace(' de ', ' ')}</span><span className="mut">{ROLE_LABEL[person.role]}</span></div>
+    <div className="comd-rule"><span>{rule?.memberId ? 'Regla personal' : 'Regla del equipo'}</span><b>{ruleLabel(rule)}</b></div>
+    <div className="commission-detail-kpis comd-account-grid">
+      <div className="dstat"><span>{person.adjustments.length ? 'Comisión del mes' : 'Saldo anterior'}</span><CurrencyTotals value={person.adjustments.length ? person.earned : person.previousBalance} /></div>
+      <div className={`dstat${person.adjustments.length ? ' commission-negative' : ''}`}><span>{person.adjustments.length ? 'Ajustes' : 'Comisión del mes'}</span><CurrencyTotals value={person.adjustments.length ? person.adjustmentsTotal : person.earned} /></div>
+      <div className="dstat"><span>Pagado</span><CurrencyTotals value={person.paid} /></div>
+      <div className={`dstat ${negative ? 'deduction' : 'pending'}`}><span>{negative ? 'A descontar' : 'Pendiente'}</span><CurrencyTotals value={person.pending} /></div>
     </div>
     {person.adjustments.length && (person.previousBalance.ARS !== 0 || person.previousBalance.USD !== 0) ? <div className="kv"><span>Saldo anterior</span><b>{commissionTotal(person.previousBalance)}</b></div> : null}
-    <p className={`commission-carry${negative ? ' deduction' : ''}`}><DeskIcon name="cal" size={16} /><span>{negative ? `Se le pagó de más: ${commissionTotal({ ARS: Math.max(0, -person.pending.ARS), USD: Math.max(0, -person.pending.USD) })} se descuentan de su comisión de ${monthLabel(period, 1)}.` : `Si no se paga este mes, ${commissionTotal(person.pending)} pasan a ${monthLabel(period, 1)}.`}</span></p>
-    <CommissionLines person={person} period={period} onConfirmChange={setConfirming} financials={canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role)} />
+    {negative ? <p className="commission-carry deduction"><DeskIcon name="cal" size={16} /><span>Se le pagó de más: {commissionTotal({ ARS: Math.max(0, -person.pending.ARS), USD: Math.max(0, -person.pending.USD) })} se descuentan de su comisión de {monthLabel(period, 1)}.</span></p> : null}
+    <CommissionMemberLedger person={person} period={period} onLayerChange={setConfirming} financials={canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role)} />
   </Sheet>;
 }
 

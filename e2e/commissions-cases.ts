@@ -35,11 +35,16 @@ export function commissionTests(device: 'iPhone 13' | 'Pixel 5' | 'desktop') {
       await expect(page.getByText('Cargando comisiones…')).toHaveCount(0);
       await page.getByRole('button', { name: phone ? /Sofía Pérez/ : /Sofía Pérez/ }).click();
       const detail = page.getByRole('dialog', { name: /^Sofía Pérez/ });
-      await expect(detail).toBeVisible(); await expect(detail.locator('s')).toHaveText('$ 30.000');
+      await expect(detail).toBeVisible();
+      await detail.getByRole('button', { name: 'Ver todas (9)' }).click();
+      await expect(page.getByRole('dialog', { name: 'Ventas de octubre' }).locator('s')).toHaveText('$ 30.000');
+      await page.keyboard.press('Escape');
       await shot('03', 'detalle-vendedor');
       await page.keyboard.press('Escape');
       await page.getByRole('button', { name: /Lucía Díaz/ }).click();
+      await page.getByRole('button', { name: 'Ver todas (4)' }).click();
       await expect(page.getByText('Ajuste por venta anulada')).toBeVisible();
+      await page.keyboard.press('Escape');
       await expect(page.getByText(/Se le pagó de más/)).toContainText('$ 46.000');
       await shot('03b', 'ajuste-anulada');
       await page.getByRole('button', { name: 'Listo', exact: true }).click();

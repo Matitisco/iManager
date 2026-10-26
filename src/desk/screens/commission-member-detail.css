@@ -1,0 +1,37 @@
+/* Approved variant 2, scoped to the administrative member detail and its list. */
+.comd-detail.sheet { width: 540px; }
+.comd-context { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; font-size: 13px; }
+.comd-context .dsel { gap: 6px; }
+.comd-context .dsel { text-transform: capitalize; }
+.comd-rule { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; padding: 0 2px 14px; }
+.comd-rule > span { color: var(--secondary); font-weight: 600; }
+.comd-rule > b { text-align: right; }
+.comd-detail .comd-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 18px; }
+.comd-detail .comd-account-grid > .dstat { background: var(--card); padding: 14px 16px; border-radius: 20px; box-shadow: none; }
+.comd-detail .comd-account-grid > .pending { background: var(--lime-soft); border-color: #F0D56B; }
+.comd-detail .comd-account-grid > .deduction { background: var(--err-soft); }
+.comd-detail .comd-account-grid .commission-totals { font-size: 22px; line-height: 1.25; margin-top: 8px; overflow-wrap: anywhere; }
+.comd-detail .comd-account-grid .commission-totals small { font-size: 13px; }
+.comd-tabs { margin-bottom: 16px; }
+.comd-detail .comd-section-head { align-items: center; gap: 8px; margin-bottom: 10px; }
+.comd-detail .comd-section-head h3 { font-size: 14px; }
+.comd-section-head .wlink { white-space: nowrap; }
+.comd-rows { display: grid; gap: 8px; }
+.comd-rows .comd-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 14px; box-shadow: none; }
+.comd-row-copy { min-width: 0; flex: 1; }
+.comd-rows .comd-row-copy > b { display: block; font-size: 14px; font-weight: 700; line-height: 1.35; }
+.comd-row small { display: block; color: var(--secondary); font-size: 12px; font-weight: 500; line-height: 1.5; }
+.comd-row-copy > b, .comd-row-copy > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.comd-row-copy > small { margin-top: 3px; }
+.comd-row-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; max-width: 55%; overflow-wrap: anywhere; }
+.comd-rows .comd-row-end > b { font-size: 14px; font-weight: 800; }
+.comd-row s { color: var(--secondary); }
+.comd-rows .comd-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); border-color: transparent; border-radius: 16px; overflow: hidden; }
+.comd-void-pill.spill { background: var(--err-soft); color: var(--err); border: 0; }
+.comd-rows .comd-adjustment { background: var(--err-soft); }
+.comd-adjustment .comd-row-end { color: var(--err); }
+.comd-all .comd-row-copy > small { white-space: normal; }
+@media (max-width: 760px) {
+  .comd-detail.sheet { width: 100%; }
+  .comd-detail .comd-account-grid > .dstat { padding: 14px; }
+}
