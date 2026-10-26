@@ -338,25 +338,41 @@ async function stampDepositClientCurrency(tx: Prisma.TransactionClient, storeId:
   if (original !== currency && (Number(client.pendingBalance) !== 0 || Number(client.totalSpent) !== 0)) throw new OperationError(`El cliente tiene saldos en ${original}. Registrá esta venta en esa moneda para conservar su cuenta corriente`, 409);
   await tx.client.update({ where: { id: client.id }, data: { balanceCurrency: currency } });
 }
-async function applyClientOperation(tx: Prisma.TransactionClient, storeId: string, clientId: string, amount: number, paymentStatus: string, date: Date, direction: 1 | -1, debtAmount = amount) {
+type MovementCurrency = { currency: string; exchangeRate: Decimal | number | null };
+
+function convertedMovement(amount: number, from: string, to: string, rate: MovementCurrency["exchangeRate"]) {
+  const value = dec(amount);
+  if (from === to || value.isZero()) return value.toDecimalPlaces(2);
+  if (!rate || !Number.isFinite(Number(rate)) || Number(rate) <= 0) throw new OperationError("Revisá la cotización antes de confirmar");
+  return (from === "USD" ? value.mul(rate) : value.div(rate)).toDecimalPlaces(2);
+}
+
+async function clientMovement(tx: Prisma.TransactionClient, storeId: string, client: Client, amount: number, money: MovementCurrency) {
+  const target = client.balanceCurrency ?? await storeCurrency(storeId, tx);
+  return convertedMovement(amount, money.currency, target, money.exchangeRate).toNumber();
+}
+
+async function applyClientOperation(tx: Prisma.TransactionClient, storeId: string, clientId: string, amount: number, paymentStatus: string, date: Date, direction: 1 | -1, debtAmount: number, money: MovementCurrency) {
   const client = await tx.client.findUnique({ where: { id: clientId } });
   if (!client) return null;
-  const total = Math.max(0, toNum(client.totalSpent) + direction * amount);
-  const pending = Math.max(0, toNum(client.pendingBalance) + (paymentStatus === "PENDIENTE" ? direction * debtAmount : 0));
+  const convertedAmount = await clientMovement(tx, storeId, client, amount, money);
+  const convertedDebt = await clientMovement(tx, storeId, client, debtAmount, money);
+  const total = Math.max(0, toNum(client.totalSpent) + direction * convertedAmount);
+  const pending = Math.max(0, toNum(client.pendingBalance) + (paymentStatus === "PENDIENTE" ? direction * convertedDebt : 0));
   const lastPurchaseAt = direction > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
   await tx.client.update({ where: { id: clientId }, data: { totalSpent: dec(total), pendingBalance: dec(pending), lastPurchaseAt } });
   return tx.client.findFirst({ where: { id: clientId, storeId } });
 }
-async function applyClientDelta(tx: Prisma.TransactionClient, storeId: string, priorId: string | null, nextId: string | null, priorAmount: number, nextAmount: number, priorStatus: string, nextStatus: string, priorDebt: number, nextDebt: number, date: Date) {
+async function applyClientDelta(tx: Prisma.TransactionClient, storeId: string, priorId: string | null, nextId: string | null, priorAmount: number, nextAmount: number, priorStatus: string, nextStatus: string, priorDebt: number, nextDebt: number, date: Date, priorMoney: MovementCurrency, nextMoney: MovementCurrency) {
   const ids = new Set([priorId, nextId].filter((id): id is string => Boolean(id)));
   const changed = [];
   for (const id of ids) {
     const client = await tx.client.findFirst({ where: { id, storeId } });
     if (!client) continue;
-    const oldAmount = id === priorId ? priorAmount : 0;
-    const newAmount = id === nextId ? nextAmount : 0;
-    const oldDebt = id === priorId && priorStatus === "PENDIENTE" ? priorDebt : 0;
-    const newDebt = id === nextId && nextStatus === "PENDIENTE" ? nextDebt : 0;
+    const oldAmount = id === priorId ? await clientMovement(tx, storeId, client, priorAmount, priorMoney) : 0;
+    const newAmount = id === nextId ? await clientMovement(tx, storeId, client, nextAmount, nextMoney) : 0;
+    const oldDebt = id === priorId && priorStatus === "PENDIENTE" ? await clientMovement(tx, storeId, client, priorDebt, priorMoney) : 0;
+    const newDebt = id === nextId && nextStatus === "PENDIENTE" ? await clientMovement(tx, storeId, client, nextDebt, nextMoney) : 0;
     const nextLastPurchase = newAmount > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId: id, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
     await tx.client.update({ where: { id }, data: {
       totalSpent: dec(Math.max(0, toNum(client.totalSpent) + newAmount - oldAmount)),
@@ -750,7 +766,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (!settlement && client && paymentStatus === "COMPLETADA") {
       await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: cashDue, currency: labelCurrency, method: sale.paymentMethod });
     }
-    const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, paymentStatus, date, 1, debt) : null;
+    const updatedClient = client ? await applyClientOperation(tx, storeId, client.id, input.amount!, paymentStatus, date, 1, debt, { currency: labelCurrency, exchangeRate }) : null;
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     if (product && !outputState) throw new OperationError("Inventory item not found", 404);
     const saleLabel = sale.deviceLabel ?? "";
@@ -957,7 +973,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     if (!settlement && paymentStatus === "COMPLETADA") {
       await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: cashDue, currency: labelCurrency, method: sale.paymentMethod });
     }
-    const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, settlement ? settlement.unpaid : cashDue);
+    const updatedClient = await applyClientOperation(tx, storeId, client.id, outgoingAmount, paymentStatus, date, 1, settlement ? settlement.unpaid : cashDue, { currency: labelCurrency, exchangeRate });
     const outputState = product ? await tx.inventoryItem.findFirst({ where: { id: product.id, storeId } }) : null;
     const saleLabel = product ? fullDeviceLabel(product) : deviceLabel ?? "";
     const notifications = await notify(tx, storeId, sectionRecords(["tradeins", "sales", "inventory", "clients"], {
@@ -1193,7 +1209,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     if (sale.status === 'PENDIENTE' && nextStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.openBalance ?? priorDue), currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
     const balanceStatus = rise.reopen ? "COMPLETADA" : nextStatus;
     const balanceDebt = rise.reopen ? priorDue : nextDebt;
-    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorDue, balanceDebt, nextDate)).filter(present);
+    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorDue, balanceDebt, nextDate, { currency: await copyCurrency(tx, storeId, sale.amountCurrency), exchangeRate: sale.exchangeRate }, { currency: labelCurrency, exchangeRate: updatedSale.exchangeRate })).filter(present);
     if (rise.reopen && nextClientId) {
       const raised = await recordPriceRise(tx, { storeId, clientId: nextClientId, saleId: sale.id, amount: rise.extra, currency: labelCurrency, actor });
       updatedClients = updatedClients.map((client) => client?.id === raised.id ? raised : client);
@@ -1364,10 +1380,11 @@ function operationCash(amount: number, deposit: number) {
 
 async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: string, sale: Sale, cash: number) {
   if (!sale.clientId) return { refund: 0, debtToRemove: 0, credit: 0 };
+  const targetCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
   const [rows, siblings] = await Promise.all([
     tx.clientPayment.findMany({
       where: { storeId, clientId: sale.clientId },
-      select: { saleId: true, repairOrderId: true, kind: true, amount: true },
+      select: { saleId: true, repairOrderId: true, kind: true, amount: true, currency: true },
     }),
     tx.sale.findMany({
       where: {
@@ -1380,6 +1397,8 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
         id: true,
         status: true,
         amount: true,
+        amountCurrency: true,
+        exchangeRate: true,
         openBalance: true,
         depositAppliedAmount: true,
         soldAt: true,
@@ -1387,11 +1406,12 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
       },
     }),
   ]);
+  const fallbackCurrency = await storeCurrency(storeId, tx);
   const targets: RefundTarget[] = siblings.map((row) => ({
     id: row.id,
-    cash: operationCash(row.tradeIn ? toNum(row.tradeIn.differencePaid) : toNum(row.amount), Number(row.depositAppliedAmount)),
+    cash: convertedMovement(operationCash(row.tradeIn ? toNum(row.tradeIn.differencePaid) : toNum(row.amount), Number(row.depositAppliedAmount)), row.amountCurrency ?? fallbackCurrency, targetCurrency, row.exchangeRate).toNumber(),
     status: row.status,
-    openBalance: row.openBalance == null ? null : toNum(row.openBalance),
+    openBalance: row.openBalance == null ? null : convertedMovement(toNum(row.openBalance), row.amountCurrency ?? fallbackCurrency, targetCurrency, row.exchangeRate).toNumber(),
     soldAt: row.soldAt.toISOString(),
   }));
   const target = targets.find((row) => row.id === sale.id) ?? {
@@ -1402,13 +1422,13 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
     soldAt: sale.soldAt.toISOString(),
   };
   target.cash = cash;
-  const client = await tx.client.findFirst({ where: { id: sale.clientId, storeId }, select: { pendingBalance: true } });
+  const client = await tx.client.findFirst({ where: { id: sale.clientId, storeId }, select: { pendingBalance: true, balanceCurrency: true } });
   const plan = cancellationSettlement(target, targets, rows.map((row) => ({
     saleId: row.saleId,
     repairOrderId: row.repairOrderId,
     kind: row.kind,
-    amount: toNum(row.amount),
-  })), client ? toNum(client.pendingBalance) : 0);
+    amount: convertedMovement(toNum(row.amount), row.currency ?? fallbackCurrency, targetCurrency, siblings.find((sibling) => sibling.id === row.saleId)?.exchangeRate ?? sale.exchangeRate).toNumber(),
+  })), client ? convertedMovement(toNum(client.pendingBalance), client.balanceCurrency ?? fallbackCurrency, targetCurrency, sale.exchangeRate).toNumber() : 0);
   return { refund: plan.refund.toNumber(), debtToRemove: plan.debtToRemove.toNumber(), credit: plan.credit.toNumber() };
 }
 
@@ -1525,7 +1545,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: voiding ? "sale.voided" : "sale.cancelled", reason, entityType: "sale", entityId: sale.id, detail });
-    const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove) : null;
+    const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove, { currency: labelCurrency, exchangeRate: sale.exchangeRate }) : null;
     const client = adjusted;
     const product = sale.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: sale.inventoryItemId, storeId } }) : null;
     const notifications = await notify(tx, storeId, sectionRecords(
@@ -1606,7 +1626,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
       if (sale) await writeAudit(tx, { storeId, actor, action: voiding ? "sale.voided" : "sale.cancelled", reason, entityType: "sale", entityId: sale.id, detail });
     }
     const adjusted = trade.clientId && sale
-      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove)
+      ? await applyClientOperation(tx, storeId, trade.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove, { currency: labelCurrency, exchangeRate: sale.exchangeRate })
       : null;
     const client = adjusted;
     const [archivedReceived, output] = await Promise.all([
