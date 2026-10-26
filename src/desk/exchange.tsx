@@ -43,7 +43,7 @@ export type MoneyApi = {
   active: MoneyCurrency;
   rate: number | null;
   warning: string | null;
-  show: (amount: number, currency?: string | null) => string;
+  show: (amount: number, currency?: string | null, fractionDigits?: 0 | 2) => string;
   shown: (amount: number, currency?: string | null) => { text: string; currency: MoneyCurrency };
   compact: (amount: number, currency?: string | null) => string;
   showActive: (amount: number) => string;
@@ -119,7 +119,7 @@ function passthroughMoney(): MoneyApi {
     active: 'ARS',
     rate: null,
     warning: null,
-    show: (amount) => formatMoney(amount),
+    show: (amount, _currency, fractionDigits) => formatMoney(amount, 'ARS', fractionDigits),
     shown: (amount, currency) => {
       const code = recordCurrency(currency, 'ARS');
       return { text: formatMoney(amount, code), currency: code };
@@ -137,11 +137,11 @@ function passthroughMoney(): MoneyApi {
 }
 
 function buildMoney(active: MoneyCurrency, rate: number | null, warning: string | null): MoneyApi {
-  const shown = (amount: number, currency?: string | null) => {
-    const projected = projectAmount(amount, currency, active, rate);
-    return { text: formatMoney(projected.value, projected.currency), currency: projected.currency };
+  const shown = (amount: number, currency?: string | null, fractionDigits: 0 | 2 = 0) => {
+    const projected = projectAmount(amount, currency, active, rate, fractionDigits);
+    return { text: formatMoney(projected.value, projected.currency, fractionDigits), currency: projected.currency };
   };
-  const show = (amount: number, currency?: string | null) => shown(amount, currency).text;
+  const show = (amount: number, currency?: string | null, fractionDigits: 0 | 2 = 0) => shown(amount, currency, fractionDigits).text;
   const compact = (amount: number, currency?: string | null) => {
     const projected = projectAmount(amount, currency, active, rate);
     return formatMoneyCompact(projected.value, projected.currency);
