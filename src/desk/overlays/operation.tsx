@@ -16,7 +16,8 @@ import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatMoneyInpu
 import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
-import { FX_WARNING } from '../money';
+import { FX_WARNING, recordCurrency } from '../money';
+import { SaleDetailMoney } from '../sale-detail-money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
 import type { CatalogKind } from '../../services/catalogs-api';
 import { SellerField } from '../SellerField';
@@ -667,8 +668,12 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const sold = inventory.find((item) => item.id === sale.productId);
   const soldQuality = sold ? displayQuality(sold.condition, sold.grade) : '';
   const coverage = saleWarrantyView(sale);
+  const saleCurrency = recordCurrency(sale.amountCurrency, money.active);
+  const displayCurrency = saleCurrency;
+  const secondaryCurrency = saleCurrency === money.active ? null : displayCurrency === saleCurrency ? money.active : saleCurrency;
+  const renderAmount = (amount: number, currency?: string | null, prefix = '') => <SaleDetailMoney amount={amount} source={recordCurrency(currency, money.active)} display={displayCurrency} secondary={secondaryCurrency} rate={money.rate} prefix={prefix} />;
   return (
-    <Sheet title={saleCode(sale)} subtitle={formatShortDate(sale.date)} onClose={close} busy={busy} className="sale-sheet sale-detail-sheet" footer={
+    <Sheet title={saleCode(sale)} onClose={close} busy={busy} className="sale-sheet sale-detail-sheet" footer={
       sale.voidedAt ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
@@ -707,24 +712,28 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       {error && <div className="ferr">{error}</div>}{detailError && !isNetworkErrorMessage(detailError) && <div className="ferr">{detailError}</div>}
       {sale.voidedAt ? <div className="pending-sale" data-testid="voided-banner"><div><b>Anulada</b><small>{sale.voidedBy ? `por ${sale.voidedBy}` : 'Esta venta está anulada'}{sale.voidReason ? ` · ${sale.voidReason}` : ''}. No se puede restaurar.</small></div></div> : null}
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">Precio completo de salida</div><div className="big">{money.show(sale.amount, sale.amountCurrency)}</div></div>
+        <div className="dhero"><div className="eb">Precio completo de salida · {saleCurrency !== displayCurrency && !(money.rate != null && money.rate > 0) ? saleCurrency : displayCurrency}</div><div className="big">{renderAmount(sale.amount, sale.amountCurrency)}</div></div>
         <RecordHistoryButton entityType="sale" entityId={sale.id} label={saleCode(sale)} />
+      </div>
+      <div className="vsm-rate">
+        {saleCurrency !== money.active ? <span>{money.rate != null && money.rate > 0 ? `Cotización actual · US$ 1 = ${receiptMoney(money.rate, 'ARS')}` : 'Sin cotización: equivalente no disponible.'}</span> : null}
+        <time dateTime={sale.date} aria-label="Fecha de venta">{formatShortDate(sale.date)}</time>
       </div>
       <div className="kv"><span>Cliente</span><b>{saleBuyer(sale, clients)}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
-      <div className="kv"><span>Cobro</span><b>{sale.status === 'PENDIENTE' ? `Deuda ${receiptMoney(displayedDue, sale.amountCurrency ?? money.active)}` : <Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" />}</b></div>
+      <div className="kv"><span>Cobro</span>{sale.status === 'PENDIENTE' ? renderAmount(displayedDue, sale.amountCurrency, 'Deuda ') : <b><Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></b>}</div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
-      <SaleAccountPanel saleId={sale.id} currency={sale.amountCurrency} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
+      <SaleAccountPanel saleId={sale.id} currency={sale.amountCurrency} renderAmount={renderAmount} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">
         <h4>Canje como parte de pago</h4>
         <div className="sale-detail-trade-grid">
           <div className="kv"><span>Equipo recibido</span><b>{linkedTrade.deviceReceived || '—'}</b></div>
           <div className="kv"><span>Calidad recibida</span><b>{tradeQuality(linkedTrade.grade) ? qualityDetail(tradeQuality(linkedTrade.grade)) : '—'}</b></div>
-          <div className="kv"><span>Valor tomado</span><b>{money.show(linkedTrade.takeValue, linkedTrade.currency)}</b></div>
-          <div className="kv"><span>Diferencia del canje</span><b>{money.show(linkedTrade.differencePaid, linkedTrade.currency)}</b></div>
+          <div className="kv"><span>Valor tomado</span>{renderAmount(linkedTrade.takeValue, linkedTrade.currency)}</div>
+          <div className="kv"><span>Diferencia del canje</span>{renderAmount(linkedTrade.differencePaid, linkedTrade.currency)}</div>
           <div className="kv"><span>Estado técnico</span><b><Pill status={linkedTrade.status} kind="TRADE_IN_STATUS" /></b></div>
           <div className="kv"><span>Confirmación</span><b>{linkedTrade.confirmationStatus === 'PENDING' ? 'Venta por registrar' : linkedTrade.confirmationStatus === 'CANCELLED' ? 'Anulada' : 'Confirmado'}</b></div>
         </div>
