@@ -1,3 +1,4 @@
+import { equipmentMoney } from '../equipment-money';
 import { DeskSelect } from '../select';
 import { Skeleton, FieldSkeleton } from '../../components/Skeleton';
 import { formatShortDate } from '../format';
@@ -286,7 +287,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         setBad(next);
         if (Object.keys(next).length) return;
         const priced = current
-          ? money.commitGroup([{ typed: lockPrice ? current.price : parseMoney(price), original: current.price, currency: current.currency }])
+          ? equipmentMoney(current, price, cost, seeCosts, lockPrice, money.commitGroup)
           : { blocked: false, amounts: [{ amount: parseMoney(price), currency: money.active }] };
         if (priced.blocked) {
           setBad({ price: FX_WARNING });
@@ -301,7 +302,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           condition,
           grade: isUsedCondition(condition) ? grade : '',
           batteryHealth: battery ? `${battery}%` : '',
-          cost: seeCosts ? parseMoney(cost) : (current?.cost ?? 0),
+          cost: current && 'cost' in priced ? priced.cost : seeCosts ? parseMoney(cost) : 0,
           price: priced.amounts[0]?.amount ?? parseMoney(price),
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,
