@@ -102,7 +102,7 @@ export function EquipmentDetail({ id }: { id: string }) {
       {error && <div className="ferr">{error}</div>}
       {item.archivedAt ? <div className="pending-sale" data-testid="archived-banner"><div><b>Archivado</b><small>{item.archivedBy ? `por ${item.archivedBy}` : 'Este equipo está archivado'}{item.archiveReason ? ` · ${item.archiveReason}` : ''}</small></div><button type="button" disabled={busy} onClick={async () => { if (!user) return; setBusy(true); try { await restoreBackendInventoryItem(user, item.id); await reloadInventory(); toast('Equipo restaurado'); close(); } catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar.')); } finally { setBusy(false); } }}>Restaurar</button></div> : null}
       <div className="tracking-summary">
-        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</div></div>
+        <div className="dhero"><div className="eb">Precio de venta</div><div className="big">{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</div></div>
         <RecordHistoryButton entityType="inventory" entityId={item.id} label={equipmentTitle(item.model, item.capacity)} />
       </div>
       {typeof item.customFields?.onboardingReview === 'string' && item.customFields.onboardingReview && <div className="pending-sale"><div><b>Para revisar</b><small>{item.customFields.onboardingReview}</small></div><button type="button" disabled={busy} onClick={async () => {

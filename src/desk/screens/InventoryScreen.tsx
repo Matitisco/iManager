@@ -440,7 +440,7 @@ export function InventoryScreen() {
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
-                  <td className="r"><b>{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</b></td>
+                  <td className="r"><b>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b></td>
                   <td>
                     {item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
                     {item.reservedClientName ? <small className="reservation-label">Para {item.reservedClientName}</small> : null}
@@ -610,7 +610,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
         {specs ? <small>{specs}</small> : null}
       </span>
       <span className="inv-price">
-        <b>{item.price == null ? 'A definir' : money.show(item.price, item.currency)}</b>
+        <b>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
         {approx ? <small>{approx}</small> : null}
       </span>
     </span>

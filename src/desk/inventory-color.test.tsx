@@ -59,7 +59,7 @@ describe('inventory color', () => {
     renderOverlay({ type: 'new-eq' });
     await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'Pixel');
     await user.type(screen.getByLabelText('Color'), '  Verde ');
-    await user.type(screen.getByPlaceholderText('$ 0'), '150000');
+    await user.type(screen.getByPlaceholderText('A definir'), '150000');
     await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
     await waitFor(() => expect(ctx.addProduct).toHaveBeenCalledWith(expect.objectContaining({
       model: 'Pixel',
@@ -87,7 +87,7 @@ describe('inventory color', () => {
     renderOverlay({ type: 'new-eq' });
     fireEvent.change(screen.getByPlaceholderText('Ej. iPhone 13'), { target: { value: 'Pixel' } });
     fireEvent.change(screen.getByLabelText('Color'), { target: { value: 'a'.repeat(51) } });
-    fireEvent.change(screen.getByPlaceholderText('$ 0'), { target: { value: '150000' } });
+    fireEvent.change(screen.getByPlaceholderText('A definir'), { target: { value: '150000' } });
     await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
     expect(screen.getByText('El color puede tener hasta 50 caracteres')).toBeInTheDocument();
     expect(ctx.addProduct).not.toHaveBeenCalled();

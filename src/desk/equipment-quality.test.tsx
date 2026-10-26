@@ -69,7 +69,7 @@ describe('equipment quality', () => {
 
     expect(screen.queryByRole('group', { name: 'Calidad' })).not.toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone 13');
-    await user.type(screen.getByPlaceholderText('$ 0'), '150000');
+    await user.type(screen.getByPlaceholderText('A definir'), '150000');
     await user.click(screen.getByRole('button', { name: 'Usado' }));
 
     const quality = screen.getByRole('group', { name: 'Calidad' });
@@ -101,7 +101,7 @@ describe('equipment quality', () => {
     const user = userEvent.setup();
     renderOverlay({ type: 'new-eq' });
     await user.type(screen.getByPlaceholderText('Ej. iPhone 13'), 'iPhone 13');
-    await user.type(screen.getByPlaceholderText('$ 0'), '650000');
+    await user.type(screen.getByPlaceholderText('A definir'), '650000');
     await user.type(screen.getByLabelText('Costo'), '400000');
     expect(screen.getByRole('button', { name: 'Disponible' })).toHaveClass('on');
     await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));

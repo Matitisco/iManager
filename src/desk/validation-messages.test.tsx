@@ -33,14 +33,14 @@ describe('desk validation messages', () => {
     renderOverlay({ type: 'new-eq' });
 
     fireEvent.change(screen.getByPlaceholderText('Ej. iPhone 13'), { target: { value: 'a'.repeat(500) } });
-    fireEvent.change(screen.getByPlaceholderText('$ 0'), { target: { value: '150000' } });
+    fireEvent.change(screen.getByPlaceholderText('A definir'), { target: { value: '150000' } });
     await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
 
     expect(screen.getByText('El modelo puede tener hasta 100 caracteres')).toBeInTheDocument();
     expect(ctx.addProduct).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByPlaceholderText('Ej. iPhone 13'), { target: { value: 'iPhone 13' } });
-    fireEvent.change(screen.getByPlaceholderText('$ 0'), { target: { value: '-20' } });
+    fireEvent.change(screen.getByPlaceholderText('A definir'), { target: { value: '-20' } });
     await user.click(screen.getByRole('button', { name: 'Guardar equipo' }));
     expect(screen.getByText('El precio no puede ser negativo')).toBeInTheDocument();
     expect(ctx.addProduct).not.toHaveBeenCalled();
