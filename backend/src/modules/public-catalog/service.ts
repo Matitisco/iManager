@@ -17,7 +17,7 @@ export async function getSettings(storeId: string) {
   const config = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
   if (!config) return null;
   const items = await prisma.inventoryItem.findMany({ where: { storeId, archivedAt: null }, select: { ...itemSelect, id: true, catalogVisible: true }, orderBy: [{ model: 'desc' }, { id: 'asc' }] });
-  const rows = items.map(item => ({ id: item.id, model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, price: Number(item.price), currency: item.currency, catalogVisible: item.catalogVisible, reason: ruleReason(item, config) ?? (item.catalogVisible ? null : 'Oculto a mano') }));
+  const rows = items.map(item => ({ id: item.id, model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, price: item.price == null ? null : Number(item.price), currency: item.currency, catalogVisible: item.catalogVisible, reason: ruleReason(item, config) ?? (item.catalogVisible ? null : 'Oculto a mano') }));
   return { slug: config.slug, active: config.active, hideWithoutStock: config.hideWithoutStock, hideReserved: config.hideReserved, minBattery: config.minBattery, showPrice: config.showPrice, priceCurrency: config.priceCurrency, logoUrl: config.logoUrl, hours: config.hours, items: rows, counts: { visible: rows.filter(item => !item.reason).length, rules: rows.filter(item => item.reason && item.reason !== 'Oculto a mano').length, manual: rows.filter(item => item.reason === 'Oculto a mano').length, available: countAvailable(items) } };
 }
 export async function saveSettings(storeId: string, input: CatalogSettingsInput, actor: Actor, regenerate = false, { canChangeActive = true }: { canChangeActive?: boolean } = {}) {
@@ -73,11 +73,11 @@ export async function getPublicCatalog(slug: string) {
   if (!config.active) return { store, active: false, showPrice: false, priceCurrency: config.priceCurrency, items: [] };
   const rows = await prisma.inventoryItem.findMany({ where: { storeId: config.storeId, catalogVisible: true, archivedAt: null, needsCompletion: false }, select: itemSelect, orderBy: [{ model: 'desc' }, { capacity: 'asc' }, { color: 'asc' }] });
   const visible = rows.filter(item => !ruleReason(item, config));
-  const requiresRate = config.showPrice && config.priceCurrency !== 'ORIGINAL' && visible.some(item => (item.currency ?? config.store.currency) !== config.priceCurrency);
+  const requiresRate = config.showPrice && config.priceCurrency !== 'ORIGINAL' && visible.some(item => item.price != null && (item.currency ?? config.store.currency) !== config.priceCurrency);
   const rate = requiresRate ? await exchangeRate(config.store) : 1;
   const items = visible.map(item => {
     const currency = config.priceCurrency === 'ORIGINAL' ? (item.currency ?? config.store.currency) : config.priceCurrency;
-    return { model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, ...(config.showPrice ? { price: convertCatalogPrice(Number(item.price), item.currency ?? config.store.currency, currency, rate), currency } : {}) };
+    return { model: item.model, capacity: item.capacity, color: item.color, condition: item.condition, grade: item.grade, batteryHealth: item.batteryHealth, ...(config.showPrice ? { price: item.price == null ? null : convertCatalogPrice(Number(item.price), item.currency ?? config.store.currency, currency, rate), currency } : {}) };
   });
   return { store, active: true, showPrice: config.showPrice, priceCurrency: config.priceCurrency, items };
 }

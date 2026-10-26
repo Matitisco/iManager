@@ -242,7 +242,7 @@ export function acceptModelPlan(
     if (!model) return fallback();
     const rows = sheet.rows;
     const headerCells = rows[model.headerRow - 1] ?? [];
-    const hasCore = ["model", "price"].every((field) => model.mapping.some((column) => column.field === field && headerCells.some((cell) => cell.trim() && cell.trim().toLowerCase() === column.header.trim().toLowerCase())));
+    const hasCore = ["model"].every((field) => model.mapping.some((column) => column.field === field && headerCells.some((cell) => cell.trim() && cell.trim().toLowerCase() === column.header.trim().toLowerCase())));
     if (!headerLooksValid(rows, model.headerRow, catalog) && !hasCore) return fallback();
     const headers = rows[model.headerRow - 1] ?? [];
     const seen = new Set<string>();

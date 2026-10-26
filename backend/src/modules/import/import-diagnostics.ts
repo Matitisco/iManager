@@ -18,7 +18,7 @@ export type ImportDiagnostics = {
 };
 
 const FIELDS: Record<ImportSection, { required: string[]; recommended: string[] }> = {
-  inventory: { required: ["model", "price"], recommended: ["imei"] },
+  inventory: { required: ["model"], recommended: ["price", "imei"] },
   sales: { required: ["amount"], recommended: ["date", "clientName", "device", "productImei"] },
   clients: { required: ["name"], recommended: ["phone"] },
   "trade-ins": { required: ["clientName", "deviceReceived", "deviceGiven"], recommended: ["takeValue", "differencePaid"] },

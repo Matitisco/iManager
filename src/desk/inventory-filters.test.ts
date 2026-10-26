@@ -137,3 +137,11 @@ it('filtra proveedor por identidad junto con los demás criterios e incluye su e
   expect(columnFilterActive(EMPTY_COLUMN_FILTERS, 'supplierId')).toBe(false);
   expect(columnFilterKey(selected)).not.toBe(columnFilterKey({ ...selected, supplierId: 's2' }));
 });
+
+it('filtra precio a definir sin confundir null con cero ni un rango de precios', () => {
+  expect(matchesInventoryColumns(product({ price: null }), filters({ priceToDefine: true }))).toBe(true);
+  expect(matchesInventoryColumns(product({ price: 0 }), filters({ priceToDefine: true }))).toBe(false);
+  expect(matchesInventoryColumns(product({ price: null }), filters({ priceMax: '500' }))).toBe(false);
+  expect(columnFilterActive(filters({ priceToDefine: true }), 'priceMin')).toBe(true);
+  expect(columnFilterKey(filters({ priceToDefine: true }))).not.toBe(columnFilterKey(filters()));
+});

@@ -417,7 +417,7 @@ describe("analyzeImport model", () => {
     expect(logs[0]?.estimatedUsd).toBe(0.00027);
   });
 
-  it("falls back to Luna when Decisions fails or the plan has no model and price", async () => {
+  it("retries the full mapper when Decisions overlooks an actual sale-price column", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
     const plan = {
       sheets: [{

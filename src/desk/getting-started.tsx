@@ -77,13 +77,14 @@ export function OnboardingInventorySummary() {
   const stock = inventory.filter((item) => isInStock(item.status));
   const totals = onboardingTotals(
     stock.map((item) => ({
-      price: String(item.price),
+      price: item.price == null ? "" : String(item.price),
       currency: item.currency || appSession.store!.currency,
       quantity: "1",
       _review: "",
     })),
     money.rate,
   );
+  const withoutPrice = stock.filter(item => item.price == null).length;
   const number = (value: number | null) =>
     value === null
       ? "—"
@@ -100,9 +101,9 @@ export function OnboardingInventorySummary() {
         <b>{stock.length}</b>
       </span>
       <span>
-        <small>Valor del stock</small>
-        <b>US$ {number(totals.usd)}</b>
-        <small>≈ $ {number(totals.ars)}</small>
+        <small>{withoutPrice ? "Valor con precio" : "Valor del stock"}</small>
+        <b>{withoutPrice === stock.length && withoutPrice > 0 ? "A definir" : `US$ ${number(totals.usd)}`}</b>
+        <small>{withoutPrice ? `${withoutPrice} con precio a definir` : `≈ $ ${number(totals.ars)}`}</small>
       </span>
     </div>
   );

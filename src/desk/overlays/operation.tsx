@@ -200,7 +200,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('productId', () => setProductId(linkedProduct.id));
       update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
       if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
-        update('amount', () => setAmount(linkedProduct.price > 0 ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+        update('amount', () => setAmount((linkedProduct.price ?? 0) > 0 ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
       }
     }
   }, [currentSale, currentTrade, linkedProduct, clients, money]);
@@ -219,7 +219,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setOutgoingColor('');
     setOutgoingCondition('');
     setOutgoingImei('');
-    if (!preset?.resumeAmount) setAmount(item.price > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '');
+    if (!preset?.resumeAmount) setAmount((item.price ?? 0) > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '');
     clearBad(setBad, 'equipment');
     clearBad(setBad, 'amount');
   };
@@ -347,7 +347,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       if (!selectedProduct && outgoingColor.trim().length > INPUT_LIMITS.color) next.outgoingColor = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
       if (!selectedProduct && outgoingCapacity.trim().length > 50) next.outgoingCapacity = 'La capacidad puede tener hasta 50 caracteres';
       if (!selectedProduct && imeiFormatError(outgoingImei)) next.outgoingImei = IMEI_FORMAT_MESSAGE;
-      if (!amount.trim() || (selectedProduct && selectedProduct.price <= 0 && parseMoney(amount) <= 0)) {
+      if (!amount.trim() || (selectedProduct && (selectedProduct.price ?? 0) <= 0 && parseMoney(amount) <= 0)) {
         next.amount = hasTrade && !selectedProduct ? MISSING_OUTGOING_PRICE : 'Completá el precio de salida';
       } else if (hasTrade && tradeGap.warning) next.amount = tradeGap.warning === NEGATIVE_TRADE_DIFFERENCE ? NEGATIVE_TRADE_DIFFERENCE : tradeGap.warning;
       if (hasTrade && !received.trim()) next.received = 'Completá el modelo recibido';
@@ -546,7 +546,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       {foldTrade ? null : tradeBlock}
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input ref={amountRef} value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
-      {selectedProduct && selectedProduct.price <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
+      {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       {dueCopy ? <p className="op-summary">{dueCopy}</p> : null}
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
       {!currentSale && openNotes.length ? (

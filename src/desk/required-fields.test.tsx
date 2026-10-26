@@ -210,9 +210,9 @@ describe('desk required fields', () => {
     expect(screen.queryByText('Completá el precio de salida')).not.toBeInTheDocument();
   });
 
-  it('asks for a sale price when the equipment has no list price', async () => {
+  it.each([0, null])('asks for a sale price when the equipment has no list price (%s)', async price => {
     const user = userEvent.setup();
-    ctx.inventory = [{ ...product(), id: 'prod-0', model: 'iPhone recibido', price: 0, status: 'VENDIDO', pendingSaleRegistration: true }];
+    ctx.inventory = [{ ...product(), id: 'prod-0', model: 'iPhone recibido', price, status: 'VENDIDO', pendingSaleRegistration: true }];
     render(
       <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
         <DeskOverlays overlay={{ type: 'new-sale', productId: 'prod-0', source: 'inventory' }} />

@@ -9,7 +9,7 @@ export type SnapshotRow = {
   capacity: string;
   color: string;
   statusAtSnapshot: string;
-  price: number;
+  price: number | null;
   currency: string | null;
 };
 

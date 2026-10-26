@@ -4,6 +4,14 @@ export const IMPORT_DISCARD_REASONS = [
   'invalid_imei', 'invalid_row', 'duplicate', 'ambiguous_client', 'client_not_found', 'save_error',
 ] as const;
 export type ImportDiscardReason = typeof IMPORT_DISCARD_REASONS[number];
+export const IMPORT_DISCARD_LABELS: Record<ImportDiscardReason, string> = {
+  empty: 'Filas vacías', footer: 'Totales o notas al pie', section_header: 'Encabezados de sección',
+  excluded_sheet: 'Hojas excluidas', missing_model: 'Sin modelo', missing_price: 'Sin precio de venta',
+  missing_name: 'Sin nombre', missing_client: 'Sin cliente', missing_device: 'Sin equipo recibido',
+  missing_identity: 'Sin cliente ni equipo', invalid_price: 'Precio inválido', invalid_imei: 'IMEI inválido',
+  invalid_row: 'Datos inválidos', duplicate: 'Duplicadas', ambiguous_client: 'Cliente ambiguo',
+  client_not_found: 'Cliente no encontrado', save_error: 'Error al guardar',
+};
 export type ImportDiagnostics = {
   detectedRows: number;
   acceptedRows: number;

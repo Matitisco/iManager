@@ -230,7 +230,8 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
 
   const exportReport = () => {
     const rows: string[][] = [['detalle', 'importe', 'Moneda', 'estado']];
-    const moneyCells = (amount: number, currency?: string | null): [string, string] => {
+    const moneyCells = (amount: number | null, currency?: string | null): [string, string] => {
+      if (amount == null) return ['A definir', currency ?? money.active];
       const shown = money.shown(amount, currency);
       return [shown.text, shown.currency];
     };
@@ -405,7 +406,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           {stockRows.map((item) => (
             <button key={item.id} className="gtk" type="button" onClick={() => open({ type: 'eq', id: item.id })}>
               <div className="gl"><div className="gdate">{equipmentTitle(item.model, item.capacity)}</div><div className="gstore">{[item.color, item.condition ? conditionLabel(item.condition) : '', qualityPhrase(item.condition, item.grade)].filter(Boolean).join(' · ') || 'Sin detalle'}</div><div className="gmeta">{item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : 'Sin estado'}</div></div>
-              <div className="gr"><div className="gamt">{money.compact(item.price, item.currency)}</div></div>
+              <div className="gr"><div className="gamt">{item.price == null ? 'A definir' : money.compact(item.price, item.currency)}</div></div>
               <span className="gchev">›</span>
             </button>
           ))}

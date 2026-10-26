@@ -243,6 +243,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
       throw new SalesError("Inventory item not found", 404);
     }
 
+    if (inventoryItem?.price === null && !(input.amount > 0)) throw new SalesError("Cargá el precio de venta del equipo con precio a definir", 400);
     if (inventoryItem && inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
       throw new SalesError("Inventory item is not available", 409);
     }
@@ -291,7 +292,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
     if (inventoryItem) {
       await tx.inventoryItem.update({
         where: { id: inventoryItem.id },
-        data: { status: "VENDIDO" },
+        data: { status: "VENDIDO", ...(inventoryItem.price === null ? { price: toDecimal(input.amount), currency: amountCurrency } : {}) },
       });
     }
 
@@ -364,6 +365,7 @@ export async function updateSale(
         throw new SalesError("Inventory item not found", 404);
       }
 
+      if (inventoryItem.price === null && !((input.amount ?? Number(existing.amount)) > 0)) throw new SalesError("Cargá el precio de venta del equipo con precio a definir", 400);
       if (inventoryItem.status && inventoryItem.status !== "DISPONIBLE") {
         throw new SalesError("Inventory item is not available", 409);
       }

@@ -38,3 +38,17 @@ it('counts an existing IMEI as an accepted update, preserving upsert behavior', 
   expect(prismaMock.inventoryItem.create).not.toHaveBeenCalled();
   expect(prismaMock.inventoryItem.update).toHaveBeenCalledOnce();
 });
+
+it('accepts null prices while retaining discard reasons for other rows', async () => {
+  const result = await importInventoryItems('store-test', [
+    { imei: '', model: 'iPhone 13', price: null, cost: 420 },
+    { imei: '', model: '', price: null },
+    { imei: '', model: 'iPhone 14', price: NaN },
+  ]);
+  expect(result).toMatchObject({ imported: 1, priceToDefine: 1, diagnostics: {
+    detectedRows: 3, acceptedRows: 1, discardedRows: 2,
+    discardedByReason: { missing_model: 1, invalid_price: 1 },
+  } });
+  expect(result.diagnostics?.discardedByReason).not.toHaveProperty('missing_price');
+  expect(prismaMock.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({ price: null }) });
+});

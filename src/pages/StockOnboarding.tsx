@@ -625,7 +625,7 @@ function StockFlow({
                           ? "Sin moneda"
                           : row._review
                             ? "Revisar"
-                            : `${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}`}
+                            : row.price?.trim() ? `${row.currency === "USD" ? "US$" : "$"} ${fmt(parseImportNumber(row.price) ?? 0)}` : "A definir"}
                       </button>
                     </div>
                   ))}
@@ -700,7 +700,7 @@ function StockFlow({
                   ...row,
                   imei: row.imei ?? "",
                   model: row.model,
-                  price: parseImportNumber(row.price) ?? 0,
+                  price: row.price?.trim() ? parseImportNumber(row.price) ?? Number.NaN : null,
                   cost: parseImportNumber(row.cost),
                 })),
               );

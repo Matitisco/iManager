@@ -115,7 +115,7 @@ export function EquipmentField<T extends Product | OperationProductOption>({
                 }}
               >
                 <b>{equipmentTitle(item.model, item.capacity)}</b>
-                <small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', money.compact(item.price, item.currency)].filter(Boolean).join(' · ')}</small>
+                <small>{[item.color, item.imei ? `IMEI …${item.imei.slice(-4)}` : '', item.price == null ? 'A definir' : money.compact(item.price, item.currency)].filter(Boolean).join(' · ')}</small>
               </button>
             </li>
           ))}

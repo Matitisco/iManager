@@ -48,8 +48,8 @@ describe('import-api', () => {
 
 
   it('reports zero prepared rows and stable reasons from analyze/apply without sending cell values', async () => {
-    const diagnostic = { detectedRows: 2, acceptedRows: 0, discardedRows: 2, discardedByReason: { missing_price: 2 }, missingRequiredFields: ['price'], missingRecommendedFields: ['imei'] };
-    const result = { rows: [], plan: [], diagnostics: diagnostic, missingRequiredFields: ['price'], missingRecommendedFields: ['imei'] };
+    const diagnostic = { detectedRows: 2, acceptedRows: 0, discardedRows: 2, discardedByReason: { missing_model: 2 }, missingRequiredFields: ['model'], missingRecommendedFields: ['imei'] };
+    const result = { rows: [], plan: [], diagnostics: diagnostic, missingRequiredFields: ['model'], missingRecommendedFields: ['imei'] };
     vi.mocked(fetchWithTimeout).mockImplementation(async () => json(result));
     const sheets = [{ name: 'private sheet name', rows: [['Modelo', 'Costo'], ['private cell', '420']] }];
     await analyzeImport(mockUser, 'inventory', sheets);
@@ -57,7 +57,7 @@ describe('import-api', () => {
     for (const phase of ['analyze', 'apply']) expect(capture).toHaveBeenCalledWith('import_analysis_completed', {
       import_type: 'inventory', source: 'excel', phase,
       rows_detected: 2, rows_prepared: 0, rows_imported: 0, rows_updated: 0, rows_discarded: 2,
-      discarded_by_reason: { missing_price: 2 }, missing_required_fields: ['price'], missing_recommended_fields: ['imei'],
+      discarded_by_reason: { missing_model: 2 }, missing_required_fields: ['model'], missing_recommended_fields: ['imei'],
     });
     expect(JSON.stringify(vi.mocked(capture).mock.calls)).not.toContain('private');
   });
@@ -73,6 +73,22 @@ describe('import-api', () => {
       discarded_by_reason: { invalid_imei: 1 }, missing_required_fields: [], missing_recommended_fields: [],
     });
     expect(JSON.stringify(vi.mocked(capture).mock.calls)).not.toContain('private');
+  });
+
+  it('reports accepted rows without price through analyze, apply and commit without missing_price discards', async () => {
+    const diagnostics = { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] };
+    const analysis = { rows: [{ model: 'private model', cost: '420' }], plan: [], diagnostics };
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json(analysis)).mockResolvedValueOnce(json(analysis))
+      .mockResolvedValueOnce(json({ imported: 1, updated: 0, errors: [], priceToDefine: 1, diagnostics: { ...diagnostics, missingRecommendedFields: [] } }));
+    const sheets = [{ name: 'Stock', rows: [['Modelo', 'Costo'], ['private model', '420']] }];
+    await analyzeImport(mockUser, 'inventory', sheets);
+    await applyImportPlan(mockUser, 'inventory', sheets, []);
+    expect(await importBackendRows(mockUser, 'inventory', [{ model: 'private model', imei: '', price: null, cost: 420 }])).toMatchObject({ imported: 1, priceToDefine: 1 });
+    expect(JSON.parse(String(vi.mocked(fetchWithTimeout).mock.calls[2][1]?.body))).toEqual({ rows: [{ model: 'private model', imei: '', price: null, cost: 420 }] });
+    const events = vi.mocked(capture).mock.calls.filter(([event]) => ['import_analysis_completed', 'import_result'].includes(event));
+    expect(events).toHaveLength(3);
+    for (const [, properties] of events) expect(properties).toMatchObject({ rows_prepared: 1, rows_discarded: 0, discarded_by_reason: {}, missing_required_fields: [] });
+    expect(JSON.stringify(events)).not.toContain('private');
   });
 
   it('requires a configured backend url', async () => {
@@ -182,4 +198,11 @@ describe('análisis progresivo', () => {
     vi.mocked(fetchWithTimeout).mockResolvedValue(new Response('{"type":"progress","rows":[]}\n', { headers: { 'Content-Type': 'application/x-ndjson' } }));
     await expect(analyzeInventoryTextProgress(mockUser, 'texto', progress, new AbortController().signal)).rejects.toThrow(/interrumpió/);
   });
+});
+
+it('no convierte un precio inválido en null al serializar el pedido', async () => {
+  const { importBackendRows } = await import('./import-api');
+  vi.mocked(fetchWithTimeout).mockClear();
+  await expect(importBackendRows(mockUser, 'inventory', [{ imei: '', model: 'iPhone 13', price: NaN }])).rejects.toThrow('Revisá los precios inválidos');
+  expect(fetchWithTimeout).not.toHaveBeenCalled();
 });

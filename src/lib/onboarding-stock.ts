@@ -75,7 +75,7 @@ export function recognizedSlices(
 export function prepareOnboardingRows(analysis: ImportAnalysis) {
   return analysis.rows.map((row, index) => ({
     ...row,
-    price: row.price || "0",
+    price: row.price ?? "",
     currency: row.currency === "ARS" || row.currency === "USD" ? row.currency : "",
     condition: row.condition || "USADO",
     quantity: row.quantity || "1",
@@ -92,7 +92,7 @@ export function onboardingPayload(
     color: row.color,
     batteryHealth: row.batteryHealth || "N/A",
     condition: row.condition,
-    price: Number(row.price),
+    price: row.price?.trim() ? Number(row.price) : null,
     cost: row.cost?.trim() ? Number(row.cost) : undefined,
     currency: row.currency as "ARS" | "USD",
     customFields: {

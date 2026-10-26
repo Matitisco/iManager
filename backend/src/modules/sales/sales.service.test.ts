@@ -82,6 +82,12 @@ describe("sales.service", () => {
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
 
+  it("exige precio positivo al vender un equipo con precio a definir", async () => {
+    prismaMock.inventoryItem.findFirst.mockResolvedValue({ id: "item-1", status: "DISPONIBLE", price: null });
+    await expect(createSale("store-1", { date: "26 oct 2026", productId: "item-1", amount: 0, paymentMethod: "EFECTIVO", status: "COMPLETADA" })).rejects.toMatchObject({ statusCode: 400, message: "Cargá el precio de venta del equipo con precio a definir" });
+    expect(prismaMock.sale.create).not.toHaveBeenCalled();
+  });
+
   it("fails when the client does not belong to the store", async () => {
     prismaMock.client.findFirst.mockResolvedValue(null);
 

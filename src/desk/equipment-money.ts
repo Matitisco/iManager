@@ -11,7 +11,7 @@ export function parseEquipmentMoney(value: string): number {
 type Commit = (fields: Array<{ typed: number; original: number; currency?: string | null }>) => { amounts: StoredAmount[]; blocked: boolean };
 
 export function equipmentMoney(current: Product, price: string, cost: string, seeCosts: boolean, lockPrice: boolean, commit: Commit) {
-  const fields = [{ typed: lockPrice ? current.price : parseEquipmentMoney(price), original: current.price, currency: current.currency }];
+  const fields = [{ typed: lockPrice ? current.price ?? 0 : parseEquipmentMoney(price), original: current.price ?? 0, currency: current.currency }];
   if (seeCosts) fields.push({ typed: parseEquipmentMoney(cost), original: current.cost ?? 0, currency: current.currency });
   const result = commit(fields);
   return { ...result, cost: seeCosts ? result.amounts[1].amount : current.cost };

@@ -36,3 +36,25 @@
 .import-imei-warning { padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--lime-soft); color: var(--primary); font-size: 13px; overflow-wrap: anywhere; }
 .import-imei-warning b { font-weight: 700; }
 .import-imei-warning p { margin: 6px 0 0; }
+
+/* Import guidance uses the existing desk tokens and sheet behavior. */
+.sheet.inv-import { width: 540px; }
+.inv-import .import-actions .btn2 { min-height: 52px; }
+.import-guidance { display: grid; gap: 8px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--lime-soft); color: var(--primary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.import-guidance p { margin: 0; color: var(--secondary); }
+.import-guidance b { font-size: 14px; font-weight: 700; }
+.import-guidance .wlink { justify-self: start; min-height: 44px; text-align: left; }
+.import-mapping { border-color: var(--border); }
+.import-mapping th, .import-mapping td { padding: 12px; }
+.import-mapping td:first-child { width: 38%; }
+.import-mapping td small { display: block; font-size: 11px; margin-top: 4px; color: var(--secondary); }
+.import-mapping .import-field-missing { background: var(--err-soft); }
+.import-mapping .import-field-missing td, .import-mapping .import-field-missing small { color: var(--err); }
+.import-mapping .import-field-missing .ds-select-trigger { border-color: var(--err); }
+.import-mapping .import-field-price { background: var(--lime-soft); }
+@media (max-width: 760px) {
+  .sheet.inv-import { width: 100%; }
+  .import-mapping th, .import-mapping td { padding: 12px 8px; }
+  .import-mapping .ds-select-trigger { padding-inline: 10px; }
+}
+.import-actions > .btn2:only-child { width: 100%; }

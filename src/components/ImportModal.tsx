@@ -11,6 +11,7 @@ import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 import { ListSkeleton } from '../desk/list-skeleton';
 import './ImportModal.css';
+import { IMPORT_DISCARD_REASONS, IMPORT_DISCARD_LABELS, type ImportDiagnostics } from '../lib/import-diagnostics';
 
 export interface ImportFieldDef {
   key: string;
@@ -20,6 +21,8 @@ export interface ImportFieldDef {
 }
 
 export interface GenericImportResult {
+  diagnostics?: ImportDiagnostics;
+  priceToDefine?: number;
   imported: number;
   updated: number;
   errors: { row: number; message: string; [key: string]: unknown }[];
@@ -30,6 +33,7 @@ type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
 export const UNRELATED_IMPORT_NOTICE = 'Este archivo no parece tener equipos para importar.';
 
 interface Props {
+  onFilterPriceToDefine?: () => void;
   existingImeis?: readonly string[];
   fields: ImportFieldDef[];
   onImport: (rows: Record<string, string>[]) => Promise<GenericImportResult>;
@@ -57,8 +61,24 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
   return label;
 }
 
+function DiscardNotice({ diagnostics, zeroRows = false, children }: {
+  diagnostics: ImportDiagnostics | null | undefined;
+  zeroRows?: boolean;
+  children?: React.ReactNode;
+}) {
+  if (!diagnostics?.discardedRows) return null;
+  const reasons = IMPORT_DISCARD_REASONS.filter(reason => (diagnostics.discardedByReason[reason] ?? 0) > 0);
+  const onlyMissingModel = zeroRows && reasons.length === 1 && reasons[0] === 'missing_model';
+  return <div className="import-guidance" role="status" data-testid="import-skipped-notice">
+    <b>{diagnostics.discardedRows} {diagnostics.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'}{onlyMissingModel ? ' por falta de modelo.' : '.'}</b>
+    {!onlyMissingModel && <ul>{reasons.map(reason =>
+      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}</li>)}</ul>}
+    {children}
+  </div>;
+}
+
 export const ImportModal: React.FC<Props> = ({
-  fields, onImport, onClose, onStageChange, existingImeis = [], title = 'Importar',
+  fields, onImport, onClose, onStageChange, onFilterPriceToDefine, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
@@ -78,12 +98,23 @@ export const ImportModal: React.FC<Props> = ({
   const [plan, setPlan] = useState<ImportSheetPlan[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [summary, setSummary] = useState<ImportAnalysis['summary'] | null>(null);
+  const [diagnostics, setDiagnostics] = useState<ImportDiagnostics | null>(null);
+  const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
+  const [missingRecommendedFields, setMissingRecommendedFields] = useState<string[]>([]);
   const [currency, setCurrency] = useState<'ARS' | 'USD'>('ARS');
   const [notice, setNotice] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState('');
   const [applying, setApplying] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<GenericImportResult | null>(null);
+  const [targetField, setTargetField] = useState<string | null>(null);
+  useEffect(() => {
+    if (step !== 'adjust' || !targetField || applying) return;
+    const field = bodyRef.current?.querySelector<HTMLElement>(`[data-testid="import-field-${targetField}"]`);
+    field?.scrollIntoView?.({ block: 'center' });
+    field?.focus();
+    setTargetField(null);
+  }, [step, targetField, applying]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
   const editorRef = useRef<HTMLFieldSetElement>(null);
@@ -104,6 +135,9 @@ export const ImportModal: React.FC<Props> = ({
     setExcluded(new Set());
     setRows(analysis.review ? analysis.rows.map((row) => ({ ...row, currency: row.currency || analysis.currency, condition: row.condition || 'USADO' })) : analysis.rows);
     setSummary(analysis.summary);
+    setDiagnostics(analysis.diagnostics ?? null);
+    setMissingRequiredFields(analysis.missingRequiredFields ?? analysis.diagnostics?.missingRequiredFields ?? []);
+    setMissingRecommendedFields(analysis.missingRecommendedFields ?? analysis.diagnostics?.missingRecommendedFields ?? []);
     setCurrency(analysis.currency);
     setNotice(analysis.notice);
     setActiveSheet((current) => analysis.plan.some((item) => item.name === current) ? current : analysis.plan[0]?.name ?? '');
@@ -195,12 +229,13 @@ export const ImportModal: React.FC<Props> = ({
   };
 
   const included = plan.filter((item) => item.include);
-  const requiredMissing = fields.filter((field) => field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key)));
+  const requiredMissing = fields.filter((field) => missingRequiredFields.includes(field.key)
+    || (field.required && included.some((item) => !item.mapping.some((column) => column.field === field.key))));
   const selectedRows = rows.filter((_, index) => !excluded.has(index));
   const existing = new Set(existingImeis);
   const updatingRows = selectedRows.filter(row => row.imei?.trim() && existing.has(row.imei.trim()));
   const updatingCount = new Set(updatingRows.map(row => row.imei.trim())).size;
-  const replacementFields = fields.filter(field => field.key !== 'imei' && updatingRows.some(row => row[field.key] !== undefined && (field.key !== 'cost' || parseImportNumber(row.cost) !== undefined))).map(field => field.label);
+  const replacementFields = fields.filter(field => field.key !== 'imei' && updatingRows.some(row => row[field.key] !== undefined && (field.key !== 'cost' || parseImportNumber(row.cost) !== undefined) && (field.key !== 'price' || Boolean(row.price?.trim())))).map(field => field.label);
   const equipmentCount = textPreview ? selectedRows.reduce((sum, row) => sum + Number(row.quantity), 0) : selectedRows.length;
   const validationError = textPreview ? selectedRows.map(textRowError).find(Boolean) ?? (equipmentCount > 2000 ? 'El listado supera los 2000 equipos.' : null) : null;
   const canImport = !applying && selectedRows.length > 0 && !validationError && (textPreview || (requiredMissing.length === 0 && included.length > 0));
@@ -210,6 +245,16 @@ export const ImportModal: React.FC<Props> = ({
   const headerIndex = Math.max(0, (active?.headerRow ?? 1) - 1);
   const headers = (activeRows[headerIndex] ?? []).filter((header) => header.trim());
   const selected = active ? fieldToColumn(active.mapping) : {};
+  const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
+  const missingPriceColumn = isInventory && !textPreview && (missingRecommendedFields.includes('price')
+    || included.some(item => !item.mapping.some(column => column.field === 'price')));
+  const noPriceRows = isInventory ? selectedRows.filter(row => !row.price?.trim()).length : 0;
+  const adjustField = (key: string) => {
+    const sheet = included.find(item => !item.mapping.some(column => column.field === key));
+    if (sheet) setActiveSheet(sheet.name);
+    setTargetField(key);
+    setStep('adjust');
+  };
 
   const handleImport = async () => {
     if (importing || !canImport) return;
@@ -288,6 +333,12 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'reading' && <ListSkeleton variant="lines" rows={5} testId="import-reading" />}
 
+      {step === 'summary' && missingPriceColumn && <div className="import-guidance" role="status" data-testid="import-price-notice">
+        <b>Tu archivo no tiene columna de precio de venta asignada.</b>
+        <p>Podés importar los equipos con precio a definir. Si el archivo sí tiene esa columna, asignala en Ajustar importación.</p>
+        <button type="button" className="wlink" onClick={() => adjustField('price')}>Asignar columna de precio</button>
+      </div>}
+
       {step === 'summary' && summary && unrelated && (
         <div data-testid="import-unrelated" role="status" className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
           <p className="text-sm font-medium text-gray-900">{notice || unrelatedNotice}</p>
@@ -296,6 +347,10 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
+          <DiscardNotice diagnostics={diagnostics} zeroRows={summary.rowCount === 0}>
+            {summary.rowCount === 0 && (diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
+          </DiscardNotice>
+          {summary.rowCount > 0 && (diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
           {updatingCount > 0 && <div className="import-imei-warning" role="status" data-testid="import-imei-warning">
             <b>{updatingCount === 1 ? 'Se actualizará 1 equipo existente por IMEI' : `Se actualizarán ${updatingCount} equipos existentes por IMEI`}</b>
             <p>Campos del archivo que pueden reemplazar datos: {replacementFields.join(', ')}. Los campos omitidos se conservan.</p>
@@ -310,9 +365,12 @@ export const ImportModal: React.FC<Props> = ({
               </li>
             ))}
           </ul></details>}
-          {summary.rowCount === 0 && (
-            <p className="text-sm text-gray-600">No encontramos filas para importar. Podés ajustar el encabezado.</p>
-          )}
+          {summary.rowCount === 0 && !diagnostics?.discardedRows && <div className="import-guidance" role="status">
+            <b>No encontramos filas para importar.</b>
+            <p>{requiredMissing.length ? `Falta asignar ${requiredMissing.map(field => field.label).join(', ')}.` : 'Revisá el encabezado y las columnas asignadas.'}</p>
+            <button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0]?.key ?? 'model')}>Ajustar importación</button>
+          </div>}
+          {!missingPriceColumn && noPriceRows > 0 && <div className="import-guidance" role="status"><b>{noPriceRows} {noPriceRows === 1 ? 'equipo sin precio' : 'equipos sin precio'} de venta.</b><p>Se importarán con precio a definir. Los precios ya guardados se conservan.</p></div>}
           {rows.length > 0 && (
             <ImportPreviewList
               rows={rows}
@@ -357,6 +415,7 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'adjust' && active && (
         <div className="space-y-5" data-testid="import-adjust">
+          {requiredMissing.length > 0 && <div className="import-guidance missing" role="alert"><b>Falta asignar {requiredMissing.map(field => field.label).join(', ')}.</b><p>Asigná los campos obligatorios para importar.</p><button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0].key)}>Ir al campo obligatorio</button></div>}
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hojas</p>
             {plan.map((item) => (
@@ -405,7 +464,7 @@ export const ImportModal: React.FC<Props> = ({
             })}
           </div>
 
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <div className="import-mapping border border-gray-200 rounded-xl">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -416,15 +475,18 @@ export const ImportModal: React.FC<Props> = ({
               <tbody className="divide-y divide-gray-100">
                 {fields.map((field) => {
                   const taken = new Set(Object.entries(selected).filter(([key, value]) => key !== field.key && value).map(([, value]) => value));
+                  const required = field.required || missingRequiredFields.includes(field.key);
                   return (
-                    <tr key={field.key}>
+                    <tr key={field.key} className={required && !selected[field.key] ? 'import-field-missing' : field.key === 'price' && !selected.price ? 'import-field-price' : undefined}>
                       <td className="px-4 py-3 font-medium text-gray-800">
                         {field.label}
-                        {field.required && <span className="text-red-500 text-xs"> *</span>}
+                        {required && <span className="text-red-500 text-xs"> *</span>}
+                        {required && !selected[field.key] && <small>Obligatorio sin asignar</small>}
+                        {field.key === 'price' && !selected.price && <small>Opcional · a definir</small>}
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
-                          <DeskSelect label={field.label} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
+                          <DeskSelect label={field.label} invalid={required && !selected[field.key]} data-testid={`import-field-${field.key}`} value={selected[field.key] ?? ''}
                             onChange={(value) => {
                               const mapping = mappingFromFields(headers, assignColumn(selected, field.key, value));
                               void reapply(plan.map((sheetPlan) => sheetPlan.name === active.name ? { ...sheetPlan, mapping } : sheetPlan), false);
@@ -453,6 +515,11 @@ export const ImportModal: React.FC<Props> = ({
               </p>
             </div>
           </div>
+          {(result.priceToDefine ?? 0) > 0 && <div className="import-guidance" role="status" data-testid="import-price-result">
+            <b>{result.priceToDefine} {result.priceToDefine === 1 ? 'equipo quedó' : 'equipos quedaron'} con precio a definir</b>
+            {onFilterPriceToDefine && <button type="button" className="wlink" onClick={onFilterPriceToDefine}>Ver equipos con precio a definir</button>}
+          </div>}
+          <DiscardNotice diagnostics={result.diagnostics} />
           {result.errors.length > 0 && (
             <div className="border border-red-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
               <table className="w-full text-xs">
@@ -467,6 +534,7 @@ export const ImportModal: React.FC<Props> = ({
               </table>
             </div>
           )}
+          {resultHasErrors && !textPreview && <button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0]?.key ?? 'model')}>Corregir en Ajustar importación</button>}
         </div>
       )}
 
@@ -475,7 +543,7 @@ export const ImportModal: React.FC<Props> = ({
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
-      {step === 'summary' && requiredMissing.length > 0 && (
+      {step === 'summary' && summary?.rowCount !== 0 && requiredMissing.length > 0 && (
         <p className="mt-3 text-sm text-red-700">Falta mapear {requiredMissing.map((field) => field.label).join(', ')}.</p>
       )}
     </div>

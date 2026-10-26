@@ -130,6 +130,7 @@ export type InventoryColumnFilters = {
   priceMax: string;
   needsCompletion: boolean;
   supplierId: string;
+  priceToDefine?: boolean;
 };
 
 export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
@@ -157,6 +158,7 @@ export function columnFilterKey(filters: InventoryColumnFilters) {
     filters.priceMin.trim(),
     filters.priceMax.trim(),
     filters.needsCompletion ? '1' : '0',
+    filters.priceToDefine ? '1' : '0',
   ].join('~');
 }
 
@@ -172,7 +174,7 @@ export function columnFilterActive(filters: InventoryColumnFilters, column: keyo
   if (column === 'statuses') return filters.statuses.length > 0 || filters.needsCompletion;
   if (column === 'colors') return filters.colors.length > 0;
   if (column === 'battery') return filters.battery !== '';
-  return filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
+  return Boolean(filters.priceToDefine) || filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
 }
 
 /** Empty selection means every status. «Disponible» also includes stock with a blank status. */
@@ -182,6 +184,7 @@ export function matchesInventoryStatuses(status: string, selected: string[]) {
 }
 
 export function matchesInventoryColumns(item: Product, filters: InventoryColumnFilters) {
+  if (filters.priceToDefine && item.price != null) return false;
   if (filters.supplierId && item.supplierId !== filters.supplierId) return false;
   const equipo = filters.equipo.trim().toLowerCase();
   if (equipo) {
@@ -197,7 +200,7 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
     if (!item.batteryHealth?.trim()) return false;
     if (extractMinBattery(item.batteryHealth) < Number(filters.battery)) return false;
   }
-  if (filters.priceMin.trim() && item.price < parseMoney(filters.priceMin)) return false;
-  if (filters.priceMax.trim() && item.price > parseMoney(filters.priceMax)) return false;
+  if (filters.priceMin.trim() && (item.price == null || item.price < parseMoney(filters.priceMin))) return false;
+  if (filters.priceMax.trim() && (item.price == null || item.price > parseMoney(filters.priceMax))) return false;
   return true;
 }

@@ -31,7 +31,7 @@ export interface InventoryItemInput {
   grade: string;
   batteryHealth: string;
   cost: number;
-  price: number;
+  price: number | null;
   currency?: string | null;
   status: string;
   categoryId?: string | null;
@@ -57,7 +57,7 @@ export interface InventoryItemResponse {
   grade: string;
   batteryHealth: string;
   cost: number;
-  price: number;
+  price: number | null;
   currency: string | null;
   status: string;
   categoryId: string | null;
@@ -108,7 +108,7 @@ type InventoryRecord = {
   batteryHealth: string;
   categoryId: string | null;
   cost: Decimal;
-  price: Decimal;
+  price: Decimal | null;
   currency?: string | null;
   status: string;
   customFields: Prisma.JsonValue | null;
@@ -135,6 +135,7 @@ class InventoryError extends DomainError {}
 const inventoryPrisma = prisma as any;
 
 const toDecimal = (value: number) => new Decimal(value);
+const priceDecimal = (value: number | null) => value == null ? null : toDecimal(value);
 
 async function assertCategoryBelongsToStore(storeId: string, categoryId?: string | null) {
   if (categoryId === undefined || categoryId === null) {
@@ -185,7 +186,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     grade: item.grade as InventoryItemResponse["grade"],
     batteryHealth: item.batteryHealth,
     cost: item.cost.toNumber(),
-    price: item.price.toNumber(),
+    price: item.price?.toNumber() ?? null,
     currency: item.currency ?? null,
     status: item.status as InventoryItemResponse["status"],
     reservedDepositId: item.reservedDepositId ?? null,
@@ -328,7 +329,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     grade: row.grade as InventoryItemResponse['grade'],
     batteryHealth: row.batteryHealth,
     cost: Number(row.cost),
-    price: Number(row.price),
+    price: row.price == null ? null : Number(row.price),
     currency: row.currency ?? null,
     status: row.status as InventoryItemResponse['status'],
     reservedDepositId: row.reservedDepositId, reservedClientId: row.reservedClientId, reservedClientName: row.reservedClientName, reservedAt: row.reservedAt?.toISOString() ?? null,
@@ -526,7 +527,7 @@ export async function createInventoryItem(
       grade,
       batteryHealth: input.batteryHealth,
       cost: toDecimal(input.cost),
-      price: toDecimal(input.price),
+      price: priceDecimal(input.price),
       currency,
       status: input.status,
       pendingSaleRegistration: input.status === "VENDIDO",
@@ -679,7 +680,7 @@ export async function updateInventoryItem(
       data.costChangedBy = options.actor.name;
       data.costChangedAt = changedAt;
     }
-    if (input.price !== undefined) data.price = toDecimal(input.price);
+    if (input.price !== undefined) data.price = priceDecimal(input.price);
     const nextCurrency = currencyOnWrite(input.currency, priceChanges || costChanges, priceChanges || costChanges ? await storeCurrency(storeId, tx) : "ARS");
     if (nextCurrency) data.currency = nextCurrency;
     if (priceChanges && options?.actor) {
@@ -712,7 +713,7 @@ export async function updateInventoryItem(
         entityType: "inventory",
         entityId: id,
         entityLabel: label,
-        detail: `${existing.price.toString()} → ${input.price}`,
+        detail: `${existing.price?.toString() ?? "A definir"} → ${input.price ?? "A definir"}`,
         changes: diffFields(
           { price: existing.price },
           { price: input.price },
@@ -958,7 +959,7 @@ export interface ImportRow {
   grade?: string;
   batteryHealth?: string;
   cost?: number;
-  price: number;
+  price?: number | null;
   currency?: "ARS" | "USD";
   status?: string;
   customFields?: Record<string, unknown>;
@@ -969,6 +970,7 @@ export interface ImportResult {
   imported: number;
   updated: number;
   errors: { row: number; imei: string; message: string }[];
+  priceToDefine: number;
 }
 
 const CONDITION_MAP: Record<string, string> = {
@@ -1018,7 +1020,7 @@ export async function importInventoryItems(
   options?: { actor?: Actor | null; lockPrice?: boolean; supplierId?: string | null; purchaseName?: string | null; name?: string | null },
 ): Promise<ImportResult> {
   const purchaseName = readPurchaseName(options ?? {});
-  const result: ImportResult = { imported: 0, updated: 0, errors: [] };
+  const result: ImportResult = { imported: 0, updated: 0, errors: [], priceToDefine: 0 };
   const collector = importErrorCollector(result.errors);
   const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
   const defaultPurchasedAt = new Date();
@@ -1047,7 +1049,7 @@ export async function importInventoryItems(
       collector.reject({ row: rowNum, imei: raw.imei, message: "Modelo vacío" }, "missing_model");
       continue;
     }
-    if (raw.price == null || isNaN(raw.price)) {
+    if (raw.price != null && (!Number.isFinite(raw.price) || raw.price < 0)) {
       collector.reject({ row: rowNum, imei: raw.imei, message: "Precio inválido" }, "invalid_price");
       continue;
     }
@@ -1096,7 +1098,7 @@ export async function importInventoryItems(
       grade: parsedGrade.grade,
       batteryHealth: normalizeBattery(raw.batteryHealth),
       cost: providedCost ?? 0,
-      price: Number(raw.price),
+      price: raw.price == null ? null : Number(raw.price),
       status,
     };
 
@@ -1125,7 +1127,7 @@ export async function importInventoryItems(
           ...(raw.customFields ?? {}),
         };
         const priceChanges = moneyChanged(existing.price, input.price) || (raw.currency !== undefined && existingCurrency !== rowCurrency);
-        const applyPrice = !(options?.lockPrice && priceChanges);
+        const applyPrice = raw.price != null && !(options?.lockPrice && priceChanges);
         const costChanges = providedCost !== undefined && (moneyChanged(existing.cost, providedCost) || (raw.currency !== undefined && existingCurrency !== rowCurrency));
         const changedAt = new Date();
         await prisma.inventoryItem.update({
@@ -1139,7 +1141,7 @@ export async function importInventoryItems(
             ...(raw.batteryHealth !== undefined ? { batteryHealth: input.batteryHealth } : {}),
             ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
             ...(costChanges && options?.actor ? { costChangedBy: options.actor.name, costChangedAt: changedAt } : {}),
-            ...(applyPrice ? { price: toDecimal(input.price) } : {}),
+            ...(applyPrice ? { price: priceDecimal(input.price) } : {}),
             ...((applyPrice && priceChanges) || costChanges ? { currency: rowCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             ...(raw.status !== undefined ? { status: input.status } : {}),
@@ -1153,7 +1155,7 @@ export async function importInventoryItems(
             action: "inventory.price",
             entityType: "inventory",
             entityId: existing.id,
-            detail: `${existing.price.toString()} → ${input.price}`,
+            detail: `${existing.price?.toString() ?? "A definir"} → ${input.price ?? "A definir"}`,
           });
         }
         if (options?.actor && costChanges && providedCost !== undefined) {
@@ -1166,6 +1168,7 @@ export async function importInventoryItems(
             detail: `${existing.cost.toString()} → ${providedCost}`,
           });
         }
+        if (existing.price == null && !applyPrice) result.priceToDefine++;
         result.updated++;
       } else {
         const created = await inventoryPrisma.inventoryItem.create({
@@ -1179,7 +1182,7 @@ export async function importInventoryItems(
             grade: input.grade,
             batteryHealth: input.batteryHealth,
             cost: toDecimal(input.cost),
-            price: toDecimal(input.price),
+            price: priceDecimal(input.price),
             currency: rowCurrency,
             status: input.status,
             customFields: raw.customFields ?? {},
@@ -1188,6 +1191,7 @@ export async function importInventoryItems(
         const group = purchases.get(purchaseKey) ?? { name: rowPurchaseName, purchasedAt, ids: [] };
         group.ids.push(created.id);
         purchases.set(purchaseKey, group);
+        if (input.price == null) result.priceToDefine++;
         result.imported++;
       }
     } catch {

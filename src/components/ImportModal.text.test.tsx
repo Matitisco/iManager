@@ -79,7 +79,7 @@ describe('text import shares Excel review', () => {
 
 describe('errores visibles en filas de texto', () => {
   it.each([false, true])('marca la fila inválida y permite corregirla antes de importar (mobile: %s)', async (sheet) => {
-    const { onImport } = setup(sheet, { ...analysis, rows: [{ ...analysis.rows[0], price: '' }], review: [{ ...analysis.review![0], dudas: [] }] });
+    const { onImport } = setup(sheet, { ...analysis, rows: [{ ...analysis.rows[0], price: 'inválido' }], review: [{ ...analysis.review![0], dudas: [] }] });
     await paste();
     expect(screen.getByTestId('import-preview-row')).toHaveClass('bg-red-50');
     expect(screen.getByTestId('import-preview-row')).toHaveTextContent('Completá un precio válido');

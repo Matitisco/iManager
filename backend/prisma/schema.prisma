@@ -215,7 +215,7 @@ model InventoryItem {
   grade         String             @db.VarChar(20)
   batteryHealth String             @db.VarChar(50)
   cost          Decimal            @db.Decimal(12, 2)
-  price         Decimal            @db.Decimal(12, 2)
+  price         Decimal?           @db.Decimal(12, 2)
   // Null on rows created before currency tracking: interpret as the current store currency.
   currency      String?            @db.VarChar(3)
   // The desk UI no longer edits quantity, but production rows still store it.
@@ -1170,7 +1170,7 @@ model StockCountExpected {
   capacity         String     @db.VarChar(50)
   color            String     @db.VarChar(50)
   statusAtSnapshot String     @db.VarChar(20)
-  price            Decimal    @db.Decimal(12, 2)
+  price            Decimal?   @db.Decimal(12, 2)
   currency         String?    @db.VarChar(3)
   stockCount       StockCount @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
   createdAt        DateTime   @default(now())

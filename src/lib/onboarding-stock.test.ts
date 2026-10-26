@@ -56,7 +56,7 @@ describe("stock del onboarding", () => {
     expect(payload[1].customFields).toEqual(payload[0].customFields);
     expect(payload[2].currency).toBe("ARS");
   });
-  it("permite guardar datos pendientes con precio cero y marca, sin inventar valores", () => {
+  it("permite guardar datos pendientes con precio a definir y marca, sin inventar valores", () => {
     const rows = prepareOnboardingRows({
       ...analysis,
       rows: [
@@ -70,7 +70,7 @@ describe("stock del onboarding", () => {
       ],
     });
     expect(onboardingPayload(rows)[0]).toMatchObject({
-      price: 0,
+      price: null,
       currency: "USD",
       condition: "USADO",
       customFields: { onboardingReview: "Falta capacidad" },

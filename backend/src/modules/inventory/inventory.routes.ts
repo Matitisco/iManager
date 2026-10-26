@@ -39,7 +39,7 @@ const inventoryItemSchema = z.object({
   grade: z.string().trim().max(20),
   batteryHealth: z.string().trim().max(50).refine(validBatteryHealth, BATTERY_HEALTH_MESSAGE),
   cost: z.number().nonnegative(),
-  price: z.number().positive(),
+  price: z.number().positive().nullable(),
   status: z.string().trim().max(20),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
@@ -56,7 +56,7 @@ const inventoryPatchSchema = inventoryItemSchema
   .extend({
     capacity: z.string().trim().max(50),
     color: z.string().trim().max(50),
-    price: z.number().nonnegative(),
+    price: z.number().nonnegative().nullable(),
   })
   .partial();
 
@@ -237,7 +237,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
               grade: z.string().optional(),
               batteryHealth: z.coerce.string().optional(),
               cost: z.coerce.number().optional(),
-              price: z.coerce.number().finite().nonnegative(),
+              price: z.coerce.number().finite().nonnegative().nullable().optional(),
               currency: z.enum(["ARS", "USD"]).optional(),
               status: z.string().optional(),
               purchasedAt: z.string().trim().optional(),

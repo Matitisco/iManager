@@ -1,0 +1,7 @@
+# Diseño
+
+InventoryItem.price y el snapshot del conteo admiten null mediante DROP NOT NULL aditivo. Los importes ausentes no son cero ni reemplazan precios existentes al reimportar. La UI presenta «A definir», los filtros distinguen null y la venta exige importe positivo. Catálogo, conteo, exportación y serializers conservan la ausencia. Un único flujo con aviso compacto, mapeo tabular y proveedor inline dentro del formulario. QA exclusivamente PostgreSQL ficticio local.
+
+En el resumen con cero filas, DiscardNotice integra el motivo único de falta de modelo en una frase y aloja el enlace al mapeo dentro del recuadro amarillo. Los motivos múltiples conservan su lista dentro del aviso. Se omite el mensaje rojo duplicado del resumen vacío; el mapeo y los resúmenes con filas conservan sus validaciones y presentación. Se reutiliza el CSS existente.
+
+Integrada la base de #613: diagnostics.discardedRows y discardedByReason son la fuente del resumen de descartes de la vista previa y del resultado; no se mantiene un contador paralelo en summary. missingRequiredFields conserva Modelo como obligatorio y missingRecommendedFields informa Precio e IMEI. La ausencia de precio no suma missing_price; los importes inválidos conservan invalid_price. Se mantienen los eventos PostHog con sus filtros de privacidad y la separación de costo y precio de venta. Los encabezados repetidos y las etiquetas de sección se mantienen fuera de los equipos importados, aunque no haya precio. El filtro pendiente se conserva hasta montar Inventario al navegar desde un proveedor.

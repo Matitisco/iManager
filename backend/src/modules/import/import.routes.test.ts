@@ -51,7 +51,7 @@ describe("importRoutes analyze", () => {
     const payload = { section: "inventory", sheets: [{ name: "Stock", rows: [["Modelo", "Costo", "Color"], ["iPhone 13", "420", "Negro"]] }] };
     const analyzed = await app.inject({ method: "POST", url: "/analyze", payload });
     expect(analyzed.statusCode).toBe(200);
-    const expected = { rows: [], missingRequiredFields: ["price"], missingRecommendedFields: ["imei"], diagnostics: { detectedRows: 1, acceptedRows: 0, discardedRows: 1, discardedByReason: { missing_price: 1 } } };
+    const expected = { rows: [{ model: "iPhone 13" }], missingRequiredFields: [], missingRecommendedFields: ["price", "imei"], diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {} } };
     expect(analyzed.json()).toMatchObject(expected);
     const applied = await app.inject({ method: "POST", url: "/apply", payload: { ...payload, plan: analyzed.json().plan } });
     expect(applied.statusCode).toBe(200);

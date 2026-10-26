@@ -254,7 +254,7 @@ describe("integrated operation API", () => {
       expect.objectContaining({ id: fixture.inventoryItem.id, price: 1000, status: "VENDIDO", pendingSaleRegistration: false }),
     ]));
     const stored = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } });
-    expect(stored.price.toNumber()).toBe(1000);
+    expect(stored.price?.toNumber()).toBe(1000);
     expect(stored.pendingSaleRegistration).toBe(false);
 
     const second = await prisma.inventoryItem.create({ data: {
@@ -271,7 +271,7 @@ describe("integrated operation API", () => {
     const confirmedItem = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: second.id } });
     expect(confirmedItem.status).toBe("VENDIDO");
     expect(confirmedItem.pendingSaleRegistration).toBe(false);
-    expect(confirmedItem.price.toNumber()).toBe(1100);
+    expect(confirmedItem.price?.toNumber()).toBe(1100);
     expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(2);
   });
 
@@ -287,7 +287,7 @@ describe("integrated operation API", () => {
     expect(created.statusCode).toBe(201);
     const receivedId = created.json().tradeIn.receivedInventoryItemId as string;
     const received = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: receivedId } });
-    expect(received.price.toNumber()).toBe(0);
+    expect(received.price?.toNumber()).toBe(0);
     expect(received.status).toBe("EN_REVISION");
 
     const marked = await app.inject({ method: "PATCH", url: `/api/inventory/${receivedId}`, headers, payload: { status: "VENDIDO", price: 0, model: "iPhone recibido" } });
@@ -308,7 +308,7 @@ describe("integrated operation API", () => {
       expect.objectContaining({ id: receivedId, price: 900, status: "VENDIDO", pendingSaleRegistration: false }),
     ]));
     const stored = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: receivedId } });
-    expect(stored.price.toNumber()).toBe(900);
+    expect(stored.price?.toNumber()).toBe(900);
     expect(stored.status).toBe("VENDIDO");
     expect(stored.pendingSaleRegistration).toBe(false);
   });
