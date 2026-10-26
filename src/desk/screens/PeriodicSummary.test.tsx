@@ -67,6 +67,8 @@ describe('Resumen periódico', () => {
     const sales = screen.getByRole('region', { name: 'Ventas' });
     expect(within(sales).getByText('$ 500')).toBeVisible();
     expect(sales.querySelector('s')).toHaveTextContent('$ 9.000');
+    expect(within(sales).getByText('Anulado')).toBeVisible();
+    expect(sales.querySelector('.periodic-void')).toHaveClass('phone-row', 'is-void');
     expect(within(sales).queryByText(/Anulada, no suma/)).not.toBeInTheDocument();
     expect(sales.querySelector('.periodic-void small')).toHaveTextContent(/^28\/09\/2026$/);
     expect(within(sales).getAllByRole('listitem')).toHaveLength(3);
@@ -111,6 +113,16 @@ describe('Resumen periódico', () => {
     await waitFor(() => expect(mocks.fetch).toHaveBeenLastCalledWith(context.user, 'half:2026-09-16', expect.any(AbortSignal)));
     expect(screen.getByRole('combobox', { name: 'Períodos anteriores' })).toHaveTextContent('16 al 30/09/2026');
     expect(screen.queryByText(/01\/09\/2026 – 30\/09\/2026/)).not.toBeInTheDocument();
+  });
+  it('keeps the short mobile selector accessible and shows the actual response period', async () => {
+    mocks.phone = true;
+    show(); await loaded();
+    expect(screen.getByRole('combobox', { name: 'Períodos anteriores' })).toHaveTextContent('Anteriores');
+    expect(screen.getByText('01 al 30/09/2026')).toBeVisible();
+    await userEvent.click(screen.getByRole('combobox', { name: 'Períodos anteriores' }));
+    expect(screen.getByRole('dialog', { name: 'Períodos anteriores' })).toBeVisible();
+    await userEvent.click(screen.getByRole('option', { name: '16 al 30/09/2026' }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenLastCalledWith(context.user, 'half:2026-09-16', expect.any(AbortSignal)));
   });
   it('replaces a failed load with a neutral empty state and logs its cause', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -192,7 +204,7 @@ describe('Resumen periódico', () => {
       await userEvent.click(trigger);
       const dialog = screen.getByRole('dialog', { name: title });
       expect(dialog).toHaveAttribute('aria-modal', 'true');
-      expect(dialog).toHaveClass('sheet', 'sheet-frame', 'periodic-breakdown');
+      expect(dialog).toHaveClass('sheet', 'sheet-frame', 'periodic-breakdown', 'hist-screen');
       expect(within(dialog).getAllByRole('listitem')).toHaveLength(count);
       if (title === 'Diferencias de stock') expect(within(dialog).getByText('IMEI 352094113377802 · 28/09/2026')).toBeVisible();
       if (title === 'Ventas') {
@@ -201,7 +213,7 @@ describe('Resumen periódico', () => {
         expect(dialog).not.toHaveTextContent('Anulada, no suma');
       }
       await userEvent.tab();
-      const close = within(dialog).getByRole('button', { name: 'Cerrar' });
+      const close = within(dialog).getByRole('button', { name: phone ? 'Volver' : 'Cerrar' });
       expect(close).toHaveFocus();
       await userEvent.tab();
       expect(close).toHaveFocus();

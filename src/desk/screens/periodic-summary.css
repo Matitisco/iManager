@@ -1,38 +1,51 @@
-.periodic-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 16px; }
-.periodic-picker .gchip.sm { min-height: 38px; height: auto; white-space: nowrap; background: #fff; border: 1px solid var(--border); }
-.periodic-picker .gchip.sm.on { background: var(--lime-soft); border-color: #F0D56B; color: var(--primary); }
+.periodic-period-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin: 2px 0 20px; }
+.periodic-picker { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.periodic-picker > button.sg { flex-shrink: 0; white-space: nowrap; }
 .periodic-previous { min-width: 0; max-width: 100%; }
-.periodic-previous .ds-select-trigger { min-height: 38px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 700; gap: 8px; }
-.periodic-previous.selected .ds-select-trigger { background: var(--lime-soft); border-color: #F0D56B; }
+.desk-app .periodic-previous .ds-select-trigger { height: 38px; min-height: 38px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 999px; font-size: 13px; font-weight: 700; gap: 8px; }
+.periodic-previous .ds-select-trigger > svg { width: 14px; height: 14px; }
+.desk-app .periodic-previous.selected .ds-select-trigger { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.periodic-period-date { color: var(--secondary); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .periodic-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
-.periodic-card { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 20px; min-width: 0; }
-.periodic-card h2 { margin: 0 0 8px; color: var(--secondary); font-size: 13px; font-weight: 500; }
-.periodic-total { font-size: 27px; line-height: 1.2; letter-spacing: -.03em; font-weight: 750; overflow-wrap: anywhere; }
-.periodic-total + .periodic-note { margin-top: 12px; }
+.periodic-card { min-width: 0; }
+.periodic-card .dch { gap: 8px; }
+.periodic-card .dch h3 { min-width: 0; }
+.periodic-card .periodic-more { flex-shrink: 0; font-size: 12px; white-space: nowrap; }
+.periodic-total { font-size: 26px; line-height: 1.2; letter-spacing: -.02em; font-weight: 800; overflow-wrap: anywhere; }
 .periodic-note { color: var(--secondary); font-size: 12px; line-height: 1.5; margin: 0; }
+.periodic-total + .periodic-note { margin-top: 18px; }
 .periodic-list { margin: 0; padding: 0; list-style: none; }
-.periodic-card .periodic-list { margin-top: 8px; }
-.periodic-row { min-width: 0; padding: 10px 0; border-top: 1px solid var(--border); }
-.periodic-line { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 13px; line-height: 1.4; }
-.periodic-line b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.periodic-value { flex-shrink: 0; font-weight: 600; white-space: nowrap; }
-.periodic-row small { display: block; font-size: 11px; line-height: 1.5; color: var(--secondary); overflow-wrap: anywhere; }
-.periodic-void { background: #fdf3f4; padding-left: 8px; padding-right: 8px; border-radius: 7px; }
-.periodic-void b { color: var(--secondary); }
-.periodic-void small, .periodic-void .periodic-value { color: #C92F3F; }
-.periodic-badge { flex-shrink: 0; border-radius: 999px; background: var(--row); color: #5B616B; padding: 2px 6px; font-size: 10px; white-space: nowrap; }
-.periodic-badge.missing { background: #FFE3E6; color: #C92F3F; }
-.periodic-badge.pending { background: var(--lime-soft); color: #856100; }
-.periodic-more { padding: 6px 0 0; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; min-height: 32px; }
-.periodic-breakdown .periodic-row { padding-top: 14px; padding-bottom: 14px; }
-.periodic-summary .ferr .dbtn { margin: 8px 0 0; display: block; }
+.periodic-card .periodic-list { margin-top: 18px; }
+.periodic-card .periodic-note + .periodic-list { margin-top: 12px; }
+.periodic-row.phone-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 12px; }
+.periodic-copy { min-width: 0; flex: 1; }
+.periodic-copy > b, .periodic-copy > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.periodic-copy > b { font-size: 14px; font-weight: 700; line-height: 1.35; }
+.periodic-copy > small { margin-top: 3px; font-size: 12px; font-weight: 500; line-height: 1.5; }
+.periodic-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; max-width: 100%; }
+.periodic-end .periodic-value { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.periodic-card .periodic-row { flex-wrap: wrap; }
+.periodic-card .periodic-copy { flex-basis: 100%; }
+.periodic-card .periodic-end { flex-direction: row; justify-content: space-between; align-items: center; width: 100%; }
+.desk-app .periodic-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); border-color: transparent; border-radius: 16px; overflow: hidden; }
+.periodic-void s { color: var(--secondary); }
+.periodic-danger.spill { background: var(--err-soft); color: var(--err); border: 0; }
+.periodic-breakdown .periodic-copy > b, .periodic-breakdown .periodic-copy > small { white-space: normal; overflow-wrap: anywhere; }
 @media (max-width: 1050px) { .periodic-grid { grid-template-columns: 1fr; gap: 14px; } }
 @media (max-width: 760px) {
-  .periodic-picker { gap: 6px; }
-  .periodic-picker .gchip.sm, .periodic-previous .ds-select-trigger { min-height: 44px; padding-left: 10px; padding-right: 10px; }
-  .periodic-card { padding: 18px; }
-  .periodic-total { font-size: 27px; }
-  .periodic-more { min-height: 44px; padding-top: 8px; text-align: left; }
+  .periodic-summary { padding-bottom: var(--tab-clearance); }
+  .periodic-period-bar { margin-bottom: 16px; }
+  .periodic-picker { gap: 6px; width: 100%; }
+  .desk-app .periodic-picker > button.sg, .desk-app .periodic-previous .ds-select-trigger { padding: 0 12px; font-size: 12px; }
+  .periodic-previous { flex: 1; }
+  .periodic-period-date { font-size: 12px; }
+  .periodic-card { padding: 18px 16px; }
+  .periodic-card .periodic-list { margin-top: 14px; }
+  .periodic-card .periodic-row { flex-wrap: nowrap; }
+  .periodic-card .periodic-copy { flex-basis: auto; }
+  .periodic-card .periodic-end { flex-direction: column; align-items: flex-end; width: auto; }
+  .periodic-card .periodic-copy > b { font-size: 15px; }
+  .periodic-card .periodic-copy > small { font-size: 11px; }
   .periodic-report-tabs { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; padding-bottom: 4px; }
   .periodic-report-tabs button { flex-shrink: 0; }
 }

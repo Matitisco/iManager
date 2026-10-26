@@ -16,22 +16,22 @@ const titles: Record<Breakdown, string> = { sales: 'Ventas', returns: 'Devolucio
 
 function SaleRow({ item }: { item: SummarySale }) {
   const money = useMoney();
-  return <li className={`periodic-row${item.voided ? ' periodic-void' : ''}`}>
-    <div className="periodic-line"><b>{item.title}</b><span className="periodic-value">{item.voided ? <s>{money.show(item.amount, item.currency)}</s> : money.show(item.amount, item.currency)}</span></div>
-    <small>{summaryDate(item.day)}{!item.voided && item.detail ? ` · ${item.detail}` : ''}</small>
+  return <li className={`phone-row periodic-row${item.voided ? ' periodic-void is-void' : ''}`}>
+    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}{!item.voided && item.detail ? ` · ${item.detail}` : ''}</small></div>
+    <div className="periodic-end"><b className="periodic-value">{item.voided ? <s>{money.show(item.amount, item.currency)}</s> : money.show(item.amount, item.currency)}</b>{item.voided ? <span className="spill periodic-danger">Anulado</span> : null}</div>
   </li>;
 }
 function ReturnRow({ item }: { item: SummaryReturn }) {
   const money = useMoney();
-  return <li className="periodic-row">
-    <div className="periodic-line"><b>{item.title}</b>{item.amount !== 0 ? <span className="periodic-value">{money.show(item.amount, item.currency)}</span> : <span className={`periodic-badge${item.pending ? ' pending' : ''}`}>{item.pending ? 'En curso' : 'Resuelto'}</span>}</div>
-    <small>{summaryDate(item.day)}{item.detail ? ` · ${item.detail}` : ''}</small>
+  return <li className="phone-row periodic-row">
+    <div className="periodic-copy"><b>{item.title}</b><small>{summaryDate(item.day)}{item.detail ? ` · ${item.detail}` : ''}</small></div>
+    <div className="periodic-end">{item.amount !== 0 ? <b className="periodic-value">{money.show(item.amount, item.currency)}</b> : <span className={`spill ${item.pending ? 'lime' : 'mid'}`}>{item.pending ? 'En curso' : 'Resuelto'}</span>}</div>
   </li>;
 }
 function StockRow({ item, full = false }: { item: SummaryStock; full?: boolean }) {
-  return <li className="periodic-row">
-    <div className="periodic-line"><b>{item.title}</b><span className={`periodic-badge${item.status === 'Falta' ? ' missing' : ''}`}>{item.status}</span></div>
-    <small>IMEI {item.imei}{full ? ` · ${summaryDate(item.day)}` : ''}</small>
+  return <li className="phone-row periodic-row">
+    <div className="periodic-copy"><b>{item.title}</b><small>IMEI {item.imei}{full ? ` · ${summaryDate(item.day)}` : ''}</small></div>
+    <div className="periodic-end"><span className={`spill ${item.status === 'Falta' ? 'periodic-danger' : 'mid'}`}>{item.status}</span></div>
   </li>;
 }
 
@@ -69,10 +69,11 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const blocked = (data?.sales && salesTotal == null) || (data?.returns && returnsTotal == null);
   const total = (value: number | null) => value == null ? '—' : money.showActive(value);
   const selectPeriod = (value: string) => { setBreakdown(null); setSelection(value); };
-  const card = (kind: Breakdown, value: ReactNode, items: ReactNode[], note?: string) => <section className="periodic-card" aria-label={titles[kind]}>
-    <h2>{titles[kind]}</h2><div className="periodic-total">{value}</div>
+  const periodLabel = data ? `${data.period.from.slice(8)} al ${summaryDate(data.period.to)}` : '';
+  const card = (kind: Breakdown, value: ReactNode, items: ReactNode[], note?: string) => <section className="dcard periodic-card" aria-label={titles[kind]}>
+    <div className="dch"><h3>{titles[kind]}</h3>{items.length ? <button type="button" className="wlink periodic-more" aria-haspopup="dialog" aria-label={`Ver todas las ${kind === 'stock' ? 'diferencias de stock' : titles[kind].toLowerCase()} (${items.length})`} onClick={() => setBreakdown(kind)}>Ver todas ({items.length})</button> : null}</div><div className="periodic-total">{value}</div>
     {items.length > 0 && note ? <p className="periodic-note">{note}</p> : null}
-    {items.length ? <><ul className="periodic-list">{items.slice(0, 3)}</ul><button type="button" className="periodic-more" aria-haspopup="dialog" aria-label={`Ver todas las ${kind === 'stock' ? 'diferencias de stock' : titles[kind].toLowerCase()} (${items.length})`} onClick={() => setBreakdown(kind)}>Ver todas ({items.length})</button></> : null}
+    {items.length ? <ul className="phone-rows periodic-list">{items.slice(0, 3)}</ul> : null}
   </section>;
   const salesRows = data?.sales?.items.map(item => <SaleRow key={item.id} item={item} />) ?? [];
   const returnRows = data?.returns?.items.map(item => <ReturnRow key={item.id} item={item} />) ?? [];
@@ -80,9 +81,9 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const fullRows = breakdown === 'sales' ? salesRows : breakdown === 'returns' ? returnRows : data?.stock?.items.map(item => <StockRow key={item.id} item={item} full />) ?? [];
   return <div className="dscreen reports-screen periodic-summary">
     <ScreenTitle title="Resumen periódico" back={back} desktop={null} navigation={navigation} />
-    <div className="periodic-picker" role="group" aria-label="Período del resumen">
-      <button type="button" className={`gchip sm${selection === 'latest-half' ? ' on' : ''}`} aria-pressed={selection === 'latest-half'} onClick={() => selectPeriod('latest-half')}>Última quincena</button>
-      <button type="button" className={`gchip sm${selection === 'latest-month' ? ' on' : ''}`} aria-pressed={selection === 'latest-month'} onClick={() => selectPeriod('latest-month')}>Último mes</button>
+    <div className="periodic-period-bar"><div className="periodic-picker" role="group" aria-label="Período del resumen">
+      <button type="button" className={`sg${selection === 'latest-half' ? ' on' : ''}`} aria-pressed={selection === 'latest-half'} onClick={() => selectPeriod('latest-half')}>Última quincena</button>
+      <button type="button" className={`sg${selection === 'latest-month' ? ' on' : ''}`} aria-pressed={selection === 'latest-month'} onClick={() => selectPeriod('latest-month')}>Último mes</button>
       <div className={`periodic-previous${!selection.startsWith('latest-') ? ' selected' : ''}`}>
         <DeskSelect label="Períodos anteriores" value={selection.startsWith('latest-') ? '' : selection} placeholder={phone ? 'Anteriores' : 'Períodos anteriores'} disabled={!data} options={data ? [
           { value: 'months-heading', label: 'MENSUALES', disabled: true },
@@ -91,7 +92,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
           ...data.periods.halves.map(period => ({ value: period.id, label: period.label })),
         ] : []} onChange={selectPeriod} />
       </div>
-    </div>
+    </div>{data ? <span className="periodic-period-date">{periodLabel}</span> : null}</div>
     {!current?.networkFailure && backendStatus !== 'offline' && (unavailable || (!ready && backendStatus !== 'checking')) ? <p className="periodic-note">Sin resumen para mostrar.</p> : null}
     {!data && !unavailable && (ready || backendStatus === 'checking') ? <ListSkeleton variant="cards" rows={3} testId="periodic-summary-loading" /> : null}
     {data ? <>
@@ -104,6 +105,6 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
       </div>
       {!data.sales && !data.returns && !data.stock ? <p className="periodic-note">No hay secciones habilitadas para este resumen.</p> : null}
     </> : null}
-    {data && breakdown ? <Sheet className="periodic-breakdown" title={titles[breakdown]} onClose={() => setBreakdown(null)}><ul className="periodic-list">{fullRows}</ul></Sheet> : null}
+    {data && breakdown ? <Sheet className="periodic-breakdown hist-screen" mobileBack title={titles[breakdown]} onClose={() => setBreakdown(null)}><ul className="phone-rows periodic-list">{fullRows}</ul></Sheet> : null}
   </div>;
 }
