@@ -65,7 +65,7 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary,
   const closeDetail = () => { setSelectedKey(null); setAllClaims(false); setClaimId(null); };
   const select = (row: ReturnPatternView) => { setAllRows(false); setAllClaims(false); setSelectedKey(row.key); };
   const originLabel = groupBy === 'purchase' ? 'Ver compra' : 'Ver proveedor';
-  const originAvailable = (row: ReturnPatternView) => seeOrigin && !!row.supplierId && groupBy !== 'model';
+  const originAvailable = (row: ReturnPatternView) => seeOrigin && !!row.supplierId && (groupBy === 'supplier' || (groupBy === 'purchase' && !!row.purchaseId));
   const openOrigin = (row: ReturnPatternView) => {
     closeDetail();
     if (groupBy === 'purchase' && row.purchaseId) setPurchase(row);
@@ -96,7 +96,11 @@ export function ReturnsPatterns({ groupBy, title = 'Fallas', request, onSummary,
       {!phone ? <div className="pat-column-label">Equipos con reclamo</div> : null}
       {failed ? <p className="ferr" role="alert">No se pudieron cargar las fallas.</p> : null}
       {!rows && !failed && (ready || backendStatus === 'checking') ? <div data-testid="fallas-loading"><ListSkeleton variant="cards" rows={5} /></div> : null}
-      {rows?.length ? ranking(rows.slice(0, 3)) : rows && !failed ? <div className="wempty" data-testid="fallas-group-empty">No hay equipos con reclamo.</div> : null}
+      {rows?.length ? ranking(rows.slice(0, 3)) : rows && !failed ? <div className="pat-empty" data-testid="fallas-group-empty">
+        <span className="pat-empty-icon" aria-hidden="true"><DeskIcon name="list" size={24} /></span>
+        <strong>Sin reclamos</strong>
+        <span>No hay equipos con reclamo.</span>
+      </div> : null}
       {phone && rows && rows.length > 3 ? <button className="wlink pat-view-all" type="button" onClick={() => setAllRows(true)}>Ver todos ({rows.length})</button> : null}
     </section>
     {allRows && rows ? <Sheet title={title} onClose={() => setAllRows(false)} className="pat-all-sheet" mobileBack={phone} overlayClassName="subov" footer={null}>{ranking(rows)}</Sheet> : null}

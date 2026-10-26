@@ -3,12 +3,16 @@
 .pat-summary .bar { margin-top: 12px; }
 .pat-summary .big { margin: 10px 0 8px; }
 .pat-summary .big small { font-size: 13px; font-weight: 600; color: var(--secondary); letter-spacing: 0; }
-.pat-summary .pat-reason-value { text-transform: capitalize; overflow-wrap: anywhere; }
+.pat-summary .pat-reason-value { overflow-wrap: anywhere; }
 .pat-summary-loading { min-height: 150px; }
 .pat-sections[hidden] { display: none; }
-.pat-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
-.pat-sections > div { min-width: 0; }
-.pat-section { min-width: 0; padding: 18px 20px 0; overflow: hidden; }
+.pat-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+.pat-sections > div { min-width: 0; display: flex; }
+.pat-sections > div[hidden] { display: none; }
+.pat-section { min-width: 0; width: 100%; display: flex; flex-direction: column; padding: 18px 20px 0; overflow: hidden; }
+.pat-empty { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 16px 0; text-align: center; color: var(--secondary); font-size: 12px; }
+.pat-empty-icon { display: flex; color: var(--section); margin-bottom: 4px; }
+.pat-empty strong { color: var(--secondary); font-size: 14px; font-weight: 700; }
 .pat-section .dch { flex-wrap: wrap; gap: 8px; min-height: 24px; margin-bottom: 12px; }
 .pat-section .dch h3 { font-size: 16px; }
 .pat-column-label { font-size: 11px; font-weight: 700; color: var(--secondary); margin-bottom: 8px; }
@@ -27,7 +31,7 @@
 .pat-bar i { display: block; height: 100%; border-radius: inherit; background: var(--lime); }
 .pat-count { font-size: 12px; font-weight: 500; color: var(--secondary); }
 .pat-rank-reason { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; color: var(--secondary); font-size: 11px; }
-.pat-reason { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; text-transform: capitalize; }
+.pat-reason { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 .pat-rank-reason > span:last-child:not(:first-child) { flex: none; }
 .pat-detail-metrics { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
 .pat-detail-metrics strong { font-size: 26px; font-weight: 800; }

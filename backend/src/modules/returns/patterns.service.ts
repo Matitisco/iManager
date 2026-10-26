@@ -35,15 +35,15 @@ const ZONE = "America/Argentina/Buenos_Aires";
 
 function groupIdentity(item: ProblemDevice, groupBy: PatternGroupBy) {
   if (groupBy === "supplier") {
-    if (!item.supplierId || !item.supplier) return null;
+    if (!item.supplierId || !item.supplier) return { key: "none", label: "Sin proveedor asignado", supplierId: null, purchaseId: null };
     return { key: item.supplierId, label: item.supplier.name, supplierId: item.supplierId, purchaseId: null };
   }
   if (groupBy === "purchase") {
     const purchase = item.stockPurchase;
-    if (!purchase || purchase.deletedAt || !item.supplierId || !item.supplier) return null;
+    if (!purchase || purchase.deletedAt) return { key: "none", label: "Sin compra asignada", supplierId: null, purchaseId: null };
     const date = calendarDay(purchase.purchasedAt, ZONE).split("-").reverse().join("/");
     const label = purchase.name || [date, purchase.notes].filter(Boolean).join(" · ");
-    return { key: purchase.id, label: `${item.supplier.name} · ${label}`, supplierId: item.supplierId, purchaseId: purchase.id };
+    return { key: purchase.id, label: [item.supplier?.name, label].filter(Boolean).join(" · "), supplierId: item.supplierId, purchaseId: purchase.id };
   }
   // Tuple encoding avoids model/capacity collisions; preserve the original model label.
   return { key: JSON.stringify([item.model.trim(), item.capacity.trim()]), label: [item.model.trim(), item.capacity.trim()].filter(Boolean).join(" · "), supplierId: null, purchaseId: null };
@@ -51,10 +51,9 @@ function groupIdentity(item: ProblemDevice, groupBy: PatternGroupBy) {
 
 export async function returnPatternAnalysis(storeId: string, groupBy: PatternGroupBy) {
   const snapshot = await loadProblems(storeId);
-  const groups = new Map<string, { identity: NonNullable<ReturnType<typeof groupIdentity>>; items: ProblemDevice[] }>();
+  const groups = new Map<string, { identity: ReturnType<typeof groupIdentity>; items: ProblemDevice[] }>();
   for (const item of snapshot.items) {
     const identity = groupIdentity(item, groupBy);
-    if (!identity) continue;
     const group = groups.get(identity.key) ?? { identity, items: [] };
     group.items.push(item);
     groups.set(identity.key, group);
@@ -62,7 +61,13 @@ export async function returnPatternAnalysis(storeId: string, groupBy: PatternGro
   const count = (items: ProblemDevice[]) => ({ devices: items.length, problems: items.filter(item => (snapshot.problems.get(item.id)?.claims.length ?? 0) > 0).length });
   const totals = count(snapshot.items);
   const allClaims = claimsForDevices(snapshot.items, snapshot.problems);
-  const summary = { ...totals, ...problemMetrics(totals.problems, totals.devices), claims: allClaims.length, topReason: topReason(allClaims.map(claim => claim.reason), 1) };
+  const summary = {
+    ...totals, ...problemMetrics(totals.problems, totals.devices), claims: allClaims.length,
+    // ReturnCase uses ABIERTO, EN_DIAGNOSTICO, EN_PROVEEDOR and RESUELTO.
+    // Also treat CERRADO as terminal if present.
+    openClaims: allClaims.filter(claim => claim.status !== "RESUELTO" && claim.status !== "CERRADO").length,
+    topReason: topReason(allClaims.map(claim => claim.reason), 1),
+  };
   const patterns: ReturnPatternView[] = [...groups.values()].map(({ identity, items }) => {
     const summary = count(items);
     const claims = claimsForDevices(items, snapshot.problems).sort((a, b) => b.openedAt.getTime() - a.openedAt.getTime() || b.caseNumber - a.caseNumber);

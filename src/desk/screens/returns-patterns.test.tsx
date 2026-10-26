@@ -32,7 +32,7 @@ const group: ReturnPatternView = {
 const purchaseGroup = { ...group, key: 'purchase', label: 'Importadora Andes · 05/09/2026 · Baterías', purchaseId: 'purchase' };
 const coolGroup = { ...group, key: 'cool', label: 'Tech Cuyo', supplierId: 'cool', devices: 8, problems: 2, percent: 25, hot: false, topReason: null, claimsDetail: [], claims: 0 };
 const zeroGroup = { ...coolGroup, key: 'zero', label: 'Sin problemas', problems: 0, percent: 0 };
-const summary = { devices: 90, problems: 16, percent: 18, claims: 20, topReason: { family: 'bateria', label: 'batería', claims: 12 } };
+const summary = { devices: 90, problems: 16, percent: 18, claims: 20, openClaims: 7, topReason: { family: 'bateria', label: 'batería', claims: 12 } };
 const result = (patterns: ReturnPatternView[]) => ({ patterns, summary });
 const tree = (node = <PatternsScreen />) => <div className="desk-app"><DeskProvider value={{ tab: 'patterns', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>{node}</DeskProvider></div>;
 const mount = (node = <PatternsScreen />) => render(tree(node));
@@ -83,6 +83,7 @@ describe('Fallas', () => {
     expect(stats).toHaveTextContent('batería');
     expect(stats).toHaveTextContent('12 de 20 reclamos');
     expect(stats.querySelectorAll('.dstat')).toHaveLength(phone ? 2 : 4);
+    if (!phone) expect(stats).toHaveTextContent('En 16 equipos · 7 abiertos');
     expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     if (phone) {
@@ -111,7 +112,8 @@ describe('Fallas', () => {
     const row = within(screen.getByRole('region', { name: 'Proveedores' })).getByTestId('pattern-supplier');
     expect(row).toHaveTextContent('<1%');
     expect(row).toHaveTextContent('1 de 268 equipos');
-    expect(parseFloat((row.querySelector('.pat-bar i') as HTMLElement).style.width)).toBeGreaterThan(0);
+    expect(row.querySelector('.pat-bar i')).toHaveStyle({ width: '2%' });
+    expect(stats.querySelector('.bar i')).toHaveStyle({ width: '2%' });
     await userEvent.click(row);
     expect(screen.getByRole('dialog', { name: group.label })).toHaveTextContent('<1%');
   });
@@ -141,6 +143,35 @@ describe('Fallas', () => {
     await userEvent.keyboard('{Escape}');
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
     expect(screen.getByRole('dialog', { name: 'Proveedor 5' })).toBeInTheDocument();
+  });
+
+  it.each(['supplier', 'purchase'] as const)('keeps fallback claims accessible without an origin action (%s)', async groupBy => {
+    const label = groupBy === 'supplier' ? 'Sin proveedor asignado' : 'Sin compra asignada';
+    api.fetchReturnAnalysis.mockResolvedValue(result([{ ...group, key: 'none', label, supplierId: null, purchaseId: null }]));
+    mount(<ReturnsPatterns groupBy={groupBy} />);
+    await userEvent.click(await screen.findByRole('button', { name: `Reclamos de ${label}` }));
+    expect(screen.getByRole('dialog', { name: label })).toHaveTextContent('RMA-0003');
+    expect(screen.queryByRole('button', { name: /Ver proveedor|Ver compra/ })).not.toBeInTheDocument();
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it('shows the illustrated group empty state without a nested box', async () => {
+    api.fetchReturnAnalysis.mockResolvedValue(result([]));
+    mount(<ReturnsPatterns groupBy="supplier" />);
+    const empty = await screen.findByTestId('fallas-group-empty');
+    expect(empty).toHaveTextContent('Sin reclamos');
+    expect(empty).toHaveTextContent('No hay equipos con reclamo.');
+    expect(empty).not.toHaveClass('wempty');
+    expect(empty.querySelector('svg')).toHaveAttribute('width', '24');
+  });
+
+  it('clarifies resolved claims and preserves the raw reason across summary, ranking and recent claims', async () => {
+    api.fetchReturnAnalysis.mockResolvedValue({ patterns: [{ ...group, claims: 1, problems: 1, topReason: { family: 'otro', label: 'asd', claims: 1 }, claimsDetail: [{ ...group.claimsDetail[0], reason: 'asd' }] }], summary: { ...summary, claims: 1, problems: 1, openClaims: 0, topReason: { family: 'otro', label: 'asd', claims: 1 } } });
+    mount();
+    const stats = await screen.findByLabelText('Resumen de fallas');
+    expect(stats).toHaveTextContent('En 1 equipo · 0 abiertos');
+    expect(stats.querySelector('.pat-reason-value')).toHaveTextContent('asd');
+    expect(screen.getByRole('region', { name: 'Reclamos recientes' })).toHaveTextContent('asd');
   });
 
   it('shows server percentages, full denominator and primary reason on each ranking row', async () => {

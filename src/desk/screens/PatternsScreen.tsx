@@ -61,7 +61,7 @@ function FallasContent() {
       </div>
       {!phone ? <>
         <div className="dstat"><div className="eb">Porcentaje afectado</div><div className="big">{patternPercent(summary)}</div><div className="bar"><i style={{ width: patternBarWidth(summary) }} /></div></div>
-        <div className="dstat"><div className="eb">Reclamos registrados</div><div className="big">{summary.claims}</div><span className="pat-count">En {summary.problems} {summary.problems === 1 ? 'equipo' : 'equipos'}</span></div>
+        <div className="dstat"><div className="eb">Reclamos registrados</div><div className="big">{summary.claims}</div><span className="pat-count">En {summary.problems} {summary.problems === 1 ? 'equipo' : 'equipos'} · {summary.openClaims} {summary.openClaims === 1 ? 'abierto' : 'abiertos'}</span></div>
       </> : null}
       <div className="dstat">
         <div className="eb">Motivo más frecuente</div>

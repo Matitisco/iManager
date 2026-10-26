@@ -1,0 +1,5 @@
+- [x] Corregir fallback de orígenes y resumen de abiertos, con regresiones backend.
+- [x] Implementar V2, estirar tarjetas, hacer visibles barras y conservar motivos.
+- [x] Verificar TypeScript y pruebas relacionadas con hasta dos workers.
+- [x] Sembrar y revisar dos escenarios ficticios con Playwright, capturar 1440/390 y cada tab.
+- [x] Escribir entrega, bajar servidores y crear commit local sin push.
