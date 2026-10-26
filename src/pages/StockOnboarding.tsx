@@ -74,8 +74,7 @@ function StockFlow({
     user,
     appSession,
     reloadInventory,
-    reloadSession,
-    updateGettingStarted,
+    finishStockOnboarding,
     refreshGettingStarted,
     inventory,
   } = useAppContext();
@@ -121,23 +120,18 @@ function StockFlow({
   const totals = onboardingTotals(rows, money.rate);
   const validation = rows.map(textRowError).find(Boolean);
   const finish = async (destination: "inventory" | "dashboard", completedVia: "import" | "skip" | "sample" = "import") => {
-    if (
-      appSession?.membership?.role === "OWNER" &&
-      appSession.store?.onboardingStartedAt &&
-      !appSession.store.onboardingCompletedAt
-    ) {
-      await updateGettingStarted({ complete: true, completedVia });
-    } else {
-      await refreshGettingStarted();
-    }
     window.history.replaceState(
       null,
       "",
       destination === "inventory" ? "#/inv" : "#/dash",
     );
-    // Refresh before leaving: a failed persistence never closes the flow as success.
-    await reloadInventory();
-    await reloadSession();
+    // Store membership already exists. Optional progress and read refreshes
+    // must not trap an owner after skipping or successfully saving stock.
+    if (appSession?.membership?.role === "OWNER" && appSession.store?.onboardingStartedAt) {
+      finishStockOnboarding(completedVia);
+    }
+    void reloadInventory().catch(() => console.warn('No se pudo actualizar el inventario al salir de stock.'));
+    void refreshGettingStarted();
     onFinish(destination);
   };
   const run = async (action: () => Promise<void>) => {
@@ -344,11 +338,7 @@ function StockFlow({
                       track('stock_method_chosen', { method: 'sample' });
                       if (!user) return;
                       await createSampleStock(user);
-                      await reloadInventory();
-                      await refreshGettingStarted();
-                      window.history.replaceState(null, "", "#/dash");
-                      await reloadSession();
-                      onFinish("dashboard");
+                      await finish("dashboard", "sample");
                     })
                   }
                 >
@@ -717,8 +707,8 @@ function StockFlow({
               throw cause;
             }
             importFinished('excel', result.imported + result.updated, result.errors.length);
-            await reloadInventory();
             if (!result.errors.length) await finish("inventory");
+            else await reloadInventory();
             return result;
           }}
         />

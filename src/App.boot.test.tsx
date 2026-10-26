@@ -39,3 +39,12 @@ it.each(['login', 'onboarding', 'journey'])('reveals %s directly without a loadi
   expect(screen.getByText(destination === 'login' ? 'Ingresá' : destination === 'onboarding' ? 'Creá tu tienda' : 'Primeros pasos')).toBeInTheDocument();
   expect(hideBootSplash).toHaveBeenCalledTimes(1);
 });
+
+it('permite entrar al dueño que salió de stock sin omitir la creación de tienda', () => {
+  state.value = { ...state.value, loading: false, user: { uid: 'u' }, backendStatus: 'ready', listsSettled: true, stockOnboardingExited: true, appSession: { ...session, store: { ...session.store, onboardingStartedAt: 'today' } } };
+  const view = render(<App />);
+  expect(screen.getByText('Tienda lista')).toBeInTheDocument();
+  state.value = { ...state.value, appSession: { onboardingRequired: true, store: null, membership: null } };
+  view.rerender(<App />);
+  expect(screen.getByText('Creá tu tienda')).toBeInTheDocument();
+});
