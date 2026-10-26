@@ -136,14 +136,21 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
   } catch { /* Best effort only. */ }
 }
 
-export function identify(userId: string, storeId: string | null, role: AppMembershipRole | null): void {
+export type IdentityDetails = { email?: string | null; name?: string | null; storeName?: string | null };
+
+/** Owner-requested identification: email, user name and store name so each account is recognisable. */
+export function identify(userId: string, storeId: string | null, role: AppMembershipRole | null, details: IdentityDetails = {}): void {
   try {
     if (disabled() || !initialized || !userId) return;
-    const key = JSON.stringify([userId, storeId, role]);
+    const email = details.email ?? null;
+    const name = details.name ?? null;
+    const storeName = details.storeName ?? null;
+    const key = JSON.stringify([userId, storeId, role, email, name, storeName]);
     if (key === identityKey) return;
     if (identity && identity !== userId) reset();
-    posthog.identify(userId, { store_id: storeId, role });
-    posthog.register({ store_id: storeId, role });
+    posthog.identify(userId, { store_id: storeId, role, email, name, store_name: storeName });
+    posthog.register({ store_id: storeId, role, store_name: storeName });
+    if (storeId) posthog.group('store', storeId, { name: storeName });
     identity = userId; store = storeId; identityKey = key;
   } catch { /* Never block session bootstrap. */ }
 }

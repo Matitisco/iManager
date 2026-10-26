@@ -373,9 +373,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     if (user && sessionConfirmed && backendStatus === 'ready' && appSession?.user.firebaseUid === user.uid) {
-      identifyPostHog(appSession.user.id, appSession.store?.id ?? null, appSession.membership?.role ?? null);
+      identifyPostHog(appSession.user.id, appSession.store?.id ?? null, appSession.membership?.role ?? null, {
+        email: appSession.user.email,
+        name: appSession.user.displayName,
+        storeName: appSession.store?.name ?? null,
+      });
     }
-  }, [user?.uid, sessionConfirmed, backendStatus, appSession?.user.id, appSession?.store?.id, appSession?.membership?.role]);
+  }, [user?.uid, sessionConfirmed, backendStatus, appSession?.user.id, appSession?.store?.id, appSession?.membership?.role, appSession?.user.email, appSession?.user.displayName, appSession?.store?.name]);
 
   const login = async () => {
     try {

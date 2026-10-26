@@ -298,13 +298,13 @@ it('retains a structurally equal refreshed backend session and billing data', as
 
 it('identifies only the confirmed business session, refreshes store/role and resets on logout', async () => {
   const { result } = await mount();
-  expect(identifyPostHog).toHaveBeenCalledWith('u', 'store', 'OWNER');
+  expect(identifyPostHog).toHaveBeenCalledWith('u', 'store', 'OWNER', expect.any(Object));
   await act(async () => auth.listener?.(auth.adapter.getCurrentUser()));
   vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'ready', session: {
     ...session, store: { ...session.store!, id: 'other-store' }, membership: { role: 'STAFF', isDefault: false },
   }, message: null });
   await act(() => result.current.reloadSession());
-  expect(identifyPostHog).toHaveBeenLastCalledWith('u', 'other-store', 'STAFF');
+  expect(identifyPostHog).toHaveBeenLastCalledWith('u', 'other-store', 'STAFF', expect.any(Object));
   await act(async () => auth.listener?.(null));
   expect(resetPostHog).toHaveBeenCalledOnce();
   expect(result.current.user).toBeNull();
