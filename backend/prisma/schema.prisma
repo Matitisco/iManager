@@ -358,6 +358,8 @@ model TradeIn {
   draftAmount        Decimal?         @db.Decimal(12, 2)
   draftPaymentMethod String?          @db.VarChar(50)
   draftPaymentStatus String?          @db.VarChar(20)
+  draftSellerMemberId String?         @db.VarChar(120)
+  draftWarrantyDays   Int?
   cancelledBy        String?          @db.VarChar(255)
   cancelledAt        DateTime?
   voidedAt           DateTime?
