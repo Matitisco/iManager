@@ -1,26 +1,34 @@
-.pat-summary.dstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pat-screen .pat-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.pat-summary .dstat { min-width: 0; }
 .pat-summary .bar { margin-top: 12px; }
-.pat-summary .big { margin-bottom: 4px; }
-.pat-summary .pat-reason-value { text-transform: capitalize; }
+.pat-summary .big { margin: 10px 0 8px; }
+.pat-summary .big small { font-size: 13px; font-weight: 600; color: var(--secondary); letter-spacing: 0; }
+.pat-summary .pat-reason-value { text-transform: capitalize; overflow-wrap: anywhere; }
 .pat-summary-loading { min-height: 150px; }
 .pat-sections[hidden] { display: none; }
 .pat-sections { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
-.pat-section { min-width: 0; padding-bottom: 4px; }
-.pat-section .dch { flex-wrap: wrap; gap: 8px; min-height: 44px; margin-bottom: 4px; }
+.pat-sections > div { min-width: 0; }
+.pat-section { min-width: 0; padding: 18px 20px 0; overflow: hidden; }
+.pat-section .dch { flex-wrap: wrap; gap: 8px; min-height: 24px; margin-bottom: 12px; }
 .pat-section .dch h3 { font-size: 16px; }
-.pat-ranking { margin: 0 -20px; }
-.desk-app button.pat-row { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--border); border-radius: 0; }
+.pat-column-label { font-size: 11px; font-weight: 700; color: var(--secondary); margin-bottom: 8px; }
+.pat-ranking { margin: 0 -20px; border-top: 1px solid var(--border); }
+.desk-app button.pat-row { width: 100%; display: block; padding: 12px 20px; text-align: left; border-bottom: 1px solid var(--border); border-radius: 0; }
 .desk-app button.pat-row:last-child { border-bottom: 0; }
 .desk-app button.pat-row:hover { background: var(--lime-soft); }
 .desk-app button.pat-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.pat-rank-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pat-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 800; }
-.pat-pct { display: flex; align-items: center; gap: 10px; grid-row: span 2; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.pat-pct .chev { color: var(--secondary); font-size: 20px; font-weight: 500; }
-.pat-bar { width: 100%; height: 6px; border-radius: 999px; background: var(--row); overflow: hidden; }
+.pat-rank-heading .chev { flex: none; color: var(--section); font-size: 20px; line-height: 20px; }
+.pat-rank-fraction { display: flex; align-items: baseline; gap: 5px; margin: 6px 0 5px; color: var(--secondary); font-size: 12px; font-variant-numeric: tabular-nums; }
+.pat-rank-fraction strong { color: var(--primary); font-size: 20px; font-weight: 800; }
+.pat-rank-fraction b { margin-left: auto; color: var(--primary); font-size: 14px; }
+.pat-bar { display: block; width: 100%; height: 6px; border-radius: 999px; background: var(--row); overflow: hidden; }
 .pat-bar i { display: block; height: 100%; border-radius: inherit; background: var(--lime); }
 .pat-count { font-size: 12px; font-weight: 500; color: var(--secondary); }
-.pat-row .pat-count { grid-column: 1 / -1; }
-.pat-reason { grid-column: 1 / -1; font-size: 13px; font-weight: 500; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: capitalize; }
+.pat-rank-reason { display: flex; justify-content: space-between; gap: 6px; margin-top: 6px; color: var(--secondary); font-size: 11px; }
+.pat-reason { flex: 1; min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; text-transform: capitalize; }
+.pat-rank-reason > span:last-child:not(:first-child) { flex: none; }
 .pat-detail-metrics { display: flex; align-items: baseline; gap: 12px; margin-bottom: 20px; }
 .pat-detail-metrics strong { font-size: 26px; font-weight: 800; }
 .pat-detail-metrics span { font-size: 13px; color: var(--secondary); }
@@ -31,25 +39,47 @@
 .pat-claims .info { min-width: 0; }
 .pat-claims .name { overflow-wrap: anywhere; }
 .pat-claims .role { white-space: normal; }
-.pat-detail .spill.cst { --pc: var(--secondary) !important; }
+.pat-detail .spill.cst, .pat-recent .spill.cst { --pc: var(--secondary) !important; }
 .pat-claims > .pat-count { margin: 12px 28px; }
 .ov.subov.pat-claim-layer { z-index: 140; }
 .pat-all-sheet .pat-ranking { margin: -16px -28px -24px; }
+.pat-recent { margin-top: 24px; }
+.pat-recent .dch { margin-bottom: 12px; }
+.pat-recent-table { table-layout: fixed; }
+.pat-recent-table th:nth-child(1) { width: 16%; }
+.pat-recent-table th:nth-child(2) { width: 25%; }
+.pat-recent-table th:nth-child(3) { width: 37%; }
+.pat-recent-table th:nth-child(4) { width: 17%; }
+.pat-recent-table th:nth-child(5) { width: 5%; }
+.pat-recent .dtable td { white-space: normal; overflow-wrap: anywhere; }
+.pat-recent-table b { display: block; font-weight: 700; }
+.pat-recent-table small { display: block; margin-top: 4px; font-size: 12px; color: var(--secondary); }
+.desk-app button.pat-recent-open { display: flex; align-items: center; justify-content: center; width: 40px; height: 44px; color: var(--secondary); }
+.pat-recent-open:focus-visible { outline: 2px solid var(--primary); }
 @media (max-width: 1100px) and (min-width: 761px) {
   .pat-sections { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
-  .pat-summary.dstats { gap: 12px; }
-  .pat-summary .dstat { min-width: 0; padding: 16px; }
-  .pat-summary .eb { min-height: 34px; margin-bottom: 8px; }
-  .pat-summary .pat-reason-value { font-size: 22px; line-height: 34px; overflow-wrap: anywhere; }
+  .pat-screen .dtop { align-items: center; }
+  .pat-screen .mtools { margin-left: auto; }
+  .pat-screen .pat-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .pat-summary .dstat { min-height: 124px; padding: 16px; }
+  .pat-summary .eb { min-height: 28px; margin-bottom: 8px; font-size: 11px; }
+  .pat-summary .big { margin: 4px 0 8px; }
+  .pat-summary .big small { font-size: 12px; }
+  .pat-summary .pat-reason-value { font-size: 24px; line-height: normal; }
+  .pat-screen .pat-group-tabs { flex-wrap: nowrap; gap: 6px; margin-bottom: 18px; }
+  .pat-group-tabs .sg { min-width: 0; flex: 1; padding: 0 10px; }
   .pat-sections { grid-template-columns: minmax(0, 1fr); gap: 24px; }
   .pat-section.dcard { padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
   .pat-section .dch { min-height: 0; margin-bottom: 12px; }
-  .pat-section .dch h3 { font-size: 16px; }
-  .pat-ranking.phone-rows { margin: 0; display: grid; gap: 8px; }
+  /* stage reserves navigation clearance once; rankings have no action dock. */
+  .pat-ranking.phone-rows { margin: 0; display: grid; gap: 8px; padding-bottom: 0; border-top: 0; }
   .desk-app button.pat-row.phone-row { padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
   .pat-row .pat-name { font-size: 15px; }
+  .pat-rank-fraction { margin: 8px 0 6px; }
+  .pat-rank-reason { margin-top: 8px; }
+  .pat-view-all { margin-top: 16px; }
   .pat-detail .sheet-scroll { padding-top: 12px; }
   .pat-claims { margin: 0 -16px; }
   .pat-claims .member { padding: 14px 16px; flex-wrap: wrap; }

@@ -73,25 +73,50 @@ beforeEach(() => {
 });
 
 describe('Fallas', () => {
-  it.each([false, true])('shows summary and three rankings without automatically opening a sheet (phone=%s)', async phone => {
+  it.each([false, true])('compares real metrics and rankings with mobile grouping (phone=%s)', async phone => {
     layout.phone = phone;
     api.fetchReturnAnalysis.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(result(by === 'purchase' ? [purchaseGroup] : by === 'model' ? [{ ...group, key: 'model', label: 'iPhone 11 · 64GB', supplierId: null }] : [group, coolGroup, zeroGroup])));
     mount();
     expect(screen.getByRole('heading', { name: 'Fallas', level: 1 })).toBeInTheDocument();
-    for (const name of ['Proveedores con más fallas', 'Compras con más fallas', 'Modelos con más fallas']) {
-      expect((await within(screen.getByRole('region', { name })).findAllByRole('button', { name: /Reclamos de/ })).length).toBeGreaterThan(0);
-    }
-    const stats = screen.getByLabelText('Resumen de fallas');
-    expect(stats).toHaveTextContent('18%');
-    expect(stats).toHaveTextContent('16 de 90 equipos');
+    const stats = await screen.findByLabelText('Resumen de fallas');
+    expect(stats).toHaveTextContent('16 de 90');
     expect(stats).toHaveTextContent('batería');
     expect(stats).toHaveTextContent('12 de 20 reclamos');
+    expect(stats.querySelectorAll('.dstat')).toHaveLength(phone ? 2 : 4);
     expect(screen.queryByTestId('pattern-zero')).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Agrupar' })).not.toBeInTheDocument();
+    if (phone) {
+      expect(screen.getByRole('tab', { name: 'Proveedores' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.queryByRole('region', { name: 'Modelos con más fallas' })).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('tab', { name: 'Modelos' }));
+      expect(await screen.findByRole('button', { name: 'Reclamos de iPhone 11 · 64GB' })).toBeVisible();
+      expect(screen.queryByRole('region', { name: 'Proveedores' })).not.toBeInTheDocument();
+    } else {
+      for (const name of ['Proveedores', 'Compras', 'Modelos']) expect((await within(screen.getByRole('region', { name })).findAllByRole('button', { name: /Reclamos de/ })).length).toBeGreaterThan(0);
+      const recent = screen.getByRole('region', { name: 'Reclamos recientes' });
+      expect(within(recent).getAllByRole('button', { name: /Ver reclamo RMA/ })).toHaveLength(2);
+      await userEvent.click(within(recent).getByRole('button', { name: 'Ver reclamo RMA-0003' }));
+      expect(screen.getByRole('dialog', { name: 'Reclamo · RMA-0003' })).toBeInTheDocument();
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(within(recent).getByRole('button', { name: 'Ver reclamo RMA-0003' })).toHaveFocus());
+    }
   });
 
-  it.each([false, true])('shows top five and opens all groups then a content-sized claims sheet (phone=%s)', async phone => {
+  it('keeps a positive incident visible below one percent in summary, ranking and detail', async () => {
+    api.fetchReturnAnalysis.mockResolvedValue({ patterns: [{ ...group, problems: 1, devices: 268, percent: 0 }], summary: { ...summary, problems: 1, devices: 268, percent: 0 } });
+    mount();
+    const stats = await screen.findByLabelText('Resumen de fallas');
+    expect(stats).toHaveTextContent('<1%');
+    expect(stats).toHaveTextContent('1 de 268');
+    const row = within(screen.getByRole('region', { name: 'Proveedores' })).getByTestId('pattern-supplier');
+    expect(row).toHaveTextContent('<1%');
+    expect(row).toHaveTextContent('1 de 268 equipos');
+    expect(parseFloat((row.querySelector('.pat-bar i') as HTMLElement).style.width)).toBeGreaterThan(0);
+    await userEvent.click(row);
+    expect(screen.getByRole('dialog', { name: group.label })).toHaveTextContent('<1%');
+  });
+
+  it.each([false, true])('shows top three and opens all groups then a content-sized claims sheet (phone=%s)', async phone => {
     layout.phone = phone;
     const groups = Array.from({ length: 6 }, (_, i) => ({ ...group, key: `s${i}`, label: `Proveedor ${i}` }));
     api.fetchReturnAnalysis.mockResolvedValue(result(groups));
@@ -193,6 +218,17 @@ describe('Fallas', () => {
     expect(await screen.findByRole('dialog', { name: coolGroup.label })).toBeInTheDocument();
   });
 
+  it('selects the linked mobile grouping before opening its claims', async () => {
+    layout.phone = true;
+    history.replaceState(null, '', returnPatternsHash('purchase', 'purchase'));
+    api.fetchReturnAnalysis.mockImplementation((_user, by: PatternGroupBy) => Promise.resolve(result(by === 'purchase' ? [purchaseGroup] : [group])));
+    mount();
+    expect(await screen.findByRole('dialog', { name: purchaseGroup.label })).toBeVisible();
+    expect(screen.getByRole('tab', { name: 'Compras' })).toHaveAttribute('aria-selected', 'true');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('region', { name: 'Compras con más fallas' })).toBeVisible();
+  });
+
   it('does not open an unrelated group if the linked group no longer has claims', async () => {
     history.replaceState(null, '', returnPatternsHash('supplier', 'zero'));
     mount();
@@ -204,7 +240,7 @@ describe('Fallas', () => {
     api.fetchReturnAnalysis.mockResolvedValue({ patterns: [], summary: { ...summary, devices: 0, problems: 0, claims: 0, percent: 0, topReason: null } });
     mount();
     expect(await screen.findByTestId('fallas-empty')).toHaveTextContent('No hay equipos con reclamo.');
-    expect(screen.queryByRole('region', { name: 'Proveedores con más fallas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Proveedores' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Resumen de fallas')).not.toBeInTheDocument();
     expect(screen.queryByText(/Cargando|No hay conexión/)).not.toBeInTheDocument();
     expect(screen.queryByTestId('fallas-loading')).not.toBeInTheDocument();
