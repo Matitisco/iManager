@@ -1,0 +1,4 @@
+- [x] Capturar antes 1440/390 y vacío en entorno ficticio aislado.
+- [x] Implementar Comparar y arreglos rápidos preservando fichas y permisos.
+- [x] Validar TypeScript, tests relacionados y navegación real; capturar después.
+- [x] Publicar PR pendiente de revisión sin merge y escribir IMPL.md externo.
