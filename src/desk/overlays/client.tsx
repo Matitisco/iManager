@@ -11,7 +11,7 @@ import { INPUT_LIMITS } from '../../lib/input-limits';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchClientPayments, restoreBackendClient, type ClientPaymentRecord, type ClientPatch } from '../../services/clients-api';
 import type { Client } from '../../types';
-import { formatInputMoney, formatShortDate, parseMoney, paymentLabel } from '../format';
+import { formatInputMoney, formatMoneyInput, formatShortDate, parseMoney, paymentLabel } from '../format';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -91,7 +91,7 @@ export function ClientDetail({ id }: { id: string }) {
   const pay = async () => {
     const value = parseMoney(amount);
     const projected = money.number(client.pendingBalance, client.balanceCurrency);
-    const stored = projected != null && projected > 0 ? Math.round(value * client.pendingBalance / projected) : value;
+    const stored = projected != null && projected > 0 ? Math.round(value * client.pendingBalance / projected * 100) / 100 : value;
     if (amount.includes('-') || value < 0) {
       setError('El pago no puede ser negativo');
       return;
@@ -130,7 +130,7 @@ export function ClientDetail({ id }: { id: string }) {
             setError('El pago no puede ser negativo');
             return;
           }
-          setAmount(formatInputMoney(parseMoney(raw)));
+          setAmount(formatMoneyInput(raw));
           setError(null);
         }} /></Field>
         <Field label="Forma de pago"><span /></Field>

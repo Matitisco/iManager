@@ -181,8 +181,8 @@ describe('client purchases', () => {
       now: new Date(2026, 9, 18, 12),
     });
     expect(purchaseTotals(purchases).spent).toEqual([
-      { currency: 'USD', amount: 10 },
       { currency: 'ARS', amount: 20 },
+      { currency: 'USD', amount: 10 },
     ]);
     expect(purchaseTotals(purchases).count).toBe(2);
   });

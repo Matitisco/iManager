@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
@@ -42,6 +43,8 @@ export type ImportSummary = {
   sheets: SheetSummary[];
 };
 
+const inventoryQuantitySchema = z.coerce.number().int().min(1).max(2000);
+const QUANTITY_HEADERS = new Set(["cantidad", "unidades", "qty", "quantity"]);
 const MONEY_FIELDS = new Set(["price", "cost", "amount", "takeValue", "differencePaid"]);
 const CAPACITY_RE = /^(.*\S)\s+(\d+(?:[.,]\d+)?)\s*(GB|TB|MB)\s*$/i;
 
@@ -64,7 +67,7 @@ export function trimSheet(rows: string[][]): string[][] {
 export function parseMoney(raw: string): number | null {
   let value = raw.trim();
   if (!value || value.startsWith("=")) return null;
-  value = value.replace(/u\$s|us\$|u\$d|usd|dls|d[oó]lares|ars|pesos/gi, "").replace(/[$\s]/g, "");
+  value = value.replace(/u\$s|us\$|u\$d|usd|dls|d[oó]lares|ar\$|ars|pesos/gi, "").replace(/[$\s]/g, "");
   if (!value) return null;
   if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(value)) value = value.replace(/\./g, "").replace(",", ".");
   else if (/^-?\d+,\d+$/.test(value)) value = value.replace(",", ".");
@@ -408,6 +411,10 @@ export function applyPlans(
     const grid = byName.get(plan.name);
     if (!grid) continue;
     const headers = grid[plan.headerRow - 1] ?? [];
+    // Quantity is file metadata; keep the visible field catalog and mappings intact.
+    const quantityIndex = section === "inventory"
+      ? headers.findIndex((header) => QUANTITY_HEADERS.has(normalizeHeader(header)))
+      : -1;
     const usable = plan.mapping.filter((column) => column.field && known.has(column.field) && indexByHeader(headers, column.header) >= 0);
     const seen = new Set<string>();
     const mapping = usable.filter((column) => {
@@ -475,8 +482,12 @@ export function applyPlans(
         if (section === "trade-ins" && (!normalized.clientName?.trim() || !normalized.deviceReceived?.trim())) continue;
         const filled = Object.values(normalized).some((value) => value.trim());
         if (!filled) continue;
-        count += 1;
-        rows.push(normalized);
+        const quantity = section === "inventory" && !normalized.imei?.trim()
+          ? inventoryQuantitySchema.parse(line[quantityIndex]?.trim() || 1)
+          : 1;
+        if (quantityIndex >= 0) inventoryQuantitySchema.parse(rows.length + quantity);
+        count += quantity;
+        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized });
       }
     }
 

@@ -3,6 +3,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { calendarDay, labelToIso } from "../periodic-reports/schedule.js";
 import type { MoneyCurrency } from "../periodic-reports/report-math.js";
 import { returnReversal } from "../returns/returns-math.js";
+import { returnCompensatedAt, returnRecognitionSelect } from "../returns/return-recognition.js";
 import { summarySaleVoided } from "./periodic-summary.service.js";
 import { netProfit } from "./net-profit.js";
 
@@ -49,9 +50,9 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     select: { amount: true, currency: true, spentAt: true },
   });
   const claims = await prisma.returnCase.findMany({
-    where: { storeId, deletedAt: null, status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] }, resolvedAt: { not: null } },
+    where: { storeId, deletedAt: null, status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] } },
     select: {
-      resolvedAt: true,
+      ...returnRecognitionSelect,
       moneyAmount: true,
       moneyCurrency: true,
       sale: { select: { amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
@@ -80,7 +81,8 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       return [{ amount: Number(expense.amount), currency: expense.currency }];
     }),
     returns: claims.flatMap((claim) => {
-      if (!claim.resolvedAt || !inRange(calendarDay(claim.resolvedAt, zone))) return [];
+      const compensatedAt = returnCompensatedAt(claim);
+      if (!compensatedAt || !inRange(calendarDay(compensatedAt, zone))) return [];
       const reversal = returnReversal({
         saleAmount: Number(claim.sale?.amount ?? claim.moneyAmount),
         moneyAmount: Number(claim.moneyAmount),

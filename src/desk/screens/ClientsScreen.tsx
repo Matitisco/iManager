@@ -4,6 +4,7 @@ import { isVoidRow, mergeRecordRows } from '../format';
 import { useNavigationState } from '../route-viewport';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { clientNet } from '../client-balance';
+import { clientSpendingById, formatClientSpending } from '../client-spending';
 import { suppressLocalNetworkBanner } from '../offline-banner';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
 import { Fragment, useEffect, useMemo, useState } from 'react';
@@ -46,7 +47,7 @@ function activeClientColumnCount(filters: ClientColumnFilters) {
     + Number(clientColumnActive(filters, 'balance'));
 }
 
-function sortClients(rows: Client[], sort: string) {
+function sortClients(rows: Client[], sort: string, spent: (client: Client) => number | null) {
   const copy = [...rows];
   const byName = (left: Client, right: Client) => left.name.localeCompare(right.name, 'es');
   if (sort === 'Nombre') return copy.sort(byName);
@@ -60,7 +61,14 @@ function sortClients(rows: Client[], sort: string) {
       return b - a || byName(left, right);
     });
   }
-  if (sort === 'Gastado') return copy.sort((left, right) => right.totalSpent - left.totalSpent || byName(left, right));
+  if (sort === 'Gastado') return copy.sort((left, right) => {
+    const a = spent(left);
+    const b = spent(right);
+    if (a == null && b == null) return byName(left, right);
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return b - a || byName(left, right);
+  });
   return copy.sort((left, right) => {
     const leftNet = clientNet(left);
     const rightNet = clientNet(right);
@@ -72,9 +80,12 @@ function sortClients(rows: Client[], sort: string) {
 }
 
 export function ClientsScreen() {
-  const { clients, deleteClient, operationDrafts = [], listsLoaded } = useAppContext();
+  const { clients, sales = [], repairOrders = [], deleteClient, operationDrafts = [], listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
+  const spending = useMemo(() => clientSpendingById(sales, repairOrders, money.active), [sales, repairOrders, money.active]);
+  const spent = (client: Client) => money.sum(spending.get(client.id) ?? []);
+  const spentLabel = (client: Client) => formatClientSpending(spending.get(client.id) ?? [], money);
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
   const notices = useSectionNotices('clients');
@@ -104,11 +115,11 @@ export function ClientsScreen() {
     return clientSource.filter((client) => {
       const matches = filter === 'Todos' || (archivedMode || !isVoidRow(client)) && clientNet(client) > 0;
       const haystack = `${client.name} ${client.phone} ${client.dni} ${client.email}`.toLowerCase();
-      return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns);
+      return matches && (!q || haystack.includes(q)) && matchesClientColumns(client, columns, spent(client));
     });
-  }, [clientSource, query, filter, columns, archivedMode]);
+  }, [clientSource, query, filter, columns, archivedMode, spending, money]);
   const listed = rows;
-  const ordered = notices.prioritize(phone ? sortClients(listed, sort) : listed);
+  const ordered = notices.prioritize(phone ? sortClients(listed, sort, spent) : listed);
   const page = usePagedRows(ordered, `${query}|${filter}|${clientFilterKey(columns)}|${notices.key}|${phone ? sort : ''}`, undefined, 'Clients');
   const scope = useBulkScope();
   const selection = useBulkSelection(ordered, scope);
@@ -199,7 +210,7 @@ export function ClientsScreen() {
                       onActivate={() => { open({ type: 'cl', id: client.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'cl', id: client.id, label: client.name, onSelect: () => selection.start(client.id), ...point })}
                     >
-                      <ClientCard client={client} money={money} />
+                      <ClientCard client={client} money={money} spentLabel={spentLabel(client)} />
                     </PhoneRecord>
                   </Fragment>
                 );
@@ -238,7 +249,7 @@ export function ClientsScreen() {
                     <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
-                <th className="r"><span className="thf">Gastado
+                <th className="r"><span className="thf">Total comprado
                   <ColumnFilter label="gastado" align="right" {...menu('gastado')} active={clientColumnActive(columns, 'spent')} onClear={() => setColumn({ spentMin: '', spentMax: '' })}>
                     <MoneyRange min={columns.spentMin} max={columns.spentMax} onMin={(spentMin) => setColumn({ spentMin })} onMax={(spentMax) => setColumn({ spentMax })} />
                   </ColumnFilter>
@@ -270,7 +281,7 @@ export function ClientsScreen() {
                   <td>{client.dni || '-'}</td>
                   <td>{client.phone || '-'}</td>
                   <td>{client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A' ? formatShortDate(client.lastPurchaseDate) : '—'}</td>
-                  <td className="r">{money.show(client.totalSpent, client.balanceCurrency)}</td>
+                  <td className="r">{spentLabel(client)}</td>
                   <td>{clientNet(client) > 0 ? <span className="spill off">Saldo {money.compact(clientNet(client), client.balanceCurrency)}</span> : clientNet(client) < 0 ? <span className="spill mid">A favor {money.compact(Math.abs(clientNet(client)), client.balanceCurrency)}</span> : <span className="spill mid">Sin saldo</span>}</td>
                 </PressTarget>
               ))}
@@ -343,7 +354,7 @@ export function ClientsScreen() {
   );
 }
 
-function ClientCard({ client, money }: { client: Client; money: MoneyApi }) {
+function ClientCard({ client, money, spentLabel }: { client: Client; money: MoneyApi; spentLabel: string }) {
   const contact = [client.dni ? `DNI ${client.dni}` : '', client.phone].filter(Boolean).join(' · ');
   const bought = client.lastPurchaseDate && client.lastPurchaseDate !== 'N/A';
   return (
@@ -367,7 +378,7 @@ function ClientCard({ client, money }: { client: Client; money: MoneyApi }) {
       </span>
       <span className="cl-bot">
         <span><em>Última compra</em><b>{bought ? formatShortDate(client.lastPurchaseDate) : '—'}</b></span>
-        <span><em>Total gastado</em><b>{money.show(client.totalSpent, client.balanceCurrency)}</b></span>
+        <span><em>Total comprado</em><b>{spentLabel}</b></span>
       </span>
     </span>
   );

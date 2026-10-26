@@ -175,15 +175,15 @@ export function SupplierDetail({ id }: { id: string }) {
             {historyButton}
           </div> : null}
           <div className="sup-detail-data">
-            {detail.stockCount != null && detail.deviceCount > 0 ? <div className="kv"><span>En stock</span><b>{detail.stockCount} de {detail.deviceCount} equipos</b></div> : null}
+            {detail.stockCount != null && detail.deviceCount > 0 ? <div className="kv"><span>En stock</span><b>{detail.stockCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo' : 'equipos'}</b></div> : null}
             {!detail.purchases.length ? <div className="kv" data-testid="supplier-empty"><span>Compras</span><b>Sin compras registradas</b></div> : null}
             <div className="kv"><span>Teléfono</span><b title={detail.phone || undefined} className={!detail.phone ? 'sup-detail-missing' : undefined}>{detail.phone || 'Sin cargar'}</b></div>
             <div className="kv"><span>Email</span><b title={detail.email || undefined} className={!detail.email ? 'sup-detail-missing' : undefined}>{detail.email || 'Sin cargar'}</b></div>
             {detail.notes ? <div className="kv sup-detail-notes"><span>Notas</span><b>{detail.notes}</b></div> : null}
             {detail.problemCount > 0 ? <div className="kv"><span>Con problemas</span><b>
               {seePatterns ? <button className="wlink" data-testid="supplier-problems" type="button" aria-label={`Ver fallas de ${detail.name}`} onClick={() => { close(); showSupplierPatterns(detail.id); }}>
-                {detail.problemCount} de {detail.deviceCount} equipos<span aria-hidden="true"> ›</span>
-              </button> : <span className="sup-detail-amount" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} equipos</span>}
+                {detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo' : 'equipos'}<span aria-hidden="true"> ›</span>
+              </button> : <span className="sup-detail-amount" data-testid="supplier-problems">{detail.problemCount} de {detail.deviceCount} {detail.deviceCount === 1 ? 'equipo' : 'equipos'}</span>}
             </b></div> : null}
           </div>
           {detail.purchases.length > 0 ? <section className="supplier-purchases" aria-label="Compras">

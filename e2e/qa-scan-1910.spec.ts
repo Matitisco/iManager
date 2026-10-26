@@ -73,8 +73,11 @@ test('humo de navegación, seguimientos, stock, devoluciones, proveedores y repo
   await expect(page.getByTestId('group-tab-followups')).toHaveCount(0);
   await page.goto('/#/cuenta/configuracion');
   await page.getByRole('button', { name: /Reporte automático/ }).click();
-  const report = page.getByRole('dialog', { name: 'Reporte automático' });
+  await expect(page).toHaveURL(/#\/analisis\/resumen-periodico\?view=mail$/);
+  await expect(page.getByRole('heading', { name: 'Resumen periódico', level: 1 })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Envío por mail', exact: true })).toHaveAttribute('aria-selected', 'true');
+  const report = page.getByRole('region', { name: 'Reporte por mail', exact: true });
   await expect(report).toBeVisible();
-  await expect(report.getByTestId('periodic-report-recipients')).toBeVisible();
+  await expect(report.getByRole('textbox', { name: 'Mail destinatario', exact: true })).toBeEditable();
   await page.screenshot({ path: 'docs/pr-shots/qa-1910-reporte-1440.png', animations: 'disabled' });
 });

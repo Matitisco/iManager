@@ -1,0 +1,3 @@
+- [x] Reproducir: dos casos ARS/USD fallan por exposición de itemCost.
+- [x] Omitir costos: 11 integraciones relacionadas aprobadas, permisos y escrituras cubiertos.
+- [x] TypeScript frontend/backend y diff sin errores.

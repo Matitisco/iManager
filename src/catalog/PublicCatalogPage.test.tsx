@@ -52,10 +52,14 @@ describe('public catalog without session', () => {
     expect(screen.getByRole('link', { name: 'Escribinos por WhatsApp' })).toHaveAttribute('href', expect.stringContaining('https://wa.me/5491141722188?text='));
     view.unmount();
   });
-  it('hides WhatsApp without a valid phone and names the store currency when prices stay as loaded', async () => {
+  it('hides WhatsApp without a valid phone and describes original prices by equipment currency', async () => {
     fetchCatalog.mockResolvedValue({ ...catalog, priceCurrency: 'ORIGINAL', store: { ...catalog.store, phone: '123123', currency: 'ARS' } });
     render(<PublicCatalogPage slug="mi-tienda" />);
-    expect(await screen.findByText(/precios en ARS/)).toBeInTheDocument();
+    expect(await screen.findByText(/moneda por equipo/)).toBeInTheDocument();
+    expect(screen.getByText('US$ 920')).toBeInTheDocument();
+    expect(screen.queryByText(/precios en ARS/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filtros' }));
+    expect(screen.getByLabelText('Precio desde').previousElementSibling).toBeEmptyDOMElement();
     expect(screen.queryByRole('link', { name: 'Escribinos por WhatsApp' })).not.toBeInTheDocument();
   });
   it('filters with chips in the page and inside the mobile sheet', async () => {

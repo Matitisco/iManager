@@ -1,0 +1,3 @@
+- [x] Reproducir con test de integración fallido.
+- [x] Corregir deuda, saldo de venta e historial.
+- [x] Verificar TypeScript y tests relacionados; preparar PR.

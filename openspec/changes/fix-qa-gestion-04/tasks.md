@@ -1,0 +1,2 @@
+- [x] Reproducir con integración: tanto nota de crédito como reintegro aceptan duplicación antes del fix.
+- [x] Corregir límite acumulado: 10 integraciones y 16 unitarias relacionadas aprobadas; TypeScript frontend/backend aprobado.

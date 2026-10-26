@@ -45,12 +45,30 @@ export function formatMoneyCompact(value: number, currency: 'ARS' | 'USD' = 'ARS
 
 export function formatInputMoney(value: number): string {
   if (!value) return '';
-  return new Intl.NumberFormat('es-AR').format(Math.round(value));
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value);
+}
+
+function moneyParts(value: string) {
+  const cleaned = value.replace(/[^\d.,]/g, '');
+  const separator = Math.max(cleaned.lastIndexOf(','), cleaned.lastIndexOf('.'));
+  const decimal = separator >= 0 && (cleaned.length - separator - 1 <= 2 || (cleaned.includes(',') && cleaned.includes('.')));
+  return {
+    integer: (decimal ? cleaned.slice(0, separator) : cleaned).replace(/\D/g, '').slice(0, 12),
+    fraction: decimal ? cleaned.slice(separator + 1).replace(/\D/g, '').slice(0, 2) : undefined,
+  };
+}
+
+// Preserve a trailing separator and zero while a controlled input is being typed.
+export function formatMoneyInput(value: string): string {
+  if (!/\d/.test(value)) return '';
+  const { integer, fraction } = moneyParts(value);
+  const grouped = new Intl.NumberFormat('es-AR').format(Number(integer || 0));
+  return fraction === undefined ? grouped : `${grouped},${fraction}`;
 }
 
 export function parseMoney(value: string): number {
-  const digits = value.replace(/\D/g, '').slice(0, 12);
-  return digits ? Number(digits) : 0;
+  const { integer, fraction } = moneyParts(value);
+  return Number(`${integer || '0'}.${fraction || '0'}`);
 }
 
 export function batteryPercent(value: string | null | undefined): number {

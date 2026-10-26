@@ -7,6 +7,7 @@ import { usePhoneLayout } from './section-notices';
 import type { Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { CommissionSeller } from '../types/commissions';
 import { useMoney, type MoneyApi } from './exchange';
+import { formatClientSpending } from './client-spending';
 import {
   clientPurchases,
   filterPurchases,
@@ -26,14 +27,6 @@ const FILTERS: { id: PurchaseFilter; label: string }[] = [
 
 const KIND_MARK = { sale: 'V', trade: 'C', repair: 'R' } as const;
 const KIND_TONE = { sale: 'l', trade: 'n', repair: 'b' } as const;
-
-function formatSpent(parts: { currency: string | null; amount: number }[], money: MoneyApi) {
-  if (parts.length === 0) return money.show(0);
-  if (parts.length === 1) return money.show(parts[0].amount, parts[0].currency);
-  const combined = money.sum(parts);
-  if (combined != null) return money.showActive(combined);
-  return parts.map((part) => money.show(part.amount, part.currency)).join(' + ');
-}
 
 function amountLabel(row: ClientPurchase, money: MoneyApi) {
   const text = money.show(row.amount, row.currency);
@@ -111,14 +104,14 @@ export function ClientPurchases({ clientId, clientName, sales, tradeIns, repairs
     () => clientPurchases({ clientId, sales, tradeIns, repairs, inventory, sellers }),
     [clientId, sales, tradeIns, repairs, inventory, sellers],
   );
-  const totals = purchaseTotals(rows);
+  const totals = purchaseTotals(rows, money.active);
   const filtered = filterPurchases(rows, filter);
   const visible = visiblePurchases(filtered, false);
 
   return (
     <section className="client-purchases" data-testid="client-purchases" aria-label="Compras">
       <div className="cl-buy-stats" data-testid="client-purchase-stats">
-        <div className="dstat"><div className="eb">Total gastado</div><div className="big">{formatSpent(totals.spent, money)}</div></div>
+        <div className="dstat"><div className="eb">Total comprado</div><div className="big">{formatClientSpending(totals.spent, money)}</div></div>
         <div className="dstat"><div className="eb">Compras</div><div className="big">{totals.count}</div></div>
         <div className="dstat"><div className="eb">Garantías</div><div className="big ok">{warrantiesLabel(totals.activeWarranties)}</div></div>
       </div>

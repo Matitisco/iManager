@@ -1026,7 +1026,7 @@ export async function importInventoryItems(
   for (let i = 0; i < rows.length; i++) {
     const raw = rows[i];
     const rowNum = i + 1;
-    const rowCurrency = raw.currency ?? importedCurrency;
+    let rowCurrency = raw.currency ?? importedCurrency;
 
     if (!raw.model?.trim()) {
       result.errors.push({ row: rowNum, imei: raw.imei, message: "Modelo vacío" });
@@ -1085,12 +1085,18 @@ export async function importInventoryItems(
       const existing = input.imei
         ? await inventoryPrisma.inventoryItem.findFirst({
           where: { storeId, imei: input.imei },
-          select: { id: true, customFields: true, price: true, cost: true, currency: true },
+          select: { id: true, customFields: true, price: true, cost: true, currency: true, condition: true, grade: true },
         })
         : null;
 
       if (existing) {
         const existingCurrency = existing.currency ?? importedCurrency;
+        rowCurrency = raw.currency ?? existingCurrency;
+        const updatedGrade = inventoryGrade(raw.condition !== undefined ? input.condition : existing.condition, raw.grade ?? existing.grade);
+        if (updatedGrade.ok === false) {
+          result.errors.push({ row: rowNum, imei: raw.imei, message: updatedGrade.message });
+          continue;
+        }
         if (options?.lockPrice && raw.currency !== undefined && existingCurrency !== rowCurrency) {
           result.errors.push({ row: rowNum, imei: raw.imei, message: "No tenés permiso para cambiar la moneda de este equipo" });
           continue;
@@ -1107,17 +1113,17 @@ export async function importInventoryItems(
           where: { id: existing.id, AND: [{ reservedDepositId: null }] },
           data: {
             model: input.model,
-            capacity: input.capacity,
-            color: input.color,
-            condition: input.condition,
-            grade: input.grade,
-            batteryHealth: input.batteryHealth,
+            ...(raw.capacity !== undefined ? { capacity: input.capacity } : {}),
+            ...(raw.color !== undefined ? { color: input.color } : {}),
+            ...(raw.condition !== undefined ? { condition: input.condition } : {}),
+            ...(raw.grade !== undefined || raw.condition !== undefined ? { grade: updatedGrade.grade } : {}),
+            ...(raw.batteryHealth !== undefined ? { batteryHealth: input.batteryHealth } : {}),
             ...(providedCost !== undefined ? { cost: toDecimal(providedCost) } : {}),
             ...(costChanges && options?.actor ? { costChangedBy: options.actor.name, costChangedAt: changedAt } : {}),
             ...(applyPrice ? { price: toDecimal(input.price) } : {}),
             ...((applyPrice && priceChanges) || costChanges ? { currency: rowCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
-            status: input.status,
+            ...(raw.status !== undefined ? { status: input.status } : {}),
             customFields: mergedFields as Prisma.InputJsonValue,
           },
         });
