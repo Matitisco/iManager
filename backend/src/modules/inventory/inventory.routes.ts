@@ -1,3 +1,4 @@
+import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -36,7 +37,7 @@ const inventoryItemSchema = z.object({
   color: z.string().trim().max(50),
   condition: z.string().trim().max(20),
   grade: z.string().trim().max(20),
-  batteryHealth: z.string().trim().max(50),
+  batteryHealth: z.string().trim().max(50).refine(validBatteryHealth, BATTERY_HEALTH_MESSAGE),
   cost: z.number().nonnegative(),
   price: z.number().positive(),
   status: z.string().trim().max(20),
