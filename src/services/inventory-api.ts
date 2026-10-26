@@ -1,3 +1,4 @@
+import { observeInventory, deviceAdded } from '../lib/posthog-analytics';
 import type { Product } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
@@ -11,6 +12,7 @@ export async function fetchBackendInventory(user: AuthUserLike): Promise<Product
   const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory', {
     fallback: (status) => `No se pudo cargar el inventario (${status})`,
   });
+  observeInventory((data.inventory ?? []).length);
   return data.inventory ?? [];
 }
 
@@ -29,6 +31,7 @@ export async function createBackendInventoryItem(
     throw new Error('Respuesta inválida al crear inventario');
   }
 
+  deviceAdded();
   return data.inventoryItem;
 }
 
@@ -42,6 +45,7 @@ export async function createBackendInventoryBatch(
     fallback: (status) => `No se pudo cargar la serie (${status})`,
     errorFrom: 'friendly',
   });
+  if (data.created?.length) deviceAdded();
   return { created: data.created ?? [], errors: data.errors ?? [] };
 }
 

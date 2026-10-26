@@ -1,3 +1,4 @@
+import { capture, deviceAdded } from '../lib/posthog-analytics';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
 
@@ -104,12 +105,23 @@ export async function importBackendRows(
   section: ImportSection,
   rows: InventoryImportRow[] | Record<string, string>[],
   supplierId?: string,
+  source: 'excel' | 'text' = 'excel',
 ): Promise<ImportResult> {
-  return apiRequest<ImportResult>(user, `/api/${section}/import`, {
-    method: 'POST',
-    body: supplierId ? { rows, supplierId } : { rows },
-    fallback: (status) => `Error al importar (${status})`,
-  });
+  try {
+    const result = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
+      method: 'POST',
+      body: supplierId ? { rows, supplierId } : { rows },
+      fallback: (status) => `Error al importar (${status})`,
+    });
+    const saved = result.imported + result.updated;
+    if (source === 'excel' && saved > 0) capture('excel_import_succeeded', { rows: saved });
+    if (source === 'excel' && result.errors.length) capture('excel_import_failed', { rows: result.errors.length });
+    if (section === 'inventory' && result.imported > 0) deviceAdded();
+    return result;
+  } catch (error) {
+    if (source === 'excel') capture('excel_import_failed', { rows: rows.length });
+    throw error;
+  }
 }
 
 export type TextProgressRow = { model: string; quantity: number };
