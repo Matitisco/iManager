@@ -1,0 +1,3 @@
+- [x] Regresiones rojas de mapeo y persistencia
+- [x] Conservar metadata y validar grupos/reimportación
+- [x] Capturas y PR visual sin merge

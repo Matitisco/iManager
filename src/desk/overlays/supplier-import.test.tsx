@@ -20,7 +20,7 @@ const toast = vi.fn();
 // Keep the real shared ImportHost and its service payload/refresh chain; replace only the parser UI.
 vi.mock('../../components/ImportModal', () => ({ ImportModal: ({ title, onImport, onClose }: { title: string; onImport: (rows: Record<string, string>[]) => Promise<unknown>; onClose: () => void }) => {
   const [error, setError] = React.useState('');
-  return <div role="dialog" aria-label={title}><button onClick={() => { void onImport([{ model: 'iPhone 13', price: '500', cost: '300' }]).catch(error => setError(error.message)); }}>Importar equipos</button>{error ? <p role="alert">{error}</p> : null}<button onClick={onClose}>Cerrar importación</button></div>;
+  return <div role="dialog" aria-label={title}><button onClick={() => { void onImport([{ model: 'iPhone 13', price: '500', cost: '300', purchasedAt: '2026-09-15', purchaseName: 'Reposición septiembre' }]).catch(error => setError(error.message)); }}>Importar equipos</button>{error ? <p role="alert">{error}</p> : null}<button onClick={onClose}>Cerrar importación</button></div>;
 } }));
 import React from 'react';
 
@@ -43,7 +43,7 @@ describe('supplier import via the shared inventory overlay', () => {
     api.fetchSupplier.mockResolvedValue({ ...supplier, deviceCount: 3, stockCount: 3 });
     await userEvent.click(within(overlay).getByRole('button', { name: 'Importar equipos' }));
     await waitFor(() => expect(api.fetchSupplier).toHaveBeenCalledTimes(2));
-    expect(api.importBackendRows).toHaveBeenCalledWith(context.user, 'inventory', [expect.objectContaining({ model: 'iPhone 13', price: 500, cost: 300 })], 'sup', 'excel');
+    expect(api.importBackendRows).toHaveBeenCalledWith(context.user, 'inventory', [expect.objectContaining({ model: 'iPhone 13', price: 500, cost: 300, purchasedAt: '2026-09-15', purchaseName: 'Reposición septiembre' })], 'sup', 'excel');
     expect(context.reloadInventory).toHaveBeenCalledOnce();
     expect(context.reloadLedger).toHaveBeenCalledOnce();
     expect(screen.getByText('En stock').nextElementSibling).toHaveTextContent('3');

@@ -72,6 +72,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'batteryHealth', label: 'Batería', required: false },
         { key: 'cost', label: 'Costo', required: false },
         { key: 'status', label: 'Estado', required: false },
+        ...(supplier ? [{ key: 'purchasedAt', label: 'Fecha de compra', required: false }, { key: 'purchaseName', label: 'Nombre de compra', required: false }] : []),
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
         const payload: InventoryImportRow[] = rows.map((row) => ({
@@ -87,6 +88,8 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
           currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
           customFields: row.serial ? { serial: row.serial } : undefined,
           status: row.status,
+          purchasedAt: row.purchasedAt,
+          purchaseName: row.purchaseName,
         }));
         const result = await importBackendRows(user, 'inventory', payload, supplier?.id, source);
         await after();
