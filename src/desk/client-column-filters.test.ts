@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Client } from '../types';
-import { EMPTY_CLIENT_FILTERS, clientColumnActive, clientFiltersActive, matchesClientColumns, type ClientColumnFilters } from './client-column-filters';
+import { EMPTY_CLIENT_FILTERS, clientColumnActive, clientFiltersActive, matchesClientColumns as matchColumns, type ClientColumnFilters } from './client-column-filters';
+
+function matchesClientColumns(row: Client, columns: ClientColumnFilters) {
+  return matchColumns(row, columns, 200000);
+}
 
 function client(overrides: Partial<Client> = {}): Client {
   return {
@@ -22,6 +26,14 @@ function filters(overrides: Partial<ClientColumnFilters> = {}): ClientColumnFilt
 }
 
 describe('client column filters', () => {
+  it('uses the supplied purchase aggregate and leaves unconvertible totals out of amount ranges', () => {
+    const row = client({ totalSpent: 999999 });
+    expect(matchColumns(row, filters({ spentMax: '100' }), 50)).toBe(true);
+    expect(matchColumns(row, filters({ spentMin: '100' }), 50)).toBe(false);
+    expect(matchColumns(row, EMPTY_CLIENT_FILTERS, null)).toBe(true);
+    expect(matchColumns(row, filters({ spentMin: '1' }), null)).toBe(false);
+  });
+
   it('combines name, tag, contact, date and money, and treats N/A as an empty date', () => {
     const row = client();
     expect(matchesClientColumns(row, EMPTY_CLIENT_FILTERS)).toBe(true);

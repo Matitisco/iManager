@@ -50,7 +50,9 @@ export function catalogDisplayCurrency(input: { priceCurrency: string; currency?
 }
 export function catalogPriceCaption(input: { showPrice: boolean; priceCurrency: string; currency?: string | null }, now = new Date()) {
   const date = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' }).format(now);
-  const money = input.showPrice ? `precios en ${catalogDisplayCurrency(input)}` : 'consultá precios';
+  const money = !input.showPrice ? 'consultá precios'
+    : input.priceCurrency === 'ORIGINAL' ? 'moneda por equipo'
+    : `precios en ${catalogDisplayCurrency(input)}`;
   return `Hoy, ${date} · ${money}`;
 }
 export const PRICE_PRESETS = [
@@ -69,6 +71,7 @@ export const BATTERY_FILTERS = [
   { value: '90', label: '90 %+' },
 ] as const;
 export function catalogMoneyPrefix(input: { priceCurrency: string; currency?: string | null }) {
+  if (input.priceCurrency === 'ORIGINAL') return '';
   return catalogDisplayCurrency(input) === 'ARS' ? '$' : 'US$';
 }
 export function shortCatalogModel(model: string) {

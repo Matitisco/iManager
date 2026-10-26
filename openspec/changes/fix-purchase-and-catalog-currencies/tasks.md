@@ -1,0 +1,5 @@
+- [x] Capturar antes a 1440 y 390.
+- [x] Compartir agregación y formato de Total comprado entre lista y ficha.
+- [x] Corregir moneda del encabezado de catálogo ORIGINAL.
+- [x] Agregar regresiones de agregación y monedas.
+- [x] Ejecutar lint/typecheck y tests relacionados; capturar después.
