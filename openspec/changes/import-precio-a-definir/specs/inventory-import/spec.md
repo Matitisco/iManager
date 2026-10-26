@@ -22,6 +22,11 @@ El sistema SHALL destacar campos obligatorios sin mapear y ofrecer acceso direct
 - **WHEN** falta mapear Modelo
 - **THEN** se resalta el campo y se bloquea la confirmación
 
+#### Scenario: Cero filas por falta de modelo
+- **WHEN** todas las filas se descartan por falta de modelo
+- **THEN** el resumen integra el motivo en «N filas descartadas por falta de modelo.» y el enlace «Asignar columna de modelo» dentro del aviso amarillo, sin duplicar «Falta mapear» debajo
+- **AND** si hay varios motivos, se listan dentro del mismo aviso; la confirmación sigue bloqueada y el mapeo conserva el resaltado de obligatorios
+
 ### Requirement: Proveedor inline
 El sistema SHALL permitir crear un proveedor desde el selector del formulario de equipo y seleccionarlo después de confirmar la persistencia. El editor SHALL permanecer dentro del formulario de equipo.
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { ImportModal } from './ImportModal';
@@ -74,4 +74,45 @@ it('resalta Modelo sin mapear y bloquea cero filas', async () => {
   await userEvent.click(screen.getByTestId('import-adjust-open'));
   expect(screen.getByText('Obligatorio sin asignar')).toBeVisible();
   expect(screen.getByTestId('import-field-model')).toHaveAttribute('aria-invalid', 'true');
+});
+
+it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas y cero importables', async (count) => {
+  const { onImport } = await preview(false, {
+    diagnostics: { detectedRows: count, acceptedRows: 0, discardedRows: count, discardedByReason: { missing_model: count }, missingRequiredFields: ['model'], missingRecommendedFields: ['price'] },
+  });
+  const notice = screen.getByTestId('import-skipped-notice');
+  expect(within(notice).getByText(`${count} ${count === 1 ? 'fila descartada' : 'filas descartadas'} por falta de modelo.`)).toBeVisible();
+  expect(within(notice).queryByRole('list')).not.toBeInTheDocument();
+  expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
+  expect(screen.getByTestId('import-confirm')).toBeDisabled();
+  await userEvent.click(screen.getByTestId('import-confirm'));
+  expect(onImport).not.toHaveBeenCalled();
+  await userEvent.click(within(notice).getByRole('button', { name: 'Asignar columna de modelo' }));
+  const model = screen.getByTestId('import-field-model');
+  await waitFor(() => expect(model).toHaveFocus());
+  expect(model).toHaveAttribute('aria-invalid', 'true');
+  expect(model.closest('tr')).toHaveClass('import-field-missing');
+  expect(screen.getByText('Obligatorio sin asignar')).toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Listo' }));
+  expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
+  expect(screen.getByTestId('import-confirm')).toBeDisabled();
+});
+
+it('conserva todos los motivos y el enlace dentro del aviso con cero filas', async () => {
+  await preview(false, {
+    diagnostics: { detectedRows: 3, acceptedRows: 0, discardedRows: 3, discardedByReason: { missing_model: 1, section_header: 1, invalid_price: 1 }, missingRequiredFields: ['model'], missingRecommendedFields: ['price'] },
+  });
+  const notice = within(screen.getByTestId('import-skipped-notice'));
+  expect(notice.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'Encabezados de sección: 1', 'Sin modelo: 1', 'Precio inválido: 1',
+  ]);
+  expect(notice.getByRole('button', { name: 'Asignar columna de modelo' })).toBeVisible();
+  expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
+  expect(screen.getByTestId('import-confirm')).toBeDisabled();
+});
+
+it('conserva el error de mapeo cuando hay filas para revisar', async () => {
+  await preview(true, { missingRequiredFields: ['model'] });
+  expect(screen.getByText('Falta mapear Modelo.')).toBeVisible();
+  expect(screen.getByTestId('import-confirm')).toBeDisabled();
 });

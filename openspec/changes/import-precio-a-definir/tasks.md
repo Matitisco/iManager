@@ -7,4 +7,5 @@
 - [x] Push de rama y PR draft (#614)
 - [x] Integrar #613: motivos de descarte, campos faltantes y eventos, conservando precio null en el flujo aprobado
 - [x] Conservar el flujo aprobado y retirar el selector experimental y estilos exclusivos
+- [x] Ajustar solo el resumen con cero filas: motivo integrado, enlace dentro del aviso y sin error rojo duplicado, con regresiones de singular/plural y motivos múltiples
 - [x] Verificación completa, capturas finales y comparación con la referencia aprobada

@@ -61,12 +61,19 @@ function sheetLine(count: number, nouns: { one: string; many: string }, conditio
   return label;
 }
 
-function DiscardNotice({ diagnostics }: { diagnostics: ImportDiagnostics | null | undefined }) {
+function DiscardNotice({ diagnostics, zeroRows = false, children }: {
+  diagnostics: ImportDiagnostics | null | undefined;
+  zeroRows?: boolean;
+  children?: React.ReactNode;
+}) {
   if (!diagnostics?.discardedRows) return null;
+  const reasons = IMPORT_DISCARD_REASONS.filter(reason => (diagnostics.discardedByReason[reason] ?? 0) > 0);
+  const onlyMissingModel = zeroRows && reasons.length === 1 && reasons[0] === 'missing_model';
   return <div className="import-guidance" role="status" data-testid="import-skipped-notice">
-    <b>{diagnostics.discardedRows} {diagnostics.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'}.</b>
-    <ul>{IMPORT_DISCARD_REASONS.filter(reason => (diagnostics.discardedByReason[reason] ?? 0) > 0).map(reason =>
-      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}</li>)}</ul>
+    <b>{diagnostics.discardedRows} {diagnostics.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'}{onlyMissingModel ? ' por falta de modelo.' : '.'}</b>
+    {!onlyMissingModel && <ul>{reasons.map(reason =>
+      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}</li>)}</ul>}
+    {children}
   </div>;
 }
 
@@ -340,8 +347,10 @@ export const ImportModal: React.FC<Props> = ({
 
       {step === 'summary' && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
-          <DiscardNotice diagnostics={diagnostics} />
-          {(diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
+          <DiscardNotice diagnostics={diagnostics} zeroRows={summary.rowCount === 0}>
+            {summary.rowCount === 0 && (diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
+          </DiscardNotice>
+          {summary.rowCount > 0 && (diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
           {updatingCount > 0 && <div className="import-imei-warning" role="status" data-testid="import-imei-warning">
             <b>{updatingCount === 1 ? 'Se actualizará 1 equipo existente por IMEI' : `Se actualizarán ${updatingCount} equipos existentes por IMEI`}</b>
             <p>Campos del archivo que pueden reemplazar datos: {replacementFields.join(', ')}. Los campos omitidos se conservan.</p>
@@ -534,7 +543,7 @@ export const ImportModal: React.FC<Props> = ({
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
-      {step === 'summary' && requiredMissing.length > 0 && (
+      {step === 'summary' && summary?.rowCount !== 0 && requiredMissing.length > 0 && (
         <p className="mt-3 text-sm text-red-700">Falta mapear {requiredMissing.map((field) => field.label).join(', ')}.</p>
       )}
     </div>
