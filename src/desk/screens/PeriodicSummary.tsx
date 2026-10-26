@@ -9,6 +9,7 @@ import { usePhoneLayout } from '../section-notices';
 import { DeskSelect } from '../select';
 import { ScreenTitle, Sheet, useDesk } from '../ui';
 import './periodic-summary.css';
+import { ReportMailSettings } from './ReportMailSettings';
 
 export const summaryDate = (day: string) => day.split('-').reverse().join('/');
 type Breakdown = 'sales' | 'returns' | 'stock';
@@ -40,7 +41,16 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const { back } = useDesk();
   const phone = usePhoneLayout();
   const money = useMoney();
-  const [selection, setSelection] = useState('latest-half');
+  const hashParams = () => new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  const [selection, setSelection] = useState(() => hashParams().get('period') || 'latest-half');
+  const [mailTab, setMailTab] = useState(() => hashParams().get('view') === 'mail');
+  const owner = appSession?.membership?.role === 'OWNER';
+  useEffect(() => {
+    const sync = () => { setMailTab(hashParams().get('view') === 'mail'); setSelection(hashParams().get('period') || 'latest-half'); };
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
+  const selectTab = (mail: boolean) => { setMailTab(mail); const params = hashParams(); if (mail) params.set('view', 'mail'); else params.delete('view'); window.location.hash = `#/analisis/resumen-periodico${params.size ? `?${params}` : ''}`; };
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
   const [result, setResult] = useState<{ key: string; data?: Summary; unavailable?: boolean; networkFailure?: boolean }>({ key: '' });
   const ready = !!user && backendStatus === 'ready' && sessionConfirmed !== false && !!appSession?.store && !appSession.onboardingRequired;
@@ -49,7 +59,7 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const data = current?.data;
   const unavailable = current?.unavailable;
   useEffect(() => {
-    if (!ready || !user) return;
+    if (!ready || !user || (mailTab && owner)) return;
     let active = true;
     const controller = new AbortController();
     setResult({ key });
@@ -61,14 +71,14 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
       setResult({ key, unavailable: true, networkFailure: isNetworkErrorMessage(toUserMessage(cause)) });
     });
     return () => { active = false; controller.abort(); };
-  }, [key, ready, user, selection]);
+  }, [key, ready, user, selection, mailTab, owner]);
   useEffect(() => { setBreakdown(null); }, [key]);
 
   const salesTotal = data?.sales ? money.sum(data.sales.total) : null;
   const returnsTotal = data?.returns ? money.sum(data.returns.total) : null;
   const blocked = (data?.sales && salesTotal == null) || (data?.returns && returnsTotal == null);
   const total = (value: number | null) => value == null ? '—' : money.showActive(value);
-  const selectPeriod = (value: string) => { setBreakdown(null); setSelection(value); };
+  const selectPeriod = (value: string) => { setBreakdown(null); setSelection(value); const params = hashParams(); params.set('period', value); window.location.hash = `#/analisis/resumen-periodico?${params}`; };
   const periodLabel = data ? `${data.period.from.slice(8)} al ${summaryDate(data.period.to)}` : '';
   const card = (kind: Breakdown, value: ReactNode, items: ReactNode[], note?: string) => <section className="dcard periodic-card" aria-label={titles[kind]}>
     <div className="dch"><h3>{titles[kind]}</h3>{items.length ? <button type="button" className="wlink periodic-more" aria-haspopup="dialog" aria-label={`Ver todas las ${kind === 'stock' ? 'diferencias de stock' : titles[kind].toLowerCase()} (${items.length})`} onClick={() => setBreakdown(kind)}>Ver todas ({items.length})</button> : null}</div><div className="periodic-total">{value}</div>
@@ -81,11 +91,19 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
   const fullRows = breakdown === 'sales' ? salesRows : breakdown === 'returns' ? returnRows : data?.stock?.items.map(item => <StockRow key={item.id} item={item} full />) ?? [];
   return <div className="dscreen reports-screen periodic-summary">
     <ScreenTitle title="Resumen periódico" back={back} desktop={null} navigation={navigation} />
+    {owner ? <div className="wchips nav-tabs report-mail-tabs" role="tablist" aria-label="Resumen y envío">
+      <button type="button" className={`sg${!mailTab ? ' on' : ''}`} role="tab" aria-selected={!mailTab} onClick={() => selectTab(false)}>Resumen</button>
+      <button type="button" className={`sg${mailTab ? ' on' : ''}`} role="tab" aria-selected={mailTab} onClick={() => selectTab(true)}>Envío por mail</button>
+    </div> : null}
+    {mailTab && owner ? <ReportMailSettings key={appSession?.store?.id} /> : <>
     <div className="periodic-period-bar"><div className="periodic-picker" role="group" aria-label="Período del resumen">
+      <button type="button" className={`sg${selection === 'latest-week' ? ' on' : ''}`} aria-pressed={selection === 'latest-week'} onClick={() => selectPeriod('latest-week')}>Última semana</button>
       <button type="button" className={`sg${selection === 'latest-half' ? ' on' : ''}`} aria-pressed={selection === 'latest-half'} onClick={() => selectPeriod('latest-half')}>Última quincena</button>
       <button type="button" className={`sg${selection === 'latest-month' ? ' on' : ''}`} aria-pressed={selection === 'latest-month'} onClick={() => selectPeriod('latest-month')}>Último mes</button>
       <div className={`periodic-previous${!selection.startsWith('latest-') ? ' selected' : ''}`}>
         <DeskSelect label="Períodos anteriores" value={selection.startsWith('latest-') ? '' : selection} placeholder={phone ? 'Anteriores' : 'Períodos anteriores'} disabled={!data} options={data ? [
+          { value: 'weeks-heading', label: 'SEMANALES', disabled: true },
+          ...(data.periods.weeks ?? []).map(period => ({ value: period.id, label: period.label })),
           { value: 'months-heading', label: 'MENSUALES', disabled: true },
           ...data.periods.months.map(period => ({ value: period.id, label: period.label })),
           { value: 'halves-heading', label: 'QUINCENALES', disabled: true },
@@ -106,5 +124,6 @@ export function PeriodicSummary({ navigation }: { navigation: ReactNode }) {
       {!data.sales && !data.returns && !data.stock ? <p className="periodic-note">No hay secciones habilitadas para este resumen.</p> : null}
     </> : null}
     {data && breakdown ? <Sheet className="periodic-breakdown hist-screen" mobileBack title={titles[breakdown]} onClose={() => setBreakdown(null)}><ul className="phone-rows periodic-list">{fullRows}</ul></Sheet> : null}
+    </>}
   </div>;
 }

@@ -1,8 +1,9 @@
 import { currentBlueRate } from "../../lib/blue-rate.js";
 import { prisma } from "../../plugins/prisma.js";
-import { calendarDay } from "../periodic-reports/schedule.js";
+import { calendarDay, labelToIso } from "../periodic-reports/schedule.js";
 import type { MoneyCurrency } from "../periodic-reports/report-math.js";
 import { returnReversal } from "../returns/returns-math.js";
+import { summarySaleVoided } from "./periodic-summary.service.js";
 import { netProfit } from "./net-profit.js";
 
 const ZONE = "America/Argentina/Buenos_Aires";
@@ -36,6 +37,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     where: { storeId, voidedAt: null, status: { not: "CANCELADA" } },
     select: {
       amount: true,
+      status: true, voidedAt: true, cancelledAt: true,
       amountCurrency: true,
       dateLabel: true,
       soldAt: true,
@@ -60,9 +62,10 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     currency,
     sellRate: rate,
     sales: sales.flatMap((sale) => {
-      const day = sale.dateLabel?.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+      if (summarySaleVoided(sale)) return [];
+      const day = labelToIso(sale.dateLabel) ?? (sale.dateLabel?.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
         ? sale.dateLabel.slice(0, 10)
-        : calendarDay(sale.soldAt, zone);
+        : calendarDay(sale.soldAt, zone));
       if (!inRange(day)) return [];
       return [{
         amount: Number(sale.amount),

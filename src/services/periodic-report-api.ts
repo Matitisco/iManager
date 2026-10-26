@@ -1,9 +1,12 @@
 import { apiRequest } from './api-client';
 import type { AuthUserLike } from '../types/auth-user';
 
-export type PeriodicReportFrequency = 'BIWEEKLY' | 'MONTHLY';
+export type PeriodicReportFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
 export interface PeriodicReportSettings {
+  sendDay?: number;
+  sendTime?: string;
+  timezone?: string;
   enabled: boolean;
   frequency: PeriodicReportFrequency;
   recipients: string[];
@@ -13,6 +16,9 @@ export interface PeriodicReportSettings {
 }
 
 export interface PeriodicReportInput {
+  sendDay?: number;
+  sendTime?: string;
+  timezone?: string;
   enabled: boolean;
   frequency: PeriodicReportFrequency;
   recipients: string[];
@@ -29,7 +35,13 @@ export async function savePeriodicReport(user: AuthUserLike, input: PeriodicRepo
   const { settings } = await apiRequest<{ settings: PeriodicReportSettings }>(user, '/api/stores/current/periodic-report', {
     method: 'PUT',
     body: input,
-    fallback: 'No se pudo guardar el reporte automático',
+    fallback: 'No se pudo guardar el reporte automático', errorFrom: 'friendly',
   });
   return settings;
+}
+
+export async function sendPeriodicReportTest(user: AuthUserLike, input: PeriodicReportInput) {
+  return apiRequest<{ sent: boolean; message: string }>(user, '/api/stores/current/periodic-report/test', {
+    method: 'POST', body: input, fallback: 'No se pudo enviar el mail de prueba', errorFrom: 'friendly',
+  });
 }

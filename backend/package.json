@@ -18,7 +18,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "eval:import": "tsx scripts/eval-import-llm.ts",
     "billing:sync": "tsx scripts/billing-sync.ts",
-    "billing:sync:start": "timeout 90 node dist/scripts/billing-sync.js || echo 'Aviso: la sincronización de facturación falló; la API arranca igual.'"
+    "billing:sync:start": "timeout 90 node dist/scripts/billing-sync.js || echo 'Aviso: la sincronización de facturación falló; la API arranca igual.'",
+    "reports:send": "tsx scripts/periodic-reports.ts"
   },
   "engines": {
     "node": "22.x"

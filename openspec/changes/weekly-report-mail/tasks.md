@@ -1,0 +1,4 @@
+- [x] Períodos semanales y horario por tienda; schema de entregas y configuración
+- [x] Datos reales, HTML/texto y SMTP idempotente; worker preparado
+- [x] Pestaña y acceso desde Configuración; prueba solo dueño
+- [x] Tests relacionados, lint, capturas y documentación de activación

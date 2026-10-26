@@ -3,7 +3,7 @@ import { apiRequest } from './api-client';
 
 export interface SummaryPeriod {
   id: string;
-  kind: 'month' | 'half';
+  kind: 'month' | 'half' | 'week';
   from: string;
   to: string;
   label: string;
@@ -20,7 +20,7 @@ export interface SummaryStock {
 }
 export interface PeriodicSummary {
   period: SummaryPeriod;
-  periods: { months: SummaryPeriod[]; halves: SummaryPeriod[] };
+  periods: { weeks?: SummaryPeriod[]; months: SummaryPeriod[]; halves: SummaryPeriod[] };
   sales: { total: SummaryAmount[]; items: SummarySale[] } | null;
   returns: { total: SummaryAmount[]; items: SummaryReturn[] } | null;
   stock: { count: number; counts: number; latestDay: string | null; items: SummaryStock[] } | null;
