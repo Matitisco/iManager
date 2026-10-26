@@ -53,6 +53,16 @@ test('periodic summary: periods, complete breakdown, empty and recovery at 390px
     await page.getByRole('button', { name: 'Último mes' }).click();
     await expect(page.getByText('En curso')).toBeVisible();
     await expect(page.locator('.periodic-void s')).toHaveText('$ 780.000');
+    await expect(page.locator('.periodic-void .spill')).toHaveText('Anulado');
+    const heights = await page.locator('.periodic-picker > button, .periodic-previous .ds-select-trigger').evaluateAll(elements => elements.map(el => el.getBoundingClientRect().height));
+    expect(heights).toEqual([38, 38, 38]);
+    const voidStyle = await page.locator('.periodic-void').evaluate(el => {
+      const style = getComputedStyle(el);
+      return { background: style.backgroundColor, border: style.borderColor, radius: style.borderRadius };
+    });
+    expect(voidStyle.background).not.toBe('rgb(255, 255, 255)');
+    expect(voidStyle.border).toBe('rgba(0, 0, 0, 0)');
+    expect(voidStyle.radius).toBe('16px');
     await expect(page.getByText('Anulada, no suma')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath(`summary-${width}.png`), fullPage: true });
     const boxes = await page.locator('.periodic-card').evaluateAll(elements => elements.map(el => { const rect = el.getBoundingClientRect(); return { x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom }; }));
@@ -81,7 +91,7 @@ test('periodic summary: periods, complete breakdown, empty and recovery at 390px
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
       expect(await breakdown.locator('.sheet-scroll').evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
-      await breakdown.getByRole('button', { name: 'Cerrar' }).click();
+      await breakdown.getByRole('button', { name: width === 390 ? 'Volver' : 'Cerrar' }).click();
       await expect(page.getByRole('button', { name })).toBeFocused();
     }
     await page.getByRole('combobox', { name: 'Períodos anteriores' }).click();
