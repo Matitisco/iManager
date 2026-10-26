@@ -52,11 +52,11 @@ export function commitAmount(
   sellRate: number | null,
 ): StoredAmount {
   const projected = projectAmount(original, originalCurrency, active, sellRate);
-  const next = Number.isFinite(typed) ? Math.round(typed) : 0;
-  if (!projected.blocked && next === Math.round(projected.value)) {
+  const next = Number.isFinite(typed) ? Math.round(typed * 100) / 100 : 0;
+  if (!projected.blocked && next === projected.value) {
     return { amount: original, currency: originalCurrency ?? null };
   }
-  if (projected.blocked && next === Math.round(original)) {
+  if (projected.blocked && next === original) {
     return { amount: original, currency: originalCurrency ?? null };
   }
   return { amount: next, currency: active };
@@ -69,8 +69,8 @@ export function commitGroup(
 ): { amounts: StoredAmount[]; blocked: boolean } {
   const states = fields.map((field) => {
     const projected = projectAmount(field.original, field.currency, active, sellRate);
-    const typed = Number.isFinite(field.typed) ? Math.round(field.typed) : 0;
-    const same = projected.blocked ? typed === Math.round(field.original) : typed === Math.round(projected.value);
+    const typed = Number.isFinite(field.typed) ? field.typed : 0;
+    const same = projected.blocked ? typed === field.original : typed === projected.value;
     return { projected, typed, same };
   });
   if (states.every((state) => state.same)) {

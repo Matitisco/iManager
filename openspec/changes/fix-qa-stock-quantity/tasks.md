@@ -1,0 +1,3 @@
+- [x] Reproducir Cantidad=3/2 como solo dos equipos con un test rojo.
+- [x] Reconocer y expandir cantidades sin cambiar UI.
+- [x] Verificar cinco equipos y valor USD 2200 en BD local, tests relacionados y TypeScript frontend/backend.

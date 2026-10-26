@@ -1,0 +1,3 @@
+- [x] Reproducir antes del fix: cuatro integraciones fallan para nota/reintegro y rechazo/recepción.
+- [x] Corregir fecha de reconocimiento sin cambios visuales.
+- [x] Verificar TypeScript/lint de ambos paquetes: 16 integraciones, 42 unitarias backend y 34 pruebas frontend relacionadas aprobadas.

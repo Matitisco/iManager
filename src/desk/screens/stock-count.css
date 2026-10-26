@@ -36,6 +36,7 @@
 .stock-list-heading h3 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
 .stock-list-heading span { font-size: 13px; color: var(--secondary); }
 .stock-line { display: grid; grid-template-columns: 44px minmax(0, 1fr) 200px 140px; align-items: center; gap: 14px; padding: 12px 22px; border-top: 1px solid #F1F1F3; font-size: 14px; }
+.stock-line-empty { grid-column: 1 / -1; }
 .stock-device-icon, .history-device-icon { display: flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; border-radius: 12px; background: #F3F4F6; color: #4B5563; }
 .stock-device { min-width: 0; }
 .stock-device b, .stock-device small { display: block; overflow-wrap: anywhere; }

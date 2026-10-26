@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale, TradeIn } from '../types';
 import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
+import { ExchangeProvider } from './exchange';
 
 const ctx = vi.hoisted(() => ({
   sales: [] as Sale[], tradeIns: [] as TradeIn[], inventory: [] as Product[], clients: [],
@@ -90,4 +91,18 @@ describe('editing sale trade-in', () => {
     expect(screen.getByRole('checkbox', { name: 'Tiene canje' })).not.toBeChecked();
     expect(close).not.toHaveBeenCalled();
   });
+});
+
+it.each(['649,50', '649.50'])('preserves cents in the submitted sale price %s', async value => {
+  const user = userEvent.setup();
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1200, manualSell: 1250 }}>
+    <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: false }}>
+      <DeskOverlays overlay={{ type: 'edit-sale', id: sale.id }} />
+    </DeskProvider>
+  </ExchangeProvider>);
+  const input = screen.getByLabelText('Precio completo de salida');
+  await user.clear(input);
+  await user.type(input, value);
+  await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+  await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith(sale.id, expect.objectContaining({ amount: 649.5, currency: 'USD' })));
 });

@@ -573,6 +573,19 @@ describe('operation detail', () => {
     }
   });
 
+  it.each(['649,50', '649.50'])('preserves cents in a client payment typed as %s', async value => {
+    const user = userEvent.setup();
+    ctx.clients = [{ id: 'c1', name: 'Ana Pérez', pendingBalance: 1000, totalSpent: 1000, balanceCurrency: 'USD' }];
+    renderOverlay({ type: 'cl', id: 'c1' });
+    await user.click(screen.getByRole('button', { name: 'Registrar pago' }));
+    const dialog = screen.getByRole('dialog', { name: 'Registrar pago' });
+    const input = within(dialog).getByLabelText('Monto');
+    await user.clear(input);
+    await user.type(input, value);
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar pago' }));
+    await waitFor(() => expect(ctx.registerClientPayment).toHaveBeenCalledWith('c1', expect.objectContaining({ amount: 649.5, currency: 'USD' })));
+  });
+
   it('asks for the amount before saving a payment on the desk', async () => {
     const user = userEvent.setup();
     ctx.clients = [{

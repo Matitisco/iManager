@@ -12,7 +12,7 @@ import { voidedSale } from '../archive-cache';
 import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
-import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
+import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatMoneyInput, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
 import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
@@ -41,11 +41,7 @@ export function SaleForm({ id, preset, run, busy, error }: FormProps & { id?: st
   return <OperationForm saleId={id} tradeId={preset?.tradeInId} source={preset?.source ?? 'sales'} preset={preset} run={run} busy={busy} error={error} />;
 }
 
-export function operationMoneyInput(value: string) {
-  const digits = value.replace(/\D/g, '');
-  if (!digits) return '';
-  return formatInputMoney(Number(digits)) || '0';
-}
+export const operationMoneyInput = formatMoneyInput;
 
 function productMoneyCurrency(item: { currency?: string | null } | null | undefined) {
   return item?.currency;

@@ -283,7 +283,8 @@ test.describe('clients on a phone', () => {
     await expect(sale.getByLabel('Cliente')).toHaveValue(debtorName);
     await settleMotion(page, '.sheet');
     await expectFits(page);
-    await sale.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await sale.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(sale).toBeHidden();
 
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(page.getByTestId('mobile-dock')).toBeVisible();

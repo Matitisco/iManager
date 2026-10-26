@@ -118,7 +118,7 @@ test.describe('sales on a phone', () => {
     const form = page.getByRole('dialog', { name: 'Registrar venta' });
     await expect(form.locator('.sheet-grab')).toBeVisible();
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Confirmar venta' })).toBeVisible();
-    await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' })).toBeVisible();
+    await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true })).toBeVisible();
     await expect(form.getByText(/ARS/)).toBeVisible();
     await expect(form.getByRole('button', { name: 'Transferencia' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Efectivo' })).toBeVisible();
@@ -194,7 +194,8 @@ test.describe('sales on a phone', () => {
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/sales-390-edit.png` });
-    await editor.locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await editor.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(editor).toBeHidden();
 
     await card.click();
     const again = page.getByRole('dialog', { name: /V-/ });
@@ -217,7 +218,8 @@ test.describe('sales on a phone', () => {
     await expectFits(page);
     await page.locator('.ctx').getByRole('button', { name: 'Editar' }).click();
     await expect(page.getByRole('dialog', { name: 'Editar operación' })).toBeVisible();
-    await page.getByRole('dialog', { name: 'Editar operación' }).locator('.sheet-foot').getByRole('button', { name: 'Cerrar' }).click();
+    await page.getByRole('dialog', { name: 'Editar operación' }).locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Editar operación' })).toBeHidden();
 
     await page.setViewportSize({ width: 360, height: 800 });
     await expect(page.locator('.toast.show')).toBeHidden();

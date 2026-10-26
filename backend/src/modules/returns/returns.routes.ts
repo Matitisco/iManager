@@ -4,9 +4,12 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
+import { canSeeFinancials } from "../stores/sections.js";
+import type { AppUserContext } from "../../types/auth.js";
 import { loadActor } from "../audit/audit.js";
 import { requireSensitiveActor } from "../stores/sensitive-access.js";
 import {
+  type ReturnCaseView,
   advanceRma,
   archiveReturnCase,
   createReturnCase,
@@ -24,6 +27,12 @@ const openedOn = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }, "La fecha no es válida.");
 const note = z.string().trim().max(280, "La nota es demasiado larga.").nullable().optional();
+
+function visibleReturn(claim: ReturnCaseView, member: AppUserContext) {
+  if (canSeeFinancials(member)) return claim;
+  const { itemCost: _cost, itemCurrency: _currency, ...visible } = claim;
+  return visible;
+}
 
 export async function returnRoutes(app: FastifyInstance) {
   const guard = [authenticate, resolveAppUser, requireSectionAccess("sales")];
@@ -43,7 +52,8 @@ export async function returnRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: guard }, async (request) => {
     requireMember(request);
     const query = z.object({ archived: z.enum(["1", "true"]).optional() }).parse(request.query);
-    return { returns: await listReturnCases(request.appUser.storeId, Boolean(query.archived)) };
+    const claims = await listReturnCases(request.appUser.storeId, Boolean(query.archived));
+    return { returns: claims.map(claim => visibleReturn(claim, request.appUser)) };
   });
 
   app.post("/", { preHandler: guard }, async (request, reply) => {
@@ -63,7 +73,7 @@ export async function returnRoutes(app: FastifyInstance) {
     };
     const actor = { ...(await loadActor(request.appUser.userId)), role: request.appUser.role };
     const claim = await createReturnCase(request.appUser.storeId, body, actor);
-    return reply.code(201).send({ return: claim });
+    return reply.code(201).send({ return: visibleReturn(claim, request.appUser) });
   });
 
   app.patch("/:id", { preHandler: guard }, async (request, reply) => {
@@ -79,7 +89,7 @@ export async function returnRoutes(app: FastifyInstance) {
     const actor = { ...(await loadActor(request.appUser.userId)), role: request.appUser.role };
     const claim = await updateReturnCase(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
-    return { return: claim };
+    return { return: visibleReturn(claim, request.appUser) };
   });
 
   app.post("/:id/resolve", { preHandler: guard }, async (request, reply) => {
@@ -98,7 +108,7 @@ export async function returnRoutes(app: FastifyInstance) {
     }).parse(request.body);
     const claim = await resolveReturnCase(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
-    return { return: claim };
+    return { return: visibleReturn(claim, request.appUser) };
   });
 
   app.post("/:id/rma", { preHandler: guard }, async (request, reply) => {
@@ -113,7 +123,7 @@ export async function returnRoutes(app: FastifyInstance) {
     }).parse(request.body);
     const claim = await advanceRma(request.appUser.storeId, id, body, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
-    return { return: claim };
+    return { return: visibleReturn(claim, request.appUser) };
   });
 
   app.delete("/:id", { preHandler: guard }, async (request, reply) => {
@@ -133,6 +143,6 @@ export async function returnRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const claim = await restoreReturnCase(request.appUser.storeId, id, actor);
     if (!claim) return reply.code(404).send({ error: "No encontramos ese reclamo." });
-    return { return: claim };
+    return { return: visibleReturn(claim, request.appUser) };
   });
 }
