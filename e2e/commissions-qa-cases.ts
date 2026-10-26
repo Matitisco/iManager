@@ -16,9 +16,10 @@ export function commissionsQaTests(phone: boolean) {
     await page.getByRole('button', { name: /Martín Gómez/ }).click();
     const detail = page.getByRole('dialog', { name: /^Martín Gómez/ });
     await expect(detail.getByText('A descontar', { exact: true })).toBeVisible();
-    await expect(detail.getByText('Eliminada · no genera comisión')).toBeVisible();
+    await expect(detail.getByText('Anulado', { exact: true })).toBeVisible();
     await expect(detail.getByText('US$ 0', { exact: true })).toHaveCount(0);
     await shot('a-descontar');
+    await page.getByRole('tab', { name: /Pagos/ }).click();
     await page.getByRole('button', { name: 'Anular pago de US$ 10', exact: true }).click();
     const confirmation = page.getByRole('dialog', { name: 'Anular pago', exact: true });
     await expect(confirmation).toContainText('Quedará en el historial');
@@ -69,9 +70,10 @@ export function commissionsQaTests(phone: boolean) {
     await expect(page.getByRole('button', { name: 'Eliminar regla de Todo el equipo', exact: true })).toHaveCount(0);
     await page.getByRole('dialog', { name: 'Regla del equipo', exact: true }).getByRole('button', { name: 'Cancelar', exact: true }).click();
     await page.getByRole('button', { name: /Martín Gómez/ }).click();
+    await page.getByRole('tab', { name: /Pagos/ }).click();
     await page.getByRole('button', { name: 'Anular pago de US$ 10', exact: true }).click();
     await page.getByRole('dialog', { name: 'Anular pago', exact: true }).getByRole('button', { name: 'Anular pago', exact: true }).click();
-    await expect(page.getByText('Pago anulado', { exact: true })).toBeVisible();
+    await expect(detail.getByText('Anulado', { exact: true })).toBeVisible();
     expect(state.voids).toEqual(['payment-martin']);
     await shot('payment-voided');
     await page.getByRole('button', { name: 'Listo', exact: true }).click();

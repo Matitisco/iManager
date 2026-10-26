@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commissionFixtureDetail, commissionFixturePeople, commissionFixtureRules, commissionFixtureSummary } from '../../test/commission-fixtures';
-import { CommissionLines, CommissionsScreen } from './CommissionsScreen';
+import { CommissionLines, CommissionMemberSheet, CommissionsScreen } from './CommissionsScreen';
 import { CommissionPaymentSheet, CommissionRuleSheet } from './commission-sheets';
 import { MemberPermissions } from './MemberPermissions';
 import { SaleForm } from '../overlays/operation';
@@ -86,6 +86,7 @@ describe('Comisiones', () => {
     expect(screen.getByText(/Lucía Díaz: a descontar/)).toHaveTextContent('$ 46.000 en noviembre de 2026');
     expect(screen.queryByRole('button', { name: /exportar|descargar|copiar|csv/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Lucía Díaz/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todas (4)' }));
     expect(screen.getByText('Ajuste por venta anulada')).toBeInTheDocument();
     expect(screen.getByText(/Se le pagó de más/)).toHaveTextContent('$ 46.000');
   });
@@ -105,7 +106,8 @@ describe('Comisiones', () => {
     render(<CommissionsScreen />);
     await waitFor(() => expect(screen.queryByText('Cargando comisiones…')).not.toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Sofía Pérez/ }));
-    expect(document.querySelector('.commission-ledger')?.textContent).not.toMatch(/ganancia|costo/i);
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todas (9)' }));
+    expect(screen.getByRole('dialog', { name: 'Ventas de octubre' })).not.toHaveTextContent(/ganancia|costo/i);
   });
   it.each(['Eliminar', 'Desactivar', 'Activar'])('confirms %s on a saved rule and preserves the sheet when dismissed', async action => {
     if (action === 'Activar') context.commissionRules[0].active = false;
@@ -143,6 +145,7 @@ describe('Comisiones', () => {
     render(<CommissionsScreen />);
     await waitFor(() => expect(screen.queryByText('Cargando comisiones…')).not.toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: /Sofía Pérez/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Pagos/ }));
     await userEvent.click(screen.getAllByRole('button', { name: /Anular pago de/ })[0]);
     expect(context.voidCommissionPayment).not.toHaveBeenCalled();
     await userEvent.keyboard('{Escape}');
@@ -161,14 +164,49 @@ describe('Comisiones', () => {
     expect(screen.getByText(/Sin esto ve solo «Mis comisiones»/)).toBeInTheDocument();
     expect(screen.queryByText(/Dueño/)).not.toBeInTheDocument();
   });
-  it('pluralizes a single sale in the detail and adds the desktop Rules icon', async () => {
+  it('counts ledger records in the sales tab and adds the desktop Rules icon', async () => {
     context.commissionDetails['sofia:2026-10'] = { ...commissionFixtureDetail, person: { ...commissionFixtureDetail.person, salesCount: 1 } };
     render(<CommissionsScreen />);
     await waitFor(() => expect(screen.queryByText('Cargando comisiones…')).not.toBeInTheDocument());
     expect(screen.getAllByRole('button', { name: 'Reglas' }).some(button => button.querySelector('svg'))).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: /Sofía Pérez/ }));
-    expect(screen.getByText('1 venta', { exact: true })).toBeInTheDocument();
-    expect(screen.queryByText('1 ventas', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Ventas · 9' })).toHaveAttribute('aria-selected', 'true');
+  });
+  it('limits both previews, opens complete lists and keeps payment confirmation at two layers', async () => {
+    const person = structuredClone(commissionFixtureDetail.person);
+    person.payments.push(...person.payments.map((payment, index) => ({ ...payment, id: `extra-${index}`, voidedAt: index ? null : '2026-10-22T12:00:00Z' })));
+    render(<div className="desk-app"><CommissionMemberSheet person={person} period="2026-10" onClose={vi.fn()} onRule={vi.fn()} onPay={vi.fn()} /></div>);
+    const detail = screen.getByRole('dialog', { name: 'Sofía Pérez' });
+    expect(within(detail).getAllByRole('article')).toHaveLength(3);
+    expect(within(detail).queryByText(/ganancia/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todas (9)' }));
+    const sales = screen.getByRole('dialog', { name: 'Ventas de octubre' });
+    expect(within(sales).getAllByRole('article')).toHaveLength(9);
+    expect(sales).toHaveTextContent('ganancia $ 360.000');
+    expect(within(sales).getByText('$ 30.000').closest('article')).toHaveClass('is-void');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Ventas de octubre' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Pagos · 4' }));
+    expect(within(detail).getAllByRole('article')).toHaveLength(3);
+    const voided = within(detail).getByText('Anulado').closest('article')!;
+    expect(voided).toHaveClass('is-void');
+    expect(within(voided).queryByRole('button')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Ver todas (4)' }));
+    const payments = screen.getByRole('dialog', { name: 'Pagos' });
+    expect(within(payments).getAllByRole('article')).toHaveLength(4);
+    await userEvent.click(within(payments).getAllByRole('button', { name: /Anular pago de/ })[0]);
+    expect(screen.getAllByRole('dialog', { hidden: true })).toHaveLength(2);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('dialog', { name: 'Pagos' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ver todas (4)' })).toHaveFocus());
+  });
+  it('retains both currencies and closes settled balances with Listo', async () => {
+    const onClose = vi.fn();
+    render(<CommissionMemberSheet person={{ ...commissionFixtureDetail.person, pending: { ARS: 0, USD: 0 } }} period="2026-10" onClose={onClose} onRule={vi.fn()} onPay={vi.fn()} />);
+    expect(document.querySelector('.comd-account-grid')).toHaveTextContent('US$ 40');
+    await userEvent.click(screen.getByRole('button', { name: 'Listo' }));
+    expect(onClose).toHaveBeenCalledOnce();
   });
   it('previews cross-currency settlement and preserves errors in the payment sheet', async () => {
     context.payCommission.mockRejectedValueOnce(new Error('No se pudo persistir el pago'));
