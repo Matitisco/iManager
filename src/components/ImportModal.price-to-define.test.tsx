@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, expect, it, vi } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { ImportModal } from './ImportModal';
 import type { ImportAnalysis } from '../services/import-api';
 
@@ -20,9 +20,7 @@ async function preview(model = true, overrides: Partial<ImportAnalysis> = {}) {
   await screen.findByTestId('import-price-notice');
   return { filter, onImport };
 }
-afterEach(() => history.replaceState(null, '', '/'));
-it.each(['a', 'b'])('variante %s: importa sin precio y ofrece el filtro del resultado', async variant => {
-  history.replaceState(null, '', `/?importVariant=${variant}`);
+it('importa sin precio y ofrece el filtro del resultado', async () => {
   const { filter, onImport } = await preview(true, {
     diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] },
     missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'],
@@ -36,8 +34,7 @@ it.each(['a', 'b'])('variante %s: importa sin precio y ofrece el filtro del resu
   expect(filter).toHaveBeenCalledOnce();
 });
 
-it.each(['a', 'b'])('variante %s: conserva motivos reales junto al precio a definir y al resultado', async variant => {
-  history.replaceState(null, '', `/?importVariant=${variant}`);
+it('conserva motivos reales junto al precio a definir y al resultado', async () => {
   const { onImport } = await preview(true, {
     diagnostics: { detectedRows: 4, acceptedRows: 1, discardedRows: 3, discardedByReason: { missing_model: 1, section_header: 1, invalid_price: 1 }, missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] },
   });
@@ -54,8 +51,7 @@ it.each(['a', 'b'])('variante %s: conserva motivos reales junto al precio a defi
   expect(screen.getByTestId('import-skipped-notice')).not.toHaveTextContent('Sin modelo');
 });
 
-it.each(['a', 'b'])('variante %s: usa missingRequiredFields del backend para bloquear y resaltar', async variant => {
-  history.replaceState(null, '', `/?importVariant=${variant}`);
+it('usa missingRequiredFields del backend para bloquear y resaltar', async () => {
   const value = { ...analysis(), plan: analysis().plan.map(plan => ({ ...plan, mapping: [] })),
     missingRequiredFields: ['amount'], diagnostics: { detectedRows: 1, acceptedRows: 0, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRequiredFields: ['amount'], missingRecommendedFields: [] } };
   render(<ImportModal fields={[{ key: 'amount', label: 'Precio', required: false }]} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={vi.fn()} onImport={vi.fn()} />);
@@ -72,8 +68,7 @@ it('el acceso directo enfoca Precio sin convertirlo en obligatorio', async () =>
   await waitFor(() => expect(select).toHaveFocus());
   expect(select).not.toHaveAttribute('aria-invalid', 'true');
 });
-it.each(['a', 'b'])('variante %s: resalta Modelo sin mapear y bloquea cero filas', async variant => {
-  history.replaceState(null, '', `/?importVariant=${variant}`);
+it('resalta Modelo sin mapear y bloquea cero filas', async () => {
   await preview(false);
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
   await userEvent.click(screen.getByTestId('import-adjust-open'));

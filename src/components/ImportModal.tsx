@@ -11,7 +11,6 @@ import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 import { ListSkeleton } from '../desk/list-skeleton';
 import './ImportModal.css';
-import { importVariant } from '../desk/import-variant';
 import { IMPORT_DISCARD_REASONS, IMPORT_DISCARD_LABELS, type ImportDiagnostics } from '../lib/import-diagnostics';
 
 export interface ImportFieldDef {
@@ -101,7 +100,6 @@ export const ImportModal: React.FC<Props> = ({
   const [applying, setApplying] = useState(false);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<GenericImportResult | null>(null);
-  const variant = importVariant();
   const [targetField, setTargetField] = useState<string | null>(null);
   useEffect(() => {
     if (step !== 'adjust' || !targetField || applying) return;
@@ -285,7 +283,7 @@ export const ImportModal: React.FC<Props> = ({
         : 'Modelo,Precio\niPhone 13,420';
 
   const body = (
-    <div ref={bodyRef} className={`inv-import-body import-variant-${variant}`} style={step === 'reading' ? { minHeight: readingHeight } : undefined}>
+    <div ref={bodyRef} className="inv-import-body" style={step === 'reading' ? { minHeight: readingHeight } : undefined}>
       {step === 'upload' && (
         <div className="import-source">
           <div className="import-modes" role="group" aria-label="Origen del listado">
@@ -329,7 +327,6 @@ export const ImportModal: React.FC<Props> = ({
       {step === 'reading' && <ListSkeleton variant="lines" rows={5} testId="import-reading" />}
 
       {step === 'summary' && missingPriceColumn && <div className="import-guidance" role="status" data-testid="import-price-notice">
-        {variant === 'b' && <span className="spill">Precio a definir</span>}
         <b>Tu archivo no tiene columna de precio de venta asignada.</b>
         <p>Podés importar los equipos con precio a definir. Si el archivo sí tiene esa columna, asignala en Ajustar importación.</p>
         <button type="button" className="wlink" onClick={() => adjustField('price')}>Asignar columna de precio</button>
@@ -458,7 +455,7 @@ export const ImportModal: React.FC<Props> = ({
             })}
           </div>
 
-          <div className={`import-mapping border border-gray-200 rounded-xl ${variant === 'b' ? 'import-mapping-cards' : ''}`}>
+          <div className="import-mapping border border-gray-200 rounded-xl">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -510,7 +507,6 @@ export const ImportModal: React.FC<Props> = ({
             </div>
           </div>
           {(result.priceToDefine ?? 0) > 0 && <div className="import-guidance" role="status" data-testid="import-price-result">
-            {variant === 'b' && <span className="import-result-number">{result.priceToDefine}</span>}
             <b>{result.priceToDefine} {result.priceToDefine === 1 ? 'equipo quedó' : 'equipos quedaron'} con precio a definir</b>
             {onFilterPriceToDefine && <button type="button" className="wlink" onClick={onFilterPriceToDefine}>Ver equipos con precio a definir</button>}
           </div>}

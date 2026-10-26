@@ -4,9 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { InlineSupplier } from './InlineSupplier';
 const saveSupplier = vi.hoisted(() => vi.fn());
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ({ suppliers: [], saveSupplier }) }));
-afterEach(() => { history.replaceState(null, '', '/'); saveSupplier.mockReset(); });
-it.each(['a', 'b'])('variante %s: persiste y selecciona el proveedor sin perder el formulario', async variant => {
-  history.replaceState(null, '', `/?importVariant=${variant}`);
+afterEach(() => saveSupplier.mockReset());
+it('persiste y selecciona el proveedor sin perder el formulario', async () => {
   const onChange = vi.fn();
   let resolve: (value: { id: string; name: string }) => void;
   saveSupplier.mockReturnValue(new Promise(done => { resolve = done; }));
