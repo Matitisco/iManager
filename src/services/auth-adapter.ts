@@ -1,5 +1,7 @@
+import { capture } from '../lib/posthog-analytics';
 import {
   createUserWithEmailAndPassword,
+  getAdditionalUserInfo,
   onAuthStateChanged as onFirebaseAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -125,11 +127,16 @@ const firebaseAdapter: AuthAdapter = {
   onAuthStateChanged: (callback) => onFirebaseAuthStateChanged(auth, (user) => callback(user ? toFirebaseCompatibleUser(user) : null)),
   loginWithGoogle: async () => {
     if (isIOS() && isStandalone()) await signInWithRedirect(auth, googleProvider);
-    else await signInWithPopup(auth, googleProvider);
+    else {
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result && getAdditionalUserInfo(result)?.isNewUser) capture('signup_completed');
+    }
   },
   completeGoogleRedirect: () => {
     // Firebase processes the redirect once, including React StrictMode remounts.
-    redirectResult ??= getRedirectResult(auth).then(() => undefined);
+    redirectResult ??= getRedirectResult(auth).then(result => {
+      if (result && getAdditionalUserInfo(result)?.isNewUser) capture('signup_completed');
+    });
     return redirectResult;
   },
   loginWithEmail: async (email, password) => {
@@ -137,6 +144,7 @@ const firebaseAdapter: AuthAdapter = {
   },
   registerWithEmail: async (email, password) => {
     await createUserWithEmailAndPassword(auth, email, password);
+    capture('signup_completed');
   },
   logout: async () => {
     await signOut(auth);
