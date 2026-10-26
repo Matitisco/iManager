@@ -1,0 +1,3 @@
+- [x] Regresión roja de aumento, reedición y cobro (venta y canje).
+- [x] Recalcular estado y comprobar verde.
+- [x] TypeScript, tests relacionados y CI.

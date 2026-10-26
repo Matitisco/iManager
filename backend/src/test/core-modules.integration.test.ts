@@ -357,6 +357,16 @@ describe("core module integrations", () => {
       },
     });
 
+    expect(patchResponse.json().sale).toMatchObject({ status: "PENDIENTE", openBalance: 100 });
+    const collectionResponse = await app.inject({
+      method: "PATCH",
+      url: `/api/sales/${saleId}`,
+      headers,
+      payload: { status: "COMPLETADA" },
+    });
+    expect(collectionResponse.statusCode, collectionResponse.body).toBe(200);
+    expect(collectionResponse.json().sale).toMatchObject({ status: "COMPLETADA", openBalance: 0 });
+
     const reportsResponse = await app.inject({
       method: "GET",
       url: "/api/reports/overview?rangeKey=all_time",
