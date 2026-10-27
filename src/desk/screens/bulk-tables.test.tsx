@@ -96,7 +96,7 @@ describe('bulk table wiring', () => {
     const headers = screen.getAllByRole('columnheader');
     expect(headers[0]).toHaveClass('bulk-cell');
     expect(within(headers[0]).getByRole('checkbox', { name: /^Seleccionar todos/ })).toBeInTheDocument();
-    expect(headers[1]).toHaveTextContent('Fecha de ingreso');
+    expect(headers[1]).toHaveTextContent('Ingreso');
     const rows = screen.getAllByRole('row').slice(1);
     expect(rows).toHaveLength(2);
     for (const row of rows) {
