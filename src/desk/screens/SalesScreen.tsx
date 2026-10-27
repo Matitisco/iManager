@@ -236,7 +236,7 @@ export function SalesScreen() {
       {phone && filtersOn ? <FilterSummary text={summaryText} onClear={clearFilters} /> : null}
       {phone ? (
         loadingLists ? <ListSkeleton variant="cards" rows={4} testId="sales-loading" /> : shown.length === 0 ? (
-          listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="wempty">No hay ventas con ese filtro.</div>
+          listed.length === 0 && quiet ? <SalesEmpty onCreate={() => open({ type: 'new-sale' })} /> : <div className="table-empty">No hay ventas con ese filtro.</div>
         ) : (
           <>
             {filtersOn ? null : <div className="sale-sec"><span>Ventas del período</span><span>{shown.length} de {listed.length}</span></div>}
@@ -353,7 +353,7 @@ export function SalesScreen() {
               })}
             </tbody>
           </table>
-        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="wempty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="table-empty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}

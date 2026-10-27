@@ -191,7 +191,7 @@ export function ClientsScreen() {
       /> : null}
       {view === 'lista' && phone ? (
         loadingLists ? <ListSkeleton variant="cards" rows={4} testId="clients-loading" /> : listed.length === 0 ? (
-          quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="wempty">No hay clientes con ese filtro.</div>
+          quietEmpty ? <ClientsEmpty onCreate={() => open({ type: 'new-cl' })} /> : <div className="table-empty">No hay clientes con ese filtro.</div>
         ) : (
           <>
             {clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}
@@ -289,7 +289,7 @@ export function ClientsScreen() {
               ))}
             </tbody>
           </table>
-        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="wempty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="table-empty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       ) : null}

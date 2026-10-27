@@ -97,7 +97,7 @@ describe('Client column filters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
     await user.type(screen.getByRole('textbox', { name: 'Contiene' }), 'nadie');
-    expect(screen.getByText('No hay clientes con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay clientes con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByRole('columnheader', { name: /Cliente/ })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();

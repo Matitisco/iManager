@@ -119,7 +119,7 @@ export function NotificationsScreen() {
         </div>
         {notificationsError && !suppressLocalNetworkBanner(notificationsError) ? <div className="wempty" role="alert" style={{ maxWidth: 860 }}>{notificationsError}</div> : null}
         {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="rows" testId="notifications-loading" /> : null}
-        {!notificationsLoading && !notificationsError && visible.length === 0 ? <div className="wempty" style={{ maxWidth: 860 }}>{emptyCopy(filter)}</div> : (
+        {!notificationsLoading && !notificationsError && visible.length === 0 ? <div className="table-empty">{emptyCopy(filter)}</div> : (
           <div className="card" style={{ maxWidth: 860 }}>
             {visible.map((note) => {
               const seen = !!note.readAt;
@@ -173,7 +173,7 @@ export function NotificationsScreen() {
       </div>
       {notificationsError && !suppressLocalNetworkBanner(notificationsError) ? <div className="wempty" role="alert">{notificationsError}</div> : null}
       {notificationsLoading && operationNotifications.length === 0 ? <ListSkeleton variant="cards" testId="notifications-loading" /> : visible.length === 0 ? (
-        notificationsError ? null : quietEmpty ? <NotificationsEmpty /> : <div className="wempty">{phoneEmptyCopy({ query, section, scope })}</div>
+        notificationsError ? null : quietEmpty ? <NotificationsEmpty /> : <div className="table-empty">{phoneEmptyCopy({ query, section, scope })}</div>
       ) : (
         <div className="notif-groups" data-testid="notification-groups">
           {grouped.map((group) => (

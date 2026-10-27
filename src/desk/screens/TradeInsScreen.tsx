@@ -160,7 +160,7 @@ export function TradeInsScreen() {
           ) : null}
           {tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           {loadingLists ? <ListSkeleton variant="cards" rows={4} testId="tradeins-loading" /> : listed.length === 0 ? (
-            quiet ? <TradeEmpty onCreate={() => open({ type: 'new-cj' })} /> : <div className="wempty">{emptyCopy}</div>
+            quiet ? <TradeEmpty onCreate={() => open({ type: 'new-cj' })} /> : <div className="table-empty">{emptyCopy}</div>
           ) : (
             <>
               <div className="sale-line" data-testid="tradeins-timeline">
@@ -267,7 +267,7 @@ export function TradeInsScreen() {
             </tbody>
           </table>
         </div>
-        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="tradeins-loading" /> : listed.length === 0 ? <div className="wempty">{emptyCopy}</div> : null}
+        {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="tradeins-loading" /> : listed.length === 0 ? <div className="table-empty">{emptyCopy}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}

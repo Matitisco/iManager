@@ -842,3 +842,20 @@ it.each([false, true])('keeps archived orders red in Todos and hides them in act
     expect(screen.queryByText('No encontré órdenes.')).not.toBeInTheDocument();
   } finally { cleanup(); window.matchMedia = previous; state.repairOrdersError = null; }
 });
+
+
+it.each([false, true])('uses the shared unboxed search result in the orders list (phone: %s)', async phone => {
+  const previous = window.matchMedia;
+  window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  state.repairOrders = [order('101', 'RECIBIDO')];
+  state.repairOrdersError = null;
+  try {
+    const user = userEvent.setup();
+    desk(<ServiceScreen />);
+    await user.click(screen.getByRole('button', { name: phone ? 'Buscar' : 'Lista' }));
+    await user.type(screen.getByPlaceholderText('Buscar orden o cliente'), 'sin coincidencias');
+    expect(screen.getByText('No encontré órdenes.')).toHaveClass('table-empty');
+    expect(screen.queryByTestId('repair-row-101')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('repair-card-101')).not.toBeInTheDocument();
+  } finally { cleanup(); window.matchMedia = previous; }
+});

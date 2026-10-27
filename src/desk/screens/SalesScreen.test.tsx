@@ -103,7 +103,7 @@ describe('Sales column filters', () => {
 
     await user.click(screen.getByRole('button', { name: 'Filtrar pago' }));
     await user.click(screen.getByRole('checkbox', { name: 'Efectivo' }));
-    expect(screen.getByText('No hay ventas con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay ventas con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByRole('button', { name: 'Filtrar cliente' })).toBeInTheDocument();
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
 

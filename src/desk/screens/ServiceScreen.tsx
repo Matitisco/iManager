@@ -156,7 +156,7 @@ export function ServiceScreen() {
       <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
       {repairOrdersError && !suppressLocalNetworkBanner(repairOrdersError) ? <div className="ferr" role="alert">{repairOrdersError}</div> : null}
       {phone ? (
-        groups.length === 0 ? repairOrdersError ? null : <div className="wempty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (
+        groups.length === 0 ? repairOrdersError ? null : <div className="table-empty" data-testid={repairOrders.length === 0 && !query.trim() ? 'service-empty' : undefined}>{emptyCopy}</div> : (
           <div className="svc-groups" data-testid="service-groups">
             {groups.map((group) => (
               <section key={group.status.id} data-testid={`repair-group-${group.status.id}`}>
@@ -252,7 +252,7 @@ export function ServiceScreen() {
         </div>
       ) : (
         <div className="dcard flush">
-          {rows.length === 0 ? repairOrdersError ? null : <div className="wempty">No encontré órdenes.</div> : (
+          {rows.length === 0 ? repairOrdersError ? null : <div className="table-empty">No encontré órdenes.</div> : (
             <div className="dtable-scroll">
               <table className="dtable">
                 <thead>

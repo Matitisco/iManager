@@ -459,7 +459,7 @@ export function InventoryScreen() {
         {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={phone ? 4 : 6} testId="inventory-loading" /> : listed.length === 0 ? (
           quietEmpty
             ? <InventoryEmpty showActions={phone} onImport={() => open({ type: 'import', kind: 'inv' })} onSeries={() => open({ type: 'batch-eq' })} onCreate={() => open({ type: 'new-eq' })} />
-            : <div className="wempty">No hay equipos con ese filtro.</div>
+            : <div className="table-empty">No hay equipos con ese filtro.</div>
         ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>

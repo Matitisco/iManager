@@ -151,7 +151,7 @@ describe('Trade-ins table', () => {
       expect(rows()).toHaveLength(query === 'Ana Pérez' ? 2 : 1);
     }
     await user.clear(search); await user.type(search, 'No existe');
-    expect(screen.getByText('No hay canjes con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay canjes con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByRole('columnheader', { name: /Canje/ })).toBeInTheDocument();
     expect(screen.getByText('0 de 2')).toBeInTheDocument();
     expect(screen.queryByTestId('tradeins-timeline')).not.toBeInTheDocument();
@@ -195,7 +195,7 @@ describe('Trade-in column filters', () => {
     await user.click(screen.getByRole('button', { name: 'Filtrar valor' }));
     const value = screen.getByRole('dialog', { name: 'Filtrar valor' });
     await user.type(within(value).getByRole('textbox', { name: 'Valor mínimo' }), '1000000');
-    expect(screen.getByText('No hay canjes con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay canjes con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByRole('columnheader', { name: /Canje/ })).toBeInTheDocument();
     expect(screen.getByText('0 de 12')).toBeInTheDocument();
 

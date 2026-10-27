@@ -113,10 +113,13 @@ describe('seguimientos', () => {
     expect(screen.queryByText('Lucía Fernández')).not.toBeInTheDocument();
     expect(screen.getByText('Martín Acosta')).toBeInTheDocument();
     view.unmount();
-    renderFollowUps(vi.fn(), 'pablo');
+    const searched = renderFollowUps(vi.fn(), 'pablo');
     expect(await screen.findByText('Pablo Ríos')).toBeInTheDocument();
     expect(screen.queryByText('Lucía Fernández')).not.toBeInTheDocument();
     expect(screen.queryByText('No hay seguimientos con esa búsqueda.')).not.toBeInTheDocument();
+    searched.unmount();
+    renderFollowUps(vi.fn(), 'sin coincidencias');
+    expect(await screen.findByText('No hay seguimientos con esa búsqueda.')).toHaveClass('table-empty');
   });
 
   it('muestra el vacío real y no un falso vacío mientras carga', async () => {
