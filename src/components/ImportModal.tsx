@@ -24,6 +24,7 @@ export interface ImportFieldDef {
 }
 
 export interface GenericImportResult {
+  warnings?: { row: number; message: string }[];
   diagnostics?: ImportDiagnostics;
   priceToDefine?: number;
   imported: number;
@@ -77,7 +78,7 @@ function DiscardNotice({ diagnostics, zeroRows = false, children }: {
   return <div className="import-guidance" role="status" data-testid="import-skipped-notice">
     <b>{diagnostics.discardedRows} {diagnostics.discardedRows === 1 ? 'fila descartada' : 'filas descartadas'}{onlyMissingModel ? ' por falta de modelo.' : '.'}</b>
     {!onlyMissingModel && <ul>{reasons.map(reason =>
-      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}</li>)}</ul>}
+      <li key={reason}>{IMPORT_DISCARD_LABELS[reason]}: {diagnostics.discardedByReason[reason]}{diagnostics.rejected?.filter(item => item.reason === reason).map(item => ` — fila ${item.row}: ${item.message}`).join('')}</li>)}</ul>}
     {children}
   </div>;
 }
@@ -134,6 +135,15 @@ export const ImportModal: React.FC<Props> = ({
 
   const applyResult = (analysis: ImportAnalysis) => {
     setPlan(analysis.plan);
+    setDraftDefinitions(current => {
+      const keys = new Set([...customFieldDefinitions, ...current].map(definition => definition.key));
+      const additions = (analysis.suggestedDefinitions ?? []).filter(definition => {
+        if (keys.has(definition.key)) return false;
+        keys.add(definition.key);
+        return true;
+      });
+      return [...current, ...additions];
+    });
     setTextPreview(Boolean(analysis.review));
     setReview(analysis.review ?? []);
     setDiscarded(analysis.discarded ?? []);

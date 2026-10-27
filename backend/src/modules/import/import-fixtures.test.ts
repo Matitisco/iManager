@@ -12,7 +12,7 @@ const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 
 type ExpectedFile = {
   currency: "ARS" | "USD";
-  rows: { model?: string; capacity?: string; imei?: string }[];
+  rows: { model?: string; capacity?: string; imei?: string; condition?: string }[];
   unrelated?: boolean;
 };
 
@@ -64,10 +64,15 @@ describe("import fixtures offline", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.source).toBe("model");
-    const score = scoreImportRows(expected.rows, result.rows);
+    // These fixtures use “Sellado”, which confirmation has always rejected as an unknown condition.
+    // Preview must now exclude those rows too, instead of promising they will import.
+    const hasSellado = name === 'f2_encabezado_dos_filas' || name === 'f7_nombres_raros';
+    const accepted = hasSellado ? expected.rows.filter(row => row.condition !== 'NUEVO') : expected.rows;
+    if (hasSellado) expect(result.diagnostics?.discardedByReason.invalid_row).toBe(expected.rows.length - accepted.length);
+    const score = scoreImportRows(accepted, result.rows);
     expect(score.missing, JSON.stringify(score)).toBe(0);
     expect(score.extra, JSON.stringify(score)).toBe(0);
-    expect(score.imported).toBe(expected.rows.length);
+    expect(score.imported).toBe(accepted.length);
     fetchSpy.mockRestore();
   });
 

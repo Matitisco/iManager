@@ -31,6 +31,7 @@ export type ImportSheetPlan = {
 };
 
 export type ImportAnalysis = {
+  suggestedDefinitions?: CustomFieldInput[];
   diagnostics?: ImportDiagnostics;
   missingRequiredFields?: string[];
   missingRecommendedFields?: string[];
@@ -125,6 +126,7 @@ export interface InventoryImportRow {
 }
 
 export interface ImportResult {
+  warnings?: { row: number; message: string }[];
   diagnostics?: ImportDiagnostics;
   priceToDefine?: number;
   imported: number;

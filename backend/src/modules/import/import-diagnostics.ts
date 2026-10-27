@@ -6,7 +6,11 @@ export const DISCARD_REASONS = [
   "invalid_imei", "invalid_row", "duplicate", "ambiguous_client", "client_not_found", "save_error",
 ] as const;
 export type DiscardReason = (typeof DISCARD_REASONS)[number];
+export type ImportWarning = { row: number; message: string };
+export type ImportRejection = { row: number; reason: DiscardReason; message: string };
 export type ImportDiagnostics = {
+  warnings?: ImportWarning[];
+  rejected?: ImportRejection[];
   /** Physical rows in the selected data range (submitted rows for persistence). */
   detectedRows: number;
   /** Physical rows retained; inventory quantity expansion is separate from this count. */
@@ -48,9 +52,15 @@ export function importErrorCollector<T extends { row: number; message: string }>
     reject(error: T, reason: DiscardReason) {
       errors.push(error);
       countDiscard(diagnostics, reason);
+      recordRejection(diagnostics, { row: error.row, reason, message: error.message });
     },
     finish(detected: number, accepted: number): ImportDiagnostics {
       return { ...diagnostics, detectedRows: detected, acceptedRows: accepted };
     },
   };
+}
+
+export function recordRejection(diagnostics: ImportDiagnostics, rejection: ImportRejection): void {
+  const rejected = diagnostics.rejected ??= [];
+  if (rejected.length < 50) rejected.push(rejection);
 }

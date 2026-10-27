@@ -130,7 +130,8 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     expect(analysis.rows).toHaveLength(60);
     expect(analysis.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%', status: 'DISPONIBLE' });
     expect(analysis.rows[2]).toMatchObject({ status: 'EN_REVISION', originalStatus: 'SIN SERVICIO' });
-    expect(analysis.rows[7].batteryHealth).toBe('8*%');
+    expect(analysis.rows[7].batteryHealth).toBe('');
+    expect(analysis.diagnostics?.warnings).toEqual([{ row: 8, message: expect.stringContaining('sin batería') }]);
     expect(analysis.rows.every(row => !row.price)).toBe(true);
     expect(analysis.rows[9].cost).toBe('');
     expect(analysis.rows[1]).toMatchObject({ entryDate: grid[1][0], batteryNote: 'BATERIA' });

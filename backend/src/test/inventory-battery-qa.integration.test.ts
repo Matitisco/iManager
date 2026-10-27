@@ -3,7 +3,7 @@ import { prisma } from '../plugins/prisma.js';
 import { buildAuthHeaders, seedCatalogFixture, seedStoreContext } from './db.js';
 import { useIntegrationApp } from './integration-helpers.js';
 const { getApp } = useIntegrationApp();
-it.each(['150%', '-1%', '85-83%', '83-150%', '838%', 'abc'])('rechaza batería inválida %s en alta, edición, serie e importación', async batteryHealth => {
+it.each(['150%', '-1%', '85-83%', '83-150%', '838%', 'abc'])('rechaza batería inválida %s en alta, edición y serie; importa vacía con advertencia', async batteryHealth => {
   const context = await seedStoreContext();
   const { inventoryItem } = await seedCatalogFixture(context.store!.id);
   const { id, storeId, createdAt, ...other } = inventoryItem;
@@ -13,8 +13,8 @@ it.each(['150%', '-1%', '85-83%', '83-150%', '838%', 'abc'])('rechaza batería i
   expect((await getApp().inject({ method: 'PATCH', url: `/api/inventory/${id}`, headers, payload: { batteryHealth } })).statusCode).toBe(400);
   expect((await getApp().inject({ method: 'POST', url: '/api/inventory/batch', headers, payload: { items: [payload] } })).statusCode).toBe(400);
   const imported = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows: [payload] } });
-  expect(imported.json()).toMatchObject({ imported: 0, updated: 0, errors: [{ row: 1 }] });
-  expect(await prisma.inventoryItem.count({ where: { storeId } })).toBe(1);
+  expect(imported.json()).toMatchObject({ imported: 1, updated: 0, errors: [], warnings: [{ row: 1, message: expect.stringContaining('sin batería') }] });
+  expect(await prisma.inventoryItem.count({ where: { storeId } })).toBe(2);
   expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id } })).batteryHealth).toBe(other.batteryHealth);
 });
 it.each(['0%', '100%', '83-85%', '0-100%', 'N/A', ''])('acepta batería válida %s sin cambiarla', async batteryHealth => {

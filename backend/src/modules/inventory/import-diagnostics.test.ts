@@ -63,3 +63,48 @@ it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC'
     customFields: { serial: 'FAKE', originalStatus: status },
   }) });
 });
+
+
+it('clears unreadable batteries, rejects the second file IMEI and preserves Excel rows', async () => {
+  const result = await importInventoryItems('store-test', [
+    { sourceRow: 38, imei: '990000000000038', model: 'iPhone 13', batteryHealth: '8*%' },
+    { sourceRow: 59, imei: '990000000000038', model: 'iPhone 14', batteryHealth: '8*%' },
+    { sourceRow: 60, imei: '', model: 'iPhone 15' },
+    { sourceRow: 61, imei: '', model: 'iPhone 15' },
+  ]);
+  expect(result).toMatchObject({ imported: 3, updated: 0,
+    errors: [{ row: 59, message: 'IMEI repetido en el archivo (igual a la fila 38)' }],
+    warnings: [{ row: 38, message: expect.stringContaining('sin batería') }, { row: 59, message: expect.stringContaining('sin batería') }],
+    diagnostics: { discardedByReason: { duplicate: 1 }, rejected: [{ row: 59, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 38)' }] },
+  });
+  expect(prismaMock.inventoryItem.create.mock.calls[0][0].data.batteryHealth).toBe('');
+});
+
+
+it('preview and confirmation reject the same file-only errors and accept the same count', async () => {
+  const { applyImportPlan } = await import('../import/analyze-import.service.js');
+  const header = ['model', 'price', 'condition', 'imei', 'grade', 'color', 'entryDate', 'batteryNote', 'batteryHealth'];
+  const valid = ['iPhone 13', '500', 'USADO', '', 'A', 'Black', '2026-10-15', 'Original', '85%'];
+  const bad = (index: number, value: string) => valid.map((cell, column) => index === column ? value : cell);
+  const records = [valid, bad(0, ''), bad(1, '-1'), bad(2, 'inexistente'), bad(3, '1234'),
+    bad(4, 'AA'), bad(5, 'x'.repeat(51)), bad(6, '31/02/2026'), bad(7, 'x'.repeat(2001)),
+    bad(3, '990000000000038'), bad(3, '990000000000038'), bad(8, '8*%')];
+  const sheets = [{ name: 'Stock', rows: [header, ...records] }];
+  const analysis = applyImportPlan({ sheets, section: 'inventory', currency: 'USD', plan: [{
+    name: 'Stock', include: true, condition: '', headerRow: 1, dataStartRow: 2, dataEndRow: records.length + 1,
+    mapping: header.map((field, columnIndex) => ({ header: field, columnIndex, field })),
+    splitModelCapacity: false, batteryAsPercent: true, priceCurrency: 'USD',
+  }] });
+  const rawRows = records.map((values, index) => ({ ...Object.fromEntries(header.map((field, column) => [field, values[column]])),
+    imei: values[3], model: values[0], price: Number(values[1]), sourceRow: index + 2 }));
+  const confirmedRaw = await importInventoryItems('store-test', rawRows);
+  expect(analysis.rows.length).toBe(3);
+  expect(analysis.rows.length).toBe(confirmedRaw.imported + confirmedRaw.updated);
+  expect(analysis.diagnostics?.rejected).toEqual(confirmedRaw.diagnostics?.rejected);
+  expect(analysis.diagnostics?.warnings).toEqual(confirmedRaw.warnings);
+  const confirmedPreview = await importInventoryItems('store-test', analysis.rows.map(row => ({
+    ...row, imei: row.imei, model: row.model, sourceRow: Number(row._sourceRow), price: Number(row.price),
+  })));
+  expect(confirmedPreview.errors).toEqual([]);
+  expect(confirmedPreview.imported + confirmedPreview.updated).toBe(analysis.rows.length);
+});

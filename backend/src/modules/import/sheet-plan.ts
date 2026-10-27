@@ -3,7 +3,8 @@ import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, isPurchaseHeader, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
-import { countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
+import { validateInventoryImportRow } from "../inventory/import-validation.js";
+import { recordRejection, countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
 export type SheetCondition = (typeof CONDITIONS)[number];
@@ -505,6 +506,7 @@ export function applyPlans(
   const known = new Set(catalog.fields.map((field) => field.key));
   const byName = new Map(sheets.map((sheet) => [sheet.name, trimSheet(sheet.rows)]));
   const rows: Record<string, string>[] = [];
+  const seenImeis = new Map<string, number>();
   const summaries: (SheetSummary & { diagnostics: ImportDiagnostics })[] = [];
 
   for (const plan of plans) {
@@ -572,7 +574,6 @@ export function applyPlans(
           record.model = split.model;
           if (split.capacity && !record.capacity) record.capacity = split.capacity;
         }
-        if (plan.batteryAsPercent && record.batteryHealth) record.batteryHealth = normalizeBattery(record.batteryHealth);
         const rawAmount = record.amount ?? "";
         if (record.price != null) {
           const rowCurrency = normalizeCurrencyToken(record.currency) || amountCellCurrency(record.price) || plan.priceCurrency || storeCurrency;
@@ -602,10 +603,21 @@ export function applyPlans(
           countDiscard(diagnostics, missingName ? "missing_name" : missingIdentity ? "missing_identity" : "invalid_row");
           continue;
         }
-        if (section === "inventory" && !normalized.model?.trim()) { countDiscard(diagnostics, "missing_model"); continue; }
-        if (section === "inventory" && normalized.price?.trim()) {
-          const price = parseMoney(normalized.price);
-          if (price == null || price < 0) { countDiscard(diagnostics, "invalid_price"); continue; }
+        if (section === "inventory") {
+          const validated = validateInventoryImportRow({
+            ...normalized,
+            price: normalized.price?.trim() ? parseMoney(normalized.price) ?? Number.NaN : null,
+          }, rowIndex, seenImeis);
+          if (validated.warnings.length) (diagnostics.warnings ??= []).push(...validated.warnings);
+          if (!validated.ok) {
+            countDiscard(diagnostics, validated.reason);
+            recordRejection(diagnostics, { row: rowIndex, reason: validated.reason, message: validated.message });
+            continue;
+          }
+          if (validated.value.imei) seenImeis.set(validated.value.imei, rowIndex);
+          if (normalized.batteryHealth !== undefined) normalized.batteryHealth = plan.batteryAsPercent
+            ? normalizeBattery(validated.value.batteryHealth) : validated.value.batteryHealth;
+          // Custom-field types depend on the store definitions; DB checks remain at confirmation.
         }
         if (section === "trade-ins" && !normalized.clientName?.trim()) { countDiscard(diagnostics, "missing_client"); continue; }
         if (section === "trade-ins" && !normalized.deviceReceived?.trim()) { countDiscard(diagnostics, "missing_device"); continue; }
@@ -617,7 +629,7 @@ export function applyPlans(
         if (quantityIndex >= 0) inventoryQuantitySchema.parse(rows.length + quantity);
         diagnostics.acceptedRows += 1;
         count += quantity;
-        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized, ...(section === "inventory" && (plan.headerRow === 0 || mapping.some(column => column.field.startsWith("custom:"))) ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
+        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized, ...(section === "inventory" ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
 
@@ -639,6 +651,8 @@ export function applyPlans(
     diagnostics.detectedRows += item.detectedRows;
     diagnostics.acceptedRows += item.acceptedRows;
     diagnostics.discardedRows += item.discardedRows;
+    for (const rejected of item.rejected ?? []) recordRejection(diagnostics, rejected);
+    if (item.warnings?.length) (diagnostics.warnings ??= []).push(...item.warnings);
     for (const [reason, count] of Object.entries(item.discardedByReason)) {
       const key = reason as keyof ImportDiagnostics["discardedByReason"];
       diagnostics.discardedByReason[key] = (diagnostics.discardedByReason[key] ?? 0) + count;
