@@ -304,8 +304,8 @@ export function InventoryScreen() {
         <div className="dtable-scroll"><table className="dtable inv-stock-table">
             <thead>
               <tr>
-                <th className="inv-entry-col">Fecha de ingreso</th>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
+                <th className="inv-entry-col">Fecha de ingreso</th>
                 <th>
                   <span className="thf">Equipo
                     <ColumnFilter label="equipo" {...menu('equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>

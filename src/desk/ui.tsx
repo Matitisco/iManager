@@ -333,6 +333,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
   onDragStart?: (event: React.DragEvent<HTMLElement>) => void;
   onDragEnd?: (event: React.DragEvent<HTMLElement>) => void;
   selection?: RowSelection;
+  /** First data cell, after the selection control when present. */
   leadingCell?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -359,7 +360,7 @@ export function PressTarget({ as, className, testId, onActivate, onMenu, draggab
     );
   }
   // Keep the checkbox's record-specific label out of the cell's accessible name.
-  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{leadingCell}{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{children}</tr>;
+  return <tr className={rowClass} data-testid={testId} {...bind} {...drag}>{selection ? <td className="bulk-cell" aria-label="Selección">{checkbox}</td> : null}{leadingCell}{children}</tr>;
 }
 
 export function Dialog({ title, text, ok, onOk, onClose, danger, busy, error, cancel = 'Cancelar', className, extra }: {

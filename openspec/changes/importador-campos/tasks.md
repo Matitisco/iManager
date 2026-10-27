@@ -3,3 +3,5 @@
 - [x] Tarjetas variante B, modal y campos en detalle/formulario/tabla/exportación.
 - [x] Tests relacionados, TypeScript, builds y QA Playwright local 1440/390.
 - [x] Commit, push de la rama, PR sin merge e informe externo.
+- [x] Corregir regresión de selección: checkbox primero, luego Fecha de ingreso; revisar todas las tablas PressTarget y CSS desktop/móvil.
+- [x] Validar orden de th/td con tests relacionados (63 pruebas, máximo 2 workers) y TypeScript frontend/backend; entrega por PR sin merge.

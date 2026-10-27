@@ -11,4 +11,7 @@ El sistema SHALL mapear cada columna por índice cuando no haya encabezado y ofr
 El sistema SHALL persistir fecha de ingreso y detalle batería opcionales y valores personalizados en InventoryItem.customFields.
 #### Scenario: Consulta y edición
 - **WHEN** se abre un equipo
-- **THEN** se muestran y editan los campos definidos por su tienda; fecha de ingreso ocupa la primera columna y la parte superior móvil; detalle batería queda en detalle y formulario.
+- **THEN** se muestran y editan los campos definidos por su tienda; fecha de ingreso ocupa la primera columna de datos y la parte superior móvil; detalle batería queda en detalle y formulario.
+#### Scenario: Selección antes de las columnas de datos
+- **WHEN** se muestra la tabla de equipos
+- **THEN** el primer th y cada primer td contienen el checkbox de selección y el segundo th/td corresponde a Fecha de ingreso, independientemente del orden o visibilidad de las columnas de datos.
