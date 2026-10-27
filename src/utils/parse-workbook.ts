@@ -5,10 +5,21 @@ export interface ParsedWorkbook {
   getSheet: (name: string) => string[][];
 }
 
-export function cellText(value: unknown): string {
+export function cellText(value: unknown, cell?: Pick<ExcelJS.Cell, 'text' | 'numFmt'>): string {
   if (value == null) return '';
   if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim();
-  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return '';
+    // ExcelJS text preserves the stored digits, unlike formatting the float to
+    // the displayed (often abbreviated) scientific precision.
+    const text = cell?.text || String(value);
+    if (value >= 1e14 && /e[+-]0+/i.test(cell?.numFmt ?? '') && /0{5,}$/.test(text)) {
+      // Retain evidence of an abbreviated scientific identifier for validation;
+      // never turn its padded zeroes into an apparently complete IMEI.
+      return value.toExponential();
+    }
+    return text;
+  }
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString().slice(0, 10);
   if (typeof value === 'object') {
@@ -21,7 +32,7 @@ export function cellText(value: unknown): string {
       }).join('').replace(/\s+/g, ' ').trim();
     }
     if (typeof record.text === 'string') return cellText(record.text);
-    if ('result' in record && record.result != null && record.result !== '') return cellText(record.result);
+    if ('result' in record && record.result != null && record.result !== '') return cellText(record.result, cell);
     if (typeof record.formula === 'string' && record.formula.trim()) {
       const formula = record.formula.trim();
       return formula.startsWith('=') ? formula : `=${formula}`;
@@ -55,10 +66,12 @@ function readWorksheet(worksheet: ExcelJS.Worksheet): string[][] {
     for (let col = 1; col <= colCount; col += 1) {
       const cell = row.getCell(col);
       if (cell.isMerged && cell.master.address !== cell.address) {
-        line.push('');
+        // Fill down vertical data ranges, without repeating horizontal titles
+        // across every column (which would change header detection).
+        line.push(cell.master.col === cell.col ? cellText(cell.master.value, cell.master) : '');
         continue;
       }
-      line.push(cellText(cell.value));
+      line.push(cellText(cell.value, cell));
     }
     rows.push(line);
   });

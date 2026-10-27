@@ -13,7 +13,44 @@ type Row = {
   model?: string; price?: number | null; condition?: string; imei?: string; grade?: string;
   color?: string; batteryHealth?: string; entryDate?: string | null; batteryNote?: string | null;
   purchasedAt?: string;
+  capacity?: string;
+  cost?: number | string;
 };
+
+export const ILLEGIBLE_IMEI_MESSAGE = 'IMEI ilegible: el Excel guardó el número en notación científica y se perdieron dígitos; formateá la columna como texto';
+
+function parseImportImei(value: string | undefined) {
+  let text = value?.trim() ?? '';
+  if (/e[+-]?\d+$/i.test(text)) {
+    const scientific = /^(\d)[.,](\d{14,})e\+?14$/i.exec(text);
+    // All fifteen digits must actually be present. Never pad a short mantissa.
+    if (!scientific || /[1-9]/.test(scientific[2].slice(14))) {
+      return { ok: false as const, message: ILLEGIBLE_IMEI_MESSAGE };
+    }
+    text = scientific[1] + scientific[2].slice(0, 14);
+    // Explicit scientific tails of zeroes carry insufficient useful precision.
+    if (/0{5,}$/.test(text)) return { ok: false as const, message: ILLEGIBLE_IMEI_MESSAGE };
+  }
+  return parseOptionalImei(text.replace(/^(\d{15})\.0+$/, '$1'));
+}
+
+export function isInventoryFooter(raw: Row, cells?: string[]): boolean {
+  const imei = parseImportImei(raw.imei);
+  const capacity = /^(?:\d+(?:[.,]\d+)?\s*(?:gb|tb|mb)|8|16|32|64|128|256|512|1024|2048)$/i.test(raw.capacity?.trim() ?? '');
+  if ((imei.ok && imei.imei) || capacity) return false;
+  const values = cells ?? [raw.model, raw.capacity, raw.imei, raw.color, raw.condition, raw.grade, raw.batteryHealth,
+    raw.entryDate, raw.batteryNote, raw.purchasedAt, raw.price, raw.cost].map(value => value == null ? '' : String(value));
+  const firstText = values.find(cell => /[a-záéíóúñ]/i.test(cell));
+  const footer = /^(?:(?:total|subtotal|suma|totales|nota|notas|observaci[oó]n(?:es)?)\b|stock\s+total\b)/i;
+  if ([raw.model, firstText].some(text => text && footer.test(text.trim()))) return true;
+  const filled = values.map(cell => cell.trim()).filter(Boolean);
+  const compact = filled.join(' ').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f\s]/g, '');
+  if (filled.length <= 2 && /precionoincluye|noincluyeiva|cotizacion|^precios?.*(efectivo|transferencia|promocion)/.test(compact)) return true;
+  // Amount-only lines have neither a model nor an identifier. A bad non-empty
+  // IMEI still needs invalid_imei rather than being hidden as a footer.
+  return !/[a-záéíóúñ]/i.test(raw.model ?? '') && !raw.imei?.trim() && values.some(cell => /\d/.test(cell))
+    && values.every(cell => !cell.trim() || /^[\d\s.,$+()-]+$/.test(cell.trim()));
+}
 
 function normalizeBattery(value: string | undefined): string {
   if (value === undefined) return '100';
@@ -35,12 +72,13 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
     warnings.push({ row, message: 'Batería no se pudo leer: se importó sin batería' });
   }
   const reject = (reason: DiscardReason, message: string) => ({ ok: false as const, reason, message, warnings });
+  if (isInventoryFooter(raw)) return reject('footer', 'Total o nota al pie sin equipo');
   if (!raw.model?.trim()) return reject('missing_model', 'Modelo vacío');
   if (raw.price != null && (!Number.isFinite(raw.price) || raw.price < 0)) return reject('invalid_price', 'Precio inválido');
   const conditionKey = raw.condition?.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const condition = conditionKey ? CONDITIONS[conditionKey] : 'USADO';
   if (!condition) return reject('invalid_row', 'La condición no existe');
-  const parsedImei = parseOptionalImei(raw.imei);
+  const parsedImei = parseImportImei(raw.imei);
   if (!parsedImei.ok) return reject('invalid_imei', parsedImei.message);
   const firstRow = parsedImei.imei ? seenImeis.get(parsedImei.imei) : undefined;
   if (firstRow !== undefined) return reject('duplicate', `IMEI repetido en el archivo (igual a la fila ${firstRow})`);

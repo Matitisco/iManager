@@ -6,6 +6,18 @@ import { analyzeImport } from '../../backend/src/modules/import/analyze-import.s
 import { DECISIONS_URL } from '../../backend/src/modules/import/responses-client';
 import { cellText, parseWorkbook } from './parse-workbook';
 import { syntheticStockRows as fixtureStockRows } from '../../backend/test/fixtures/headerless-stock';
+import { excelRegressionFixtures, regressionFields } from '../../backend/test/fixtures/excel-regressions';
+import { importInventoryItems } from '../../backend/src/modules/inventory/inventory.service';
+
+const prismaMock = vi.hoisted(() => ({
+  store: { findUnique: vi.fn(async () => ({ currency: 'USD' })) },
+  inventoryItem: {
+    findFirst: vi.fn(async () => null),
+    create: vi.fn(async () => ({ id: 'synthetic-item' })),
+    update: vi.fn(async () => ({})),
+  },
+}));
+vi.mock('../../backend/src/plugins/prisma', () => ({ prisma: prismaMock }));
 
 describe('cellText', () => {
   it('reads rich text, formula results and numbers without turning them into objects', () => {
@@ -166,3 +178,64 @@ async function syntheticStockXlsx(): Promise<Uint8Array> {
   });
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
+
+describe('regresiones sintéticas de la evaluación offline', () => {
+  it.each(excelRegressionFixtures().flatMap(fixture => ['heuristic', 'decisions', 'responses'].map(via => ({ ...fixture, via }))))('$name ($via): preview == confirmación, sin sobrescrituras', async fixture => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Stock');
+    fixture.rows.forEach(row => ws.addRow(row));
+    fixture.merges.forEach(range => ws.mergeCells(range));
+    const bytes = await wb.xlsx.writeBuffer();
+    const parsed = await parseWorkbook(new File([bytes as ArrayBuffer], 'sintetico.xlsx'));
+    const grid = parsed.getSheet('Stock');
+    const plan = { name: 'Stock', include: true, headerRow: 1, dataStartRow: 2, dataEndRow: grid.length,
+      condition: '', splitModelCapacity: false, batteryAsPercent: true, priceCurrency: '',
+      mapping: regressionFields.map((field, columnIndex) => ({ header: grid[0][columnIndex], field, columnIndex })),
+    };
+    vi.stubEnv('OPENAI_API_KEY', fixture.via === 'heuristic' ? '' : 'sk-offline-test');
+    try {
+      const analysis = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'Stock', rows: grid }] }, {
+        fetchImpl: async url => String(url) !== DECISIONS_URL ? Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ sheets: [plan] }) }] }] })
+          : fixture.via !== 'decisions' ? new Response('', { status: 404 }) : Response.json({ answers: [
+            { name: 'h0_inc', probability: 1 }, { name: 'h0_hdr', choice: '1', confidence: 1 },
+            ...regressionFields.map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
+          ] }),
+      });
+      expect(analysis.source).toBe(fixture.via === 'heuristic' ? 'heuristic' : 'model');
+      expect(analysis.rows).toHaveLength(fixture.accepted);
+      expect(analysis.diagnostics?.rejected ?? []).toEqual(fixture.rejected);
+      expect(analysis.diagnostics?.discardedRows).toBe(fixture.rejected.length + (fixture.name === '11_totals_footer' ? 1 : 0));
+      const confirmed = await importInventoryItems('synthetic-store', analysis.rows.map(row => ({
+        ...row, model: row.model, imei: row.imei ?? '', sourceRow: Number(row._sourceRow), cost: row.cost ? Number(row.cost) : undefined,
+      })));
+      expect(confirmed.imported + confirmed.updated).toBe(analysis.rows.length);
+      expect(confirmed.updated).toBe(0);
+      expect(confirmed.errors).toEqual([]);
+      // Bypassing preview must still reject duplicates, scientific IMEIs and footers.
+      const raw = await importInventoryItems('synthetic-store', grid.slice(1).flatMap((values, index) => !values.some(Boolean) ? [] : [{
+        sourceRow: index + 2, model: values[0] ?? '', capacity: values[1], batteryHealth: values[2], imei: values[3] ?? '', color: values[4], cost: values[5] ? Number(values[5]) : undefined,
+      }]));
+      expect(raw.imported + raw.updated).toBe(analysis.rows.length);
+      expect(raw.diagnostics?.rejected ?? []).toEqual(fixture.rejected);
+      expect(raw.updated).toBe(0);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it('fills down suppliers and models without filling unrelated blank cells', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Stock');
+    ws.addRows([['Modelo', 'Proveedor'], ['iPhone 13', 'Proveedor ficticio'], ['', ''], ['', ''], ['', '']]);
+    ws.mergeCells('A2:A4'); ws.mergeCells('B2:B4');
+    const parsed = await parseWorkbook(new File([await wb.xlsx.writeBuffer() as ArrayBuffer], 'sintetico.xlsx'));
+    expect(parsed.getSheet('Stock')).toEqual([['Modelo', 'Proveedor'], ...Array.from({ length: 3 }, () => ['iPhone 13', 'Proveedor ficticio'])]);
+  });
+
+  it('preserves complete numeric identifiers and scientific loss evidence', async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Stock');
+    ws.addRows([['IMEI'], [356789012340005], [356789000000000], [3567890123456789]]);
+    for (const n of [2, 3, 4]) ws.getCell(`A${n}`).numFmt = '0.00E+00';
+    const parsed = await parseWorkbook(new File([await wb.xlsx.writeBuffer() as ArrayBuffer], 'sintetico.xlsx'));
+    expect(parsed.getSheet('Stock').map(row => row[0])).toEqual(['IMEI', '356789012340005', '3.56789e+14', '3567890123456789']);
+  });
+});
