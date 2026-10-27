@@ -398,7 +398,6 @@ function ClientsEmpty({ onCreate }: { onCreate: () => void }) {
           Nuevo cliente
         </button>
       </div>
-      <p className="inv-count">0 resultados</p>
     </div>
   );
 }

@@ -364,7 +364,6 @@ function TradeEmpty({ onCreate }: { onCreate: () => void }) {
           Nuevo canje
         </button>
       </div>
-      <p className="inv-count">0 resultados</p>
     </div>
   );
 }

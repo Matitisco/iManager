@@ -128,7 +128,7 @@ describe('Clients on a phone', () => {
     context.clients = [];
     renderScreen();
     expect(screen.getByTestId('clients-empty')).toHaveTextContent('No hay clientes');
-    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText('Buscar por nombre, DNI o teléfono')).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nuevo cliente' })).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Importar' })).toBeInTheDocument();
