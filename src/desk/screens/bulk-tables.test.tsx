@@ -44,6 +44,11 @@ describe('bulk table wiring', () => {
     { table: 'trades', Component: TradeInsScreen, name: 'C-0001', overlay: { type: 'cj', id: 't1' } },
   ] as const)('keeps cell names and row activation independent of selection in $table', ({ Component, name, overlay }) => {
     mount(Component);
+    const headers = screen.getAllByRole('columnheader');
+    expect(within(headers[0]).getByRole('checkbox', { name: /^Seleccionar todos/ })).toBeInTheDocument();
+    for (const dataRow of screen.getAllByRole('row').slice(1)) {
+      expect(within(within(dataRow).getAllByRole('cell')[0]).getByRole('checkbox', { name: /^Seleccionar / })).toBeInTheDocument();
+    }
     const cell = screen.getByRole('cell', { name: new RegExp(name) });
     const row = cell.closest('tr')!;
     const checkbox = within(row).getByRole('checkbox', { name: new RegExp(`Seleccionar ${name}`) });
@@ -63,6 +68,25 @@ describe('bulk table wiring', () => {
     fireEvent.click(within(row).getAllByRole('cell')[0]);
     expect(open).toHaveBeenCalledTimes(2);
     expect(checkbox).toBeChecked();
+  });
+
+  it('keeps entry date as the second stock header and cell, after selection', () => {
+    ctx.inventory[0].entryDate = '2026-10-27';
+    mount(InventoryScreen);
+    const headers = screen.getAllByRole('columnheader');
+    expect(headers[0]).toHaveClass('bulk-cell');
+    expect(within(headers[0]).getByRole('checkbox', { name: /^Seleccionar todos/ })).toBeInTheDocument();
+    expect(headers[1]).toHaveTextContent('Fecha de ingreso');
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const cells = within(row).getAllByRole('cell');
+      expect(cells[0]).toHaveClass('bulk-cell');
+      expect(within(cells[0]).getByRole('checkbox', { name: /^Seleccionar Equipo/ })).toBeInTheDocument();
+      expect(cells[1]).toHaveClass('inv-entry-col');
+      expect(cells[1]).toHaveTextContent(row.textContent?.includes('Equipo 1') ? '27/10/2026' : '—');
+      expect(cells[2]).toHaveTextContent(/Equipo [12]/);
+    }
   });
 
   it.each([
