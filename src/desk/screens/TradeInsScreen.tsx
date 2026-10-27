@@ -147,6 +147,7 @@ export function TradeInsScreen() {
         label={(item) => tradeCode(tradeSource, item.id)}
         action={{
           label: 'Anular',
+          doneLabel: 'anulados',
           explanation: 'Se anulan los canjes seleccionados y sus ventas asociadas. Se restauran stock y saldos; el equipo recibido se archiva. Si el equipo recibido ya se vendió, la operación no se puede anular.',
           execute: (item, reason) => deleteTradeIn(item.id, reason),
           unavailable: (item) => item.voidedAt ? 'La selección incluye canjes ya anulados.' : undefined,

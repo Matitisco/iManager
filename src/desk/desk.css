@@ -1762,6 +1762,15 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .bulk-select-filter { display: flex; align-items: center; gap: 4px; font-size: 12px; margin-bottom: 8px; }
 .bulk-confirm .ferr { white-space: normal; overflow-wrap: anywhere; }
 .bulk-confirm button { min-height: 44px; }
+.bulk-progress { display: block; margin-top: 12px; color: var(--secondary); }
+.bulk-result { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.bulk-failures { min-width: 0; margin: 16px 0; border: 1px solid var(--border); border-radius: 14px; }
+.bulk-failures summary { padding: 12px 16px; min-height: 44px; cursor: pointer; font-size: 13px; font-weight: 700; }
+.bulk-failure-list { max-height: 220px; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 0 16px; list-style: none; }
+.bulk-failure-list li { min-width: 0; padding: 12px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.bulk-failure-list b { font-size: 14px; }
+.bulk-failure-list .ferr { margin: 4px 0 0; }
+.bulk-failures summary:focus-visible, .bulk-failure-list:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; border-radius: 14px; }
 @media (max-width: 760px) {
   .bulk-row { position: relative; padding-left: 44px; }
   .bulk-row > .bulk-check { position: absolute; left: 0; top: 50%; transform: translateY(-50%); z-index: 1; }

@@ -16,8 +16,19 @@ The four tables SHALL support row checkboxes, select-all for every currently fil
 The system SHALL export only selected explicit fields, delete inventory/clients and cancel eligible sales/trade operations using existing endpoints. Destructive actions SHALL require sensitive permissions and confirmation, with existing server audit and business rules.
 
 #### Scenario: A request fails
-- **WHEN** a confirmed sequence fails after successful requests
-- **THEN** the UI SHALL report completed/pending counts, preserve pending selection, stop further requests and remain open without reporting full success.
+- **WHEN** an item in a confirmed sequence fails for a business rule or network error
+- **THEN** the UI SHALL continue attempting every remaining item, remove only successful rows from selection and announce the attempted/total count through a polite status region.
+- **AND** the final sheet SHALL remain open as Resultado with success/failure counts, a Ver detalle disclosure listing every failed name and normalized reason with internal scroll, and a single primary Listo footer button.
+- **AND** failures SHALL remain selected for a later retry, selection SHALL unlock when processing ends, and no success toast SHALL appear.
+- **AND** Clientes SHALL offer Registrar devolución for the first failure mentioning saldo a favor.
+
+#### Scenario: Every request succeeds
+- **WHEN** every item succeeds
+- **THEN** the sheet SHALL close and the existing processed-records toast SHALL appear.
+
+#### Scenario: Store/user changes or component unmounts
+- **WHEN** the active scope changes or the component unmounts during an in-flight request
+- **THEN** the old sequence SHALL stop without starting another request, updating selection or displaying a result/toast.
 
 ### Requirement: Mobile selection
 Long press SHALL select a card and expose a bottom action bar with safe area padding and accessible touch targets.

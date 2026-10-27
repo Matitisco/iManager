@@ -38,6 +38,26 @@ beforeEach(() => {
 
 describe('bulk table wiring', () => {
   it.each([
+    { table: 'inventory', Component: InventoryScreen, execute: ctx.deleteProduct, action: 'Archivar selección', result: '1 archivado · 1 no se pudo archivar' },
+    { table: 'clients', Component: ClientsScreen, execute: ctx.deleteClient, action: 'Archivar selección', result: '1 archivado · 1 no se pudo archivar' },
+    { table: 'sales', Component: SalesScreen, execute: ctx.deleteSale, action: 'Anular', result: '1 anulado · 1 no se pudo anular' },
+    { table: 'trades', Component: TradeInsScreen, execute: ctx.deleteTradeIn, action: 'Anular', result: '1 anulado · 1 no se pudo anular' },
+  ])('continues and uses the action participle in $table', async ({ Component, execute, action, result }) => {
+    ctx.clients.push({ ...ctx.clients[0], id: 'c2', name: 'Beatriz' });
+    ctx.sales.push({ ...ctx.sales[0], id: 's2', saleNumber: 2 });
+    ctx.tradeIns.push({ ...ctx.tradeIns[0], id: 't2', tradeNumber: 2 });
+    execute.mockRejectedValueOnce(new Error('Operación activa'));
+    mount(Component);
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Seleccionar todos/ }));
+    confirm(action);
+    await screen.findByText(result);
+    expect(execute).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('1 seleccionado')).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Listo' }));
+    expect(screen.getByRole('button', { name: action })).toBeEnabled();
+  });
+
+  it.each([
     { table: 'inventory', Component: InventoryScreen, name: 'Equipo 1', overlay: { type: 'eq', id: '1' } },
     { table: 'clients', Component: ClientsScreen, name: 'Ana', overlay: { type: 'cl', id: 'c' } },
     { table: 'sales', Component: SalesScreen, name: 'V-0001', overlay: { type: 'sale', id: 's1' } },

@@ -5,10 +5,11 @@ import { useAppContext } from '../context/AppContext';
 import type { BulkSelection } from './bulk-selection';
 import { SelectFiltered } from './bulk-selection';
 import { usePhoneLayout } from './section-notices';
-import { useDesk } from './ui';
+import { Sheet, useDesk } from './ui';
 
 export type BulkAction<T> = {
   label: string;
+  doneLabel?: 'archivados' | 'anulados' | 'procesados';
   explanation: string;
   execute: (row: T, reason?: string) => Promise<unknown>;
   unavailable?: (row: T) => string | undefined;
@@ -29,7 +30,8 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
   const phone = usePhoneLayout();
   const [confirmation, setConfirmation] = useState<T[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [processed, setProcessed] = useState(0);
+  const [result, setResult] = useState<{ completed: number; failures: { row: T; name: string; message: string }[] } | null>(null);
   const submitting = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -37,15 +39,17 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
   const dismiss = () => {
     if (submitting.current) return;
     setConfirmation(null);
-    setError('');
+    setResult(null);
+    setProcessed(0);
     selection.setLocked(false);
   };
   const confirm = async (reason: string) => {
-    if (submitting.current || !confirmation?.length || !ready || !canManageSensitive) return;
+    if (submitting.current || result || !confirmation?.length || !ready || !canManageSensitive) return;
     submitting.current = true;
     setBusy(true);
-    setError('');
+    setProcessed(0);
     let completed = 0;
+    const failures: { row: T; name: string; message: string }[] = [];
     try {
       for (const row of confirmation) {
         if (!mounted.current) return;
@@ -56,14 +60,16 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
           completed += 1;
         } catch (cause) {
           if (!mounted.current) return;
-          const message = toActionMessage(cause, 'No se pudo guardar la acción.');
-          setConfirmation(confirmation.slice(completed));
-          setError(`${completed} completados · ${confirmation.length - completed} pendientes. ${label(row)}: ${message}`);
-          return;
+          failures.push({ row, name: label(row), message: toActionMessage(cause, 'No se pudo guardar la acción.') });
         }
+        setProcessed(completed + failures.length);
       }
-      setConfirmation(null);
-      toast(`${completed} ${completed === 1 ? 'registro procesado' : 'registros procesados'}`);
+      if (failures.length > 0) {
+        setResult({ completed, failures });
+      } else {
+        setConfirmation(null);
+        toast(`${completed} ${completed === 1 ? 'registro procesado' : 'registros procesados'}`);
+      }
     } finally {
       submitting.current = false;
       if (mounted.current) {
@@ -72,6 +78,9 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
       }
     }
   };
+  const doneLabel = action.doneLabel ?? 'procesados';
+  const verb = { archivados: 'archivar', anulados: 'anular', procesados: 'procesar' }[doneLabel];
+  const recoverable = result?.failures.find(({ message }) => message.includes('saldo a favor'));
   return <>
     {phone && !selection.mode && !hideStart ? <div className="bulk-select-filter"><button className="dbtn s" type="button" disabled={total === 0} onClick={() => selection.start()}>Seleccionar</button></div> : null}
     {phone && selection.mode ? <div className="bulk-select-filter"><SelectFiltered selection={selection} total={total} /><span>Seleccionar todos</span></div> : null}
@@ -81,14 +90,26 @@ export function BulkActions<T extends { id: string }>({ selection, total, label,
         <div className="bulk-buttons">
           {children}
           {canManageSensitive ? <button type="button" className="dbtn bulk-danger" disabled={selection.locked || !ready || selection.selected.length === 0 || Boolean(unavailable)} onClick={() => {
-            setError(''); setConfirmation([...selection.selected]); selection.setLocked(true);
+            setResult(null); setProcessed(0); setConfirmation([...selection.selected]); selection.setLocked(true);
           }}>{action.label}</button> : null}
         </div>
         {canManageSensitive && unavailable ? <small className="bulk-note">{unavailable}</small> : null}
       </div>
     ) : null}
-    {confirmation ? <ReasonSheet title={`${action.label}: ${confirmation.length} ${confirmation.length === 1 ? 'registro' : 'registros'}`} note={`${action.explanation} Se procesan uno por uno; si alguno falla, se detiene la acción y se conservan los pendientes.`}
-      ok={busy ? 'Procesando…' : action.label} onOk={reason => { void confirm(reason); }} onClose={dismiss} busy={busy} danger error={error} className="bulk-confirm"
-      extra={error.includes('saldo a favor') && action.recover && confirmation[0] ? { label: 'Registrar devolución', onClick: () => { const row = confirmation[0]; dismiss(); if (row) action.recover?.(row); } } : null} /> : null}
+    {confirmation ? result ? <Sheet title="Resultado" onClose={dismiss} className="bulk-confirm"
+      footer={<div className="sacts one"><button type="button" className="btn2 p" onClick={dismiss}>Listo</button></div>}>
+      <p className="bulk-result" role="status" aria-live="polite">{result.completed} {result.completed === 1 ? doneLabel.slice(0, -1) : doneLabel} · {result.failures.length} {result.failures.length === 1 ? 'no se pudo' : 'no se pudieron'} {verb}</p>
+      <details className="bulk-failures">
+        <summary>Ver detalle</summary>
+        <ul className="bulk-failure-list" aria-label="Registros con errores" tabIndex={0}>
+          {result.failures.map(({ row, name, message }) => <li key={row.id}><b>{name}</b><p className="ferr">{message}</p></li>)}
+        </ul>
+      </details>
+      {recoverable && action.recover ? <button type="button" className="wlink" onClick={() => { dismiss(); action.recover?.(recoverable.row); }}>Registrar devolución</button> : null}
+    </Sheet> : <ReasonSheet title={`${action.label}: ${confirmation.length} ${confirmation.length === 1 ? 'registro' : 'registros'}`} note={<>
+      {action.explanation} Se procesan uno por uno. Los que no se puedan procesar se saltean y al final te mostramos cuáles fueron y por qué.
+      {busy ? <span className="bulk-progress" role="status" aria-live="polite">Procesando {processed} de {confirmation.length}…</span> : null}
+    </>}
+      ok={action.label} onOk={reason => { void confirm(reason); }} onClose={dismiss} busy={busy} danger className="bulk-confirm" /> : null}
   </>;
 }
