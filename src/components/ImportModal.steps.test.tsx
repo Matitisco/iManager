@@ -1,11 +1,14 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { ImportModal } from './ImportModal';
 import { parseWorkbook } from '../utils/parse-workbook';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 
 vi.mock('../utils/parse-workbook', () => ({ parseWorkbook: vi.fn() }));
+const scrollIntoView = vi.fn();
+Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, writable: true, value: scrollIntoView });
+afterEach(() => vi.useRealTimers());
 const fields = [
   { key: 'model', label: 'Modelo', required: true },
   { key: 'price', label: 'Precio', required: false },
@@ -22,8 +25,8 @@ function sheetPlan(name = 'Stock'): ImportSheetPlan {
     mapping: stock[0].map((header, columnIndex) => ({ header, columnIndex, field: ['model', 'price', 'ignore', 'ignore', 'custom:quality', 'custom:location'][columnIndex] })),
     splitModelCapacity: false, batteryAsPercent: false, priceCurrency: 'USD' };
 }
-async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; missing?: string[]; phone?: boolean } = {}) {
-  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: Boolean(options.phone) && query.includes('max-width'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; missing?: string[]; phone?: boolean; reducedMotion?: boolean } = {}) {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: Boolean(options.phone) && query.includes('max-width') || Boolean(options.reducedMotion) && query.includes('prefers-reduced-motion'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
   const sheets = options.sheets ?? [{ name: 'Stock', rows: stock }];
   vi.mocked(parseWorkbook).mockResolvedValue({ sheetNames: sheets.map(item => item.name), getSheet: name => sheets.find(item => item.name === name)!.rows });
   const value: ImportAnalysis = { source: 'heuristic', notice: null, currency: 'USD', plan: options.plan ?? [sheetPlan()],
@@ -92,7 +95,7 @@ it('ignora datos fuera del rango y permite seguir con un paso vacío', async () 
   expect(screen.getByTestId('import-confirm')).toBeEnabled();
 });
 
-it('mantiene una tarjeta asignada visible hasta salir y recalcula al volver', async () => {
+it('mantiene una pendiente resuelta al volver desde Resumen y reinicia desde Archivo', async () => {
   const { onApply } = await setup();
   await next();
   await userEvent.click(card().getByRole('button', { name: 'Campo existente' }));
@@ -104,6 +107,8 @@ it('mantiene una tarjeta asignada visible hasta salir y recalcula al volver', as
   await userEvent.click(screen.getByRole('button', { name: 'Columnas' }));
   expect(card().getByTestId('import-field-supplier')).toBeVisible();
   await next(); await previous();
+  expect(card().getByTestId('import-field-supplier')).toBeVisible();
+  await previous(); await next();
   expect(screen.queryByRole('article')).not.toBeInTheDocument();
   expect(screen.getByText('No hay columnas para revisar')).toBeVisible();
 });
@@ -132,7 +137,7 @@ it('agrupa campos estándar y personalizados existentes/borrador y permite cambi
   expect(custom.getByRole('button', { name: 'Cambiar columna F: Ubicación' })).toHaveTextContent('Ubicación');
   await userEvent.click(existing.getByRole('button', { name: 'Cambiar columna A: Modelo' }));
   expect(screen.getAllByRole('article')).toHaveLength(2);
-  expect(card('Modelo').getByRole('button', { name: 'Campo existente' })).toHaveFocus();
+  expect(screen.getByRole('article', { name: 'Columna Modelo' })).toHaveFocus();
   expect(card('Modelo').getByTestId('import-field-model')).toBeVisible();
   await next();
   await userEvent.click(screen.getByRole('button', { name: 'Cambiar columna D: Vacía' }));
@@ -146,7 +151,8 @@ it('muestra todas las descartadas mientras falta Modelo y lo bloquea hasta asign
   await userEvent.click(screen.getByRole('button', { name: 'Ir al campo obligatorio' }));
   expect(screen.getAllByRole('article')).toHaveLength(3);
   expect(card('Vacía')).toBeDefined();
-  expect(card('Modelo').getByRole('button', { name: 'Campo existente' })).toHaveFocus();
+  expect(screen.getByRole('article', { name: 'Columna Modelo' })).toHaveFocus();
+  expect(screen.getByRole('article', { name: 'Columna Modelo' })).toHaveClass('flash');
   await next();
   expect(screen.getByRole('alert')).toHaveTextContent('Falta asignar Modelo.');
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
@@ -231,4 +237,103 @@ it('crea un campo desde Columnas, lo conserva visible y lo incluye en Resumen e 
   expect(screen.getByRole('button', { name: 'Cambiar columna C: Obs. interna' })).toHaveTextContent('Reparaciones');
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport).toHaveBeenCalledWith([expect.objectContaining({ model: 'iPhone 13' })], [expect.objectContaining({ label: 'Reparaciones', type: 'text' })]);
+});
+
+
+it.each([false, true])('muestra Cambiar en cada fila de los tres grupos (móvil: %s)', async phone => {
+  const rows = stock.map(row => [...row]);
+  rows[0][2] = 'Observaciones internas con un encabezado muy largo';
+  const plan = sheetPlan(); plan.mapping[2].header = rows[0][2];
+  await setup({ phone, plan: [plan], sheets: [{ name: 'Stock', rows }] });
+  await next(); await next();
+  expect(screen.getAllByText('Cambiar')).toHaveLength(6);
+  for (const label of ['Campos existentes', 'Campos nuevos', 'Descartadas']) {
+    const group = within(screen.getByRole('region', { name: label }));
+    expect(group.getAllByText('Cambiar')).toHaveLength(2);
+    for (const row of group.getAllByRole('button')) {
+      expect(within(row).getByText('Cambiar')).toBeVisible();
+      expect(row.querySelector('button, a')).toBeNull();
+    }
+  }
+});
+
+it.each([
+  ['B', 'Precio', 'Precio'], ['E', 'Calidad', 'Calidad · Texto'], ['F', 'Ubicación', 'Ubicación · Texto'],
+])('abre y edita la columna mapeada %s y la conserva tras reapply asíncrono', async (letter, header, destination) => {
+  const { onApply, value } = await setup();
+  await next(); await next();
+  await userEvent.click(within(screen.getByRole('button', { name: `Cambiar columna ${letter}: ${header}` })).getByText('Cambiar'));
+  const article = screen.getByRole('article', { name: `Columna ${header}` });
+  expect(article).toHaveFocus();
+  expect(article).toHaveClass('flash');
+  expect(card(header).getByRole('combobox')).toHaveTextContent(destination);
+  let finish!: (result: ImportAnalysis) => void;
+  onApply.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await userEvent.click(card(header).getByRole('button', { name: 'Campo existente' }));
+  await userEvent.click(card(header).getByRole('combobox'));
+  await userEvent.click(screen.getByRole('option', { name: 'Proveedor' }));
+  expect(onApply).toHaveBeenCalledOnce();
+  expect(card(header).getByRole('combobox')).toHaveTextContent('Proveedor');
+  expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
+  // A server recalculation replaces plan objects and normalizes the data range.
+  const plan = onApply.mock.calls[0][1].map(item => ({ ...item, dataEndRow: 3, mapping: item.mapping.map(column => ({ ...column })) }));
+  await act(async () => finish({ ...value, plan }));
+  expect(card(header).getByRole('combobox')).toHaveTextContent('Proveedor');
+  await next(); await previous();
+  expect(card(header).getByRole('combobox')).toHaveTextContent('Proveedor');
+  expect(screen.getAllByRole('article')).toHaveLength(2);
+});
+
+it.each([false, true])('repite foco, scroll y resaltado temporal en la misma columna (movimiento reducido: %s)', async reducedMotion => {
+  await setup({ reducedMotion }); await next(); await next();
+  vi.useFakeTimers();
+  const choose = () => fireEvent.click(screen.getByRole('button', { name: 'Cambiar columna A: Modelo' }));
+  choose();
+  let article = screen.getByRole('article', { name: 'Columna Modelo' });
+  expect(article).toHaveFocus();
+  expect(article).toHaveAttribute('tabindex', '-1');
+  expect(article).toHaveClass('flash');
+  expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'center' });
+  expect(scrollIntoView.mock.contexts.at(-1)).toBe(article);
+  act(() => vi.advanceTimersByTime(1600));
+  expect(article).not.toHaveClass('flash');
+  fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+  scrollIntoView.mockClear();
+  choose();
+  article = screen.getByRole('article', { name: 'Columna Modelo' });
+  expect(article).toHaveFocus();
+  expect(article).toHaveClass('flash');
+  expect(scrollIntoView).toHaveBeenCalledOnce();
+  act(() => vi.advanceTimersByTime(1600));
+  expect(article).not.toHaveClass('flash');
+});
+
+it('acumula columnas elegidas desde Resumen junto con las pendientes iniciales', async () => {
+  await setup(); await next(); await next();
+  for (const name of ['Cambiar columna A: Modelo', 'Cambiar columna E: Calidad', 'Cambiar columna F: Ubicación']) {
+    await userEvent.click(screen.getByRole('button', { name }));
+    await next();
+  }
+  await previous();
+  for (const header of ['Obs. interna', 'Modelo', 'Calidad', 'Ubicación']) expect(screen.getByRole('article', { name: `Columna ${header}` })).toBeVisible();
+  expect(screen.getAllByRole('article')).toHaveLength(4);
+  await previous(); await next();
+  expect(screen.getAllByRole('article')).toHaveLength(1);
+});
+
+it('repite el foco del campo obligatorio cuando su tarjeta ya está montada, sin scrollIntoView disponible', async () => {
+  const plan = sheetPlan(); plan.mapping[0].field = 'ignore';
+  await setup({ plan: [plan], missing: ['model'] });
+  await userEvent.click(screen.getByRole('button', { name: 'Ir al campo obligatorio' }));
+  const article = screen.getByRole('article', { name: 'Columna Modelo' });
+  expect(article).toHaveFocus();
+  act(() => { article.blur(); });
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { value: undefined });
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Ir al campo obligatorio' }));
+    expect(article).toHaveFocus();
+    expect(article).toHaveClass('flash');
+  } finally {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { value: scrollIntoView });
+  }
 });

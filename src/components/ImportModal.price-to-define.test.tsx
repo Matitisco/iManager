@@ -64,8 +64,9 @@ it('usa missingRequiredFields del backend para bloquear y resaltar', async () =>
 it('el acceso directo enfoca Precio sin convertirlo en obligatorio', async () => {
   await preview();
   await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
-  const select = within(screen.getByRole('article', { name: 'Columna Costo' })).getByRole('button', { name: 'Campo existente' });
+  const select = screen.getByRole('article', { name: 'Columna Costo' });
   await waitFor(() => expect(select).toHaveFocus());
+  expect(select).toHaveClass('flash');
   expect(select).not.toHaveAttribute('aria-invalid', 'true');
 });
 it('resalta Modelo sin mapear y bloquea cero filas', async () => {
@@ -90,8 +91,9 @@ it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport).not.toHaveBeenCalled();
   await userEvent.click(within(notice).getByRole('button', { name: 'Asignar columna de modelo' }));
-  const model = within(screen.getByRole('article', { name: 'Columna Modelo' })).getByRole('button', { name: 'Campo existente' });
+  const model = screen.getByRole('article', { name: 'Columna Modelo' });
   await waitFor(() => expect(model).toHaveFocus());
+  expect(model).toHaveClass('flash');
   expect(screen.getByText('Falta asignar Modelo.')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Anterior' }));
   await userEvent.click(screen.getByRole('button', { name: 'Volver' }));
