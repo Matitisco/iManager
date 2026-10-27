@@ -97,7 +97,8 @@ export function normalizeSectionRow(
   if (section === "inventory") {
     const next = { ...record };
     if (next.status?.trim()) Object.assign(next, normalizeInventoryImportStatus(next.status));
-    if (next.imei && /^(?:\d{14,16}\.0+|\d(?:\.\d+)?e\+?1[345])$/i.test(next.imei)) next.imei = String(Number(next.imei));
+    // IMEIs are validated/canonicalized as strings by the shared import validator.
+    // Number() would invent padded digits for abbreviated scientific notation.
     // Entry dates keep incomplete dates visible for validation, without inventing a year.
     if (next.entryDate && /^\d{5}(?:\.\d+)?$/.test(next.entryDate)
       && Number(next.entryDate) >= 20000 && Number(next.entryDate) <= 80000) {

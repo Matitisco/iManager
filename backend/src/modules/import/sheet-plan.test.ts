@@ -53,7 +53,7 @@ describe('spreadsheet diagnostics', () => {
     expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 2, discardedRows: 5,
       discardedByReason: { empty: 1, footer: 1, section_header: 1, missing_model: 1, invalid_price: 1 },
       missingRequiredFields: [], missingRecommendedFields: ['imei'],
-      rejected: [{ row: 6, reason: 'missing_model', message: 'Modelo vacío' }, { row: 8, reason: 'invalid_price', message: 'Precio inválido' }] });
+      rejected: [{ row: 4, reason: 'footer', message: 'Total o nota al pie sin equipo' }, { row: 6, reason: 'missing_model', message: 'Modelo vacío' }, { row: 8, reason: 'invalid_price', message: 'Precio inválido' }] });
   });
 
   it('keeps excluded sheets separate and unions missing fields across included sheets', () => {

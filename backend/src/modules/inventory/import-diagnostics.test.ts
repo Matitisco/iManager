@@ -7,6 +7,7 @@ const prismaMock = vi.hoisted(() => ({
 }));
 vi.mock('../../plugins/prisma.js', () => ({ prisma: prismaMock }));
 import { importInventoryItems } from './inventory.service.js';
+import { ILLEGIBLE_IMEI_MESSAGE, validateInventoryImportRow } from './import-validation.js';
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -16,7 +17,7 @@ beforeEach(() => {
   prismaMock.inventoryItem.create.mockResolvedValue({ id: 'new-item' });
 });
 
-it('counts missing model, bad price and invalid IMEI without saving rejected rows', async () => {
+it('counts amount-only footers, bad price and invalid IMEI without saving rejected rows', async () => {
   const result = await importInventoryItems('store-test', [
     { imei: '', model: 'iPhone 13', price: 500 },
     { imei: '', model: '', price: 500 },
@@ -25,7 +26,7 @@ it('counts missing model, bad price and invalid IMEI without saving rejected row
   ]);
   expect(result).toMatchObject({ imported: 1, updated: 0, diagnostics: {
     detectedRows: 4, acceptedRows: 1, discardedRows: 3,
-    discardedByReason: { missing_model: 1, invalid_price: 1, invalid_imei: 1 },
+    discardedByReason: { footer: 1, invalid_price: 1, invalid_imei: 1 },
     missingRequiredFields: [], missingRecommendedFields: [],
   } });
   expect(prismaMock.inventoryItem.create).toHaveBeenCalledOnce();
@@ -107,4 +108,49 @@ it('preview and confirmation reject the same file-only errors and accept the sam
   })));
   expect(confirmedPreview.errors).toEqual([]);
   expect(confirmedPreview.imported + confirmedPreview.updated).toBe(analysis.rows.length);
+});
+
+it('only accepts scientific IMEIs with every digit, without float conversion or collisions', async () => {
+  const { applyImportPlan } = await import('../import/analyze-import.service.js');
+  const identifiers = ['3.5E+14', '3.50000000000000E+14', '3.56789012340005E+14', '3.56789012340007E+14', '356789012340005', '356789012340009.0'];
+  const analysis = applyImportPlan({ section: 'inventory', currency: 'USD', sheets: [{ name: 'Stock', rows: [
+    ['Modelo', 'IMEI'], ...identifiers.map(imei => ['iPhone 13', imei]),
+  ] }], plan: [{ name: 'Stock', include: true, headerRow: 1, dataStartRow: 2, dataEndRow: 7,
+    condition: '', splitModelCapacity: false, batteryAsPercent: false, priceCurrency: '',
+    mapping: [{ header: 'Modelo', field: 'model' }, { header: 'IMEI', field: 'imei' }],
+  }] });
+  const confirmed = await importInventoryItems('synthetic-store', identifiers.map((imei, i) => ({ model: 'iPhone 13', imei, sourceRow: i + 2 })));
+  expect(analysis.rows.map(row => row.imei)).toEqual(['356789012340005', '356789012340007', '356789012340009']);
+  expect(analysis.rows.length).toBe(confirmed.imported + confirmed.updated);
+  expect(confirmed.updated).toBe(0);
+  expect(analysis.diagnostics?.rejected).toEqual(confirmed.diagnostics?.rejected);
+  expect(confirmed.diagnostics?.rejected).toEqual([
+    { row: 2, reason: 'invalid_imei', message: ILLEGIBLE_IMEI_MESSAGE },
+    { row: 3, reason: 'invalid_imei', message: ILLEGIBLE_IMEI_MESSAGE },
+    { row: 6, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 4)' },
+  ]);
+});
+
+it.each(['Total', 'Subtotal', 'Suma', 'Totales', 'Nota', 'Notas', 'Observación', 'Observaciones'])('preserves real equipment called %s when it has identity', model => {
+  for (const identity of [{ imei: '356789012340005' }, { capacity: '128 GB' }]) {
+    expect(validateInventoryImportRow({ model: `${model} Phone`, ...identity }, 2, new Map()).ok).toBe(true);
+  }
+});
+
+it('reports generic notes and amount-only footers equally in preview and direct confirmation', async () => {
+  const { applyImportPlan } = await import('../import/analyze-import.service.js');
+  const records = [['Total Phone', '128 GB', '', '500'], ['Observación: revisar stock', '', '', ''], ['', '', '', '1000'], ['1000', '', '', ''], ['Precio no incluye IVA', '', '', ''], ['iPhone 13', '', '356789012340005', '500']];
+  const analysis = applyImportPlan({ section: 'inventory', currency: 'USD', sheets: [{ name: 'Stock', rows: [
+    ['Modelo', 'Capacidad', 'IMEI', 'Precio'], ...records,
+  ] }], plan: [{ name: 'Stock', include: true, headerRow: 1, dataStartRow: 2, dataEndRow: 7,
+    condition: '', splitModelCapacity: false, batteryAsPercent: false, priceCurrency: '',
+    mapping: ['model', 'capacity', 'imei', 'price'].map((field, columnIndex) => ({ header: '', field, columnIndex })),
+  }] });
+  const confirmed = await importInventoryItems('synthetic-store', records.map((r, i) => ({ sourceRow: i + 2,
+    model: r[0], capacity: r[1], imei: r[2], price: r[3] ? Number(r[3]) : null,
+  })));
+  expect(analysis.rows).toHaveLength(2);
+  expect(analysis.rows.length).toBe(confirmed.imported + confirmed.updated);
+  expect(analysis.diagnostics?.rejected).toEqual(confirmed.diagnostics?.rejected);
+  expect(confirmed.diagnostics?.rejected?.map(({ row, reason }) => ({ row, reason }))).toEqual([3, 4, 5, 6].map(row => ({ row, reason: 'footer' })));
 });

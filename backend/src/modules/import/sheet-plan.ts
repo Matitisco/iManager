@@ -3,7 +3,7 @@ import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, isPurchaseHeader, normalizeHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
-import { validateInventoryImportRow } from "../inventory/import-validation.js";
+import { isInventoryFooter, validateInventoryImportRow } from "../inventory/import-validation.js";
 import { recordRejection, countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
@@ -550,7 +550,7 @@ export function applyPlans(
       for (let rowIndex = start; rowIndex <= end; rowIndex += 1) {
         const line = grid[rowIndex - 1] ?? [];
         if (line.every((cell) => !cell.trim())) { countDiscard(diagnostics, "empty"); continue; }
-        if (isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
+        if (section !== "inventory" && isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
         const filledCells = line.filter((cell) => cell.trim());
         if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
         if (section === "inventory" && realModelHeader && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
@@ -562,6 +562,11 @@ export function applyPlans(
         for (const column of mapping) {
           const index = mappingColumnIndex(headers, column);
           record[column.field] = (line[index] ?? "").trim();
+        }
+        if (section === "inventory" && isInventoryFooter(record, line)) {
+          countDiscard(diagnostics, "footer");
+          recordRejection(diagnostics, { row: rowIndex, reason: "footer", message: "Total o nota al pie sin equipo" });
+          continue;
         }
         // A repeated table header is metadata, even when price is optional.
         if (section === "inventory" && realModelHeader && record.model && mapping.some(column => column.field === "model" && normalizeHeader(headers[mappingColumnIndex(headers, column)]) === normalizeHeader(record.model))) {
@@ -615,6 +620,7 @@ export function applyPlans(
             continue;
           }
           if (validated.value.imei) seenImeis.set(validated.value.imei, rowIndex);
+          if (normalized.imei !== undefined) normalized.imei = validated.value.imei ?? "";
           if (normalized.batteryHealth !== undefined) normalized.batteryHealth = plan.batteryAsPercent
             ? normalizeBattery(validated.value.batteryHealth) : validated.value.batteryHealth;
           // Custom-field types depend on the store definitions; DB checks remain at confirmation.
