@@ -642,7 +642,6 @@ function InventoryEmpty({ showActions, onImport, onSeries, onCreate }: { showAct
           </div>
         ) : null}
       </div>
-      <p className="inv-count">0 resultados</p>
     </div>
   );
 }

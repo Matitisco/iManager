@@ -348,6 +348,15 @@ describe('Inventory empty store', () => {
     context.operationNotifications = [];
   });
 
+  it('shows the empty title and guidance without a zero-results footer', () => {
+    renderScreen();
+    const empty = screen.getByTestId('inventory-empty');
+    expect(empty).toHaveTextContent('Todavía no cargaste equipos');
+    expect(empty).toHaveTextContent('Ingresá tu primer equipo o importá tu stock desde una planilla.');
+    expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Paginación' })).not.toBeInTheDocument();
+  });
+
   it('shows the onboarding empty state on desktop until a filter or search is active', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     const open = vi.fn();
@@ -360,7 +369,7 @@ describe('Inventory empty store', () => {
     const empty = screen.getByTestId('inventory-empty');
     expect(empty).toHaveTextContent('Todavía no cargaste equipos');
     expect(empty).toHaveTextContent('Ingresá tu primer equipo o importá tu stock desde una planilla.');
-    expect(empty).toHaveTextContent('0 resultados');
+    expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
     expect(within(empty).queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
     expect(within(empty).queryByRole('button', { name: 'Registrar equipo' })).not.toBeInTheDocument();
     expect(screen.queryByText('No hay equipos con ese filtro.')).not.toBeInTheDocument();
@@ -399,15 +408,27 @@ describe('Inventory phone list', () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  it('shows the empty state without row export actions', async () => {
+  it('keeps all empty-state actions working without a zero-results footer', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-    renderScreen();
+    const open = vi.fn();
+    render(
+      <DeskProvider value={{ tab: 'inventory', go: vi.fn(), open, openRecord: vi.fn(), close: vi.fn(), toast, isStaff: false }}>
+        <InventoryScreen />
+      </DeskProvider>,
+    );
     const empty = screen.getByTestId('inventory-empty');
     expect(empty).toHaveTextContent('Todavía no cargaste equipos');
     expect(within(empty).getByRole('button', { name: 'Importar' })).toBeInTheDocument();
     expect(within(empty).getByRole('button', { name: 'Registrar equipo' })).toBeInTheDocument();
-    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Equipo/ })).not.toBeInTheDocument();
+
+    await user.click(within(empty).getByRole('button', { name: 'Importar' }));
+    expect(open).toHaveBeenLastCalledWith({ type: 'import', kind: 'inv' });
+    await user.click(within(empty).getByRole('button', { name: 'Carga en serie' }));
+    expect(open).toHaveBeenLastCalledWith({ type: 'batch-eq' });
+    await user.click(within(empty).getByRole('button', { name: 'Registrar equipo' }));
+    expect(open).toHaveBeenLastCalledWith({ type: 'new-eq' });
   });
 
   it('uses the filter copy on an empty store once a chip or the search is active', async () => {

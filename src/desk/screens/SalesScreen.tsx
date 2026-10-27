@@ -503,7 +503,6 @@ function SalesEmpty({ onCreate }: { onCreate: () => void }) {
           Registrar venta
         </button>
       </div>
-      <p className="inv-count">0 resultados</p>
     </div>
   );
 }

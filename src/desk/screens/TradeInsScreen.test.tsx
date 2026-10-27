@@ -319,7 +319,7 @@ describe('Trade-ins on a phone', () => {
     state.tradeIns = [];
     renderScreen();
     expect(screen.getByTestId('tradeins-empty')).toHaveTextContent('No hay canjes');
-    expect(screen.getByText('0 resultados')).toBeInTheDocument();
+    expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
     expect(screen.queryByText('0 canjes · 0 en curso')).not.toBeInTheDocument();
     expect(within(screen.getByTestId('tradeins-empty')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Nuevo canje' })).toBeInTheDocument();
