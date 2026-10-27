@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '../plugins/prisma.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
 import { useIntegrationApp } from './integration-helpers.js';
@@ -98,4 +98,34 @@ describe('custom equipment fields and import', () => {
     expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(2);
   });
 
+});
+
+
+it('creates the suggested origin quality definition and persists every preview row in one confirmation', async () => {
+  const { analyzeImport } = await import('../modules/import/analyze-import.service.js');
+  const { DECISIONS_URL } = await import('../modules/import/responses-client.js');
+  const { syntheticQualityStockRows, mistakenQualityStockPlan, stockModelResponse } = await import('../../test/fixtures/headerless-stock.js');
+  const { headers, store } = await context();
+  vi.stubEnv('OPENAI_API_KEY', 'sk-test');
+  try {
+    const grid = syntheticQualityStockRows();
+    const analysis = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'stock de equipos', rows: grid }] }, {
+      fetchImpl: async url => String(url) === DECISIONS_URL ? new Response('', { status: 404 }) : stockModelResponse(mistakenQualityStockPlan(grid)),
+    });
+    const rows = analysis.rows.map(row => ({
+      imei: row.imei, model: row.model, sourceRow: Number(row._sourceRow), entryDate: row.entryDate,
+      batteryHealth: row.batteryHealth, price: null, customFields: { calidad_origen: row['custom:calidad_origen'] },
+    }));
+    const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers,
+      payload: { rows, definitions: analysis.suggestedDefinitions } });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ imported: analysis.rows.length, updated: 0, errors: [] });
+    expect(analysis.rows).toHaveLength(59);
+    expect(await prisma.customFieldDefinition.findMany({ where: { storeId: store!.id } })).toEqual([
+      expect.objectContaining({ key: 'calidad_origen', label: 'Calidad (origen)', type: 'text' }),
+    ]);
+    const saved = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
+    for (const row of rows) expect(saved.find(item => item.imei === row.imei)).toMatchObject({ grade: '', customFields: row.customFields });
+    expect(saved.find(item => item.imei === rows[7].imei)?.batteryHealth).toBe('');
+  } finally { vi.unstubAllEnvs(); }
 });

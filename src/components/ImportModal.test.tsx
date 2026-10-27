@@ -348,3 +348,27 @@ describe('cierre del importador con Escape', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+
+it.each([false, true])('adds suggested origin quality drafts once and reuses existing definitions: %s', async exists => {
+  const definition = { entity: 'inventory' as const, key: 'calidad_origen', label: 'Calidad (origen)', type: 'text' as const, order: 0 };
+  const result = analysis(1);
+  result.suggestedDefinitions = [definition, definition];
+  result.rows[0]['custom:calidad_origen'] = 'A/A-';
+  result.rows[0]._sourceRow = '38';
+  result.plan[0].mapping.push({ header: 'Calidad', columnIndex: 2, field: 'custom:calidad_origen' });
+  result.diagnostics = { detectedRows: 2, acceptedRows: 1, discardedRows: 1, discardedByReason: { duplicate: 1 }, missingRequiredFields: [], missingRecommendedFields: [],
+    rejected: [{ row: 59, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 38)' }] };
+  const onImport = vi.fn(async () => ({ imported: 1, updated: 0, errors: [] }));
+  render(<ImportModal fields={fields} nouns={{ one: 'equipo', many: 'equipos' }} onClose={vi.fn()}
+    customFieldDefinitions={exists ? [{ ...definition, id: 'existing' }] : []}
+    onAnalyze={vi.fn(async () => result)} onApply={vi.fn(async () => result)} onImport={onImport} />);
+  await userEvent.upload(document.querySelector('input[type="file"]') as HTMLInputElement,
+    new File(['Modelo,Precio,Calidad\niPhone 13,100,A/A-'], 'synthetic.csv', { type: 'text/csv' }));
+  expect(await screen.findByTestId('import-skipped-notice')).toHaveTextContent('Duplicadas: 1 — fila 59: IMEI repetido en el archivo (igual a la fila 38)');
+  await userEvent.click(screen.getByRole('button', { name: /Importar 1 equipo/ }));
+  await waitFor(() => expect(onImport).toHaveBeenCalledOnce());
+  const call = onImport.mock.calls[0] as unknown as [Record<string, string>[], unknown?];
+  expect(call[0][0]).toMatchObject({ 'custom:calidad_origen': 'A/A-', _sourceRow: '38' });
+  expect(call[1]).toEqual(exists ? undefined : [definition]);
+});

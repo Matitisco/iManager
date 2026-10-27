@@ -1,3 +1,5 @@
+import { parseQuality } from "../inventory/quality.js";
+import type { DefinitionInput } from "../custom-fields/custom-fields.service.js";
 import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import {
@@ -87,6 +89,7 @@ export type AnalysisLogEntry = {
 };
 
 export type AnalysisResult = {
+  suggestedDefinitions?: DefinitionInput[];
   source: AnalysisSource;
   notice: string | null;
   currency: MoneyCurrency;
@@ -254,11 +257,11 @@ export function acceptModelPlan(
       if (!inferred.mapping.some(column => column.field === "model")) return fallback();
       // Content inference protects dates and battery health. Keep the model's
       // additional fields (supplier, repair notes, etc.) on unclaimed columns.
-      if (model.headerRow === 0) {
+      {
         const headers = sheetHeaders(rows, 0);
         const fields = new Set(inferred.mapping.map(column => column.field).filter(Boolean));
         for (const column of model.mapping) {
-          const index = mappingColumnIndex(headers, column);
+          const index = mappingColumnIndex(sheetHeaders(rows, model.headerRow), column);
           if (index < 0 || !known.has(column.field) || fields.has(column.field) || inferred.mapping[index].field) continue;
           if (column.field === "batteryHealth") continue;
           inferred.mapping[index] = { header: headers[index], columnIndex: index, field: column.field };
@@ -344,10 +347,32 @@ function finish(
   outputTokens: number,
   billing: "decisions" | "responses" | "none",
 ): AnalysisResult {
+  // Only automatic analysis may repair a quality mapping; manual choices are authoritative.
+  const suggestedDefinitions: DefinitionInput[] = [];
+  if (input.section === 'inventory' && source !== 'manual') {
+    plan = plan.map(item => {
+      const sheet = sheets.find(sheet => sheet.name === item.name);
+      if (!sheet) return item;
+      const headers = sheetHeaders(sheet.rows, item.headerRow);
+      const mapping = item.mapping.map(column => {
+        if (column.field !== 'grade') return column;
+        const index = mappingColumnIndex(headers, column);
+        const values = sheet.rows.slice(Math.max(item.headerRow + 1, item.dataStartRow) - 1, item.dataEndRow)
+          .map(row => row[index]?.trim() ?? '').filter(Boolean);
+        if (!values.length || values.filter(value => !parseQuality(value).ok).length <= values.length / 2) return column;
+        if (!suggestedDefinitions.length) suggestedDefinitions.push({
+          entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0,
+        });
+        return { ...column, field: 'custom:calidad_origen' };
+      });
+      return { ...item, mapping };
+    });
+  }
   const applied = applyPlans(sheets, plan, input.section, input.currency);
   const result: AnalysisResult = {
     source,
     notice,
+    ...(suggestedDefinitions.length ? { suggestedDefinitions } : {}),
     currency: input.currency,
     plan: applied.plans,
     rows: applied.rows,

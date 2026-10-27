@@ -13,6 +13,8 @@ export const IMPORT_DISCARD_LABELS: Record<ImportDiscardReason, string> = {
   client_not_found: 'Cliente no encontrado', save_error: 'Error al guardar',
 };
 export type ImportDiagnostics = {
+  warnings?: { row: number; message: string }[];
+  rejected?: { row: number; reason: ImportDiscardReason; message: string }[];
   detectedRows: number;
   acceptedRows: number;
   discardedRows: number;

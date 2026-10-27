@@ -2,7 +2,7 @@
 // Entirely fabricated data, generated in memory. No external spreadsheet is read.
 export function syntheticStockRows(count = 60): string[][] {
   return Array.from({ length: count }, (_, i) => [
-    i % 4 === 0 ? `${i % 28 + 1}/10` : new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10),
+    i % 4 === 0 ? `${i % 28 + 1}/10/2026` : new Date(Date.UTC(2026, 9, 1 + i)).toISOString().slice(0, 10),
     ['PROV1', 'CANJE/xx', 'REINGRESO'][i % 3],
     i % 3 === 0 ? 'iPhone 13' : `iPhone ${12 + i % 5} Pro Max`,
     ['128GB', '256GB', '512GB'][i % 3],
@@ -41,4 +41,21 @@ export function stockModelResponse(plan: unknown) {
     output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(plan) }] }],
     usage: { input_tokens: 4000, output_tokens: 900 },
   }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+}
+
+// Quality free text plus a duplicate on physical row 59, all synthetic.
+export function syntheticQualityStockRows(): string[][] {
+  const rows = syntheticStockRows();
+  rows.forEach((row, index) => { row[6] = ['A/A-', 'AA', 'canje'][index % 3]; });
+  rows[58][4] = '8*%';
+  rows[58][5] = rows[37][5];
+  return rows;
+}
+
+export function mistakenQualityStockPlan(rows = syntheticQualityStockRows()) {
+  const plan = mistakenStockPlan(rows);
+  plan.sheets[0].mapping = plan.sheets[0].mapping.map((column, columnIndex) => ({
+    ...column, columnIndex, field: columnIndex === 6 ? 'grade' : column.field,
+  }));
+  return plan;
 }

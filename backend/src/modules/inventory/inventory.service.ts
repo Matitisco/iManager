@@ -2,7 +2,7 @@ import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, validateFields, type DefinitionInput } from '../custom-fields/custom-fields.service.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
-import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
+import { validateInventoryImportRow } from "./import-validation.js";
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -989,40 +989,11 @@ export interface ImportRow {
 
 export interface ImportResult {
   diagnostics?: ImportDiagnostics;
+  warnings?: { row: number; message: string }[];
   imported: number;
   updated: number;
   errors: { row: number; imei: string; message: string }[];
   priceToDefine: number;
-}
-
-const CONDITION_MAP: Record<string, string> = {
-  nuevo: "NUEVO",
-  new: "NUEVO",
-  usado: "USADO",
-  used: "USADO",
-  outlet: "OUTLET",
-  "pre-owned": "PRE-OWNED",
-  preowned: "PRE-OWNED",
-  "pre owned": "PRE-OWNED",
-};
-
-
-function foldKey(value: string) {
-  return value.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function lookupEnum(value: string | undefined, map: Record<string, string>) {
-  if (!value?.trim()) return undefined;
-  return map[foldKey(value)];
-}
-
-function normalizeBattery(raw: unknown): string {
-  if (raw === undefined || raw === null || raw === '') return '100';
-  const s = String(raw).trim();
-  if (s.includes('-') || s.includes('%')) return s;
-  const n = parseFloat(s);
-  if (!isNaN(n) && n > 0 && n <= 1) return String(Math.round(n * 100));
-  return s;
 }
 
 export async function importInventoryItems(
@@ -1042,6 +1013,7 @@ export async function importInventoryItems(
   const purchaseName = readPurchaseName(options ?? {});
   const result: ImportResult = { imported: 0, updated: 0, errors: [], priceToDefine: 0 };
   const collector = importErrorCollector(result.errors);
+  const seenImeis = new Map<string, number>();
   const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
   const defaultPurchasedAt = new Date();
   const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
@@ -1057,72 +1029,38 @@ export async function importInventoryItems(
     const raw = { ...rows[i] };
     const rowNum = raw.sourceRow ?? i + 1;
     let rowCurrency: string = raw.currency ?? importedCurrency;
-    const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt) : defaultPurchasedAt;
-    if (!purchasedAt) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: "Fecha de compra inválida" }, "invalid_row");
+    const validated = validateInventoryImportRow(raw, rowNum, seenImeis);
+    if (validated.warnings.length) (result.warnings ??= []).push(...validated.warnings);
+    if (!validated.ok) {
+      collector.reject({ row: rowNum, imei: raw.imei, message: validated.message }, validated.reason);
       continue;
     }
+    const { condition, grade, imei, color, entryDate, batteryHealth } = validated.value;
+    if (imei) seenImeis.set(imei, rowNum);
+    const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt)! : defaultPurchasedAt;
     const rowPurchaseName = raw.purchaseName === undefined ? purchaseName : readPurchaseName(raw);
     const purchaseKey = JSON.stringify([purchasedAt.toISOString().slice(0, 10), rowPurchaseName]);
-
-    if (!raw.model?.trim()) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: "Modelo vacío" }, "missing_model");
-      continue;
-    }
-    if (raw.price != null && (!Number.isFinite(raw.price) || raw.price < 0)) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: "Precio inválido" }, "invalid_price");
-      continue;
-    }
-
-    const condition = raw.condition?.trim()
-      ? lookupEnum(raw.condition, CONDITION_MAP)
-      : "USADO";
-    if (!condition) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: `Condición «${raw.condition}» no existe` }, "invalid_row");
-      continue;
-    }
     const normalizedStatus = normalizeInventoryImportStatus(raw.status);
     const status = normalizedStatus.status;
     if (normalizedStatus.originalStatus) raw.customFields = { ...raw.customFields, originalStatus: normalizedStatus.originalStatus };
 
-    const parsedImei = parseOptionalImei(raw.imei);
-    if (parsedImei.ok === false) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: parsedImei.message }, "invalid_imei");
-      continue;
-    }
     const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
-    const parsedGrade = inventoryGrade(condition, raw.grade);
-    if (parsedGrade.ok === false) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: parsedGrade.message }, "invalid_row");
-      continue;
-    }
-    const color = raw.color?.trim() || "";
-    if (color.length > 50) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: "El color puede tener hasta 50 caracteres" }, "invalid_row");
-      continue;
-    }
-    if (!validBatteryHealth(normalizeBattery(raw.batteryHealth))) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: BATTERY_HEALTH_MESSAGE }, "invalid_row");
-      continue;
-    }
     let customFields: Record<string, unknown>;
-    let entryDate: Date | null;
     try {
+      // Store-specific custom definitions and DB constraints can only be checked at confirmation.
       customFields = convertFields(raw.customFields ?? {}, definitions);
-      entryDate = entryDateValue(raw.entryDate);
-      if ((raw.batteryNote?.length ?? 0) > 2000) throw new Error('Detalle batería: máximo 2000 caracteres');
     } catch (error) {
       collector.reject({ row: rowNum, imei: raw.imei, message: error instanceof Error ? error.message : 'Campos inválidos' }, 'invalid_row');
       continue;
     }
     const input = {
-      imei: parsedImei.imei,
+      imei,
       model: raw.model.trim(),
       capacity: raw.capacity?.trim() || "",
       color,
       condition,
-      grade: parsedGrade.grade,
-      batteryHealth: normalizeBattery(raw.batteryHealth),
+      grade,
+      batteryHealth,
       cost: providedCost ?? 0,
       price: raw.price == null ? null : Number(raw.price),
       status,
@@ -1246,6 +1184,6 @@ export async function importInventoryItems(
       await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt, transaction);
     }
   }
-  return { ...result, diagnostics: collector.finish(rows.length, result.imported + result.updated) };
+  return { ...result, diagnostics: { ...collector.finish(rows.length, result.imported + result.updated), ...(result.warnings ? { warnings: result.warnings } : {}) } };
 }
 

@@ -52,7 +52,8 @@ describe('spreadsheet diagnostics', () => {
     expect(result.summary.rowCount).toBe(4);
     expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 2, discardedRows: 5,
       discardedByReason: { empty: 1, footer: 1, section_header: 1, missing_model: 1, invalid_price: 1 },
-      missingRequiredFields: [], missingRecommendedFields: ['imei'] });
+      missingRequiredFields: [], missingRecommendedFields: ['imei'],
+      rejected: [{ row: 6, reason: 'missing_model', message: 'Modelo vacío' }, { row: 8, reason: 'invalid_price', message: 'Precio inválido' }] });
   });
 
   it('keeps excluded sheets separate and unions missing fields across included sheets', () => {
