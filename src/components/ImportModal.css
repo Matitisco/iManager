@@ -89,6 +89,9 @@
 
 /* Progressive adjustment keeps pending cards in one column and uses the Sheet frame scroll. */
 .imp-card.rev { border: 1.5px solid var(--lime); }
+/* Static highlight also respects prefers-reduced-motion without an animation. */
+.imp-card.flash { border-color: var(--lime); background: var(--lime-soft); }
+.imp-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .imp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .imp-column-ok { flex: none; color: var(--ok); }
 .imp-adjust-sheet .imp-discarded { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); }
@@ -105,7 +108,8 @@
 .imp-rw:first-of-type { border-top: 0; }
 .imp-l { flex: none; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 9px; background: var(--row); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
 .imp-v { flex: 1; font-size: 14px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.imp-d { max-width: 48%; font-size: 13px; font-weight: 600; color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.imp-d { flex: 0 1 30%; max-width: 30%; font-size: 13px; font-weight: 600; color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.imp-rw .imp-change { flex: none; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
 .imp-adjust-sheet .import-actions .btn2 { padding-inline: 12px; }
 @media (max-width: 760px) {
   .desk-app .imp-segments button { padding-inline: 6px; }

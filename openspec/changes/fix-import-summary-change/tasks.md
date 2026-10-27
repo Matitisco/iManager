@@ -1,0 +1,4 @@
+- [x] Mostrar Cambiar en todas las filas sin recorte móvil.
+- [x] Enfocar, desplazar y resaltar la columna elegida de forma repetible.
+- [x] Conservar y acumular columnas visibles al editar y recalcular.
+- [x] Verificar TypeScript, lint y tests relacionados con máximo dos workers.

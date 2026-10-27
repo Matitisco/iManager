@@ -101,6 +101,7 @@ export const ImportModal: React.FC<Props> = ({
   const [adjustStep, setAdjustStep] = useState<AdjustStep>('file');
   const [visibleColumns, setVisibleColumns] = useState<Set<number>>(new Set());
   const [targetColumn, setTargetColumn] = useState<number | null>(null);
+  const [flashingColumn, setFlashingColumn] = useState<{ index: number } | null>(null);
   const [readingHeight, setReadingHeight] = useState(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => { onStageChange?.(step === 'upload' ? 'file' : step === 'reading' ? 'analyze' : step === 'adjust' ? 'mapping' : 'review'); }, [step, onStageChange]);
@@ -126,14 +127,29 @@ export const ImportModal: React.FC<Props> = ({
   const [targetField, setTargetField] = useState<string | null>(null);
   useEffect(() => {
     if (step !== 'adjust' || (adjustStep !== 'columns' && isInventory) || (!targetField && targetColumn === null) || applying) return;
+    if (isInventory && targetColumn !== null) {
+      const card = bodyRef.current?.querySelector<HTMLElement>(`[data-column-index="${targetColumn}"]`);
+      if (!card) return;
+      card.scrollIntoView?.({ block: 'center' });
+      card.focus({ preventScroll: true });
+      setFlashingColumn({ index: targetColumn });
+      setTargetField(null);
+      setTargetColumn(null);
+      return;
+    }
     const field = (targetField ? bodyRef.current?.querySelector<HTMLElement>(`[data-testid="import-field-${targetField}"]`) : null)
       ?? (targetColumn !== null ? bodyRef.current?.querySelector<HTMLElement>(`[data-column-index="${targetColumn}"] .imp-segments button`) : null)
       ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card:has(.imp-discarded) .imp-segments button') ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card .imp-segments button');
     field?.scrollIntoView?.({ block: 'center' });
-    field?.focus();
+    field?.focus({ preventScroll: true });
     setTargetField(null);
     setTargetColumn(null);
-  }, [step, adjustStep, targetField, targetColumn, applying]);
+  }, [step, adjustStep, targetField, targetColumn, applying, visibleColumns, isInventory]);
+  useEffect(() => {
+    if (!flashingColumn) return;
+    const timer = window.setTimeout(() => setFlashingColumn(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [flashingColumn]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
   const editorRef = useRef<HTMLFieldSetElement>(null);
@@ -282,18 +298,23 @@ export const ImportModal: React.FC<Props> = ({
     return new Set(importColumns(sheet, sheetRows).filter(column => column.field === 'ignore'
       && (requiredMissing.some(field => field.key === 'model') || columnHasData(sheet, sheetRows, column.columnIndex))).map(column => column.columnIndex));
   };
-  // Capture physical columns on entry/configuration changes, never on destination edits.
+  // Only a different sheet/header resets the review. Reapply can replace plans and
+  // normalize ranges after destination edits; those responses must retain cards.
   useEffect(() => {
     if (step === 'adjust' && adjustStep === 'columns') {
       const next = pendingColumns();
       if (targetColumn !== null) next.add(targetColumn);
       setVisibleColumns(next);
     }
-  }, [active?.name, active?.headerRow, active?.dataStartRow, active?.dataEndRow, sheets]);
+  }, [active?.name, active?.headerRow]);
   const showColumns = (columnIndex?: number, sheet = active) => {
-    const next = pendingColumns(sheet);
-    if (columnIndex !== undefined) next.add(columnIndex);
-    setVisibleColumns(next);
+    const pending = pendingColumns(sheet);
+    const reset = step !== 'adjust' || adjustStep === 'file' || sheet?.name !== active?.name;
+    setVisibleColumns(current => {
+      const next = new Set(reset ? pending : [...current, ...pending]);
+      if (columnIndex !== undefined) next.add(columnIndex);
+      return next;
+    });
     setAdjustStep('columns');
     setTargetColumn(columnIndex ?? null);
   };
@@ -521,7 +542,7 @@ export const ImportModal: React.FC<Props> = ({
             </div>
             {active.headerRow > 0 && <label className="fl"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={activeRows.length} value={active.headerRow} disabled={busy} onChange={event => { const headerRow = Number(event.target.value); if (headerRow >= 1 && headerRow <= activeRows.length) void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true); }} /></label>}
             </>}
-            {adjustStep === 'columns' && (visibleColumns.size ? <ImportColumnCards key={`${active.name}:${active.headerRow}`} visibleColumns={visibleColumns} active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
+            {adjustStep === 'columns' && (visibleColumns.size ? <ImportColumnCards key={`${active.name}:${active.headerRow}`} visibleColumns={visibleColumns} flashingColumn={flashingColumn?.index} active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
               const required = [...new Set([...fields.filter(field => field.required).map(field => field.key), ...missingRequiredFields])];
               const updated = updatePlanMapping(active, next.mapping, required);
               void reapply(plan.map(item => item.name === active.name ? updated : item), false);
@@ -538,6 +559,7 @@ export const ImportModal: React.FC<Props> = ({
                       : fields.find(field => field.key === column.field)?.label ?? column.field;
                     return <button key={column.columnIndex} type="button" className="imp-rw" aria-label={`Cambiar columna ${columnLetter(column.columnIndex)}: ${column.header}`} disabled={busy} onClick={() => showColumns(column.columnIndex)}>
                       <span className="imp-l">{columnLetter(column.columnIndex)}</span><span className="imp-v"><ReplayValue>{column.header}</ReplayValue></span><span className="imp-d"><ReplayValue>{destination}</ReplayValue></span>
+                      <span className="wlink imp-change">Cambiar</span>
                     </button>;
                   })}
                 </section>;

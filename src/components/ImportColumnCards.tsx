@@ -27,10 +27,11 @@ export function columnHasData(active: ImportSheetPlan, rows: string[][], index: 
     .some(row => Boolean(row[index]?.trim()));
 }
 
-export function ImportColumnCards({ active, rows, fields, definitions, drafts, onDraft, onChange, disabled, visibleColumns }: {
+export function ImportColumnCards({ active, rows, fields, definitions, drafts, onDraft, onChange, disabled, visibleColumns, flashingColumn }: {
   active: ImportSheetPlan; rows: string[][]; fields: ImportFieldDef[]; definitions: CustomFieldDefinition[]; drafts: CustomFieldInput[];
   onDraft: (draft: CustomFieldInput) => void; onChange: (plan: ImportSheetPlan) => void; disabled: boolean;
   visibleColumns?: ReadonlySet<number>;
+  flashingColumn?: number;
 }) {
   const [editingColumns, setEditingColumns] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState<number | null>(null);
@@ -62,7 +63,7 @@ export function ImportColumnCards({ active, rows, fields, definitions, drafts, o
         const columnId = `${active.name}:${index}`;
         const mode = editingColumns.has(columnId) ? 'field' : column.field.startsWith('custom:') ? 'new' : !column.field || column.field === 'ignore' ? 'ignore' : 'field';
         const examples = rows.slice(Math.max(active.headerRow, active.dataStartRow - 1), active.dataEndRow).slice(0, 3);
-        return <article key={`${active.name}:${index}`} data-column-index={index} className={`imp-card${visibleColumns ? ' rev' : ''}${mode === 'new' ? ' new' : ''}`} aria-label={`Columna ${header}`}>
+        return <article key={`${active.name}:${index}`} data-column-index={index} tabIndex={-1} className={`imp-card${visibleColumns ? ' rev' : ''}${mode === 'new' ? ' new' : ''}${flashingColumn === index ? ' flash' : ''}`} aria-label={`Columna ${header}`}>
           <div className="imp-card-head"><b className="imp-column-title" title={header}><ReplayValue>{header}</ReplayValue></b>{column.field !== 'ignore' && <Check className="imp-column-ok" size={16} aria-label="Asignada" />}</div>
           <div className="imp-prev">{Array.from({ length: 3 }, (_, n) => <span key={n}><ReplayValue>{examples[n]?.[index]?.trim() || '—'}</ReplayValue></span>)}</div>
           <div className="imp-segments" role="group" aria-label={`Destino de ${header}`}>
