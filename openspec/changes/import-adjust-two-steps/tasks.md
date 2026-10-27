@@ -1,0 +1,4 @@
+- [x] Reducir estado, stepper y navegación a Columnas y Resumen.
+- [x] Conservar encabezado en control secundario colapsado y selección de hojas.
+- [x] Actualizar regresiones de navegación, encabezado, validación y Cambiar.
+- [x] Verificar tests relacionados, TypeScript, build y revisión visual; crear commit local sin push.

@@ -33,7 +33,7 @@ export interface GenericImportResult {
 }
 
 type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
-type AdjustStep = 'file' | 'columns' | 'summary';
+type AdjustStep = 'columns' | 'summary';
 
 export const UNRELATED_IMPORT_NOTICE = 'Este archivo no parece tener equipos para importar.';
 
@@ -98,7 +98,7 @@ export const ImportModal: React.FC<Props> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [step, setStep] = useState<Step>('upload');
-  const [adjustStep, setAdjustStep] = useState<AdjustStep>('file');
+  const [adjustStep, setAdjustStep] = useState<AdjustStep>('columns');
   const [visibleColumns, setVisibleColumns] = useState<Set<number>>(new Set());
   const [targetColumn, setTargetColumn] = useState<number | null>(null);
   const [flashingColumn, setFlashingColumn] = useState<{ index: number } | null>(null);
@@ -309,7 +309,7 @@ export const ImportModal: React.FC<Props> = ({
   }, [active?.name, active?.headerRow]);
   const showColumns = (columnIndex?: number, sheet = active) => {
     const pending = pendingColumns(sheet);
-    const reset = step !== 'adjust' || adjustStep === 'file' || sheet?.name !== active?.name;
+    const reset = step !== 'adjust' || sheet?.name !== active?.name;
     setVisibleColumns(current => {
       const next = new Set(reset ? pending : [...current, ...pending]);
       if (columnIndex !== undefined) next.add(columnIndex);
@@ -319,7 +319,7 @@ export const ImportModal: React.FC<Props> = ({
     setTargetColumn(columnIndex ?? null);
   };
   const openAdjust = () => {
-    setAdjustStep('file');
+    showColumns();
     setTargetField(null);
     setTargetColumn(null);
     setStep('adjust');
@@ -500,9 +500,9 @@ export const ImportModal: React.FC<Props> = ({
       {step === 'adjust' && active && (
         <div className={isInventory ? 'imp-adjust' : 'space-y-5'} data-testid="import-adjust">
           {isInventory && <nav className="imp-steps" aria-label="Pasos de ajuste de importación">
-            {(['file', 'columns', 'summary'] as const).map((item, index) => {
-              const current = ['file', 'columns', 'summary'].indexOf(adjustStep);
-              const label = ['Archivo', 'Columnas', 'Resumen'][index];
+            {(['columns', 'summary'] as const).map((item, index) => {
+              const current = ['columns', 'summary'].indexOf(adjustStep);
+              const label = ['Columnas', 'Resumen'][index];
               return <button key={item} type="button" className={index === current ? 'on' : index < current ? 'done' : ''}
                 aria-current={index === current ? 'step' : undefined} disabled={busy || index > current}
                 onClick={() => { if (index !== current) { if (item === 'columns') showColumns(); else setAdjustStep(item); } }}>
@@ -511,7 +511,7 @@ export const ImportModal: React.FC<Props> = ({
             })}
           </nav>}
           {requiredMissing.length > 0 && <div className="import-guidance missing" role="alert"><b>Falta asignar {requiredMissing.map(field => field.label).join(', ')}.</b><p>Asigná los campos obligatorios para importar.</p><button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0].key)}>Ir al campo obligatorio</button></div>}
-          {(!isInventory || adjustStep === 'file') && (plan.length > 1 || !active.include || !isInventory) && <div className="space-y-2">
+          {(!isInventory || adjustStep === 'columns') && (plan.length > 1 || !active.include || !isInventory) && <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hojas</p>
             {plan.map((item) => (
               <label key={item.name} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm cursor-pointer ${active.name === item.name ? 'border-gray-900' : 'border-gray-200'}`}>
@@ -535,13 +535,14 @@ export const ImportModal: React.FC<Props> = ({
 
           {isInventory ? <>
             {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
-            {adjustStep === 'file' && <>
-            <div className="imp-header-mode" role="group" aria-label="Encabezado del archivo">
-              <button type="button" aria-pressed={active.headerRow === 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 0, dataStartRow: 1 } : item), true); }}>Sin encabezado</button>
-              <button type="button" aria-pressed={active.headerRow > 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 1, dataStartRow: 2 } : item), true); }}>Fila 1 es encabezado</button>
-            </div>
-            {active.headerRow > 0 && <label className="fl"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={activeRows.length} value={active.headerRow} disabled={busy} onChange={event => { const headerRow = Number(event.target.value); if (headerRow >= 1 && headerRow <= activeRows.length) void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true); }} /></label>}
-            </>}
+            {adjustStep === 'columns' && <details className="imp-header-settings">
+              <summary>Encabezado · {active.headerRow === 0 ? 'Sin encabezado' : `Fila ${active.headerRow}`}</summary>
+              <div className="imp-header-mode" role="group" aria-label="Encabezado del archivo">
+                <button type="button" aria-pressed={active.headerRow === 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 0, dataStartRow: 1 } : item), true); }}>Sin encabezado</button>
+                <button type="button" aria-pressed={active.headerRow > 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 1, dataStartRow: 2 } : item), true); }}>Fila 1 es encabezado</button>
+                {active.headerRow > 0 && <label className="imp-header-row"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={activeRows.length} value={active.headerRow} disabled={busy} onChange={event => { const headerRow = Number(event.target.value); if (headerRow >= 1 && headerRow <= activeRows.length) void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true); }} /></label>}
+              </div>
+            </details>}
             {adjustStep === 'columns' && (visibleColumns.size ? <ImportColumnCards key={`${active.name}:${active.headerRow}`} visibleColumns={visibleColumns} flashingColumn={flashingColumn?.index} active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
               const required = [...new Set([...fields.filter(field => field.required).map(field => field.key), ...missingRequiredFields])];
               const updated = updatePlanMapping(active, next.mapping, required);
@@ -710,9 +711,9 @@ export const ImportModal: React.FC<Props> = ({
       </>}
       {step === 'adjust' && !isInventory && <button type="button" className="btn2 p" disabled={busy} onClick={() => setStep('summary')}>Listo</button>}
       {step === 'adjust' && isInventory && <>
-        <button type="button" className="btn2 s" disabled={busy} onClick={() => adjustStep === 'file' ? setStep('summary') : adjustStep === 'columns' ? setAdjustStep('file') : showColumns()}>{adjustStep === 'file' ? 'Volver' : 'Anterior'}</button>
+        <button type="button" className="btn2 s" disabled={busy} onClick={() => adjustStep === 'columns' ? setStep('summary') : showColumns()}>Atrás</button>
         {adjustStep === 'summary' ? <button type="button" className="btn2 p" data-testid="import-confirm" disabled={busy || !canImport || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel}</button>
-          : <button type="button" className="btn2 p" disabled={busy || (adjustStep === 'columns' && visibleColumns.size === 0 && requiredMissing.some(field => field.key === 'model'))} onClick={() => adjustStep === 'file' ? showColumns() : setAdjustStep('summary')}>Siguiente</button>}
+          : <button type="button" className="btn2 p" disabled={busy || (adjustStep === 'columns' && visibleColumns.size === 0 && requiredMissing.some(field => field.key === 'model'))} onClick={() => setAdjustStep('summary')}>Siguiente</button>}
       </>}
       {step === 'result' && <button type="button" className="btn2 p" onClick={onClose}>Cerrar</button>}
     </div>
