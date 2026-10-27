@@ -45,24 +45,25 @@ async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPa
   return { ...view, onApply, onImport, onStageChange, value };
 }
 const next = () => userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
-const previous = () => userEvent.click(screen.getByRole('button', { name: 'Anterior' }));
+const previous = () => userEvent.click(screen.getByRole('button', { name: 'Atrás' }));
 const card = (name = 'Obs. interna') => within(screen.getByRole('article', { name: `Columna ${name}` }));
 
-it.each([false, true])('navega Archivo → Columnas → Resumen → Importar y conserva mapping (móvil: %s)', async phone => {
+it.each([false, true])('navega Columnas → Resumen → Importar y conserva mapping (móvil: %s)', async phone => {
   const { onImport, onStageChange } = await setup({ phone });
   const steps = within(screen.getByRole('navigation', { name: 'Pasos de ajuste de importación' }));
-  expect(steps.getByRole('button', { name: 'Archivo' })).toHaveAttribute('aria-current', 'step');
+  expect(steps.getAllByRole('button')).toHaveLength(2);
+  expect(steps.queryByRole('button', { name: 'Archivo' })).not.toBeInTheDocument();
   expect(steps.getByRole('button', { name: 'Resumen' })).toBeDisabled();
   expect(screen.getByRole('dialog', { name: 'Ajustar importación' })).toHaveClass('sheet-frame', 'imp-adjust-sheet');
-  expect(screen.queryByRole('article')).not.toBeInTheDocument();
-  await next();
-  expect(steps.getByRole('button', { name: 'Archivo' })).toHaveClass('done');
+  expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(steps.getByRole('button', { name: 'Columnas' })).toHaveAttribute('aria-current', 'step');
-  expect(screen.queryByRole('group', { name: 'Encabezado del archivo' })).not.toBeInTheDocument();
+  expect(screen.getByRole('group', { name: 'Encabezado del archivo' })).not.toBeVisible();
   const scroll = screen.getByTestId('import-adjust').closest('.sheet-scroll')!;
   scroll.scrollTop = 100;
   await next();
   expect(scroll.scrollTop).toBe(0);
+  expect(steps.getByRole('button', { name: 'Columnas' })).toHaveClass('done');
+  expect(steps.getByRole('button', { name: 'Resumen' })).toHaveAttribute('aria-current', 'step');
   const confirm = screen.getByRole('button', { name: 'Importar 1 equipo' });
   expect(confirm.closest('.sheet-foot')).toBeInTheDocument();
   expect(confirm.closest('.sheet-scroll')).toBeNull();
@@ -75,7 +76,6 @@ it.each([false, true])('navega Archivo → Columnas → Resumen → Importar y c
 
 it('muestra solo descartadas con datos en el rango, con tres muestras', async () => {
   await setup();
-  await next();
   expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(screen.getByRole('article', { name: 'Columna Obs. interna' })).toHaveClass('rev');
   for (const sample of ['rev. pantalla', 'ok', '0']) expect(card().getByText(sample)).toBeVisible();
@@ -88,34 +88,34 @@ it('ignora datos fuera del rango y permite seguir con un paso vacío', async () 
   plan.dataStartRow = 3; plan.dataEndRow = 3;
   const rows = stock.map(row => [...row]); rows[2][2] = '';
   await setup({ plan: [plan], sheets: [{ name: 'Stock', rows }] });
-  await next();
   expect(screen.getByText('No hay columnas para revisar')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Siguiente' })).toBeEnabled();
   await next();
   expect(screen.getByTestId('import-confirm')).toBeEnabled();
 });
 
-it('mantiene una pendiente resuelta al volver desde Resumen y reinicia desde Archivo', async () => {
+it('mantiene una pendiente resuelta al volver desde Resumen y reinicia al reabrir el ajuste', async () => {
   const { onApply } = await setup();
-  await next();
   await userEvent.click(card().getByRole('button', { name: 'Campo existente' }));
   await userEvent.click(card().getByRole('combobox', { name: 'Importar Obs. interna como' }));
   await userEvent.click(screen.getByRole('option', { name: 'Proveedor' }));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(card().getByTestId('import-field-supplier')).toHaveTextContent('Proveedor');
   expect(card().getByLabelText('Asignada')).toBeInTheDocument();
+  await next();
   await userEvent.click(screen.getByRole('button', { name: 'Columnas' }));
   expect(card().getByTestId('import-field-supplier')).toBeVisible();
   await next(); await previous();
   expect(card().getByTestId('import-field-supplier')).toBeVisible();
-  await previous(); await next();
+  await previous();
+  await userEvent.click(screen.getByTestId('import-adjust-open'));
+  expect(screen.getByRole('button', { name: 'Columnas' })).toHaveAttribute('aria-current', 'step');
   expect(screen.queryByRole('article')).not.toBeInTheDocument();
   expect(screen.getByText('No hay columnas para revisar')).toBeVisible();
 });
 
 it('descartar conserva la tarjeta y el resumen distingue con datos / sin datos', async () => {
   const { onApply } = await setup();
-  await next();
   await userEvent.click(card().getByRole('button', { name: 'Descartar' }));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(card().getByRole('button', { name: 'Descartar' })).toHaveAttribute('aria-pressed', 'true');
@@ -127,7 +127,7 @@ it('descartar conserva la tarjeta y el resumen distingue con datos / sin datos',
 });
 
 it('agrupa campos estándar y personalizados existentes/borrador y permite cambiar cualquier fila', async () => {
-  await setup(); await next(); await next();
+  await setup(); await next();
   const existing = within(screen.getByRole('region', { name: 'Campos existentes' }));
   expect(existing.getByRole('heading')).toHaveTextContent('Campos existentes2');
   expect(existing.getAllByRole('button')).toHaveLength(2);
@@ -170,52 +170,54 @@ it('muestra todas las descartadas mientras falta Modelo y lo bloquea hasta asign
 
 it('bloquea la navegación mientras se aplica un mapeo y conserva la respuesta aceptada', async () => {
   const { onApply } = await setup();
-  await next();
   let finish!: (result: ImportAnalysis) => void;
   onApply.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   await userEvent.click(card().getByRole('button', { name: 'Descartar' }));
   expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Atrás' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Columnas' })).toBeDisabled();
   await act(async () => finish({ source: 'heuristic', notice: null, currency: 'USD', rows: [{ model: 'iPhone 13' }], plan: [sheetPlan()], missingRequiredFields: [], summary: { rowCount: 1, sheetCount: 1, sheets: [] } }));
   await next();
   expect(screen.getByTestId('import-confirm')).toBeEnabled();
 });
 
-it('Archivo conserva Sin encabezado / Fila 1 y fila personalizada con remapeo', async () => {
+it('el encabezado abre colapsado en Columnas y conserva modos y fila personalizada con remapeo', async () => {
   const { onApply } = await setup();
+  const settings = screen.getByText('Encabezado · Fila 1').closest('details')!;
+  expect(settings).not.toHaveAttribute('open');
+  expect(screen.getByRole('group', { name: 'Encabezado del archivo' })).not.toBeVisible();
+  await userEvent.click(within(settings).getByText('Encabezado · Fila 1'));
+  expect(settings).toHaveAttribute('open');
   await userEvent.click(screen.getByRole('button', { name: 'Sin encabezado' }));
   await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
   expect(onApply.mock.calls[0][1][0]).toMatchObject({ headerRow: 0, dataStartRow: 1 });
   expect(onApply.mock.calls[0][2]).toBe(true);
   expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
-  await next();
   expect(screen.getByRole('article', { name: 'Columna C' })).toHaveTextContent('Obs. interna');
-  await previous();
   await userEvent.click(screen.getByRole('button', { name: 'Fila 1 es encabezado' }));
   await waitFor(() => expect(screen.getByRole('spinbutton')).toHaveValue(1));
   fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '2' } });
   await waitFor(() => expect(onApply).toHaveBeenCalledTimes(3));
   expect(onApply.mock.calls[2][1][0]).toMatchObject({ headerRow: 2, dataStartRow: 3 });
-  await next();
   expect(screen.getByRole('article', { name: 'Columna rev. pantalla' })).toHaveTextContent('ok');
 });
 
-it('Columnas y Resumen usan solo la hoja activa y Archivo conserva inclusión', async () => {
+it('Columnas conserva inclusión de hojas y ambos pasos usan solo la hoja activa', async () => {
   const other = { ...sheetPlan('Depósito'), mapping: [{ header: 'Equipo', columnIndex: 0, field: 'model' }, { header: 'Nota', columnIndex: 1, field: 'ignore' }] };
   const { onApply } = await setup({ plan: [sheetPlan(), other], sheets: [{ name: 'Stock', rows: stock }, { name: 'Depósito', rows: [['Equipo', 'Nota'], ['Moto G', 'revisar']] }] });
   await userEvent.click(screen.getByTestId('import-sheet-Stock'));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(screen.getByTestId('import-sheet-Stock')).not.toBeChecked();
   await userEvent.click(screen.getByRole('button', { name: 'Depósito' }));
-  await next();
   expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(card('Nota').getByText('revisar')).toBeVisible();
-  expect(screen.queryByTestId('import-sheet-Stock')).not.toBeInTheDocument();
+  expect(screen.getByTestId('import-sheet-Stock')).not.toBeChecked();
   await next();
+  expect(screen.queryByTestId('import-sheet-Stock')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Cambiar columna A: Equipo' })).toHaveTextContent('Modelo');
   expect(screen.queryByRole('button', { name: /Cambiar columna.*Obs. interna/ })).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Archivo' }));
+  await previous();
   await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
-  await next();
   expect(card().getByText('rev. pantalla')).toBeVisible();
 });
 
@@ -225,7 +227,6 @@ it('crea un campo desde Columnas, lo conserva visible y lo incluye en Resumen e 
     const field = plan[0].mapping.find(column => column.columnIndex === 2)!.field;
     return { source: 'heuristic', notice: null, currency: 'USD', plan, rows: [{ model: 'iPhone 13', price: '420', [field]: 'rev. pantalla' }], missingRequiredFields: [], summary: { rowCount: 1, sheetCount: 1, sheets: [] } };
   });
-  await next();
   await userEvent.click(card().getByRole('button', { name: 'Nuevo campo' }));
   const modal = within(screen.getByRole('dialog', { name: 'Nuevo campo' }));
   await userEvent.type(modal.getByRole('textbox'), 'Reparaciones');
@@ -245,7 +246,7 @@ it.each([false, true])('muestra Cambiar en cada fila de los tres grupos (móvil:
   rows[0][2] = 'Observaciones internas con un encabezado muy largo';
   const plan = sheetPlan(); plan.mapping[2].header = rows[0][2];
   await setup({ phone, plan: [plan], sheets: [{ name: 'Stock', rows }] });
-  await next(); await next();
+  await next();
   expect(screen.getAllByText('Cambiar')).toHaveLength(6);
   for (const label of ['Campos existentes', 'Campos nuevos', 'Descartadas']) {
     const group = within(screen.getByRole('region', { name: label }));
@@ -261,7 +262,7 @@ it.each([
   ['B', 'Precio', 'Precio'], ['E', 'Calidad', 'Calidad · Texto'], ['F', 'Ubicación', 'Ubicación · Texto'],
 ])('abre y edita la columna mapeada %s y la conserva tras reapply asíncrono', async (letter, header, destination) => {
   const { onApply, value } = await setup();
-  await next(); await next();
+  await next();
   await userEvent.click(within(screen.getByRole('button', { name: `Cambiar columna ${letter}: ${header}` })).getByText('Cambiar'));
   const article = screen.getByRole('article', { name: `Columna ${header}` });
   expect(article).toHaveFocus();
@@ -285,7 +286,7 @@ it.each([
 });
 
 it.each([false, true])('repite foco, scroll y resaltado temporal en la misma columna (movimiento reducido: %s)', async reducedMotion => {
-  await setup({ reducedMotion }); await next(); await next();
+  await setup({ reducedMotion }); await next();
   vi.useFakeTimers();
   const choose = () => fireEvent.click(screen.getByRole('button', { name: 'Cambiar columna A: Modelo' }));
   choose();
@@ -309,7 +310,7 @@ it.each([false, true])('repite foco, scroll y resaltado temporal en la misma col
 });
 
 it('acumula columnas elegidas desde Resumen junto con las pendientes iniciales', async () => {
-  await setup(); await next(); await next();
+  await setup(); await next();
   for (const name of ['Cambiar columna A: Modelo', 'Cambiar columna E: Calidad', 'Cambiar columna F: Ubicación']) {
     await userEvent.click(screen.getByRole('button', { name }));
     await next();
@@ -317,7 +318,8 @@ it('acumula columnas elegidas desde Resumen junto con las pendientes iniciales',
   await previous();
   for (const header of ['Obs. interna', 'Modelo', 'Calidad', 'Ubicación']) expect(screen.getByRole('article', { name: `Columna ${header}` })).toBeVisible();
   expect(screen.getAllByRole('article')).toHaveLength(4);
-  await previous(); await next();
+  await previous();
+  await userEvent.click(screen.getByTestId('import-adjust-open'));
   expect(screen.getAllByRole('article')).toHaveLength(1);
 });
 

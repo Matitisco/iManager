@@ -75,7 +75,6 @@ it('resalta Modelo sin mapear y bloquea cero filas', async () => {
   await userEvent.click(screen.getByTestId('import-adjust-open'));
   expect(screen.getByText('Falta asignar Modelo.')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
   expect(screen.getByRole('button', { name: 'Importar 0 filas' })).toBeDisabled();
 });
 
@@ -95,8 +94,7 @@ it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas
   await waitFor(() => expect(model).toHaveFocus());
   expect(model).toHaveClass('flash');
   expect(screen.getByText('Falta asignar Modelo.')).toBeVisible();
-  await userEvent.click(screen.getByRole('button', { name: 'Anterior' }));
-  await userEvent.click(screen.getByRole('button', { name: 'Volver' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Atrás' }));
   expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
 });
@@ -129,7 +127,6 @@ it('reincluye una hoja sin encabezado al asignar Modelo y conserva los índices 
   render(<ImportModal fields={fields} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={onApply} onImport={vi.fn()} />);
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['iPhone 13,300\niPhone 14,400'], 'stock.csv', { type: 'text/csv' }));
   await userEvent.click(await screen.findByTestId('import-adjust-open'));
-  await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
   const card = within(screen.getByRole('article', { name: 'Columna A' }));
   await userEvent.click(card.getByRole('button', { name: 'Campo existente' }));
   await userEvent.click(card.getByRole('combobox', { name: 'Importar A como' }));
