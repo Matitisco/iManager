@@ -84,14 +84,14 @@ describe('Inventory column filters', () => {
     await user.click(screen.getByRole('button', { name: 'Filtrar batería' }));
     const battery = screen.getByRole('dialog', { name: 'Filtrar batería' });
     await user.click(within(battery).getByRole('button', { name: '≥ 90%' }));
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
     await user.click(within(battery).getByRole('button', { name: 'Limpiar' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Filtrar precio' }));
     const price = screen.getByRole('dialog', { name: 'Filtrar precio' });
     await user.type(within(price).getByRole('textbox', { name: 'Mínimo' }), '200000');
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
     await user.clear(within(price).getByRole('textbox', { name: 'Mínimo' }));
     await user.type(within(price).getByRole('textbox', { name: 'Máximo' }), '150000');
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe('Inventory column filters', () => {
     expect(within(chips).getByRole('button', { name: 'Disponible' })).toHaveClass('on');
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
     await user.click(within(status).getByRole('checkbox', { name: 'Vendido' }));
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByTestId('inventory-total')).toHaveTextContent('0 de 12');
     await user.click(within(status).getByRole('button', { name: 'Limpiar' }));
     expect(screen.getByText('Pixel · 128 GB')).toBeInTheDocument();
@@ -383,14 +383,14 @@ describe('Inventory empty store', () => {
 
     await user.click(screen.getByRole('button', { name: 'Disponible' }));
     expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
 
     await user.click(screen.getByRole('button', { name: 'Todos' }));
     expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
 
     await user.type(screen.getByPlaceholderText('Buscar modelo o color'), 'pixel');
     expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
   });
 });
 
@@ -441,7 +441,7 @@ describe('Inventory phone list', () => {
     await user.click(within(menu).getByRole('button', { name: 'Estado' }));
     await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Vendido' }));
     expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
 
     await user.click(within(menu).getByRole('menuitemcheckbox', { name: 'Todos' }));
     expect(screen.getByTestId('inventory-empty')).toHaveTextContent('Todavía no cargaste equipos');
@@ -449,7 +449,7 @@ describe('Inventory phone list', () => {
     await user.click(screen.getByRole('button', { name: 'Buscar' }));
     await user.type(screen.getByPlaceholderText('Buscar por IMEI, modelo o color'), 'pixel');
     expect(screen.queryByTestId('inventory-empty')).not.toBeInTheDocument();
-    expect(screen.getByText('No hay equipos con ese filtro.')).toBeInTheDocument();
+    expect(screen.getByText('No hay equipos con ese filtro.')).toHaveClass('table-empty');
   });
 
   it('renders the card, searches by IMEI and applies the filter sheet', async () => {

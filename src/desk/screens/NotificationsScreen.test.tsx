@@ -64,7 +64,7 @@ describe('Notifications screen unread counts', () => {
     expect(screen.queryByText('Equipo vendido')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Canjes 0' }));
-    expect(screen.getByText('No hay notificaciones de Canjes.')).toBeInTheDocument();
+    expect(screen.getByText('No hay notificaciones de Canjes.')).toHaveClass('table-empty');
     expect(screen.queryByPlaceholderText('Buscar notificaciones')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Marcar todas como leídas' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Leer todas' })).toBeInTheDocument();
@@ -161,7 +161,7 @@ describe('Notifications on a phone', () => {
 
     await user.clear(screen.getByPlaceholderText('Buscar notificaciones'));
     await user.click(within(screen.getByTestId('notifications-sections')).getByRole('button', { name: 'Canjes 0' }));
-    expect(screen.getByText('No hay notificaciones de Canjes.')).toBeInTheDocument();
+    expect(screen.getByText('No hay notificaciones de Canjes.')).toHaveClass('table-empty');
 
     await user.click(within(screen.getByTestId('notifications-sections')).getByRole('button', { name: 'Todas' }));
     await user.click(screen.getByRole('button', { name: 'Marcar todas como leídas' }));

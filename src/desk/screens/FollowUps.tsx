@@ -145,7 +145,7 @@ export function FollowUps({ query = '' }: { query?: string }) {
           {settings ? <button className="dbtn s" type="button" onClick={() => setEditing(true)}>Revisar reglas</button> : null}
         </div>
       ) : null}
-      {!loading && cards.length > 0 && visibleGroups.length === 0 ? <div className="wempty">No hay seguimientos con esa búsqueda.</div> : null}
+      {!loading && cards.length > 0 && visibleGroups.length === 0 ? <div className="table-empty">No hay seguimientos con esa búsqueda.</div> : null}
       {!loading ? (
         <div className="fu-groups">
           {visibleGroups.map((group) => {

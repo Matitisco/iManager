@@ -81,7 +81,7 @@ export function AccountCurrent({ query }: { query: string }) {
       <p className="eqs-note">Ventas abiertas, reparaciones con saldo y deudas manuales. El semáforo mira la deuda más antigua: verde menos de 7 días, amarillo de 7 a 30, rojo después.</p>
       {error && !isNetworkErrorMessage(error) ? <div className="ferr" role="alert">{error}<button className="wlink" type="button" onClick={load}>Reintentar</button></div> : null}
       {loading ? <ListSkeleton variant="rows" testId="current-account-loading" /> : null}
-      {!loading && !error && !visible.length ? <div className="wempty">Nadie tiene saldo pendiente.</div> : null}
+      {!loading && !error && !visible.length ? <div className="table-empty">Nadie tiene saldo pendiente.</div> : null}
       <div className="acct-list">
         {visible.map((row) => {
           const link = whatsappLink(row.phone, row.statement);
