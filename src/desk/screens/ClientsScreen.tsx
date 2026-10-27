@@ -187,7 +187,7 @@ export function ClientsScreen() {
       {view === 'seguimientos' ? <FollowUps query={query} /> : null}
       {view === 'lista' ? <BulkActions key={scope} selection={selection} total={ordered.length}
         label={(client) => client.name}
-        action={{ label: 'Archivar selección', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client, reason) => deleteClient(client.id, reason), recover: (client) => open({ type: 'cl', id: client.id }) }}
+        action={{ label: 'Archivar selección', doneLabel: 'archivados', explanation: 'Se archivarán los clientes seleccionados. Los clientes con una operación activa, una seña activa o saldo a favor no se pueden archivar. Podés restaurarlos.', execute: (client, reason) => deleteClient(client.id, reason), recover: (client) => open({ type: 'cl', id: client.id }) }}
       /> : null}
       {view === 'lista' && phone ? (
         loadingLists ? <ListSkeleton variant="cards" rows={4} testId="clients-loading" /> : listed.length === 0 ? (

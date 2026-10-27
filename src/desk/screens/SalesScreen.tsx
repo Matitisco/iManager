@@ -224,6 +224,7 @@ export function SalesScreen() {
         label={saleCode}
         action={{
           label: 'Anular',
+          doneLabel: 'anulados',
           explanation: 'Se anulan las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restauran stock y saldos según las reglas de cada operación; el historial se conserva en rojo.',
           execute: (sale, reason) => deleteSale(sale.id, reason),
           unavailable: (sale) => sale.voidedAt ? 'La selección incluye ventas ya anuladas.' : undefined,
