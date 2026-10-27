@@ -59,9 +59,9 @@
 }
 .import-actions > .btn2:only-child { width: 100%; }
 
-/* Variant B: physical columns retain their identity even with duplicate/empty headers. */
-.sheet.inv-import.imp-adjust-sheet { width: 1040px; max-width: calc(100vw - 48px); }
-.imp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+/* Physical columns retain their identity even with duplicate/empty headers. */
+.sheet.inv-import.imp-adjust-sheet { width: 760px; max-width: calc(100vw - 48px); }
+.imp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .imp-card { min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); }
 .imp-card.new { border-color: var(--lime); }
 .imp-column-title { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 10px; padding: 6px 10px; background: var(--row); font-size: 13px; font-weight: 800; }
@@ -86,3 +86,27 @@
 }
 .imp-card .ds-select-trigger { background: var(--row); }
 .imp-card .ds-select-trigger:focus-visible { outline-color: var(--primary); }
+
+/* Progressive adjustment keeps pending cards in one column and uses the Sheet frame scroll. */
+.imp-card.rev { border: 1.5px solid var(--lime); }
+.imp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.imp-column-ok { flex: none; color: var(--ok); }
+.imp-adjust-sheet .imp-discarded { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); }
+.imp-steps { display: flex; gap: 8px; margin-bottom: 14px; }
+.desk-app .imp-steps button { flex: 1; min-width: 0; height: 38px; border-radius: 999px; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; font-size: 13px; font-weight: 700; color: var(--secondary); background: var(--card); }
+.desk-app .imp-steps button.on { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.desk-app .imp-steps button.done { color: var(--primary); }
+.imp-steps .done svg { flex: none; color: var(--ok); }
+.imp-sum { display: flex; flex-direction: column; gap: 14px; }
+.imp-sg { border: 1.5px solid var(--border); border-radius: 18px; padding: 4px 14px; background: var(--card); }
+.imp-sg h4 { margin: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 800; }
+.imp-pend { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 11px; background: var(--row); font-size: 12px; font-weight: 800; padding: 0 6px; }
+.desk-app .imp-rw { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; border-top: 1px solid var(--row); width: 100%; padding: 4px 0; text-align: left; background: transparent; color: var(--primary); }
+.imp-rw:first-of-type { border-top: 0; }
+.imp-l { flex: none; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 9px; background: var(--row); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
+.imp-v { flex: 1; font-size: 14px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-d { max-width: 48%; font-size: 13px; font-weight: 600; color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.imp-adjust-sheet .import-actions .btn2 { padding-inline: 12px; }
+@media (max-width: 760px) {
+  .desk-app .imp-segments button { padding-inline: 6px; }
+}

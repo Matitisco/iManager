@@ -1,10 +1,10 @@
-import { ImportColumnCards } from './ImportColumnCards';
+import { columnHasData, columnLetter, importColumns, ImportColumnCards } from './ImportColumnCards';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import { ReplayValue } from '../desk/replay-privacy';
 import { DeskSelect } from '../desk/select';
 import { toActionMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, ArrowRight, Check } from 'lucide-react';
 import { Sheet } from '../desk/ui';
 import { assignColumn, columnKey, fieldToColumn, mappingFromFields, planColumns, updatePlanMapping } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
@@ -33,6 +33,7 @@ export interface GenericImportResult {
 }
 
 type Step = 'upload' | 'reading' | 'summary' | 'adjust' | 'result';
+type AdjustStep = 'file' | 'columns' | 'summary';
 
 export const UNRELATED_IMPORT_NOTICE = 'Este archivo no parece tener equipos para importar.';
 
@@ -87,6 +88,7 @@ export const ImportModal: React.FC<Props> = ({
   customFieldDefinitions = [], customFieldDefinitionsError, fields, onImport, onClose, onStageChange, onFilterPriceToDefine, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
+  const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
   const [draftDefinitions, setDraftDefinitions] = useState<CustomFieldInput[]>([]);
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
   const [text, setText] = useState('');
@@ -96,9 +98,16 @@ export const ImportModal: React.FC<Props> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [step, setStep] = useState<Step>('upload');
+  const [adjustStep, setAdjustStep] = useState<AdjustStep>('file');
+  const [visibleColumns, setVisibleColumns] = useState<Set<number>>(new Set());
+  const [targetColumn, setTargetColumn] = useState<number | null>(null);
   const [readingHeight, setReadingHeight] = useState(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => { onStageChange?.(step === 'upload' ? 'file' : step === 'reading' ? 'analyze' : step === 'adjust' ? 'mapping' : 'review'); }, [step, onStageChange]);
+  useEffect(() => {
+    const scroll = bodyRef.current?.closest('.sheet-scroll');
+    if (step === 'adjust' && scroll) scroll.scrollTop = 0;
+  }, [step, adjustStep]);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [sheets, setSheets] = useState<ImportSheetPayload[]>([]);
@@ -116,12 +125,15 @@ export const ImportModal: React.FC<Props> = ({
   const [result, setResult] = useState<GenericImportResult | null>(null);
   const [targetField, setTargetField] = useState<string | null>(null);
   useEffect(() => {
-    if (step !== 'adjust' || !targetField || applying) return;
-    const field = bodyRef.current?.querySelector<HTMLElement>(`[data-testid="import-field-${targetField}"]`) ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card:has(.imp-discarded) .imp-segments button') ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card .imp-segments button');
+    if (step !== 'adjust' || (adjustStep !== 'columns' && isInventory) || (!targetField && targetColumn === null) || applying) return;
+    const field = (targetField ? bodyRef.current?.querySelector<HTMLElement>(`[data-testid="import-field-${targetField}"]`) : null)
+      ?? (targetColumn !== null ? bodyRef.current?.querySelector<HTMLElement>(`[data-column-index="${targetColumn}"] .imp-segments button`) : null)
+      ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card:has(.imp-discarded) .imp-segments button') ?? bodyRef.current?.querySelector<HTMLElement>('.imp-card .imp-segments button');
     field?.scrollIntoView?.({ block: 'center' });
     field?.focus();
     setTargetField(null);
-  }, [step, targetField, applying]);
+    setTargetColumn(null);
+  }, [step, adjustStep, targetField, targetColumn, applying]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
   const editorRef = useRef<HTMLFieldSetElement>(null);
@@ -259,14 +271,48 @@ export const ImportModal: React.FC<Props> = ({
   const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
   const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
   const columns = active ? planColumns(activeRows, active) : [];
+  const inventoryColumns = active ? importColumns(active, activeRows) : [];
   const selected = active ? fieldToColumn(active.mapping) : {};
-  const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
   const missingPriceColumn = isInventory && !textPreview && (missingRecommendedFields.includes('price')
     || included.some(item => !item.mapping.some(column => column.field === 'price')));
   const noPriceRows = isInventory ? selectedRows.filter(row => !row.price?.trim()).length : 0;
+  const pendingColumns = (sheet = active) => {
+    if (!sheet) return new Set<number>();
+    const sheetRows = sheets.find(item => item.name === sheet.name)?.rows ?? [];
+    return new Set(importColumns(sheet, sheetRows).filter(column => column.field === 'ignore'
+      && (requiredMissing.some(field => field.key === 'model') || columnHasData(sheet, sheetRows, column.columnIndex))).map(column => column.columnIndex));
+  };
+  // Capture physical columns on entry/configuration changes, never on destination edits.
+  useEffect(() => {
+    if (step === 'adjust' && adjustStep === 'columns') {
+      const next = pendingColumns();
+      if (targetColumn !== null) next.add(targetColumn);
+      setVisibleColumns(next);
+    }
+  }, [active?.name, active?.headerRow, active?.dataStartRow, active?.dataEndRow, sheets]);
+  const showColumns = (columnIndex?: number, sheet = active) => {
+    const next = pendingColumns(sheet);
+    if (columnIndex !== undefined) next.add(columnIndex);
+    setVisibleColumns(next);
+    setAdjustStep('columns');
+    setTargetColumn(columnIndex ?? null);
+  };
+  const openAdjust = () => {
+    setAdjustStep('file');
+    setTargetField(null);
+    setTargetColumn(null);
+    setStep('adjust');
+  };
   const adjustField = (key: string) => {
     const sheet = included.find(item => !item.mapping.some(column => column.field === key));
     if (sheet) setActiveSheet(sheet.name);
+    if (isInventory) {
+      const nextSheet = sheet ?? active;
+      const nextRows = sheets.find(item => item.name === nextSheet?.name)?.rows ?? [];
+      const nextColumns = nextSheet ? importColumns(nextSheet, nextRows) : [];
+      const candidate = nextColumns.find(column => column.field === key) ?? nextColumns.find(column => column.field === 'ignore') ?? nextColumns[0];
+      showColumns(candidate?.columnIndex, nextSheet);
+    }
     setTargetField(key);
     setStep('adjust');
   };
@@ -431,9 +477,20 @@ export const ImportModal: React.FC<Props> = ({
       </details>}
 
       {step === 'adjust' && active && (
-        <div className="space-y-5" data-testid="import-adjust">
+        <div className={isInventory ? 'imp-adjust' : 'space-y-5'} data-testid="import-adjust">
+          {isInventory && <nav className="imp-steps" aria-label="Pasos de ajuste de importación">
+            {(['file', 'columns', 'summary'] as const).map((item, index) => {
+              const current = ['file', 'columns', 'summary'].indexOf(adjustStep);
+              const label = ['Archivo', 'Columnas', 'Resumen'][index];
+              return <button key={item} type="button" className={index === current ? 'on' : index < current ? 'done' : ''}
+                aria-current={index === current ? 'step' : undefined} disabled={busy || index > current}
+                onClick={() => { if (index !== current) { if (item === 'columns') showColumns(); else setAdjustStep(item); } }}>
+                {index < current && <Check size={16} aria-hidden="true" />}{label}
+              </button>;
+            })}
+          </nav>}
           {requiredMissing.length > 0 && <div className="import-guidance missing" role="alert"><b>Falta asignar {requiredMissing.map(field => field.label).join(', ')}.</b><p>Asigná los campos obligatorios para importar.</p><button type="button" className="wlink" onClick={() => adjustField(requiredMissing[0].key)}>Ir al campo obligatorio</button></div>}
-          {(plan.length > 1 || !active.include || !isInventory) && <div className="space-y-2">
+          {(!isInventory || adjustStep === 'file') && (plan.length > 1 || !active.include || !isInventory) && <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Hojas</p>
             {plan.map((item) => (
               <label key={item.name} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm cursor-pointer ${active.name === item.name ? 'border-gray-900' : 'border-gray-200'}`}>
@@ -443,11 +500,12 @@ export const ImportModal: React.FC<Props> = ({
                   style={{ accentColor: '#16181D' }}
                   data-testid={`import-sheet-${item.name}`}
                   checked={item.include}
+                  disabled={isInventory && busy}
                   onChange={() => {
                     void reapply(plan.map((sheetPlan) => sheetPlan.name === item.name ? { ...sheetPlan, include: !sheetPlan.include } : sheetPlan), false);
                   }}
                 />
-                <button type="button" className="flex-1 text-left font-medium text-gray-800" onClick={() => setActiveSheet(item.name)}>
+                <button type="button" disabled={isInventory && busy} className="flex-1 text-left font-medium text-gray-800" onClick={() => setActiveSheet(item.name)}>
                   {item.name}
                 </button>
               </label>
@@ -456,16 +514,35 @@ export const ImportModal: React.FC<Props> = ({
 
           {isInventory ? <>
             {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
+            {adjustStep === 'file' && <>
             <div className="imp-header-mode" role="group" aria-label="Encabezado del archivo">
               <button type="button" aria-pressed={active.headerRow === 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 0, dataStartRow: 1 } : item), true); }}>Sin encabezado</button>
               <button type="button" aria-pressed={active.headerRow > 0} disabled={busy} onClick={() => { void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow: 1, dataStartRow: 2 } : item), true); }}>Fila 1 es encabezado</button>
             </div>
             {active.headerRow > 0 && <label className="fl"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={activeRows.length} value={active.headerRow} disabled={busy} onChange={event => { const headerRow = Number(event.target.value); if (headerRow >= 1 && headerRow <= activeRows.length) void reapply(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true); }} /></label>}
-            <ImportColumnCards active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
+            </>}
+            {adjustStep === 'columns' && (visibleColumns.size ? <ImportColumnCards key={`${active.name}:${active.headerRow}`} visibleColumns={visibleColumns} active={active} rows={activeRows} fields={fields} definitions={customFieldDefinitions} drafts={draftDefinitions} onDraft={definition => setDraftDefinitions(current => [...current, definition])} disabled={busy || Boolean(customFieldDefinitionsError)} onChange={next => {
               const required = [...new Set([...fields.filter(field => field.required).map(field => field.key), ...missingRequiredFields])];
               const updated = updatePlanMapping(active, next.mapping, required);
               void reapply(plan.map(item => item.name === active.name ? updated : item), false);
-            }} />
+            }} /> : <div className="wempty">No hay columnas para revisar</div>)}
+            {adjustStep === 'summary' && <div className="imp-sum">
+              {(['existing', 'custom', 'ignored'] as const).map(group => {
+                const items = inventoryColumns.filter(column => group === 'custom' ? column.field.startsWith('custom:') : group === 'ignored' ? column.field === 'ignore' : column.field !== 'ignore' && !column.field.startsWith('custom:'));
+                const label = group === 'existing' ? 'Campos existentes' : group === 'custom' ? 'Campos nuevos' : 'Descartadas';
+                return <section key={group} className="imp-sg" aria-label={label}>
+                  <h4>{label}<span className="imp-pend">{items.length}</span></h4>
+                  {items.map(column => {
+                    const destination = group === 'ignored' ? (columnHasData(active, activeRows, column.columnIndex) ? 'Con datos' : 'Sin datos')
+                      : group === 'custom' ? [...customFieldDefinitions, ...draftDefinitions].find(field => `custom:${field.key}` === column.field)?.label ?? column.field
+                      : fields.find(field => field.key === column.field)?.label ?? column.field;
+                    return <button key={column.columnIndex} type="button" className="imp-rw" aria-label={`Cambiar columna ${columnLetter(column.columnIndex)}: ${column.header}`} disabled={busy} onClick={() => showColumns(column.columnIndex)}>
+                      <span className="imp-l">{columnLetter(column.columnIndex)}</span><span className="imp-v"><ReplayValue>{column.header}</ReplayValue></span><span className="imp-d"><ReplayValue>{destination}</ReplayValue></span>
+                    </button>;
+                  })}
+                </section>;
+              })}
+            </div>}
           </> : (
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Encabezado</p>
@@ -606,11 +683,15 @@ export const ImportModal: React.FC<Props> = ({
       {step === 'reading' && <button type="button" className="btn2 s" onClick={backUpload}>Volver</button>}
       {step === 'summary' && <>
         <button type="button" className="btn2 s" disabled={busy} onClick={backUpload}>Volver</button>
-        {(!unrelated || isInventory) && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={() => setStep('adjust')}>Ajustar importación</button>}
+        {(!unrelated || isInventory) && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={openAdjust}>Ajustar importación</button>}
         {!unrelated && <button type="button" className="btn2 p" data-testid="import-confirm" aria-busy={importing} disabled={!canImport || importing || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel} <ArrowRight size={15} aria-hidden="true" /></button>}
       </>}
       {step === 'adjust' && !isInventory && <button type="button" className="btn2 p" disabled={busy} onClick={() => setStep('summary')}>Listo</button>}
-      {step === 'adjust' && isInventory && <><button type="button" className="btn2 s" disabled={busy} onClick={() => setStep('summary')}>Volver</button><button type="button" className="btn2 p" disabled={busy || !canImport || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel}</button></>}
+      {step === 'adjust' && isInventory && <>
+        <button type="button" className="btn2 s" disabled={busy} onClick={() => adjustStep === 'file' ? setStep('summary') : adjustStep === 'columns' ? setAdjustStep('file') : showColumns()}>{adjustStep === 'file' ? 'Volver' : 'Anterior'}</button>
+        {adjustStep === 'summary' ? <button type="button" className="btn2 p" data-testid="import-confirm" disabled={busy || !canImport || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel}</button>
+          : <button type="button" className="btn2 p" disabled={busy || (adjustStep === 'columns' && visibleColumns.size === 0 && requiredMissing.some(field => field.key === 'model'))} onClick={() => adjustStep === 'file' ? showColumns() : setAdjustStep('summary')}>Siguiente</button>}
+      </>}
       {step === 'result' && <button type="button" className="btn2 p" onClick={onClose}>Cerrar</button>}
     </div>
   );

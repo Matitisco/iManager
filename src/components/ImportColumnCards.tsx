@@ -5,24 +5,39 @@ import type { ImportFieldDef } from './ImportModal';
 import type { ImportSheetPlan } from '../services/import-api';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import { ReplayValue } from '../desk/replay-privacy';
+import { Check } from 'lucide-react';
 
 export function columnLetter(index: number): string {
   let label = '';
   for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) label = String.fromCharCode(65 + (n - 1) % 26) + label;
   return label;
 }
-export function ImportColumnCards({ active, rows, fields, definitions, drafts, onDraft, onChange, disabled }: {
+export function importColumns(active: ImportSheetPlan, rows: string[][]) {
+  const width = Math.max(0, ...rows.map(row => row.length));
+  return Array.from({ length: width }, (_, columnIndex) => {
+    const header = active.headerRow === 0 ? columnLetter(columnIndex) : rows[active.headerRow - 1]?.[columnIndex] || columnLetter(columnIndex);
+    const column = active.mapping.find(item => item.columnIndex === columnIndex)
+      ?? active.mapping.find(item => item.columnIndex === undefined && item.header === header);
+    return { header, columnIndex, field: column?.field || 'ignore' };
+  });
+}
+
+export function columnHasData(active: ImportSheetPlan, rows: string[][], index: number) {
+  return rows.slice(Math.max(active.headerRow, active.dataStartRow - 1), active.dataEndRow)
+    .some(row => Boolean(row[index]?.trim()));
+}
+
+export function ImportColumnCards({ active, rows, fields, definitions, drafts, onDraft, onChange, disabled, visibleColumns }: {
   active: ImportSheetPlan; rows: string[][]; fields: ImportFieldDef[]; definitions: CustomFieldDefinition[]; drafts: CustomFieldInput[];
   onDraft: (draft: CustomFieldInput) => void; onChange: (plan: ImportSheetPlan) => void; disabled: boolean;
+  visibleColumns?: ReadonlySet<number>;
 }) {
   const [editingColumns, setEditingColumns] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [type, setType] = useState<CustomFieldInput['type']>('text');
   const [error, setError] = useState('');
-  const width = Math.max(0, ...rows.map(row => row.length));
-  const headers = Array.from({ length: width }, (_, index) => active.headerRow === 0 ? columnLetter(index) : rows[active.headerRow - 1]?.[index] || columnLetter(index));
-  const mapping = headers.map((header, columnIndex) => active.mapping.find(column => column.columnIndex === columnIndex) ?? active.mapping.find(column => column.columnIndex === undefined && column.header === header) ?? { header, columnIndex, field: 'ignore' });
+  const mapping = importColumns(active, rows);
   const all = [...definitions, ...drafts];
   const assign = (index: number, field: string) => {
     setEditingColumns(current => { const next = new Set(current); next.delete(`${active.name}:${index}`); return next; });
@@ -42,18 +57,20 @@ export function ImportColumnCards({ active, rows, fields, definitions, drafts, o
   return <>
     <div className="imp-grid">
       {mapping.map((column, index) => {
+        if (visibleColumns && !visibleColumns.has(index)) return null;
+        const header = column.header;
         const columnId = `${active.name}:${index}`;
         const mode = editingColumns.has(columnId) ? 'field' : column.field.startsWith('custom:') ? 'new' : !column.field || column.field === 'ignore' ? 'ignore' : 'field';
         const examples = rows.slice(Math.max(active.headerRow, active.dataStartRow - 1), active.dataEndRow).slice(0, 3);
-        return <article key={`${active.name}:${index}`} className={`imp-card${mode === 'new' ? ' new' : ''}`} aria-label={`Columna ${headers[index]}`}>
-          <b className="imp-column-title" title={headers[index]}><ReplayValue>{headers[index]}</ReplayValue></b>
-          <div className="imp-prev">{Array.from({ length: 3 }, (_, n) => <span key={n}><ReplayValue>{examples[n]?.[index] || '—'}</ReplayValue></span>)}</div>
-          <div className="imp-segments" role="group" aria-label={`Destino de ${headers[index]}`}>
+        return <article key={`${active.name}:${index}`} data-column-index={index} className={`imp-card${visibleColumns ? ' rev' : ''}${mode === 'new' ? ' new' : ''}`} aria-label={`Columna ${header}`}>
+          <div className="imp-card-head"><b className="imp-column-title" title={header}><ReplayValue>{header}</ReplayValue></b>{column.field !== 'ignore' && <Check className="imp-column-ok" size={16} aria-label="Asignada" />}</div>
+          <div className="imp-prev">{Array.from({ length: 3 }, (_, n) => <span key={n}><ReplayValue>{examples[n]?.[index]?.trim() || '—'}</ReplayValue></span>)}</div>
+          <div className="imp-segments" role="group" aria-label={`Destino de ${header}`}>
             <button type="button" disabled={disabled} aria-pressed={mode === 'field'} onClick={() => setEditingColumns(current => new Set([...current, columnId]))}>Campo existente</button>
             <button type="button" disabled={disabled} aria-pressed={mode === 'new'} onClick={() => { setCreating(index); setName(''); setType('text'); setError(''); }}>Nuevo campo</button>
             <button type="button" disabled={disabled} aria-pressed={mode === 'ignore'} onClick={() => { setEditingColumns(current => { const next = new Set(current); next.delete(columnId); return next; }); assign(index, 'ignore'); }}>Descartar</button>
           </div>
-          {mode !== 'ignore' ? <DeskSelect data-testid={fields.some(field => field.key === column.field) ? `import-field-${column.field}` : undefined} label={`Importar ${headers[index]} como`} value={column.field} disabled={disabled}
+          {mode !== 'ignore' ? <DeskSelect data-testid={fields.some(field => field.key === column.field) ? `import-field-${column.field}` : undefined} label={`Importar ${header} como`} value={column.field} disabled={disabled}
             onChange={value => assign(index, value)} options={[...fields.map(field => ({ value: field.key, label: field.label })), ...all.map(field => ({ value: `custom:${field.key}`, label: `${field.label} · ${field.type === 'date' ? 'Fecha' : field.type === 'number' ? 'Número' : 'Texto'}` }))]} /> : <span className="imp-discarded">Descartada</span>}
         </article>;
       })}
