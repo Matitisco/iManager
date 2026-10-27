@@ -1,0 +1,11 @@
+# Importador de equipos y campos personalizados
+
+Variante B aprobada: una tarjeta por columna física con tres muestras. Sin encabezado se muestran letras; `headerRow: 0` y `columnIndex` base cero conservan la primera fila, las columnas vacías y los nombres repetidos. Se mantiene el contrato anterior por nombre y los analizadores Decisions/Responses. El usuario puede corregir manualmente incluso archivos sin columnas reconocidas.
+
+Las salidas del mapeo son el nombre del campo fijo, `custom:<key>` e `ignore`. Las definiciones se mantienen como borrador hasta confirmar y se envían como `definitions` al endpoint de inventario. La confirmación guarda definiciones y equipos en una transacción con savepoints por fila: una fila errónea no descarta las válidas. La fecha se valida como calendario, los números admiten formato argentino y los errores conservan la fila original. Los valores existentes no mapeados se conservan al reimportar.
+
+`CustomFieldDefinition` tiene entidad inventory, clave estable, etiqueta, tipo, orden y archivo lógico por tienda. CRUD autenticado en `/api/custom-field-definitions`: GET/POST y PATCH/DELETE por ID. La clave y el tipo son inmutables para proteger valores guardados. Archivar conserva el JSON histórico. Fecha de ingreso y detalle batería son columnas opcionales y aditivas de Prisma; despliegue por `prisma db push`, sin migraciones destructivas.
+
+Se reutilizan Sheet, Field, Segs, DeskSelect, PressTarget y la tabla/lista móvil. CSS aditivo `imp-*` para tarjetas/modal y `eq-*` para personalizados. PressTarget acepta una celda anterior al selector para ubicar Fecha de ingreso primera, incluso antes del checkbox. Móvil muestra Ingreso arriba del IMEI. Detalle batería aparece en detalle, formulario y exportación CSV de Stock, sin columna en Equipos. Se conservan proveedor/compra, garantías, historial, permisos y errores existentes; Reservado usa el gris del sistema.
+
+QA con PostgreSQL aislado en loopback, autenticación de prueba local y Excel sintético de 16 columnas sin encabezado. Ningún archivo Excel, sesión ni captura se incluye en git. Evidencia y reporte de entrega: `/workspace/qa-importador-campos/`. Los datos mostrados son ficticios. Las fechas incompletas o inexistentes se informan como errores, sin inventar un año.

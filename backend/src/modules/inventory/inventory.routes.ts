@@ -1,3 +1,4 @@
+import { definitionSchema } from '../custom-fields/custom-fields.service.js';
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -42,6 +43,8 @@ const inventoryItemSchema = z.object({
   price: z.number().positive().nullable(),
   status: z.string().trim().max(20),
   categoryId: z.string().nullable().optional(),
+  entryDate: z.string().max(50).nullable().optional(),
+  batteryNote: z.string().max(2000).nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   supplierId: z.string().trim().min(1).nullable().optional(),
@@ -229,6 +232,10 @@ export async function inventoryRoutes(app: FastifyInstance) {
         rows: z
           .array(
             z.object({
+              sourceRow: z.number().int().positive().optional(),
+              entryDate: z.string().max(50).nullable().optional(),
+              batteryNote: z.string().max(2000).nullable().optional(),
+              supplierName: z.string().trim().max(120).optional(),
               imei: z.string(),
               model: z.string(),
               capacity: z.string().optional(),
@@ -246,12 +253,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
             })
           )
           .max(2000),
+        definitions: z.array(definitionSchema).max(40).optional(),
         supplierId: z.string().trim().min(1).optional(),
       });
 
-      const { rows, supplierId, purchaseName, name } = bodySchema.parse(request.body);
+      const { rows, supplierId, purchaseName, name, definitions } = bodySchema.parse(request.body);
       const result = await importInventoryItems(request.appUser.storeId, rows, {
         actor: await loadActor(request.appUser.userId),
+        definitions,
         lockPrice: !canManageSensitive(request.appUser),
         supplierId,
         purchaseName,

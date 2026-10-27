@@ -34,22 +34,27 @@ export function autoMap(
   };
 
   for (const field of fields) {
-    const nKey = normalizeHeader(field.key);
-    const nLabel = normalizeHeader(field.label);
-
     for (const header of headers) {
       if (!header.trim()) continue;
       if (hints[normalizeHeader(header)] === field.key && claim(field.key, header)) break;
     }
-    if (mapping[field.key]) continue;
+  }
 
+  for (const field of fields) {
+    if (mapping[field.key]) continue;
+    const nKey = normalizeHeader(field.key);
+    const nLabel = normalizeHeader(field.label);
     for (const header of headers) {
       if (!header.trim()) continue;
       const normalized = normalizeHeader(header);
       if ((normalized === nKey || normalized === nLabel) && claim(field.key, header)) break;
     }
-    if (mapping[field.key]) continue;
+  }
 
+  for (const field of fields) {
+    if (mapping[field.key]) continue;
+    const nKey = normalizeHeader(field.key);
+    const nLabel = normalizeHeader(field.label);
     for (const header of headers) {
       if (!header.trim()) continue;
       const normalized = normalizeHeader(header);

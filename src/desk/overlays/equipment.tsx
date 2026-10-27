@@ -1,3 +1,4 @@
+import { DatePicker } from '../date-picker';
 import { ReplayValue } from '../replay-privacy';
 import { parseBatteryHealth, BATTERY_HEALTH_MESSAGE } from '../../lib/battery-health';
 import { formatBatteryDisplay } from '../../utils/inventory';
@@ -46,7 +47,7 @@ function batteryText(value: string) {
 }
 
 export function EquipmentDetail({ id }: { id: string }) {
-  const { inventory, updateProduct, sales = [], repairOrders = [], user, appSession, reloadInventory } = useAppContext();
+  const { inventory, updateProduct, sales = [], repairOrders = [], user, appSession, reloadInventory, customFieldDefinitions = [], customFieldDefinitionsError } = useAppContext();
   const money = useMoney();
   const { close, open, toast, canManageSensitive = true } = useDesk();
   const catalogs = useCatalogs();
@@ -129,6 +130,13 @@ export function EquipmentDetail({ id }: { id: string }) {
           {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} {summary.devices === 1 ? 'equipo' : 'equipos'} de esta compra {summary.problems === 1 ? 'tuvo' : 'tuvieron'} problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
         </div>
       </> : null}
+      <div className="kv"><span>Fecha de ingreso</span><b>{item.entryDate ? formatShortDate(item.entryDate) : '—'}</b></div>
+      <div className="kv"><span>Detalle batería</span><b className="eq-field-value"><ReplayValue>{item.batteryNote || '—'}</ReplayValue></b></div>
+      {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
+      {customFieldDefinitions.length > 0 && <section className="eq-custom-fields"><p className="sec">Campos personalizados</p>{customFieldDefinitions.map(field => {
+        const value = item.customFields?.[field.key];
+        return <div key={field.id} className="kv"><span>{field.label}</span><b className="eq-field-value"><ReplayValue>{value == null || value === '' ? '—' : field.type === 'date' ? formatShortDate(String(value)) : field.type === 'number' ? Number(value).toLocaleString('es-AR') : String(value)}</ReplayValue></b></div>;
+      })}</section>}
       <CoverageBlock testId="device-warranties" lines={deviceCoverageLines(item, sales, repairOrders)} />
       {item.reservedDepositId ? <div className="deposit-card"><b>Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></b><p className="eqs-note">Desde {formatShortDate(item.reservedAt)}. Para liberar el equipo, cancelá la seña desde la ficha del cliente.</p><button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'cl', id: item.reservedClientId! })}>Ver cliente</button></div> : null}
       <Field label="Estado"><span /></Field>
@@ -141,7 +149,7 @@ export function EquipmentDetail({ id }: { id: string }) {
 }
 
 export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & { id?: string; supplierId?: string }) {
-  const { inventory, addProduct, updateProduct, appSession, suppliers, reloadLedger } = useAppContext();
+  const { inventory, addProduct, updateProduct, appSession, suppliers, reloadLedger, customFieldDefinitions = [], customFieldDefinitionsError } = useAppContext();
   const money = useMoney();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const { close, open, canManageSensitive = true } = useDesk();
@@ -160,6 +168,10 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [capacity, setCapacity] = useState(current?.capacity ?? '');
   const capacityOptions = uniqueCapacityChoices(catalogChoices(catalogs?.options ?? [], 'INVENTORY_CAPACITY', caps.map((item) => ({ id: item, label: item }))), capacity);
   const [color, setColor] = useState(current?.color ?? '');
+  const [entryDate, setEntryDate] = useState(current?.entryDate?.slice(0, 10) ?? '');
+  const [batteryNote, setBatteryNote] = useState(current?.batteryNote ?? '');
+  const [customValues, setCustomValues] = useState<Record<string, unknown>>(current?.customFields ?? {});
+  const phoneLayout = usePhoneLayout();
   const [battery, setBattery] = useState(current?.batteryHealth?.replace(/%$/, '') ?? '');
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
@@ -214,6 +226,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
     <>
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} onClose={close} busy={busy} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
+      <DatePicker label="Fecha de ingreso" value={entryDate} onChange={setEntryDate} panel={phoneLayout ? 'inline' : 'float'} boundary="sheet" />
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { editModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>
       <Field label="Capacidad"><span /></Field>
@@ -222,6 +235,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         <Field label="Color" error={bad.color}><input value={color} onChange={(event) => { setColor(event.target.value); clearBad(setBad, 'color'); }} placeholder="Ej. Azul" /></Field>
         <Field label="Batería %" error={bad.battery}><input value={battery} inputMode="text" placeholder="Ej. 87" onChange={(event) => { setBattery(event.target.value); clearBad(setBad, 'battery'); }} /></Field>
       </div>
+      <Field label="Detalle batería"><input maxLength={2000} value={batteryNote} onChange={event => setBatteryNote(event.target.value)} /></Field>
       <div className="scan-block">
         <div className="scan-imei">
           <Field label={IMEI_OPTIONAL_LABEL} error={bad.imei}>
@@ -274,7 +288,9 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       <Field label="Estado"><span /></Field>
       <Segs options={catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS)} value={status} onChange={setStatus} allowClear onEdit={catalogs?.canEdit ? () => setEditor('INVENTORY_STATUS') : undefined} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
-      <Actions busy={busy} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
+      {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
+      {customFieldDefinitions.length > 0 && <section className="eq-custom-fields"><p className="sec">Campos personalizados</p><div className="eq-custom-grid">{customFieldDefinitions.map(field => <Field key={field.id} label={field.label}><input aria-label={field.label} value={field.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(customValues[field.key] ?? '')) ? String(customValues[field.key]).split('-').reverse().join('/') : String(customValues[field.key] ?? '')} maxLength={2000} inputMode={field.type === 'number' ? 'decimal' : 'text'} placeholder={field.type === 'date' ? 'dd/mm/aaaa' : undefined} onChange={event => setCustomValues(values => ({ ...values, [field.key]: event.target.value }))} /></Field>)}</div></section>}
+      <Actions busy={busy || Boolean(customFieldDefinitionsError)} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
         if (!model.trim()) next.model = 'Completá este dato';
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
@@ -307,7 +323,9 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
           currency: stampedCurrency(priced.amounts[0]?.currency) ?? (current ? undefined : money.active),
           status,
           categoryId: current?.categoryId,
-          customFields: current?.customFields,
+          entryDate: entryDate || null,
+          batteryNote: batteryNote.trim() || null,
+          customFields: customValues,
           ...(supplierId ? { supplierId } : suppliers === null ? {} : supplier ? { supplierId: supplier } : current ? { supplierId: null } : {}),
         };
         if (current) {

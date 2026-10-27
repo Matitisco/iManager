@@ -1,3 +1,4 @@
+import type { CustomFieldInput } from './custom-fields-api';
 import type { ImportDiagnostics } from '../lib/import-diagnostics';
 import { capture, deviceAdded } from '../lib/posthog-analytics';
 import type { AuthUserLike } from '../types/auth-user';
@@ -103,6 +104,10 @@ export async function applyImportPlan(
 }
 
 export interface InventoryImportRow {
+  sourceRow?: number;
+  entryDate?: string | null;
+  batteryNote?: string | null;
+  supplierName?: string;
   purchasedAt?: string;
   purchaseName?: string;
   imei: string;
@@ -133,6 +138,7 @@ export async function importBackendRows(
   rows: InventoryImportRow[] | Record<string, string>[],
   supplierId?: string,
   source: 'excel' | 'text' = 'excel',
+  definitions?: CustomFieldInput[],
 ): Promise<ImportResult> {
   try {
     if (section === 'inventory' && rows.some(row => row.price != null && typeof row.price === 'number' && !Number.isFinite(row.price))) {
@@ -140,7 +146,8 @@ export async function importBackendRows(
     }
     const result = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
       method: 'POST',
-      body: supplierId ? { rows, supplierId } : { rows },
+      body: { rows, ...(supplierId ? { supplierId } : {}), ...(definitions?.length ? { definitions } : {}) },
+      ...(section === 'inventory' && (definitions?.length || rows.some(row => Boolean(row.supplierName?.trim()))) ? { timeoutMs: 120_000 } : {}),
       fallback: (status) => `Error al importar (${status})`,
     });
     const saved = result.imported + result.updated;

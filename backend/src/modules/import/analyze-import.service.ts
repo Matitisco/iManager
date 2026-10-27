@@ -23,12 +23,12 @@ import {
   heuristicPlan,
   heuristicSheet,
   priceCurrencyOf,
-  sheetHeaders,
   mappingColumnIndex,
   rowLooksLikeData,
   repairBatteryMapping,
   sectionHasRelevantColumns,
   trimSheet,
+  sheetHeaders,
   type ImportSheet,
   type ImportSummary,
   type SheetPlan,
@@ -252,6 +252,19 @@ export function acceptModelPlan(
       || rows.slice(0, model.headerRow).some(rowLooksLikeData))) {
       const inferred = heuristicSheet(sheet, catalog, currency, 0);
       if (!inferred.mapping.some(column => column.field === "model")) return fallback();
+      // Content inference protects dates and battery health. Keep the model's
+      // additional fields (supplier, repair notes, etc.) on unclaimed columns.
+      if (model.headerRow === 0) {
+        const headers = sheetHeaders(rows, 0);
+        const fields = new Set(inferred.mapping.map(column => column.field).filter(Boolean));
+        for (const column of model.mapping) {
+          const index = mappingColumnIndex(headers, column);
+          if (index < 0 || !known.has(column.field) || fields.has(column.field) || inferred.mapping[index].field) continue;
+          if (column.field === "batteryHealth") continue;
+          inferred.mapping[index] = { header: headers[index], columnIndex: index, field: column.field };
+          fields.add(column.field);
+        }
+      }
       accepted += 1;
       return { ...inferred, include: model.include, condition: model.condition || inferred.condition };
     }

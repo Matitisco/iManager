@@ -98,6 +98,11 @@ export function normalizeSectionRow(
     const next = { ...record };
     if (next.status?.trim()) Object.assign(next, normalizeInventoryImportStatus(next.status));
     if (next.imei && /^(?:\d{14,16}\.0+|\d(?:\.\d+)?e\+?1[345])$/i.test(next.imei)) next.imei = String(Number(next.imei));
+    // Entry dates keep incomplete dates visible for validation, without inventing a year.
+    if (next.entryDate && /^\d{5}(?:\.\d+)?$/.test(next.entryDate)
+      && Number(next.entryDate) >= 20000 && Number(next.entryDate) <= 80000) {
+      next.entryDate = new Date(Date.UTC(1899, 11, 30) + Math.floor(Number(next.entryDate)) * 86400000).toISOString().slice(0, 10);
+    }
     if (next.purchasedAt) {
       let date = next.purchasedAt;
       if (/^\d{1,2}[/.-]\d{1,2}$/.test(date)) date += `/${new Date().getFullYear()}`;

@@ -1,0 +1,3 @@
+# Diseño
+Usar headerRow=0 para archivos sin encabezado y columnIndex (base cero) como identidad estable; mantener compatibilidad con mapeos por nombre y ambos analizadores inteligentes. Las salidas son campos existentes, custom:<key> e ignore. El cliente conserva definiciones en borrador y las envía al confirmar. El servidor valida tipos y guarda definiciones junto con los equipos. CRUD autenticado y limitado a la tienda, archivo lógico de definiciones. Prisma aditivo mediante db push, sin migraciones destructivas.
+Reutilizar Sheet, Field, Segs y DeskSelect. Variante B: tres tarjetas por fila en escritorio y una en móvil. Fecha de ingreso primera columna incluso antes de selección; arriba de toda tarjeta móvil. Detalle batería solo en formulario/detalle y exportación.

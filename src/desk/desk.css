@@ -2638,3 +2638,17 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
   .sale-detail-sheet .vsm-value { flex-direction: row; align-items: baseline; gap: 10px; }
   .sale-detail-sheet .dhero .vsm-value { align-items: baseline; }
 }
+
+/* Equipment fields: calendar date first on mobile and in the stock table. */
+.eq-custom-fields { margin-top: 22px; }
+.eq-custom-fields > .sec { margin-bottom: 6px; }
+.eq-custom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
+.eq-sheet .eq-field-value { max-width: 65%; white-space: normal; overflow-wrap: anywhere; text-align: right; }
+.inv-entry-col { white-space: nowrap; }
+.inv-entry-date { grid-column: 1 / -1; grid-row: 1; color: var(--secondary); font-size: 12px; font-weight: 600; padding-bottom: 4px; }
+.inv-card:has(.inv-entry-date) .inv-imei, .inv-card:has(.inv-entry-date) .inv-status { grid-row: 2; }
+.inv-card:has(.inv-entry-date) .inv-title { grid-row: 3; }
+.inv-card:has(.inv-entry-date) .inv-meta, .inv-card:has(.inv-entry-date) .inv-price { grid-row: 4; }
+@media (max-width: 760px) { .eq-custom-grid { grid-template-columns: minmax(0, 1fr); } }
+.inv-stock-table .dcell { min-width: 240px; }
+.eq-sheet .eq-purchase-problems:empty { min-height: 0; }

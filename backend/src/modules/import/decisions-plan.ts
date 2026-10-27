@@ -13,6 +13,7 @@ import {
 import { preferWhatsappPhone } from "./normalize-import.js";
 import {
   conditionFromName,
+  heuristicSheet,
   priceCurrencyOf,
   splitModelCapacity,
   trimSheet,
@@ -32,6 +33,9 @@ const INVENTORY_CHOICES: { value: string; description: string }[] = [
   { value: "color", description: "color" },
   { value: "price", description: "precio final de venta (promo/efectivo si hay)" },
   { value: "list_price", description: "precio normal/lista antes de descuento" },
+  { value: "supplierName", description: "proveedor u origen" },
+  { value: "entryDate", description: "fecha de ingreso del equipo" },
+  { value: "batteryNote", description: "detalle o nota de batería (no porcentaje)" },
   { value: "cost", description: "costo de compra" },
   { value: "imei", description: "IMEI/serie" },
   { value: "condition", description: "nuevo/usado/sellado" },
@@ -244,6 +248,10 @@ export async function postDecisions(options: {
 }
 
 export function headerCandidates(rows: string[][], section: ImportSection = "inventory"): number[] {
+  if (section === "inventory") {
+    const inferred = heuristicSheet({ name: "", rows }, IMPORT_CATALOGS.inventory, "ARS");
+    if (inferred.headerRow === 0 && inferred.mapping.some(column => column.field === "model")) return [0];
+  }
   const scored: { row: number; score: number }[] = [];
   for (let index = 0; index < Math.min(rows.length - 1, 40); index += 1) {
     if (rowLooksLikeData(rows[index] ?? [])) continue;

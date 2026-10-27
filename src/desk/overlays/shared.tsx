@@ -38,7 +38,7 @@ export { INVENTORY_MODELS as MODELS } from '../../../backend/src/lib/inventory-m
 export const EQ_STATUS = [
   { id: 'DISPONIBLE', label: 'Disponible', color: '#25A66A' },
   { id: 'EN_REVISION', label: 'En revisión', color: '#E8A33D' },
-  { id: 'RESERVADO', label: 'Reservado', color: '#3B82F6' },
+  { id: 'RESERVADO', label: 'Reservado', color: '#737984' },
   { id: 'VENDIDO', label: 'Vendido', color: '#737984' },
 ];
 

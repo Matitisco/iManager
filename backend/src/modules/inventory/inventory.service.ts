@@ -1,4 +1,5 @@
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
+import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, validateFields, type DefinitionInput } from '../custom-fields/custom-fields.service.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
@@ -30,6 +31,8 @@ export interface InventoryItemInput {
   color: string;
   condition: string;
   grade: string;
+  entryDate?: string | null;
+  batteryNote?: string | null;
   batteryHealth: string;
   cost: number;
   price: number | null;
@@ -56,6 +59,8 @@ export interface InventoryItemResponse {
   color: string;
   condition: string;
   grade: string;
+  entryDate?: string | null;
+  batteryNote?: string | null;
   batteryHealth: string;
   cost: number;
   price: number | null;
@@ -106,6 +111,8 @@ type InventoryRecord = {
   color: string;
   condition: string;
   grade: string;
+  entryDate?: Date | null;
+  batteryNote?: string | null;
   batteryHealth: string;
   categoryId: string | null;
   cost: Decimal;
@@ -185,6 +192,8 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     color: item.color,
     condition: item.condition as InventoryItemResponse["condition"],
     grade: item.grade as InventoryItemResponse["grade"],
+    entryDate: item.entryDate?.toISOString() ?? null,
+    batteryNote: item.batteryNote ?? null,
     batteryHealth: item.batteryHealth,
     cost: item.cost.toNumber(),
     price: item.price?.toNumber() ?? null,
@@ -283,6 +292,7 @@ function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams,
 
 function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.Sql {
   const dir = sortDir === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+  if (sortKey === 'entryDate') return Prisma.sql`"entryDate" ${dir} NULLS LAST`;
   if (sortKey === 'model') return Prisma.sql`LOWER("model") ${dir}`;
   if (sortKey === 'price') return Prisma.sql`"price" ${dir}`;
   if (sortKey === 'battery') {
@@ -301,6 +311,7 @@ type RawInventoryRow = {
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   currency: string | null;
   reservedDepositId: string | null; reservedClientId: string | null; reservedClientName: string | null; reservedAt: Date | null;
+  entryDate?: Date | null; batteryNote?: string | null;
   status: string; categoryId: string | null; customFields: Prisma.JsonValue | null;
   createdAt: Date | string | null;
   archivedAt: Date | string | null;
@@ -328,6 +339,8 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     color: row.color,
     condition: row.condition as InventoryItemResponse['condition'],
     grade: row.grade as InventoryItemResponse['grade'],
+    entryDate: row.entryDate?.toISOString() ?? null,
+    batteryNote: row.batteryNote ?? null,
     batteryHealth: row.batteryHealth,
     cost: Number(row.cost),
     price: row.price == null ? null : Number(row.price),
@@ -363,7 +376,7 @@ export async function listInventoryPaged(
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
       SELECT "catalogVisible", "quantity", "id", "imei", "model", "capacity", "color", "condition", "grade",
-             "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
+             "entryDate", "batteryNote", "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt",
              "supplierId", "stockPurchaseId"
       FROM "InventoryItem"
@@ -534,7 +547,9 @@ export async function createInventoryItem(
       pendingSaleRegistration: input.status === "VENDIDO",
       previousSaleStatus: input.status === "VENDIDO" ? "DISPONIBLE" : null,
       categoryId: input.categoryId ?? null,
-      customFields: normalizeCustomFields(input.customFields),
+      entryDate: entryDateValue(input.entryDate),
+      batteryNote: input.batteryNote || null,
+      customFields: normalizeCustomFields(await validateFields(storeId, input.customFields, tx)),
     } });
     if (actor) {
       await writeAudit(tx, {
@@ -691,7 +706,9 @@ export async function updateInventoryItem(
     if (input.categoryId !== undefined) data.category = input.categoryId
       ? { connect: { id: input.categoryId } }
       : { disconnect: true };
-    if (input.customFields !== undefined) data.customFields = normalizeCustomFields(input.customFields) as Prisma.InputJsonValue;
+    if (input.entryDate !== undefined) data.entryDate = entryDateValue(input.entryDate);
+    if (input.batteryNote !== undefined) data.batteryNote = input.batteryNote || null;
+    if (input.customFields !== undefined) data.customFields = normalizeCustomFields(await validateFields(storeId, input.customFields, tx)) as Prisma.InputJsonValue;
 
     if (input.status !== undefined) {
       data.status = input.status;
@@ -950,6 +967,10 @@ export async function bulkMoveCategory(storeId: string, ids: string[], categoryI
 // ─── Import ───────────────────────────────────────────────────────────────────
 
 export interface ImportRow {
+  sourceRow?: number;
+  entryDate?: string | null;
+  batteryNote?: string | null;
+  supplierName?: string;
   purchasedAt?: string;
   purchaseName?: string;
   imei: string;
@@ -1007,8 +1028,17 @@ function normalizeBattery(raw: unknown): string {
 export async function importInventoryItems(
   storeId: string,
   rows: ImportRow[],
-  options?: { actor?: Actor | null; lockPrice?: boolean; supplierId?: string | null; purchaseName?: string | null; name?: string | null },
+  options?: { actor?: Actor | null; lockPrice?: boolean; supplierId?: string | null; purchaseName?: string | null; name?: string | null; definitions?: DefinitionInput[] },
+  transaction?: Prisma.TransactionClient,
 ): Promise<ImportResult> {
+  if ((options?.definitions?.length || rows.some(row => row.supplierName?.trim())) && !transaction) {
+    return prisma.$transaction(async tx => {
+      await ensureDefinitions(storeId, options?.definitions ?? [], tx);
+      return importInventoryItems(storeId, rows, options, tx);
+    }, { timeout: 120_000 });
+  }
+  const db = transaction ?? prisma;
+  const definitions = rows.some(row => row.customFields && Object.keys(row.customFields).length) ? await listDefinitions(storeId, db) : [];
   const purchaseName = readPurchaseName(options ?? {});
   const result: ImportResult = { imported: 0, updated: 0, errors: [], priceToDefine: 0 };
   const collector = importErrorCollector(result.errors);
@@ -1016,7 +1046,7 @@ export async function importInventoryItems(
   const defaultPurchasedAt = new Date();
   const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
   if (options?.supplierId) {
-    const supplier = await prisma.supplier.findFirst({
+    const supplier = await db.supplier.findFirst({
       where: { id: options.supplierId, storeId, deletedAt: null },
       select: { id: true },
     });
@@ -1025,8 +1055,8 @@ export async function importInventoryItems(
 
   for (let i = 0; i < rows.length; i++) {
     const raw = { ...rows[i] };
-    const rowNum = i + 1;
-    let rowCurrency = raw.currency ?? importedCurrency;
+    const rowNum = raw.sourceRow ?? i + 1;
+    let rowCurrency: string = raw.currency ?? importedCurrency;
     const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt) : defaultPurchasedAt;
     if (!purchasedAt) {
       collector.reject({ row: rowNum, imei: raw.imei, message: "Fecha de compra inválida" }, "invalid_row");
@@ -1075,6 +1105,16 @@ export async function importInventoryItems(
       collector.reject({ row: rowNum, imei: raw.imei, message: BATTERY_HEALTH_MESSAGE }, "invalid_row");
       continue;
     }
+    let customFields: Record<string, unknown>;
+    let entryDate: Date | null;
+    try {
+      customFields = convertFields(raw.customFields ?? {}, definitions);
+      entryDate = entryDateValue(raw.entryDate);
+      if ((raw.batteryNote?.length ?? 0) > 2000) throw new Error('Detalle batería: máximo 2000 caracteres');
+    } catch (error) {
+      collector.reject({ row: rowNum, imei: raw.imei, message: error instanceof Error ? error.message : 'Campos inválidos' }, 'invalid_row');
+      continue;
+    }
     const input = {
       imei: parsedImei.imei,
       model: raw.model.trim(),
@@ -1089,8 +1129,15 @@ export async function importInventoryItems(
     };
 
     try {
+      if (transaction) await transaction.$executeRawUnsafe('SAVEPOINT import_row');
+      let rowSupplierId = options?.supplierId;
+      if (!rowSupplierId && raw.supplierName?.trim()) {
+        const name = raw.supplierName.trim();
+        const supplier = await db.supplier.findFirst({ where: { storeId, deletedAt: null, name: { equals: name, mode: 'insensitive' } } });
+        rowSupplierId = supplier?.id ?? (await db.supplier.create({ data: { storeId, name } })).id;
+      }
       const existing = input.imei
-        ? await inventoryPrisma.inventoryItem.findFirst({
+        ? await db.inventoryItem.findFirst({
           where: { storeId, imei: input.imei },
           select: { id: true, customFields: true, price: true, cost: true, currency: true, condition: true, grade: true },
         })
@@ -1101,22 +1148,20 @@ export async function importInventoryItems(
         rowCurrency = raw.currency ?? existingCurrency;
         const updatedGrade = inventoryGrade(raw.condition !== undefined ? input.condition : existing.condition, raw.grade ?? existing.grade);
         if (updatedGrade.ok === false) {
-          collector.reject({ row: rowNum, imei: raw.imei, message: updatedGrade.message }, "invalid_row");
-          continue;
+          throw new InventoryError(updatedGrade.message, 400);
         }
         if (options?.lockPrice && raw.currency !== undefined && existingCurrency !== rowCurrency) {
-          collector.reject({ row: rowNum, imei: raw.imei, message: "No tenés permiso para cambiar la moneda de este equipo" }, "invalid_row");
-          continue;
+          throw new InventoryError("No tenés permiso para cambiar la moneda de este equipo", 403);
         }
         const mergedFields = {
           ...(toCustomFields(existing.customFields ?? null)),
-          ...(raw.customFields ?? {}),
+          ...customFields,
         };
         const priceChanges = moneyChanged(existing.price, input.price) || (raw.currency !== undefined && existingCurrency !== rowCurrency);
         const applyPrice = raw.price != null && !(options?.lockPrice && priceChanges);
         const costChanges = providedCost !== undefined && (moneyChanged(existing.cost, providedCost) || (raw.currency !== undefined && existingCurrency !== rowCurrency));
         const changedAt = new Date();
-        await prisma.inventoryItem.update({
+        await db.inventoryItem.update({
           where: { id: existing.id, AND: [{ reservedDepositId: null }] },
           data: {
             model: input.model,
@@ -1131,11 +1176,13 @@ export async function importInventoryItems(
             ...((applyPrice && priceChanges) || costChanges ? { currency: rowCurrency } : {}),
             ...(applyPrice && priceChanges && options?.actor ? { priceChangedBy: options.actor.name, priceChangedAt: changedAt } : {}),
             ...(raw.status !== undefined ? { status: input.status } : {}),
+            ...(raw.entryDate !== undefined ? { entryDate } : {}),
+            ...(raw.batteryNote !== undefined ? { batteryNote: raw.batteryNote || null } : {}),
             customFields: mergedFields as Prisma.InputJsonValue,
           },
         });
         if (options?.actor && applyPrice && priceChanges) {
-          await writeAudit(prisma, {
+          await writeAudit(db, {
             storeId,
             actor: options.actor,
             action: "inventory.price",
@@ -1145,7 +1192,7 @@ export async function importInventoryItems(
           });
         }
         if (options?.actor && costChanges && providedCost !== undefined) {
-          await writeAudit(prisma, {
+          await writeAudit(db, {
             storeId,
             actor: options.actor,
             action: "inventory.cost",
@@ -1154,10 +1201,11 @@ export async function importInventoryItems(
             detail: `${existing.cost.toString()} → ${providedCost}`,
           });
         }
+        if (rowSupplierId && !options?.supplierId) await assignItemSupplier(db, storeId, existing.id, rowSupplierId, options?.actor);
         if (existing.price == null && !applyPrice) result.priceToDefine++;
         result.updated++;
       } else {
-        const created = await inventoryPrisma.inventoryItem.create({
+        const created = await db.inventoryItem.create({
           data: {
             storeId,
             imei: input.imei,
@@ -1171,23 +1219,31 @@ export async function importInventoryItems(
             price: priceDecimal(input.price),
             currency: rowCurrency,
             status: input.status,
-            customFields: raw.customFields ?? {},
+            entryDate,
+            batteryNote: raw.batteryNote || null,
+            customFields: customFields as Prisma.InputJsonValue,
           },
         });
+        if (rowSupplierId && !options?.supplierId) await assignItemSupplier(db, storeId, created.id, rowSupplierId, options?.actor);
         const group = purchases.get(purchaseKey) ?? { name: rowPurchaseName, purchasedAt, ids: [] };
         group.ids.push(created.id);
         purchases.set(purchaseKey, group);
         if (input.price == null) result.priceToDefine++;
         result.imported++;
       }
-    } catch {
-      collector.reject({ row: rowNum, imei: raw.imei, message: "Error al guardar" }, "save_error");
+      if (transaction) await transaction.$executeRawUnsafe('RELEASE SAVEPOINT import_row');
+    } catch (error) {
+      if (transaction) {
+        await transaction.$executeRawUnsafe('ROLLBACK TO SAVEPOINT import_row');
+        await transaction.$executeRawUnsafe('RELEASE SAVEPOINT import_row');
+      }
+      collector.reject({ row: rowNum, imei: raw.imei, message: error instanceof DomainError ? error.message : 'Error al guardar' }, error instanceof DomainError ? 'invalid_row' : 'save_error');
     }
   }
 
   if (options?.supplierId) {
     for (const group of purchases.values()) {
-      await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt);
+      await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt, transaction);
     }
   }
   return { ...result, diagnostics: collector.finish(rows.length, result.imported + result.updated) };

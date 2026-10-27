@@ -1,3 +1,4 @@
+import { customFieldRoutes } from './modules/custom-fields/custom-fields.routes.js';
 import { imeiTacMissRoutes } from './modules/imei-tac-misses/routes.js';
 import { sectionViewsRoutes } from './modules/section-views/routes.js';
 import { analyticsRoutes } from './modules/analytics/analytics.routes.js';
@@ -86,6 +87,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(cashRoutes, { prefix: "/api/cash" });
   app.register(accountsRoutes, { prefix: "/api/accounts" });
   app.register(clientsRoutes, { prefix: "/api/clients" });
+  app.register(customFieldRoutes, { prefix: '/api/custom-field-definitions' });
   app.register(inventoryRoutes, { prefix: "/api/inventory" });
   app.register(stockCountRoutes, { prefix: "/api/stock-counts" });
   app.register(commissionsRoutes, { prefix: "/api/commissions" });

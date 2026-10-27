@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CustomFieldDefinition } from '../../services/custom-fields-api';
 import type { Client, ClientCategory, CustomColumn, Product, RepairOrder, Sale, TradeIn } from '../../types';
 import { ExchangeProvider } from '../exchange';
 import { ReportsScreen } from './ReportsScreen';
@@ -16,6 +17,7 @@ const context = vi.hoisted(() => ({
   repairOrders: [] as RepairOrder[],
   clientCategories: [] as ClientCategory[],
   customColumns: [] as CustomColumn[],
+  customFieldDefinitions: [] as CustomFieldDefinition[],
   appSession: null as { membership?: { role?: string; sections?: string[] | null } } | null,
   expenses: [] as Array<{ id: string; date: string; category: string; amount: number; currency: 'ARS' | 'USD'; exchangeRate: number | null; notes: string | null; deletedAt: string | null }>,
   expensesLoaded: true,
@@ -84,6 +86,7 @@ beforeEach(() => {
   context.repairOrders = [];
   context.clientCategories = [];
   context.customColumns = [];
+  context.customFieldDefinitions = [];
   context.appSession = null;
   context.user = null;
   api.fetchCommissionReport.mockReset();
@@ -533,4 +536,20 @@ describe('reports without module access', () => {
     expect(screen.getByRole('button', { name: 'Servicio' })).toBeInTheDocument();
     for (const label of ['Ventas', 'Stock', 'Canjes', 'Clientes']) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
   });
+});
+
+
+it('exports equipment entry date, battery detail and typed custom values', async () => {
+  context.inventory[0] = { ...context.inventory[0], entryDate: '2026-04-01T12:00:00.000Z', batteryNote: 'Batería cambiada', customFields: { repairs: 0 } };
+  context.customFieldDefinitions = [{ id: 'field', entity: 'inventory', key: 'repairs', label: 'Reparaciones', type: 'number', order: 0 }];
+  render(<ReportsScreen />);
+  await applyRange();
+  await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
+  const csv = await exportedCsv();
+  expect(csv).toContain('Fecha de ingreso');
+  expect(csv).toContain('Detalle batería');
+  expect(csv).toContain('Reparaciones');
+  expect(csv).toContain('01/04/2026');
+  expect(csv).toContain('Batería cambiada');
+  expect(csv).toContain('"Batería cambiada","0"');
 });

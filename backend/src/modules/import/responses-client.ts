@@ -23,6 +23,7 @@ const INSTRUCTIONS = [
   "Incluí cada hoja que tenga una tabla de productos.",
   "La fila de encabezado es la que tiene los nombres cortos de columna, no los títulos, las cotizaciones ni los avisos.",
   "Puede no haber encabezado: si la primera fila contiene fechas, IMEI de 14-16 dígitos, modelos como iPhone 13, capacidades como 128GB o porcentajes, son datos. En ese caso usá headerRow=0, dataStartRow=1 y headers sintéticos A,B,C… para TODAS las columnas, incluso las vacías en la primera fila. No pierdas filas de datos ni elijas una como encabezado.",
+  "En archivos sin encabezado, la columna A de fechas corresponde a entryDate (fecha de ingreso), no a purchasedAt. Los textos de reparación de batería corresponden a batteryNote; batteryHealth conserva exclusivamente la salud numérica o porcentual.",
   "dataStartRow es la primera fila de datos y dataEndRow la última fila que todavía puede tener productos, antes de un pie vacío.",
   "Mapeá cada columna a un field del catálogo. field vacío significa ignorar la columna.",
   "columnIndex identifica la posición física de la columna desde 0; usalo también con encabezados vacíos o repetidos. Sin encabezado inferí los campos por contenido de toda la columna, nunca por valores aislados que parezcan nombres.",

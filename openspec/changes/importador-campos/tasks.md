@@ -1,0 +1,5 @@
+- [x] Schema, definiciones tipadas y CRUD por tienda.
+- [x] Importación sin encabezado, mapeo por índice y confirmación transaccional.
+- [x] Tarjetas variante B, modal y campos en detalle/formulario/tabla/exportación.
+- [x] Tests relacionados, TypeScript, builds y QA Playwright local 1440/390.
+- [x] Commit, push de la rama, PR sin merge e informe externo.

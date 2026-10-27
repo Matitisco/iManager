@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
   store: { findUnique: vi.fn() },
+  customFieldDefinition: { findMany: vi.fn() },
   inventoryItem: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
 vi.mock('../../plugins/prisma.js', () => ({ prisma: prismaMock }));
@@ -10,6 +11,7 @@ import { importInventoryItems } from './inventory.service.js';
 beforeEach(() => {
   vi.resetAllMocks();
   prismaMock.store.findUnique.mockResolvedValue({ currency: 'USD' });
+  prismaMock.customFieldDefinition.findMany.mockResolvedValue([]);
   prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
   prismaMock.inventoryItem.create.mockResolvedValue({ id: 'new-item' });
 });

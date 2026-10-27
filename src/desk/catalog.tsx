@@ -84,7 +84,7 @@ export function useCatalogs() {
 export function catalogChoices(options: CatalogOption[], kind: CatalogKind, fallback: { id: string; label: string; color?: string }[]) {
   const rows = options.filter((option) => option.kind === kind);
   if (!rows.length) return fallback;
-  const mapped = rows.map((option) => ({ id: option.value, label: option.label, color: option.color ?? undefined }));
+  const mapped = rows.map((option) => ({ id: option.value, label: option.label, color: kind === 'INVENTORY_STATUS' && option.value === 'RESERVADO' ? '#737984' : option.color ?? undefined }));
   const extra = fallback.filter((item) => !mapped.some((row) => row.id === item.id));
   return [...mapped, ...extra];
 }

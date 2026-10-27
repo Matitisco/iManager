@@ -27,6 +27,7 @@ model User {
 }
 
 model Store {
+  customFieldDefinitions CustomFieldDefinition[]
   productEvents ProductEvent[]
   // Existing stores remain internal for life, including plain db push deploys.
   billingPlan             String    @default("INTERNAL") @db.VarChar(16)
@@ -213,6 +214,8 @@ model InventoryItem {
   // Cosmetic quality of a used device: A+, A, B or C. Empty when the device is not used or quality was not set.
   // This is the only quality column; the desk calls it «Calidad» and does not add a second field.
   grade         String             @db.VarChar(20)
+  entryDate     DateTime?
+  batteryNote   String?            @db.Text
   batteryHealth String             @db.VarChar(50)
   cost          Decimal            @db.Decimal(12, 2)
   price         Decimal?           @db.Decimal(12, 2)
@@ -1223,4 +1226,25 @@ model ImeiTacMiss {
   lastSeenAt  DateTime @default(now()) @updatedAt
 
   @@map("ImeiTacMiss")
+}
+
+// Definitions belong to a store; archiving never removes historical values.
+enum CustomFieldType {
+  text
+  date
+  number
+}
+
+model CustomFieldDefinition {
+  id String @id @default(cuid())
+  storeId String
+  entity String @default("inventory") @db.VarChar(30)
+  key String @db.VarChar(60)
+  label String @db.VarChar(100)
+  type CustomFieldType
+  order Int @default(0)
+  archivedAt DateTime?
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  @@unique([storeId, entity, key])
+  @@index([storeId])
 }

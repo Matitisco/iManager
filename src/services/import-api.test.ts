@@ -91,6 +91,16 @@ describe('import-api', () => {
     expect(JSON.stringify(events)).not.toContain('private');
   });
 
+  it('sends draft definitions only on confirmation and extends that transaction timeout', async () => {
+    const definitions = [{ entity: 'inventory' as const, key: 'repairs', label: 'Reparaciones', type: 'number' as const, order: 0 }];
+    const rows = [{ model: 'Equipo ficticio', imei: '', price: null, customFields: { repairs: '2' } }];
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json({ imported: 1, updated: 0, errors: [] }));
+    await importBackendRows(mockUser, 'inventory', rows, undefined, 'excel', definitions);
+    const call = vi.mocked(fetchWithTimeout).mock.calls[0];
+    expect(JSON.parse(String(call[1]?.body))).toEqual({ rows, definitions });
+    expect(call[2]).toBe(120_000);
+  });
+
   it('requires a configured backend url', async () => {
     setApiBaseUrl('');
 
