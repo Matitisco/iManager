@@ -130,7 +130,7 @@ describe("core module integrations", () => {
       },
     });
     expect(createResponse.statusCode).toBe(404);
-    expect(createResponse.json()).toEqual({ error: "La categoría no existe en esta tienda" });
+    expect(createResponse.json()).toEqual({ error: "Category not found" });
   });
 
   it("covers inventory CRUD, paging, filtered ids and category movement", async () => {
@@ -481,7 +481,7 @@ describe("core module integrations", () => {
       },
     });
     expect(saleResponse.statusCode).toBe(404);
-    expect(saleResponse.json()).toEqual({ error: "La categoría no existe en esta tienda" });
+    expect(saleResponse.json()).toEqual({ error: "Category not found" });
   });
 
   it("handles trade-in CRUD and category endpoints against persisted records", async () => {
@@ -613,6 +613,6 @@ describe("core module integrations", () => {
       },
     });
     expect(createResponse.statusCode).toBe(404);
-    expect(createResponse.json()).toEqual({ error: "La categoría no existe en esta tienda" });
+    expect(createResponse.json()).toEqual({ error: "Category not found" });
   });
 });
