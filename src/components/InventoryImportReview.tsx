@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Plus } from 'lucide-react';
 import { DeskSelect } from '../desk/select';
 import { Field, Segs } from '../desk/ui';
 import { ReplayValue } from '../desk/replay-privacy';
@@ -285,7 +285,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
               }} options={[
                 ...catalog.map(field => ({ value: field.key, label: `${field.label}${suggested === field.key ? ' · Sugerido' : ''}` })),
                 ...all.map(field => ({ value: `custom:${field.key}`, label: `${field.label} · ${field.type === 'date' ? 'Fecha' : field.type === 'number' ? 'Número' : 'Texto'}${suggested === `custom:${field.key}` ? ' · Sugerido' : ''}` })),
-                { value: '__new', label: 'Nuevo campo…' }, { value: 'ignore', label: 'Descartar' },
+                { value: '__new', label: 'Nuevo campo…', icon: <Plus size={18} />, className: 'imp-new-field-option' }, { value: 'ignore', label: 'Descartar' },
               ]} />
             {creating === column.columnIndex && <div className="imp-new-inline" role="group" aria-label="Nuevo campo">
               <Field label="Nombre" error={error}><input autoFocus aria-label="Nombre del nuevo campo" maxLength={100} value={name} onChange={event => { setName(event.target.value); setError(''); }} /></Field>
