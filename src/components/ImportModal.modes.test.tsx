@@ -149,3 +149,22 @@ describe('importador compartido compacto', () => {
     expect(onImport).not.toHaveBeenCalled();
   });
 });
+
+it.each([
+  ['clientes', [{ key: 'name', label: 'Nombre', required: true }], 'Nombre', 'name'],
+  ['ventas', [{ key: 'amount', label: 'Precio', required: false }], 'Precio', 'amount'],
+  ['canjes', [{ key: 'productImei', label: 'IMEI', required: false }], 'IMEI', 'productImei'],
+] as const)('conserva el ajuste genérico de %s sin debounce ni panel de inventario', async (_section, catalog, label, key) => {
+  const result = { ...analysis(), rows: [{ [key]: '420' }], plan: analysis().plan.map(plan => ({ ...plan, mapping: [] })) };
+  const onApply = vi.fn(async (_sheets, plan) => ({ ...result, plan }));
+  render(<ImportModal fields={[...catalog]} onAnalyze={vi.fn(async () => result)} onApply={onApply} onImport={vi.fn()} onClose={vi.fn()} />);
+  await userEvent.upload(fileInput(), new File(['Origen\n420'], 'archivo.csv', { type: 'text/csv' }));
+  await userEvent.click(await screen.findByTestId('import-adjust-open'));
+  expect(screen.getByTestId('import-adjust')).toBeInTheDocument();
+  expect(screen.queryByRole('complementary', { name: 'Excel → campo' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('combobox', { name: label }));
+  await userEvent.click(screen.getByRole('option', { name: 'Origen' }));
+  expect(onApply).toHaveBeenCalledOnce();
+  await userEvent.click(screen.getByRole('button', { name: 'Listo' }));
+  expect(screen.getByTestId('import-preview')).toBeInTheDocument();
+});

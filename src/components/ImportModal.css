@@ -59,18 +59,6 @@
 }
 .import-actions > .btn2:only-child { width: 100%; }
 
-/* Physical columns retain their identity even with duplicate/empty headers. */
-.sheet.inv-import.imp-adjust-sheet { width: 760px; max-width: calc(100vw - 48px); }
-.imp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.imp-card { min-width: 0; padding: 14px; display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); }
-.imp-card.new { border-color: var(--lime); }
-.imp-column-title { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 10px; padding: 6px 10px; background: var(--row); font-size: 13px; font-weight: 800; }
-.imp-prev { display: grid; padding: 4px 12px; background: var(--row); border-radius: 12px; }
-.imp-prev > span { min-height: 30px; padding: 6px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
-.imp-prev > span + span { border-top: 1px solid var(--border); }
-.imp-segments { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
-.desk-app .imp-segments button, .desk-app .imp-header-mode button { min-height: 38px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--primary); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-.desk-app .imp-segments button[aria-pressed="true"], .desk-app .imp-header-mode button[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: var(--card); }
 .imp-header-settings { margin-bottom: 14px; color: var(--secondary); font-size: 12px; }
 .imp-header-settings summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
 .imp-header-settings summary::-webkit-details-marker { display: none; }
@@ -80,45 +68,80 @@
 .imp-header-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .imp-header-row { display: flex; align-items: center; gap: 8px; }
 .imp-header-row input { width: 68px; min-height: 48px; padding: 8px; border: 1px solid var(--border); border-radius: 14px; background: var(--row); color: var(--primary); font: inherit; font-size: 16px; }
-.imp-discarded { display: flex; align-items: center; min-height: 48px; padding: 0 14px; font-size: 14px; color: var(--secondary); }
-.sheet.imp-new-field { width: 420px; }
-.imp-adjust-sheet .import-actions { display: grid; grid-template-columns: 1fr 1.5fr; }
-.imp-adjust-sheet .import-actions .btn2 { width: 100%; margin: 0; }
-@media (max-width: 760px) {
-  .sheet.inv-import.imp-adjust-sheet { width: 100%; max-width: 100%; }
-  .imp-grid { grid-template-columns: minmax(0, 1fr); }
-  .imp-segments { grid-template-columns: 1.2fr 1fr 1fr; }
-  .sheet.imp-new-field { width: 100%; }
-  .imp-adjust-sheet .import-actions { grid-template-columns: 1fr 1.5fr; }
-  .imp-adjust-sheet .import-actions .btn2 { white-space: normal; }
-}
-.imp-card .ds-select-trigger { background: var(--row); }
-.imp-card .ds-select-trigger:focus-visible { outline-color: var(--primary); }
 
-/* Progressive adjustment keeps pending cards in one column and uses the Sheet frame scroll. */
-.imp-card.rev { border: 1.5px solid var(--lime); }
-/* Static highlight also respects prefers-reduced-motion without an animation. */
-.imp-card.flash { border-color: var(--lime); background: var(--lime-soft); }
-.imp-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.imp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.imp-column-ok { flex: none; color: var(--ok); }
-.imp-adjust-sheet .imp-discarded { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); }
-.imp-steps { display: flex; gap: 8px; margin-bottom: 14px; }
-.desk-app .imp-steps button { flex: 1; min-width: 0; height: 38px; border-radius: 999px; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; font-size: 13px; font-weight: 700; color: var(--secondary); background: var(--card); }
-.desk-app .imp-steps button.on { background: var(--primary); border-color: var(--primary); color: var(--card); }
-.desk-app .imp-steps button.done { color: var(--primary); }
-.imp-steps .done svg { flex: none; color: var(--ok); }
-.imp-sum { display: flex; flex-direction: column; gap: 14px; }
-.imp-sg { border: 1.5px solid var(--border); border-radius: 18px; padding: 4px 14px; background: var(--card); }
-.imp-sg h4 { margin: 0; display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 800; }
-.imp-pend { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 11px; background: var(--row); font-size: 12px; font-weight: 800; padding: 0 6px; }
-.desk-app .imp-rw { display: flex; align-items: center; gap: 10px; min-height: 44px; border: 0; border-top: 1px solid var(--row); width: 100%; padding: 4px 0; text-align: left; background: transparent; color: var(--primary); }
-.imp-rw:first-of-type { border-top: 0; }
-.imp-l { flex: none; min-width: 28px; height: 28px; padding: 0 7px; border-radius: 9px; background: var(--row); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; }
-.imp-v { flex: 1; font-size: 14px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.imp-d { flex: 0 1 30%; max-width: 30%; font-size: 13px; font-weight: 600; color: var(--secondary); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
-.imp-rw .imp-change { flex: none; min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; }
-.imp-adjust-sheet .import-actions .btn2 { padding-inline: 12px; }
-@media (max-width: 760px) {
-  .desk-app .imp-segments button { padding-inline: 6px; }
+/* Variant C reuses the desk Sheet, table, fields, select and status tokens. */
+.sheet.inv-import.imp-review-sheet { width: 1180px; max-width: calc(100vw - 48px); }
+.imp-review { min-width: 0; }
+.imp-detected { margin: 0 0 12px; font-size: 18px; font-weight: 800; }
+.imp-sources { display: grid; gap: 8px; }
+.imp-source-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-width: 0; min-height: 46px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; }
+.imp-source-row input { accent-color: var(--primary); width: 18px; height: 18px; flex: none; }
+.imp-source-row button { min-width: 0; min-height: 36px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: 700; }
+.imp-source-row span { color: var(--secondary); }
+.imp-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
+.imp-table-area { min-width: 0; }
+.imp-table-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.imp-table-title h4, .imp-panel-heading h4 { margin: 0; font-size: 14px; font-weight: 800; }
+.imp-table-title > span { font-size: 13px; color: var(--secondary); }
+.imp-table-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 16px; position: relative; isolation: isolate; }
+.imp-preview-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
+.imp-preview-table thead { position: sticky; top: 0; z-index: 3; }
+.imp-preview-table th { position: relative; background: var(--bg); height: 64px; }
+.imp-preview-table.dtable.compact th { padding: 0 10px; }
+.imp-preview-table.dtable.compact td { height: 44px; padding: 0 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--card); color: var(--secondary); }
+.imp-preview-table .imp-pinned { position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border); }
+.imp-preview-table.dtable.compact td.imp-pinned { font-weight: 700; color: var(--primary); }
+.imp-column-heading { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.imp-grip { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; min-height: 44px; color: var(--section); cursor: grab; touch-action: none; }
+.imp-grip[aria-disabled="true"] { cursor: default; }
+.imp-heading-label { min-width: 0; flex: 1; text-align: left; min-height: 48px; }
+.imp-heading-label b, .imp-heading-label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-heading-label b { font-size: 12px; text-transform: uppercase; color: var(--secondary); }
+.imp-heading-label small { font-size: 11px; color: var(--secondary); font-weight: 600; margin-top: 2px; text-transform: none; }
+.imp-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 10px; cursor: col-resize; touch-action: none; z-index: 4; }
+.imp-resize::after { content: ''; display: block; position: absolute; right: 3px; top: 20px; height: 24px; width: 2px; background: var(--border); }
+.imp-resize:hover::after, .imp-resize:focus-visible::after, .imp-dragging .imp-resize::after { background: var(--lime); }
+.imp-preview-table th.imp-unused, .imp-preview-table.dtable.compact td.imp-unused { background: var(--bg); color: var(--secondary); border-left: 1px dashed var(--border); }
+.imp-preview-table th.imp-selected, .imp-preview-table.dtable.compact td.imp-selected { background: var(--lime-soft); color: var(--primary); }
+.imp-preview-table th.imp-required { background: var(--err-soft); }
+.imp-required .imp-heading-label small { color: var(--err); }
+.imp-dragging { outline: 2px solid var(--lime); outline-offset: -2px; }
+.imp-resize:focus-visible, .imp-panel-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.imp-table-notices { margin-top: 14px; }
+.imp-panel { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--border); border-radius: 18px; background: var(--card); position: sticky; top: 0; max-height: 560px; max-height: min(560px, 62dvh); }
+.imp-panel-heading { padding: 12px 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border); flex: none; }
+.imp-panel-heading h4 { margin-right: auto; }
+.imp-model-warning { color: var(--err); font-size: 12px; width: 100%; }
+.imp-panel-rows { overflow-y: auto; padding: 0 14px 8px; }
+.imp-panel-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid var(--border); min-width: 0; scroll-margin-block: 8px; }
+.imp-letter { display: inline-flex; align-items: center; justify-content: center; align-self: start; min-width: 28px; height: 28px; border-radius: 10px; background: var(--row); font-size: 12px; font-weight: 800; }
+.imp-source-name { display: flex; flex-direction: column; min-width: 0; }
+.imp-source-name b { font-size: 13px; }
+.imp-source-name small { font-size: 12px; color: var(--secondary); }
+.imp-source-name b, .imp-source-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-panel-row > .ds-select { grid-column: 2; min-width: 0; }
+.imp-panel-row .ds-select-trigger { background: var(--row); min-height: 48px; }
+.imp-panel-row.imp-pending, .imp-panel-row.imp-selected { background: var(--lime-soft); margin-inline: -14px; padding-inline: 14px; border-radius: 14px; }
+.imp-new-inline { grid-column: 1 / -1; display: grid; gap: 8px; padding-top: 8px; min-width: 0; }
+.imp-new-inline .fl { margin: 0; }
+.imp-panel-toggle { display: none; }
+@media (min-width: 700px) and (max-width: 1099px) {
+  .imp-review-layout { grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; }
+  .imp-panel-heading { padding-inline: 10px; }
+}
+@media (max-width: 699px) {
+  .sheet.inv-import.imp-review-sheet { width: 100%; max-width: 100%; }
+  .imp-detected { font-size: 16px; }
+  .imp-review-layout { display: flex; flex-direction: column; gap: 12px; }
+  .imp-table-area { width: 100%; display: contents; }
+  .imp-panel-toggle { display: block; width: 100%; height: auto; min-height: 52px; padding: 10px; font-size: 14px; white-space: normal; }
+  .imp-panel { display: none; position: static; max-height: min(420px, 50dvh); width: 100%; order: 1; }
+  .imp-panel.imp-panel-open { display: flex; }
+  .imp-table-title { order: 2; width: 100%; margin-bottom: -4px; }
+  .imp-table-scroll { order: 3; width: 100%; max-height: 320px; }
+  .imp-table-notices, .imp-review-layout > .imp-table-area > .wempty { order: 4; width: 100%; }
+  .imp-panel-row .ds-select-trigger, .imp-new-inline input { font-size: 16px; }
+  .imp-source-row { flex-wrap: wrap; }
+  .imp-source-row span { font-size: 12px; }
+  .imp-review-sheet .import-actions .btn2 { white-space: normal; }
 }

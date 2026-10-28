@@ -162,7 +162,7 @@ describe('import-api', () => {
     expect(JSON.stringify(vi.mocked(fetchWithTimeout).mock.calls)).not.toContain('OPENAI');
   });
 
-  it('reapplies an edited plan without asking the model again', async () => {
+  it.each([false, true])('aplica el plan vivo sin perder índices ni campos nuevos (refreshMapping: %s)', async refreshMapping => {
     const analysis = {
       source: 'manual' as const,
       notice: null,
@@ -180,16 +180,16 @@ describe('import-api', () => {
       headerRow: 1,
       dataStartRow: 2,
       dataEndRow: 2,
-      mapping: [{ header: 'Modelo', field: 'model' }],
+      mapping: [{ header: 'Modelo', columnIndex: 0, field: 'model' }, { header: 'Notas', columnIndex: 1, field: 'custom:notas' }, { header: 'Sin usar', columnIndex: 2, field: 'ignore' }],
       splitModelCapacity: true,
       batteryAsPercent: true,
       priceCurrency: 'USD' as const,
     }];
 
-    await expect(applyImportPlan(mockUser, 'inventory', sheets, plan, true)).resolves.toEqual(analysis);
+    await expect(applyImportPlan(mockUser, 'inventory', sheets, plan, refreshMapping)).resolves.toEqual(analysis);
     expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/import/apply', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ section: 'inventory', sheets, plan, refreshMapping: true }),
+      body: JSON.stringify({ section: 'inventory', sheets, plan, refreshMapping }),
     }), 45_000);
   });
 });
