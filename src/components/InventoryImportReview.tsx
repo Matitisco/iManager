@@ -3,7 +3,7 @@ import { GripVertical, Plus } from 'lucide-react';
 import { DeskSelect } from '../desk/select';
 import { Field, Segs } from '../desk/ui';
 import { ReplayValue } from '../desk/replay-privacy';
-import { columnHasData, columnLetter, importColumns, assignImportColumn, reorderPreviewColumns, resizePreviewColumn } from '../lib/import-preview';
+import { columnLetter, importColumns, assignImportColumn, reorderPreviewColumns, resizePreviewColumn } from '../lib/import-preview';
 import { updatePlanMapping } from '../lib/import-mapping';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
@@ -41,9 +41,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const mapping = importColumns(active, grid);
   const all = [...definitions, ...drafts];
   const catalog = fields.some(field => field.key === 'currency') ? fields : [...fields, { key: 'currency', label: 'Moneda', required: false }];
-  const pending = mapping.filter(column => column.field === 'ignore' && columnHasData(active, grid, column.columnIndex));
   const defaultCurrency = active.priceCurrency || currency;
-  const pendingLabel = pending.length ? `${pending.length} por revisar` : 'Todo asignado';
   const missingModel = !mapping.some(column => column.field === 'model');
   const [panelOpen, setPanelOpen] = useState(false);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -63,6 +61,10 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const suppressClick = useRef(false);
   const [gestureKey, setGestureKey] = useState<string | null>(null);
   const scope = `${active.name}:${active.headerRow}`;
+  const [discardedColumns, setDiscardedColumns] = useState<Record<string, number[]>>({});
+  const unassigned = new Set(mapping.filter(column => column.field === 'ignore' && !discardedColumns[scope]?.includes(column.columnIndex)).map(column => column.columnIndex));
+  const pending = mapping.filter(column => unassigned.has(column.columnIndex));
+  const pendingLabel = pending.length ? `${pending.length} por revisar` : 'Todo asignado';
   for (const column of mapping) {
     const id = `${scope}:${column.columnIndex}`;
     if (!suggestions.current.has(id)) suggestions.current.set(id, column.field);
@@ -140,6 +142,9 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   };
 
   const assign = (index: number, field: string) => {
+    setDiscardedColumns(current => ({ ...current, [scope]: field === 'ignore'
+      ? [...new Set([...(current[scope] ?? []), index])]
+      : (current[scope] ?? []).filter(column => column !== index) }));
     const next = assignImportColumn(active, grid, index, field);
     const required = fields.filter(item => item.required).map(item => item.key);
     onChange(plan.map(sheet => sheet.name === active.name ? updatePlanMapping(active, next.mapping, required) : sheet), false);
@@ -250,12 +255,12 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <thead><tr>{columns.map(column => <th key={column.key} data-preview-key={column.key} scope="col"
               onPointerDown={event => { if (event.pointerType !== 'touch' && !column.unused) begin(event, column.key, 'reorder'); }}
               onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } selectColumn(column.key, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? 'imp-unused ' : ''}${highlight === column.key ? 'imp-selected ' : ''}${column.key === 'model' && missingModel ? 'imp-required ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } selectColumn(column.key, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlight === column.key ? 'imp-selected ' : ''}${column.key === 'model' && missingModel ? 'imp-required ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
               <div className="imp-column-heading">
                 <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || column.unused || undefined}
                   onPointerDown={event => { if (!column.unused) begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
                   onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); if (!column.unused) reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={18} aria-hidden="true" /></button>
-                <button type="button" className="imp-heading-label" aria-label={column.unused ? `Sin usar · ${column.label} · Excel ${columnLetter(column.source!)}` : undefined}><b><ReplayValue>{column.label}</ReplayValue></b><small>{column.key === 'model' && missingModel ? 'Falta Modelo' : column.unused ? 'Sin usar' : column.source !== undefined ? `Excel · ${columnLetter(column.source)}` : column.key === 'currency' ? `${defaultCurrency} por defecto` : 'sin columna'}</small></button>
+                <button type="button" className="imp-heading-label" aria-label={column.unused ? `Sin usar · ${column.label} · Excel ${columnLetter(column.source!)}` : undefined}><b><ReplayValue>{column.label}</ReplayValue></b><small>{column.key === 'model' && missingModel ? 'Falta Modelo' : column.unused ? unassigned.has(column.source!) ? 'Sin asignar' : 'Sin usar' : column.source !== undefined ? `Excel · ${columnLetter(column.source)}` : column.key === 'currency' ? `${defaultCurrency} por defecto` : 'sin columna'}</small></button>
               </div>
               <span className="imp-resize" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={column.unused ? `Ancho de columna sin usar ${columnLetter(column.source!)}: ${column.label}` : `Ancho de ${column.label}`} aria-valuemin={100} aria-valuemax={480} aria-valuenow={widthFor(column.key)}
                 onClick={event => event.stopPropagation()} onPointerDown={event => begin(event, column.key, 'resize')} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
@@ -264,7 +269,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
               {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2}>
-                {columns.map(column => <td key={column.key} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? 'imp-unused ' : ''}${highlight === column.key ? 'imp-selected' : ''}`} onClick={() => selectColumn(column.key, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
+                {columns.map(column => <td key={column.key} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlight === column.key ? 'imp-selected' : ''}`} onClick={() => selectColumn(column.key, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>
@@ -274,15 +279,15 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
         <div className="imp-table-notices">{children}</div>
       </div>
       <aside ref={panel} id="import-column-panel" className={`imp-panel${panelOpen ? ' imp-panel-open' : ''}`} aria-label="Excel → campo">
-        <div className="imp-panel-heading"><h4>Excel → campo</h4><span className={`spill ${pending.length ? 'lime' : 'ok'}`} role="status">{pendingLabel}</span>{missingModel && <b className="imp-model-warning">Falta Modelo</b>}</div>
+        <div className="imp-panel-heading"><h4>Excel → campo</h4><span className={`spill ${pending.length ? 'lime' : 'ok'}`} role="status">{pendingLabel}</span>{unassigned.size > 0 && <span className="spill no">Sin asignar</span>}{missingModel && <b className="imp-model-warning">Falta Modelo</b>}</div>
         <div className="imp-panel-rows">{mapping.map(column => {
           const key = column.field === 'ignore' ? `unused:${column.columnIndex}` : column.field;
           const suggested = suggestions.current.get(`${scope}:${column.columnIndex}`);
-          return <article key={column.columnIndex} tabIndex={-1} data-column-index={column.columnIndex} aria-label={`Columna ${column.header}`} className={`imp-panel-row${pending.includes(column) ? ' imp-pending' : ''}${highlight === key || highlightSource === column.columnIndex ? ' imp-selected' : ''}`}
+          return <article key={column.columnIndex} tabIndex={-1} data-column-index={column.columnIndex} aria-label={`Columna ${column.header}`} className={`imp-panel-row${unassigned.has(column.columnIndex) ? ' imp-unassigned' : ''}${highlight === key || highlightSource === column.columnIndex ? ' imp-selected' : ''}`}
             onClick={event => { if (!(event.target as HTMLElement).closest('.ds-select, .imp-new-inline')) selectColumn(key, false); }} onFocus={event => { if (event.target !== event.currentTarget) selectColumn(key, false); }}>
             <span className="imp-letter">{columnLetter(column.columnIndex)}</span>
             <div className="imp-source-name"><b title={column.header}><ReplayValue>{column.header}</ReplayValue></b><small><ReplayValue>{examples.map(row => row[column.columnIndex]?.trim() || '—').join(' · ')}</ReplayValue></small></div>
-            <DeskSelect label={`Importar ${column.header} como`} data-testid={`import-column-${column.columnIndex}`} value={column.field} disabled={disabled}
+            <DeskSelect label={`Importar ${column.header} como`} data-testid={`import-column-${column.columnIndex}`} value={column.field} displayValue={unassigned.has(column.columnIndex) ? 'Sin asignar' : undefined} disabled={disabled}
               onChange={value => {
                 if (value === '__new') { setCreating(column.columnIndex); setName(''); setType('text'); setError(''); }
                 else assign(column.columnIndex, value);
