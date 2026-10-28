@@ -59,14 +59,11 @@
 }
 .import-actions > .btn2:only-child { width: 100%; }
 
-.imp-header-settings { margin-bottom: 14px; color: var(--secondary); font-size: 12px; }
-.imp-header-settings summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; }
-.imp-header-settings summary::-webkit-details-marker { display: none; }
-.imp-header-settings summary::before { content: '›'; font-size: 18px; }
-.imp-header-settings[open] summary::before { transform: rotate(90deg); }
-.imp-header-settings summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-.imp-header-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.imp-header-row { display: flex; align-items: center; gap: 8px; }
+.imp-header-settings { position: relative; flex: none; color: var(--secondary); font-size: 12px; }
+.imp-header-trigger { min-height: 36px; white-space: nowrap; }
+.imp-header-popover { position: absolute; top: 100%; right: 0; z-index: 10; width: min(340px, calc(100vw - 48px)); padding: 14px; display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
+.imp-header-mode { display: flex; flex-wrap: wrap; gap: 8px; }
+.imp-header-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .imp-header-row input { width: 68px; min-height: 48px; padding: 8px; border: 1px solid var(--border); border-radius: 14px; background: var(--row); color: var(--primary); font: inherit; font-size: 16px; }
 
 /* Variant C reuses the desk Sheet, table, fields, select and status tokens. */
@@ -77,7 +74,7 @@
 .imp-review-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-bottom: 12px; flex: none; }
 .imp-detected { margin: 0; font-size: 18px; font-weight: 800; }
 .imp-discard-trigger { min-height: 36px; white-space: nowrap; }
-.imp-review-notices { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; font-size: 12px; }
+.imp-review-notices { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0 8px; min-width: 0; font-size: 12px; }
 .imp-review-notices > span:not(:first-child)::before { content: '·'; margin-right: 8px; }
 .imp-review-notices > span { color: var(--secondary); line-height: 24px; }
 .imp-review-notices > span .wlink { color: var(--primary); }
@@ -90,12 +87,12 @@
 .imp-discard-groups p { margin: 8px 0 0; color: var(--secondary); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .imp-discard-sheet .sheet-scroll > .wlink { min-height: 44px; margin-top: 12px; }
 .imp-discard-sheet > .sheet-foot > .btn2 { width: 100%; }
-.imp-sources { display: grid; gap: 8px; flex: none; max-height: 120px; overflow: auto; }
-.imp-source-row { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-width: 0; min-height: 46px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; }
+.imp-sources { display: flex; gap: 8px; flex: none; overflow-x: auto; margin-bottom: 12px; }
+.imp-source-row { display: flex; flex: none; align-items: center; gap: 8px; padding: 0 10px; min-height: 38px; border: 1px solid var(--border); border-radius: 12px; font-size: 13px; white-space: nowrap; }
+.imp-source-row:has(button[aria-pressed="true"]) { background: var(--row); }
 .imp-source-row input { accent-color: var(--primary); width: 18px; height: 18px; flex: none; }
-.imp-source-row button { min-width: 0; min-height: 36px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: 700; }
+.imp-source-row button { min-width: 0; max-width: 200px; min-height: 36px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: 700; }
 .imp-source-row span { color: var(--secondary); }
-.imp-header-settings { flex: none; }
 .imp-review-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; flex: 1; min-height: 0; }
 .imp-table-area { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .imp-table-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -173,7 +170,8 @@
   .imp-table-scroll { order: 3; width: 100%; }
   .imp-table-notices, .imp-review-layout > .imp-table-area > .wempty { order: 4; width: 100%; }
   .imp-panel-row .ds-select-trigger, .imp-new-inline input { font-size: 16px; }
-  .imp-source-row { flex-wrap: wrap; }
+  .imp-review-notices { position: relative; width: 100%; justify-content: flex-start; }
+  .imp-header-settings { position: static; }
   .imp-source-row span { font-size: 12px; }
   .imp-review-sheet .import-actions .btn2 { white-space: normal; }
 }

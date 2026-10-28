@@ -5,6 +5,8 @@ import userEvent from '@testing-library/user-event';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { ImportModal } from './ImportModal';
+import { InventoryImportReview } from './InventoryImportReview';
+import { Sheet } from '../desk/ui';
 import type { ImportAnalysis } from '../services/import-api';
 
 const css = ['src/desk/desk.css', 'src/components/ImportModal.css'].map(file => readFileSync(file, 'utf8').replace(/^@import[^\n]*\n/, '')).join('\n');
@@ -56,6 +58,7 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     expect(trigger.closest('.imp-table-notices')).toBeNull();
     expect(screen.queryByText('Sin modelo')).not.toBeInTheDocument();
     expect(screen.getByTestId('import-summary').querySelector('.import-guidance, .import-imei-warning')).toBeNull();
+    expect(screen.queryByTestId('import-sheet-summary')).not.toBeInTheDocument();
     if (warnings) {
       expect(screen.getByTestId('import-price-notice').parentElement).toBe(trigger.parentElement);
       expect(screen.getByTestId('import-imei-warning').parentElement).toBe(trigger.parentElement);
@@ -92,7 +95,7 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
       await page.locator('.imp-panel-rows').evaluate(node => { node.scrollTop = 300; });
       expect((await page.locator('.imp-panel-heading').boundingBox())!.y).toBeCloseTo(headingTop, 0);
     }
-    expect(geometry.height).toBeGreaterThan(width === 390 ? (warnings ? 280 : 300) : 400);
+    expect(geometry.height).toBeGreaterThan(width === 390 ? (warnings ? 340 : 380) : 500);
     expect(geometry.vertical).toBe(true);
     expect(geometry.horizontal).toBe(true);
     expect(geometry.footTop - geometry.tableBottom).toBeLessThanOrEqual(25);
@@ -103,6 +106,16 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     await table.evaluate(node => { node.scrollTop = 0; node.scrollLeft = 0; });
     if (width === 1440) await page.locator('.imp-panel-rows').evaluate((node, hasWarnings) => { node.scrollTop = hasWarnings ? node.scrollHeight : 0; }, warnings);
     await capture(page, `importador-${width}${warnings ? '-avisos' : ''}`);
+    if (!warnings) {
+      await userEvent.click(screen.getByRole('button', { name: 'Encabezado: fila 1 · Cambiar' }));
+      await mount(page);
+      const popover = (await page.getByRole('group', { name: 'Encabezado del archivo' }).boundingBox())!;
+      expect(popover.x).toBeGreaterThanOrEqual(0);
+      expect(popover.x + popover.width).toBeLessThanOrEqual(width);
+      expect(popover.y + popover.height).toBeLessThan(geometry.footTop);
+      await capture(page, `encabezado-${width}`);
+      await userEvent.keyboard('{Escape}');
+    }
     if (width === 390) {
       await userEvent.click(screen.getByRole('button', { name: /Columnas \(/ }));
     }
@@ -130,3 +143,27 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     expect(onImport).toHaveBeenCalledWith(value.rows);
   } finally { media.mockRestore(); await page.close(); }
 }, 20000);
+
+it.each([1440, 390])('muestra varias hojas en una línea de chips a %i px', async width => {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: width === 390, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  const value = fixture();
+  const names = ['Stock de equipos', 'Usados en depósito', 'Equipos nuevos con nombre de hoja largo'];
+  const plan = names.map(name => ({ ...value.plan[0], name }));
+  const sheets = names.map(name => ({ name, rows: [fields.map(field => field.label), ...value.rows.map(row => fields.map(field => row[field.key]))] }));
+  const rows = names.flatMap(name => value.rows.map(row => ({ ...row, _sourceSheet: name })));
+  const summary = { sheetCount: names.length, rowCount: rows.length, sheets: names.map(name => ({ name, included: true, rows: value.rows.length, condition: '' as const })) };
+  render(<div className="desk-app"><Sheet title="Importar equipos" className="inv-import imp-review-sheet" onClose={vi.fn()} footer={<button className="btn2 p">Importar 300 equipos</button>}>
+    <div className="inv-import-body"><InventoryImportReview active={plan[0]} plan={plan} sheets={sheets} rows={rows} summary={summary} fields={fields} definitions={[]} drafts={[]} currency="USD" missing={[]} applying={false} disabled={false} focusedField={null} onSheet={vi.fn()} onChange={vi.fn()} onDraft={vi.fn()} /></div>
+  </Sheet></div>);
+  const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 }, deviceScaleFactor: width === 390 ? 2 : 1 });
+  try {
+    await mount(page);
+    const chips = await page.getByTestId('import-sheet-summary').evaluateAll(nodes => nodes.map(node => ({ top: node.getBoundingClientRect().top, height: node.getBoundingClientRect().height })));
+    expect(new Set(chips.map(chip => chip.top)).size).toBe(1);
+    expect(chips.every(chip => chip.height <= 40)).toBe(true);
+    const strip = page.getByRole('group', { name: 'Hojas a importar' });
+    if (width === 390) expect(await strip.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
+    expect(await page.locator('.sheet-scroll').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+    await capture(page, `varias-hojas-${width}`);
+  } finally { await page.close(); }
+});
