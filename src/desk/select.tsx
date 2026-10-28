@@ -9,6 +9,8 @@ export interface SelectOption {
   value: string;
   label: string;
   disabled?: boolean;
+  icon?: ReactNode;
+  className?: string;
 }
 
 interface Props {
@@ -212,9 +214,9 @@ export function DeskSelect({ className, triggerClassName, displayValue, id: supp
               {phone && <><div className="ds-select-grab" aria-hidden="true" /><div className="ds-select-heading"><h3>{sheetTitle}</h3><button ref={closeButton} type="button" aria-label="Cerrar selector" onClick={() => close()}><X size={20} /></button></div></>}
               <div ref={list} id={listId} role="listbox" aria-label={label} tabIndex={phone ? 0 : -1} aria-activedescendant={phone ? activeId : undefined} className="ds-select-list">
                 {options.map((option, index) => <div key={option.value} id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
-                  className={`ds-select-option${option.value === value ? ' selected' : ''}${index === activeIndex ? ' active' : ''}`}
+                  className={`ds-select-option${option.value === value ? ' selected' : ''}${index === activeIndex ? ' active' : ''}${option.className ? ` ${option.className}` : ''}`}
                   onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}>
-                  <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
+                  <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.icon && <span className="ds-select-option-icon" aria-hidden="true">{option.icon}</span>}{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
                 </div>)}
               </div>
             </motion.div>

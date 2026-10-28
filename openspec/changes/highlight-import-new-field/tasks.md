@@ -1,0 +1,3 @@
+- [x] Agregar decoración opcional a DeskSelect y aplicarla a Nuevo campo.
+- [x] Verificar pruebas relacionadas, TypeScript frontend/backend y build frontend.
+- [x] Revisar teclado y capturas a 1440/390; documentar la validación.
