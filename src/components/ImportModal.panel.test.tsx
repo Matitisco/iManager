@@ -413,3 +413,14 @@ it('conserva descartes por índice entre hojas con encabezados duplicados', asyn
   expect(first()).not.toHaveClass('imp-unassigned');
   expect(second()).toHaveClass('imp-unassigned');
 });
+
+it('marca columnas asignadas dudosas y limpia solo la duda corregida por el usuario', async () => {
+  const plan = sheetPlan();
+  plan.mapping[0].review = ['El contenido necesita revisión'];
+  const { onApply } = await setup({ plan: [plan] });
+  expect(card('Modelo').getByText('Por revisar')).toBeVisible();
+  expect(screen.getByRole('complementary')).toHaveTextContent('4 por revisar');
+  await choose('Modelo', /^Modelo/);
+  await waitFor(() => expect(onApply).toHaveBeenCalled());
+  expect(card('Modelo').queryByText('Por revisar')).not.toBeInTheDocument();
+});

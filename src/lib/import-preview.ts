@@ -11,7 +11,7 @@ export function importColumns(active: ImportSheetPlan, rows: string[][]) {
     const header = active.headerRow === 0 ? columnLetter(columnIndex) : rows[active.headerRow - 1]?.[columnIndex] || columnLetter(columnIndex);
     const column = active.mapping.find(item => item.columnIndex === columnIndex)
       ?? active.mapping.find(item => item.columnIndex === undefined && item.header === header);
-    return { header, columnIndex, field: column?.field || 'ignore' };
+    return { header, columnIndex, field: column?.field || 'ignore', review: column?.review };
   });
 }
 
@@ -37,6 +37,7 @@ export function resizePreviewColumn(width: number, delta: number): number {
 
 export function assignImportColumn(active: ImportSheetPlan, rows: string[][], index: number, field: string): ImportSheetPlan {
   return { ...active, mapping: importColumns(active, rows).map(column => ({ ...column,
+    review: column.columnIndex === index || column.field === field ? undefined : column.review,
     field: column.columnIndex === index ? field : field !== 'ignore' && column.field === field ? 'ignore' : column.field,
   })) };
 }

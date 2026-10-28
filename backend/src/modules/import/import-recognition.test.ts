@@ -7,7 +7,7 @@ const catalog = IMPORT_CATALOGS.inventory;
 afterEach(() => vi.unstubAllEnvs());
 const aliases: Record<string, string[]> = {
   model: ['Producto', 'Dispositivo', 'Descripción', 'Detalle', 'iPhone', 'Celular', 'Artículo', 'Device'],
-  imei: ['Serie', 'S/N', 'Serial'], capacity: ['Memoria', 'Storage', 'Cap.'],
+  imei: ['Serie', 'S/N', 'Serial'], capacity: ['Memoria', 'Storage', 'Cap.', 'Almac.'], price: ['P. Venta', 'u$s venta'],
   batteryHealth: ['Bat', 'Bat.', 'Battery', 'BH', 'Batt'],
   cost: ['Precio de compra', 'Compra', 'P. compra', 'Precio compra USD', 'Inversión'],
   status: ['Disponibilidad', 'Situación', 'Stock'], condition: ['Tipo', 'Nuevo/Usado', 'Estado físico'],
@@ -63,27 +63,20 @@ it.each(['=A1', '#REF!', '#N/A', '#VALUE!'])('rechaza el modelo %s como error de
   expect(result.rows).toEqual([]);
   expect(result.diagnostics?.rejected?.[0]).toMatchObject({ reason: 'missing_model', message: expect.stringContaining('error de Excel') });
 });
-it('diez respuestas distintas del respaldo no cambian campos críticos comprobados por contenido', async () => {
+it('consulta Decisions aun con heurística confiable y conserva una decisión válida distinta', async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-only');
   const sheets = [{ name: 'Stock', rows: [
-    ['Modelo', 'Otro modelo', 'Costo USD', 'Otro importe'],
-    ['iPhone 13', 'iPhone 14', '420', 'USD 900'],
+    ['Modelo', 'Otro modelo', 'Costo USD'], ['iPhone 13', 'iPhone 14', '420'],
   ] }];
-  let run = 0;
-  const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
-    if (String(url).includes('decisions')) return new Response('', { status: 500 });
-    run++;
-    const plan = heuristicPlan(sheets, 'inventory', 'ARS')[0];
-    plan.mapping = [{ header: 'Otro modelo', columnIndex: 1, field: 'model' }, { header: 'Otro importe', columnIndex: 3, field: run % 2 ? 'cost' : 'price' }];
-    plan.condition = run % 2 ? 'NUEVO' : 'USADO';
-    return Response.json({ output_text: JSON.stringify({ sheets: [plan] }) });
+  const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    return Response.json({ answers: body.questions.map((q: { name: string; type: string }) => ({ name: q.name, type: q.type,
+      ...(q.type === 'predicate' ? { probability: .99 } : { choice: q.name.endsWith('_hdr') ? '1' : q.name.endsWith('_c1') ? 'model' : q.name.endsWith('_c2') ? 'cost' : 'ignore', confidence: .99 }),
+    })) });
   });
-  const input = { section: 'inventory' as const, currency: 'ARS' as const, sheets };
-  const first = await analyzeImport(input, { fetchImpl });
-  for (let i = 0; i < 9; i++) expect(await analyzeImport(input, { fetchImpl })).toEqual(first);
-  expect(run).toBe(10);
-  expect(first.source).toBe('heuristic');
-  expect(first.rows[0]).toMatchObject({ model: 'iPhone 13', cost: '420', currency: 'USD' });
+  const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets }, { fetchImpl });
+  expect(fetchImpl).toHaveBeenCalledOnce(); expect(result.source).toBe('model');
+  expect(result.rows[0]).toMatchObject({ model: 'iPhone 14', cost: '420' });
 });
 it('reconoce una columna de enteros 60–100 como batería y conserva notas ante celdas vacías', async () => {
   vi.stubEnv('OPENAI_API_KEY', '');

@@ -1,0 +1,332 @@
+[
+ {
+  "file": "F01_english_headers",
+  "currency": "ARS",
+  "sheets": [
+   {
+    "name": "Inventory",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "1": "model",
+     "2": "capacity",
+     "3": "color",
+     "4": "batteryHealth",
+     "5": "imei",
+     "6": "condition",
+     "7": "supplierName",
+     "8": "price",
+     "9": "cost"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F02_sinonimos_rioplatense",
+  "currency": "ARS",
+  "sheets": [
+   {
+    "name": "Hoja1",
+    "headerRow": 1,
+    "rows": 28,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "color",
+     "3": "batteryHealth",
+     "4": "imei",
+     "5": "price",
+     "6": "cost",
+     "7": "status"
+    },
+    "alt": {
+     "8": [
+      "batteryNote"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "file": "F03_precios_ars_texto",
+  "currency": "ARS",
+  "sheets": [
+   {
+    "name": "Stock",
+    "headerRow": 1,
+    "rows": 32,
+    "mapping": {
+     "0": "price",
+     "1": "imei",
+     "2": "model",
+     "3": "color",
+     "4": "capacity",
+     "5": "cost",
+     "6": "supplierName"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F04_modelo_y_capacidad_juntos",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Lista",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "0": "model",
+     "1": "imei",
+     "2": "price",
+     "3": "color"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F05_encabezados_combinados",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Equipos",
+    "headerRow": 2,
+    "rows": 26,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "color",
+     "3": "imei",
+     "4": "cost",
+     "5": "price",
+     "6": "supplierName"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F06_varias_hojas",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "iPhone Nuevos",
+    "headerRow": 1,
+    "rows": 14,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "color",
+     "3": "imei",
+     "4": "price"
+    }
+   },
+   {
+    "name": "iPhone Usados",
+    "headerRow": 1,
+    "rows": 16,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "color",
+     "3": "imei",
+     "4": "price",
+     "5": "batteryHealth"
+    }
+   },
+   {
+    "name": "Config",
+    "include": false,
+    "headerRow": null,
+    "rows": 0,
+    "mapping": {}
+   }
+  ]
+ },
+ {
+  "file": "F07_desordenado_a_mano",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Stock octubre",
+    "headerRow": 6,
+    "rows": 24,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "color",
+     "3": "batteryHealth",
+     "4": "imei",
+     "5": "price",
+     "6": "supplierName"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F08_columnas_ajenas",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Stock",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "1": "model",
+     "2": "capacity",
+     "4": "imei",
+     "5": "color",
+     "8": "price"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F09_venta_costo_margen",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Precios",
+    "headerRow": 1,
+    "rows": 28,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "imei",
+     "3": "cost",
+     "4": "price",
+     "7": "condition"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F10_sin_encabezado",
+  "currency": "ARS",
+  "sheets": [
+   {
+    "name": "Hoja 1",
+    "headerRow": 0,
+    "rows": 30,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "imei",
+     "3": "color",
+     "4": "price"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F11_abreviaturas_mayusculas",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "STOCK",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "2": "batteryHealth",
+     "3": "imei",
+     "4": "price",
+     "5": "cost",
+     "6": "supplierName",
+     "8": "status"
+    },
+    "alt": {
+     "7": [
+      "batteryNote"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "file": "F12_marcas_mixtas_dos_imei",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Catalogo",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "0": "model",
+     "1": "capacity",
+     "3": "color",
+     "4": "price",
+     "5": "imei"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F13_condicion_grado_fecha",
+  "currency": "ARS",
+  "sheets": [
+   {
+    "name": "Stock",
+    "headerRow": 1,
+    "rows": 30,
+    "mapping": {
+     "0": "entryDate",
+     "1": "model",
+     "2": "capacity",
+     "3": "condition",
+     "4": "grade",
+     "5": "batteryHealth",
+     "6": "imei",
+     "7": "price"
+    }
+   }
+  ]
+ },
+ {
+  "file": "F14_nombres_raros_fila3",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "Compras",
+    "headerRow": 3,
+    "rows": 26,
+    "mapping": {
+     "1": "model",
+     "2": "imei",
+     "3": "capacity",
+     "4": "color",
+     "5": "batteryHealth",
+     "6": "price",
+     "7": "cost",
+     "8": "supplierName"
+    },
+    "alt": {
+     "9": [
+      "purchasedAt",
+      "entryDate"
+     ]
+    }
+   }
+  ]
+ },
+ {
+  "file": "F15_minusculas_us_texto",
+  "currency": "USD",
+  "sheets": [
+   {
+    "name": "lista",
+    "headerRow": 1,
+    "rows": 24,
+    "mapping": {
+     "1": "model",
+     "2": "capacity",
+     "3": "batteryHealth",
+     "4": "color",
+     "6": "imei",
+     "7": "price",
+     "8": "cost"
+    }
+   }
+  ]
+ }
+]

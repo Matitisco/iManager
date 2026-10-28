@@ -11,6 +11,10 @@ export function isPurchaseHeader(header: string): boolean {
   return /costo|cost|compra|comprado|purchase|buy|adquisicion|inversion/.test(normalizeHeader(header));
 }
 
+export function isIgnoredInventoryHeader(header: string): boolean {
+  return /^(obs|ubicacion|location|ganancia|margen|profit|porcentajeganancia)$/.test(normalizeHeader(header));
+}
+
 // Three passes: hints, exact key/label, then substring. A file column is used at most once.
 export function autoMap(
   headers: string[],
@@ -21,7 +25,7 @@ export function autoMap(
   const used = new Set<string>();
 
   const claim = (fieldKey: string, header: string) => {
-    if ((hints[normalizeHeader(header)] && hints[normalizeHeader(header)] !== fieldKey) || mapping[fieldKey] || used.has(header) || ((fieldKey === "price" || fieldKey === "amount") && isPurchaseHeader(header))) return false;
+    if ((fields.some(field => field.key === "batteryHealth") && isIgnoredInventoryHeader(header)) || (hints[normalizeHeader(header)] && hints[normalizeHeader(header)] !== fieldKey) || mapping[fieldKey] || used.has(header) || ((fieldKey === "price" || fieldKey === "amount") && isPurchaseHeader(header))) return false;
     mapping[fieldKey] = header;
     used.add(header);
     return true;

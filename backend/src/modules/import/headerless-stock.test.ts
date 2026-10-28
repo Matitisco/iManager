@@ -4,8 +4,16 @@ import { acceptModelPlan, analyzeImport, applyImportPlan } from './analyze-impor
 import { headerCandidates } from './decisions-plan.js';
 import { normalizeInventoryImportStatus } from './inventory-status.js';
 import { applyPlans, heuristicPlan, sheetHeaders, type ImportSheet } from './sheet-plan.js';
+import type { DecisionRequest } from './decisions-plan.js';
 import { DECISIONS_URL, RESPONSES_URL } from './responses-client.js';
 
+const stockFields = ['entryDate', 'supplierName', 'model', 'capacity', 'batteryHealth', 'imei', 'ignore', 'color', 'cost', 'batteryNote', 'status'];
+function stockDecisions(init: RequestInit | undefined, fields = stockFields) {
+  const body: DecisionRequest = JSON.parse(String(init?.body));
+  return Response.json({ answers: body.questions.map(q => ({ name: q.name,
+    ...(q.type === 'predicate' ? { probability: 1 } : { choice: q.name.endsWith('_hdr') ? '0' : fields[Number(/_c(\d+)/.exec(q.name)?.[1])] ?? 'ignore', confidence: 1 }),
+  })) });
+}
 const sheets = (): ImportSheet[] => [{ name: 'stock de equipos', rows: syntheticStockRows() }];
 const apply = (input: ImportSheet[]) => applyPlans(input, heuristicPlan(input, 'inventory', 'USD'), 'inventory', 'USD');
 afterEach(() => vi.unstubAllEnvs());
@@ -16,23 +24,16 @@ describe('stock sin encabezado', () => {
     const input = sheets();
     // Force the fallback path with an additional ambiguous model column.
     input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
-      if (String(url) === DECISIONS_URL) return new Response('', { status: 404 });
-      expect(String(url)).toBe(RESPONSES_URL);
-      return stockModelResponse(mistakenStockPlan(input[0].rows));
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe(DECISIONS_URL);
+      return stockDecisions(init);
     });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    const responsesCall = fetchImpl.mock.calls.filter(([url]) => String(url) === RESPONSES_URL);
-    expect(responsesCall).toHaveLength(1);
-    const request = JSON.parse(String(responsesCall[0][1]?.body));
-    expect(request.input[0].content).toContain('headerRow=0, dataStartRow=1');
-    expect(request.input[1].content).toContain('P=15');
-    expect(request.text.format.schema.properties.sheets.items.properties.mapping.items.required).toContain('columnIndex');
+    expect(fetchImpl).toHaveBeenCalledTimes(3); // Genuine bad cells remain explicit after two retries.
     expect(result.source).toBe('model');
-    expect(result.notice).toBeNull();
+    expect(result.notice).toContain('por revisar');
     expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60, batteryAsPercent: true });
-    expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toEqual({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
+    expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toMatchObject({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
     expect(result.plan[0].mapping[9].field).toBe('batteryNote');
     expect(result.rows).toHaveLength(59);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%' });
@@ -75,18 +76,17 @@ describe('stock sin encabezado', () => {
 
   it('mantiene el analizador Decisions para hojas sin encabezado y corrige sus campos en conflicto', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
-      expect(String(url)).toBe(DECISIONS_URL);
-      return Response.json({ answers: [
-        { name: 'h0_inc', probability: 1 },
-        ...['entryDate', 'supplierName', 'model', 'capacity', 'ignore', 'imei', 'ignore', 'color', 'cost', 'batteryHealth', 'status']
-          .map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
-      ] });
+    let attempt = 0;
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe(DECISIONS_URL); attempt++;
+      const fields = [...stockFields];
+      if (attempt === 1) { fields[4] = 'ignore'; fields[9] = 'batteryHealth'; }
+      return stockDecisions(init, fields);
     });
     const input = sheets();
     input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(result.source).toBe('model');
     expect(result.rows).toHaveLength(59);
     expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
@@ -250,19 +250,16 @@ describe('stock sin encabezado', () => {
 
 
 describe('calidad libre y rechazos compartidos', () => {
-  it.each(['responses', 'decisions', 'heuristic'])('repara calidad libre por %s sin perder fila física ni advertencias', async route => {
+  it.each(['decisions', 'heuristic'])('repara calidad libre por %s sin perder fila física ni advertencias', async route => {
     vi.stubEnv('OPENAI_API_KEY', route === 'heuristic' ? '' : 'sk-test');
     const input = [{ name: 'stock de equipos', rows: syntheticQualityStockRows() }];
     if (route !== 'heuristic') input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
     // Heuristics recognize an explicit quality header; headerless grade comes from the model.
     if (route === 'heuristic') input[0].rows.unshift(['Fecha ingreso', 'Proveedor', 'Modelo', 'Capacidad', 'Batería', 'IMEI', 'Calidad', 'Color', 'Costo', 'Reparaciones', 'Estado']);
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
-      if (String(url) === DECISIONS_URL) return route === 'decisions' ? Response.json({ answers: [
-        { name: 'h0_inc', probability: 1 },
-        ...['entryDate', 'supplierName', 'model', 'capacity', 'batteryHealth', 'imei', 'grade', 'color', 'cost', 'batteryNote', 'status']
-          .map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
-      ] }) : new Response('', { status: 404 });
-      return stockModelResponse(mistakenQualityStockPlan(input[0].rows));
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe(DECISIONS_URL);
+      const fields = [...stockFields]; fields[6] = 'grade';
+      return stockDecisions(init, fields);
     });
     const result = await analyzeImport({ section: 'inventory', sheets: input, currency: 'USD' }, { fetchImpl });
     const offset = route === 'heuristic' ? 1 : 0;
@@ -284,12 +281,14 @@ describe('calidad libre y rechazos compartidos', () => {
     expect(chosen.rows).toHaveLength(0);
   });
 
-  it.each([['A', 'B', 'AA'], ['A', 'AA', ''], ['A', 'B', 'C']])('mantiene grade si no hay mayoría inválida: %s', async (...grades) => {
+  it.each([['A', 'B', 'AA'], ['A', 'AA', ''], ['A', 'B', 'C']])('preserva toda la columna si alguna calidad es inválida: %s', async (...grades) => {
     vi.stubEnv('OPENAI_API_KEY', '');
     const result = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'Stock', rows: [
       ['Modelo', 'Calidad'], ...grades.map(grade => ['iPhone 13', grade]),
     ] }] });
-    expect(result.plan[0].mapping.some(column => column.field === 'grade')).toBe(true);
-    expect(result.suggestedDefinitions).toBeUndefined();
+    const valid = grades.every(grade => ['A', 'B', 'C', ''].includes(grade));
+    expect(result.plan[0].mapping.some(column => column.field === 'grade')).toBe(valid);
+    if (valid) expect(result.suggestedDefinitions).toBeUndefined();
+    else expect(result.suggestedDefinitions?.[0].key).toBe('calidad_origen');
   });
 });

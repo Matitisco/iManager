@@ -1,7 +1,7 @@
 import { imeiPassesLuhn } from "../../lib/imei.js";
 import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
-import { autoMap, isPurchaseHeader, normalizeHeader } from "./column-mapping.js";
+import { autoMap, isPurchaseHeader, normalizeHeader, isIgnoredInventoryHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
 import { isInventoryFooter, validateInventoryImportRow } from "../inventory/import-validation.js";
@@ -20,6 +20,7 @@ export type ColumnMapping = {
   /** Zero-based physical column; absent only in legacy plans. */
   columnIndex?: number;
   field: string;
+  review?: string[];
 };
 
 export type SheetPlan = {
@@ -127,6 +128,7 @@ export function priceCurrencyOf(header: string): "" | "ARS" | "USD" {
 function priceKind(header: string): PriceKind | null {
   const normalized = normalizeHeader(header);
   if (isPurchaseHeader(header)) return null;
+  if (/^(pventa|u\$sventa)$/.test(normalized)) return /u\$s/.test(normalized) ? "usd" : "generic";
   if (!/precio|price|valor|importe/.test(normalized) && !/^(venta|pvp)(usd|ars|us\$|\$)?$/.test(normalized) && !/^(\$|us\$|u\$s)$/.test(normalized)) return null;
   if (/usd|dolar|us\$/.test(normalized)) return "usd";
   if (/ars|peso/.test(normalized)) return "ars";
@@ -189,7 +191,7 @@ export function contentMapping(rows: string[][], existing?: ColumnMapping[]): Co
     let best = -1;
     let score = threshold;
     columns.forEach((values, index) => {
-      if (mapping[index].field || values.length === 0 || (existing && QUANTITY_HEADERS.has(normalizeHeader(mapping[index].header)))) return;
+      if (mapping[index].field || (existing && isIgnoredInventoryHeader(mapping[index].header)) || values.length === 0 || (existing && QUANTITY_HEADERS.has(normalizeHeader(mapping[index].header)))) return;
       const candidates = field === "batteryHealth" ? values.filter(value => !/^n\/?a$/i.test(value)) : values;
       if (!candidates.length) return;
       const ratio = candidates.filter(test).length / candidates.length;
@@ -228,7 +230,7 @@ export function contentMapping(rows: string[][], existing?: ColumnMapping[]): Co
       && !/^(?:[abc][abc+\-/]*|canje|nuevo|usado|pre[ -]?owned|sellado|seminuevo)$/i.test(value);
     const firstText = columns.findIndex((values, index) => !mapping[index].field && values.some(value => /\p{L}/u.test(value)));
     const candidate = columns.findIndex((values, index) => {
-      if (mapping[index].field || (index >= modelIndex && index !== firstText) || values.length < 3) return false;
+      if (mapping[index].field || (existing && isIgnoredInventoryHeader(mapping[index].header)) || (index >= modelIndex && index !== firstText) || values.length < 3) return false;
       const lengths = values.map(value => value.length).sort((a, b) => a - b);
       const middle = Math.floor(lengths.length / 2);
       const median = lengths.length % 2 ? lengths[middle] : (lengths[middle - 1] + lengths[middle]) / 2;

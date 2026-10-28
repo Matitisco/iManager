@@ -63,7 +63,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const scope = `${active.name}:${active.headerRow}`;
   const [discardedColumns, setDiscardedColumns] = useState<Record<string, number[]>>({});
   const unassigned = new Set(mapping.filter(column => column.field === 'ignore' && !discardedColumns[scope]?.includes(column.columnIndex)).map(column => column.columnIndex));
-  const pending = mapping.filter(column => unassigned.has(column.columnIndex));
+  const pending = mapping.filter(column => column.review?.length || unassigned.has(column.columnIndex));
   const pendingLabel = pending.length ? `${pending.length} por revisar` : 'Todo asignado';
   for (const column of mapping) {
     const id = `${scope}:${column.columnIndex}`;
@@ -286,7 +286,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
           return <article key={column.columnIndex} tabIndex={-1} data-column-index={column.columnIndex} aria-label={`Columna ${column.header}`} className={`imp-panel-row${unassigned.has(column.columnIndex) ? ' imp-unassigned' : ''}${highlight === key || highlightSource === column.columnIndex ? ' imp-selected' : ''}`}
             onClick={event => { if (!(event.target as HTMLElement).closest('.ds-select, .imp-new-inline')) selectColumn(key, false); }} onFocus={event => { if (event.target !== event.currentTarget) selectColumn(key, false); }}>
             <span className="imp-letter">{columnLetter(column.columnIndex)}</span>
-            <div className="imp-source-name"><b title={column.header}><ReplayValue>{column.header}</ReplayValue></b><small><ReplayValue>{examples.map(row => row[column.columnIndex]?.trim() || '—').join(' · ')}</ReplayValue></small></div>
+            <div className="imp-source-name">{Boolean(column.review?.length) && <small className="text-amber-900" title={column.review?.join(" ")}>Por revisar</small>}<b title={column.header}><ReplayValue>{column.header}</ReplayValue></b><small><ReplayValue>{examples.map(row => row[column.columnIndex]?.trim() || '—').join(' · ')}</ReplayValue></small></div>
             <DeskSelect label={`Importar ${column.header} como`} data-testid={`import-column-${column.columnIndex}`} value={column.field} displayValue={unassigned.has(column.columnIndex) ? 'Sin asignar' : undefined} disabled={disabled}
               onChange={value => {
                 if (value === '__new') { setCreating(column.columnIndex); setName(''); setType('text'); setError(''); }

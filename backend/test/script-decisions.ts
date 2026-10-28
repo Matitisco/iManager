@@ -22,17 +22,22 @@ export function scriptDecisionAnswers(body: DecisionBody): {
   return body.questions.map((question) => {
     const sheet = Number(/^h(\d+)_/.exec(question.name)?.[1] ?? 0);
     const sheetName = new RegExp(`\\[H${sheet}\\] Hoja «([^»]*)»`).exec(body.input)?.[1] ?? "";
+    const hint = /Pista falible H/.test(body.input) ? JSON.parse(new RegExp(`Pista falible H${sheet}: ([^\\n]+)`).exec(body.input)?.[1] ?? "null") : null;
     if (question.type === "predicate") {
-      const include = !/resumen|gr[aá]fico|proveedor/i.test(sheetName);
+      const include = !/resumen|gr[aá]fico|proveedor|gastos|alumnos/i.test(sheetName);
       return { name: question.name, type: "predicate", probability: include ? 0.96 : 0.04 };
     }
     if (question.name.endsWith("_hdr")) {
       const rows = (question.choices ?? []).map((choice) => Number(choice.value)).filter((row) => Number.isFinite(row));
-      const picked = rows.length > 0 ? Math.min(...rows) : 1;
+      const picked = hint?.headerRow ?? (rows.length > 0 ? Math.min(...rows) : 1);
       return { name: question.name, type: "choice", choice: String(picked), confidence: 0.95 };
     }
     const header = /«([^»]*)»/.exec(question.instructions)?.[1] ?? "";
-    return { name: question.name, type: "choice", choice: fieldForHeader(header, question.choices ?? []), confidence: 0.9 };
+    const guessed = fieldForHeader(header, question.choices ?? []);
+    const column = Number(/_c(\d+)/.exec(question.name)?.[1]);
+    const hinted = hint?.mapping.find((item: { columnIndex: number }) => item.columnIndex === column)?.field;
+    const choice = hint ? (/^(?:usado|nuevo|sellado)$/i.test(header) ? "condition" : hinted || guessed) : guessed;
+    return { name: question.name, type: "choice", choice, confidence: 0.9 };
   });
 }
 

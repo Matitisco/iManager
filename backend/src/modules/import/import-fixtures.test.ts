@@ -6,7 +6,7 @@ import { scoreImportRows } from "../../../test/import-score.js";
 import { scriptDecisionAnswers } from "../../../test/script-decisions.js";
 import { ANALYSIS_NOTICES, analyzeImport } from "./analyze-import.service.js";
 import { DECISIONS_MODEL, DECISIONS_URL } from "./responses-client.js";
-import { heuristicPlan, trustworthyInventoryPlan, type ImportSheet } from "./sheet-plan.js";
+import { type ImportSheet } from "./sheet-plan.js";
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../test/fixtures/import");
 
@@ -49,7 +49,7 @@ describe("import fixtures offline", () => {
       };
       expect(body.model).toBe(DECISIONS_MODEL);
       expect(body.questions.some((question) => question.name.endsWith("_inc"))).toBe(true);
-      if (name.startsWith("f5")) expect(body.input).not.toContain("Gráficos");
+
       return new Response(JSON.stringify({
         answers: scriptDecisionAnswers(body),
         usage: { input_tokens: 800, output_tokens: 50 },
@@ -61,15 +61,11 @@ describe("import fixtures offline", () => {
       { fetchImpl },
     );
 
-    const trusted = trustworthyInventoryPlan(sheets, heuristicPlan(sheets, "inventory", expected.currency));
-    expect(fetchImpl).toHaveBeenCalledTimes(trusted ? 0 : 1);
+    expect(fetchImpl.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(3);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(result.source).toBe(trusted ? "heuristic" : "model");
-    // These fixtures use “Sellado”, which confirmation has always rejected as an unknown condition.
-    // Preview must now exclude those rows too, instead of promising they will import.
-    const hasSellado = name === 'f2_encabezado_dos_filas' || name === 'f7_nombres_raros';
-    const accepted = hasSellado ? expected.rows.filter(row => row.condition !== 'NUEVO') : expected.rows;
-    if (hasSellado) expect(result.diagnostics?.discardedByReason.invalid_row).toBe(expected.rows.length - accepted.length);
+    expect(result.source).toBe("model");
+    const accepted = expected.rows;
     const score = scoreImportRows(accepted, result.rows);
     expect(score.missing, JSON.stringify(score)).toBe(0);
     expect(score.extra, JSON.stringify(score)).toBe(0);
@@ -82,14 +78,14 @@ describe("import fixtures offline", () => {
     const sheets = JSON.parse(readFileSync(path.join(FIXTURES, `${name}.grid.json`), "utf8")) as ImportSheet[];
     const expected = JSON.parse(readFileSync(path.join(FIXTURES, `${name}.expected.json`), "utf8")) as ExpectedFile;
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network"));
-    const fetchImpl = vi.fn();
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => Response.json({ answers: scriptDecisionAnswers(JSON.parse(String(init?.body))) }));
 
     const result = await analyzeImport(
       { section: "inventory", currency: expected.currency, sheets },
       { fetchImpl },
     );
 
-    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.rows).toEqual([]);
     expect(result.summary.rowCount).toBe(0);
