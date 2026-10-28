@@ -218,6 +218,30 @@ export function contentMapping(rows: string[][], existing?: ColumnMapping[]): Co
     return amount != null && amount >= 0 && amount < 10_000_000 && !value.includes("%")
       && (!existing || amountCellCurrency(value) === "USD");
   });
+  // Supplier inference comes last: recognized equipment columns and headers always win.
+  if (!mapping.some(column => column.field === "supplierName")) {
+    const modelIndex = mapping.findIndex(column => column.field === "model");
+    const isSupplierText = (value: string) => /\p{L}/u.test(value)
+      && !DATE_VALUE.test(value) && parseMoney(value) == null && !IMEI_VALUE.test(value)
+      && !CAPACITY_VALUE.test(value) && !isBatteryValue(value, true) && !MODEL_VALUE.test(value)
+      && !COLOR_VALUE.test(value) && !STATUS_VALUE.test(value)
+      && !/^(?:[abc][abc+\-/]*|canje|nuevo|usado|pre[ -]?owned|sellado|seminuevo)$/i.test(value);
+    const firstText = columns.findIndex((values, index) => !mapping[index].field && values.some(value => /\p{L}/u.test(value)));
+    const candidate = columns.findIndex((values, index) => {
+      if (mapping[index].field || (index >= modelIndex && index !== firstText) || values.length < 3) return false;
+      const lengths = values.map(value => value.length).sort((a, b) => a - b);
+      const middle = Math.floor(lengths.length / 2);
+      const median = lengths.length % 2 ? lengths[middle] : (lengths[middle - 1] + lengths[middle]) / 2;
+      if (median > 40 || values.filter(isSupplierText).length / values.length < 0.8) return false;
+      const counts = new Map<string, number>();
+      for (const value of values) {
+        const normalized = value.toLocaleLowerCase("es").replace(/\s+/g, " ");
+        counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+      }
+      return counts.size / values.length <= 0.7 || [...counts.values()].some(count => count >= 3);
+    });
+    if (candidate >= 0) mapping[candidate].field = "supplierName";
+  }
   return mapping;
 }
 

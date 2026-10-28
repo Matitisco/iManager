@@ -31,7 +31,7 @@ interface Props {
 }
 
 type PreviewColumn = { key: string; label: string; source?: number; unused?: boolean };
-const FIRST_FIELDS = ['model', 'capacity', 'color', 'condition', 'batteryHealth', 'price', 'currency'];
+const FIRST_FIELDS = ['model', 'capacity', 'color', 'batteryHealth', 'imei', 'cost', 'price'];
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 64;
 
@@ -59,6 +59,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const panelToggle = useRef<HTMLButtonElement>(null);
   const suggestions = useRef(new Map<string, string>());
   const gesture = useRef<{ key: string; kind: 'resize' | 'reorder'; x: number; width: number; target: number; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const [gestureKey, setGestureKey] = useState<string | null>(null);
   const scope = `${active.name}:${active.headerRow}`;
   for (const column of mapping) {
@@ -67,13 +68,14 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   }
 
   const destinations: PreviewColumn[] = [
-    ...[...catalog].sort((a, b) => {
-      const rank = (key: string) => FIRST_FIELDS.includes(key) ? FIRST_FIELDS.indexOf(key) : FIRST_FIELDS.length;
-      return rank(a.key) - rank(b.key);
-    }).map(field => ({ key: field.key, label: field.label, source: mapping.find(column => column.field === field.key)?.columnIndex })),
+    ...catalog.map(field => ({ key: field.key, label: field.label, source: mapping.find(column => column.field === field.key)?.columnIndex })),
     ...all.filter(field => plan.some(sheet => sheet.mapping.some(column => column.field === `custom:${field.key}`)))
       .map(field => ({ key: `custom:${field.key}`, label: field.label, source: mapping.find(column => column.field === `custom:${field.key}`)?.columnIndex })),
-  ];
+  ].sort((a, b) => {
+    const rank = (column: PreviewColumn) => FIRST_FIELDS.includes(column.key) ? FIRST_FIELDS.indexOf(column.key)
+      : column.source !== undefined ? FIRST_FIELDS.length : FIRST_FIELDS.length + 1;
+    return rank(a) - rank(b) || (a.source ?? Infinity) - (b.source ?? Infinity);
+  });
   const visual = orders[scope] ?? [];
   const ordered = [...destinations].sort((a, b) => {
     if (a.key === 'model') return -1;
@@ -160,16 +162,20 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   };
   const begin = (event: PointerEvent<HTMLElement>, key: string, kind: 'resize' | 'reorder') => {
     if (disabled || event.button > 0 || (kind === 'reorder' && key === 'model')) return;
+    suppressClick.current = false;
     event.preventDefault(); event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
     gesture.current = { key, kind, x: event.clientX, width: widthFor(key), target: order.indexOf(key), moved: false };
-    setGestureKey(key);
+    if (kind === 'resize') setGestureKey(key);
   };
   const move = (event: PointerEvent<HTMLElement>) => {
     const drag = gesture.current;
     if (!drag) return;
+    event.stopPropagation();
     const delta = event.clientX - drag.x;
     drag.moved ||= Math.abs(delta) > 4;
+    if (drag.kind === 'reorder' && !drag.moved) return;
+    setGestureKey(drag.key);
     if (drag.kind === 'resize') setWidths(current => ({ ...current, [`${scope}:${drag.key}`]: resizePreviewColumn(drag.width, delta) }));
     else {
       const scroller = table.current;
@@ -185,6 +191,9 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   };
   const finish = (event: PointerEvent<HTMLElement>) => {
     const drag = gesture.current;
+    if (!drag) return;
+    event.stopPropagation();
+    suppressClick.current = Boolean(drag && (drag.moved || drag.kind === 'resize'));
     if (drag?.kind === 'reorder' && drag.moved) reorder(drag.key, drag.target);
     gesture.current = null; setGestureKey(null);
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
@@ -234,15 +243,18 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
         <div ref={table} className="imp-table-scroll" data-testid="import-preview" role="region" tabIndex={0} aria-label="Equipos a importar" aria-busy={applying} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
           <table className="dtable compact imp-preview-table" aria-label="Vista previa de equipos" aria-rowcount={sheetRows.length + 1} style={{ width: columns.reduce((total, column) => total + widthFor(column.key), 0) }}>
             <colgroup>{columns.map(column => <col key={column.key} style={{ width: widthFor(column.key) }} />)}</colgroup>
-            <thead><tr>{columns.map(column => <th key={column.key} data-preview-key={column.key} scope="col" className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? 'imp-unused ' : ''}${highlight === column.key ? 'imp-selected ' : ''}${column.key === 'model' && missingModel ? 'imp-required ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
+            <thead><tr>{columns.map(column => <th key={column.key} data-preview-key={column.key} scope="col"
+              onPointerDown={event => { if (event.pointerType !== 'touch' && !column.unused) begin(event, column.key, 'reorder'); }}
+              onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } selectColumn(column.key, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? 'imp-unused ' : ''}${highlight === column.key ? 'imp-selected ' : ''}${column.key === 'model' && missingModel ? 'imp-required ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
               <div className="imp-column-heading">
-                <button type="button" className="imp-grip" aria-label={column.unused ? `Reordenar columna sin usar ${columnLetter(column.source!)}: ${column.label}` : `Reordenar ${column.label}`}  aria-disabled={column.key === 'model' || column.unused || undefined}
+                <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || column.unused || undefined}
                   onPointerDown={event => { if (!column.unused) begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-                  onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); if (!column.unused) reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={14} aria-hidden="true" /></button>
-                <button type="button" className="imp-heading-label" aria-label={column.unused ? `Sin usar · ${column.label} · Excel ${columnLetter(column.source!)}` : undefined} onClick={() => selectColumn(column.key, true)}><b><ReplayValue>{column.label}</ReplayValue></b><small>{column.key === 'model' && missingModel ? 'Falta Modelo' : column.unused ? 'Sin usar' : column.source !== undefined ? `Excel · ${columnLetter(column.source)}` : column.key === 'currency' ? `${defaultCurrency} por defecto` : 'sin columna'}</small></button>
+                  onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); if (!column.unused) reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={18} aria-hidden="true" /></button>
+                <button type="button" className="imp-heading-label" aria-label={column.unused ? `Sin usar · ${column.label} · Excel ${columnLetter(column.source!)}` : undefined}><b><ReplayValue>{column.label}</ReplayValue></b><small>{column.key === 'model' && missingModel ? 'Falta Modelo' : column.unused ? 'Sin usar' : column.source !== undefined ? `Excel · ${columnLetter(column.source)}` : column.key === 'currency' ? `${defaultCurrency} por defecto` : 'sin columna'}</small></button>
               </div>
               <span className="imp-resize" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={column.unused ? `Ancho de columna sin usar ${columnLetter(column.source!)}: ${column.label}` : `Ancho de ${column.label}`} aria-valuemin={100} aria-valuemax={480} aria-valuenow={widthFor(column.key)}
-                onPointerDown={event => begin(event, column.key, 'resize')} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
+                onClick={event => event.stopPropagation()} onPointerDown={event => begin(event, column.key, 'resize')} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
                 onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); setWidths(current => ({ ...current, [`${scope}:${column.key}`]: resizePreviewColumn(widthFor(column.key), event.key === 'ArrowLeft' ? -20 : 20) })); } }} />
             </th>)}</tr></thead>
             <tbody>

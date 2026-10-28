@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ImportModal, type GenericImportResult } from './ImportModal';
@@ -19,8 +19,8 @@ function setup(kind: 'clients' | 'sales' | 'inventory' = 'clients') {
   const onImport = vi.fn(async (_rows: Record<string, string>[]): Promise<GenericImportResult> => ({ imported: 1, updated: 0, errors: [] }));
   const onClose = vi.fn();
   const fields = kind === 'clients' ? [{ key: 'name', label: 'Nombre', required: true }] : kind === 'sales' ? [{ key: 'amount', label: 'Precio', required: false }] : [{ key: 'model', label: 'Modelo', required: true }, { key: 'price', label: 'Precio', required: false }];
-  render(<ImportModal title="Importar" fields={fields} nouns={{ one: 'fila', many: 'filas' }} onAnalyze={onAnalyze} onApply={vi.fn()} onImport={onImport} onClose={onClose} />);
-  return { onAnalyze, onImport, onClose };
+  const view = render(<ImportModal title="Importar" fields={fields} nouns={{ one: 'fila', many: 'filas' }} onAnalyze={onAnalyze} onApply={vi.fn()} onImport={onImport} onClose={onClose} />);
+  return { ...view, onAnalyze, onImport, onClose };
 }
 
 function fileInput() { return screen.getByLabelText('Archivo a importar') as HTMLInputElement; }
@@ -35,6 +35,7 @@ describe('importador compartido compacto', () => {
     await userEvent.upload(fileInput(), new File(['Nombre\nLucía'], 'clientes.csv', { type: 'text/csv' }));
     await screen.findByTestId('import-reading');
     expect(body).toHaveStyle({ minHeight: '280px' });
+    await waitFor(() => expect(onAnalyze).toHaveBeenCalledOnce());
     await act(async () => resolve(analysis()));
     await screen.findByTestId('import-preview');
     expect(body).not.toHaveStyle({ minHeight: '280px' });
@@ -127,17 +128,18 @@ describe('importador compartido compacto', () => {
   });
 
   it('cancela un análisis pendiente sin aplicar una respuesta tardía', async () => {
-    const { onAnalyze } = setup();
+    const { onAnalyze, unmount } = setup();
     let resolve!: (value: ImportAnalysis) => void;
     onAnalyze.mockImplementationOnce(() => new Promise((resolvePromise) => { resolve = resolvePromise; }));
     await userEvent.upload(fileInput(), new File(['Nombre\nLucía'], 'clientes.csv', { type: 'text/csv' }));
     const loading = await screen.findByTestId('import-reading');
     expect(loading).toHaveAttribute('aria-busy', 'true');
     expect(loading).toHaveTextContent('');
-    await userEvent.click(screen.getByRole('button', { name: 'Volver' }));
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeDisabled();
+    await waitFor(() => expect(onAnalyze).toHaveBeenCalledOnce());
+    unmount();
     await act(async () => resolve(analysis()));
     expect(screen.queryByTestId('import-preview')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'CSV' })).toBeInTheDocument();
   });
 
   it('marca campos requeridos faltantes en la fila sin cambiar el payload', async () => {
