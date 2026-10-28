@@ -14,6 +14,8 @@ describe('stock sin encabezado', () => {
   it('repara la respuesta de OpenAI de producción: detecta y acepta 60 filas, incluida la primera', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
     const input = sheets();
+    // Force the fallback path with an additional ambiguous model column.
+    input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
     const fetchImpl = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
       if (String(url) === DECISIONS_URL) return new Response('', { status: 404 });
       expect(String(url)).toBe(RESPONSES_URL);
@@ -32,15 +34,15 @@ describe('stock sin encabezado', () => {
     expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60, batteryAsPercent: true });
     expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toEqual({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
     expect(result.plan[0].mapping[9].field).toBe('batteryNote');
-    expect(result.rows).toHaveLength(60);
+    expect(result.rows).toHaveLength(59);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%' });
-    expect(result.rows[9].cost).toBe('');
+    expect(result.diagnostics?.rejected).toContainEqual({ row: 10, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') });
     expect(result.rows[0].entryDate).toBe(input[0].rows[0][0]);
     expect(result.rows[1].entryDate).toBe(input[0].rows[1][0]);
     expect(result.rows[1].batteryNote).toBe('BATERIA');
     expect(result.rows.every(row => row.purchasedAt === undefined)).toBe(true);
     expect(result.rows.every(row => !row.price && row.batteryHealth !== 'BATERIA')).toBe(true);
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' }).rows).toEqual(result.rows);
   });
 
@@ -66,7 +68,7 @@ describe('stock sin encabezado', () => {
     ];
     const accepted = acceptModelPlan(input, { sheets: [plan] }, 'inventory', 'USD')!;
     const result = applyPlans(input, accepted, 'inventory', 'USD');
-    expect(result.rows).toHaveLength(60);
+    expect(result.rows).toHaveLength(59);
     expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
     expect(result.rows[1]).not.toHaveProperty('purchasedAt');
   });
@@ -81,10 +83,12 @@ describe('stock sin encabezado', () => {
           .map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
       ] });
     });
-    const result = await analyzeImport({ sheets: sheets(), section: 'inventory', currency: 'USD' }, { fetchImpl });
+    const input = sheets();
+    input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
+    const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
     expect(fetchImpl).toHaveBeenCalledOnce();
     expect(result.source).toBe('model');
-    expect(result.rows).toHaveLength(60);
+    expect(result.rows).toHaveLength(59);
     expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
   });
 
@@ -101,7 +105,7 @@ describe('stock sin encabezado', () => {
     expect(result.rows.every(row => !row.batteryHealth)).toBe(true);
   });
 
-  it('conserva exactamente un plan correcto de OpenAI con encabezado real y sus decisiones', async () => {
+  it('prefiere el modelo comprobado por contenido cuando el respaldo contradice un campo crítico', async () => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
     const input = [{ name: 'Stock', rows: [
       ['Listado de equipos'], ['Modelo', 'Descripción', 'Precio', 'Costo', 'Salud'],
@@ -113,9 +117,9 @@ describe('stock sin encabezado', () => {
     const fetchImpl = vi.fn(async (url: RequestInfo | URL) => String(url) === RESPONSES_URL
       ? stockModelResponse({ sheets: [expected] }) : new Response('', { status: 500 }));
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(result.source).toBe('model');
-    expect(result.plan).toEqual([expected]);
-    expect(result.rows[0]).toMatchObject({ model: 'iPhone 14', price: '600', batteryHealth: '85%', condition: 'PRE-OWNED' });
+    expect(result.source).toBe('heuristic');
+    expect(result.plan[0].mapping.find(column => column.field === 'model')?.columnIndex).toBe(0);
+    expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', price: '600', batteryHealth: '85%' });
   });
 
   it('corrige solo batería de reparaciones cuando el encabezado sí es real', () => {
@@ -137,7 +141,7 @@ describe('stock sin encabezado', () => {
     input[0].rows.push(['', '', 'Samsung'], ['', '', 'MacBook']);
     const result = apply(input);
     expect(result.rows.slice(-2).map(row => row.model)).toEqual(['Samsung', 'MacBook']);
-    expect(result.diagnostics.discardedByReason).toEqual({});
+    expect(result.diagnostics.discardedByReason).toEqual({ invalid_price: 1 });
   });
 
   it('infiere A-P por contenido y conserva la fila 1 y todos los iPhone 13, sin OpenAI', async () => {
@@ -159,17 +163,17 @@ describe('stock sin encabezado', () => {
       { header: 'I', columnIndex: 8, field: 'cost' },
       { header: 'K', columnIndex: 10, field: 'status' },
     ]));
-    expect(result.rows).toHaveLength(60);
+    expect(result.rows).toHaveLength(59);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', capacity: '128GB', batteryHealth: '80%', imei: '990000000000000', cost: '300', status: 'DISPONIBLE' });
-    expect(result.rows.filter(row => row.model === 'iPhone 13')).toHaveLength(20);
+    expect(result.rows.filter(row => row.model === 'iPhone 13')).toHaveLength(19);
     for (const row of result.rows) {
       const i = Number(row.imei) - 990000000000000;
-      expect(row.cost).toBe(i === 9 ? '' : String(300 + i * 10));
+      expect(row.cost).toBe(String(300 + i * 10));
       expect(row.batteryHealth).toBe(i === 7 ? '' : `${80 + i % 20}%`);
       expect(row.status).toBe(['DISPONIBLE', 'VENDIDO', 'EN_REVISION', 'EN_REVISION'][i % 4]);
       expect(row.price).toBeUndefined();
     }
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
     expect(result.plan[0].mapping[9].field).toBe('batteryNote'); // BATERIA is a repair note, never health.
     expect(headerCandidates(input[0].rows)).toEqual([0]);
     const reapplied = applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' });
@@ -226,10 +230,10 @@ describe('stock sin encabezado', () => {
     expect(acceptModelPlan(input, { sheets: plan }, 'inventory', 'USD')).toEqual(plan);
   });
 
-  it.each(['abc', '123abc', '=I1', '-10'])('vacía costo no válido %s y conserva el equipo', cost => {
+  it.each(['abc', '123abc', '=I1', '-10'])('rechaza costo no válido %s con motivo claro', cost => {
     const result = apply([{ name: 'Stock', rows: [['Modelo', 'Costo'], ['iPhone 13', cost]] }]);
-    expect(result.rows).toEqual([expect.objectContaining({ model: 'iPhone 13', cost: '', _sourceRow: '2' })]);
-    expect(result.diagnostics.discardedByReason).toEqual({});
+    expect(result.rows).toEqual([]);
+    expect(result.diagnostics.rejected).toEqual([{ row: 2, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') }]);
   });
 
   it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC'])('normaliza %s al estado existente EN_REVISION', status => {
@@ -249,6 +253,7 @@ describe('calidad libre y rechazos compartidos', () => {
   it.each(['responses', 'decisions', 'heuristic'])('repara calidad libre por %s sin perder fila física ni advertencias', async route => {
     vi.stubEnv('OPENAI_API_KEY', route === 'heuristic' ? '' : 'sk-test');
     const input = [{ name: 'stock de equipos', rows: syntheticQualityStockRows() }];
+    if (route !== 'heuristic') input[0].rows.forEach(row => { row[15] = 'iPhone 16'; });
     // Heuristics recognize an explicit quality header; headerless grade comes from the model.
     if (route === 'heuristic') input[0].rows.unshift(['Fecha ingreso', 'Proveedor', 'Modelo', 'Capacidad', 'Batería', 'IMEI', 'Calidad', 'Color', 'Costo', 'Reparaciones', 'Estado']);
     const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
@@ -263,11 +268,11 @@ describe('calidad libre y rechazos compartidos', () => {
     const offset = route === 'heuristic' ? 1 : 0;
     expect(result.source).toBe(route === 'heuristic' ? 'heuristic' : 'model');
     expect(result.suggestedDefinitions).toEqual([{ entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0 }]);
-    expect(result.rows).toHaveLength(59);
+    expect(result.rows).toHaveLength(58);
     expect(result.rows[0]).toMatchObject({ 'custom:calidad_origen': 'A/A-', _sourceRow: String(1 + offset) });
     expect(result.rows.every(row => !row.grade)).toBe(true);
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedByReason: { duplicate: 1 },
-      rejected: [{ row: 59 + offset, reason: 'duplicate', message: `IMEI repetido en el archivo (igual a la fila ${38 + offset})` }],
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 58, discardedByReason: { invalid_price: 1, duplicate: 1 },
+      rejected: [{ row: 10 + offset, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') }, { row: 59 + offset, reason: 'duplicate', message: `IMEI repetido en el archivo (igual a la fila ${38 + offset})` }],
       warnings: expect.arrayContaining([{ row: 59 + offset, message: expect.stringContaining('sin batería') }]),
     });
     const manual = applyImportPlan({ section: 'inventory', sheets: input, currency: 'USD', plan: result.plan });

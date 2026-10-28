@@ -4,7 +4,7 @@ import { analyzeImport, applyImportPlan } from './analyze-import.service.js';
 import { DECISIONS_URL, RESPONSES_URL } from './responses-client.js';
 import { heuristicPlan } from './sheet-plan.js';
 
-const sheets = [{ name: 'Stock', rows: [['Modelo', 'Costo', 'Color'], ['iPhone 13', '420', 'Negro'], ['iPhone 12', '310', 'Blanco']] }];
+const sheets = [{ name: 'Stock', rows: [['Modelo', 'Costo', 'Color', 'Otra'], ['iPhone 13', '420', 'Negro', 'USD 900'], ['iPhone 12', '310', 'Blanco', 'USD 900']] }];
 const response = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -36,7 +36,7 @@ describe('analysis missing mapping fields', () => {
 
   it.each(['Precio de compra', 'Cost price', 'Purchase price'])('rejects a Decisions price assignment to %s', async (header) => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
-    const input = [{ name: 'Stock', rows: [['Modelo', header, 'Color'], ['iPhone 13', '420', 'Negro']] }];
+    const input = [{ name: 'Stock', rows: [['Modelo', header, 'Color', 'Otra'], ['iPhone 13', '420', 'Negro', 'USD 900']] }];
     const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
       const answers = scriptDecisionAnswers(body).map(answer => answer.name === 'h0_c1' ? { ...answer, choice: 'price' } : answer);
@@ -49,7 +49,7 @@ describe('analysis missing mapping fields', () => {
 
   it.each(['Costo', 'Precio de compra', 'Cost price', 'Purchase price'])('rejects a Responses price assignment to %s and recalculates missing fields', async (header) => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
-    const input = [{ name: 'Stock', rows: [['Modelo', header, 'Color'], ['iPhone 13', '420', 'Negro']] }];
+    const input = [{ name: 'Stock', rows: [['Modelo', header, 'Color', 'Otra'], ['iPhone 13', '420', 'Negro', 'USD 900']] }];
     const plan = heuristicPlan(input, 'inventory', 'USD')[0];
     plan.mapping = [{ header: 'Modelo', field: 'model' }, { header, field: 'price' }, { header: 'Color', field: 'color' }];
     const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -61,12 +61,12 @@ describe('analysis missing mapping fields', () => {
       return response({ output_text: JSON.stringify({ sheets: [{ ...plan, missingRequiredFields: [] }] }) });
     });
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
-    expect(result).toMatchObject({ source: 'model', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
+    expect(result).toMatchObject({ source: 'heuristic', missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'], diagnostics: { acceptedRows: 1, discardedRows: 0, discardedByReason: {} } });
   });
 
   it.each(['Venta', 'PVP', 'Precio USD', '$'])('accepts a mocked model price assignment from %s', async (header) => {
     vi.stubEnv('OPENAI_API_KEY', 'sk-test');
-    const input = [{ name: 'Stock', rows: [['Modelo', 'Costo', header], ['iPhone 13', '420', '500']] }];
+    const input = [{ name: 'Stock', rows: [['Modelo', 'Costo', header, 'Otra'], ['iPhone 13', '420', '500', 'USD 900']] }];
     const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       expect(url).toBe(DECISIONS_URL);
       const body = JSON.parse(String(init?.body));

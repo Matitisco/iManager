@@ -1,20 +1,14 @@
 import type { ImportField } from "./import-catalog.js";
 
 export function normalizeHeader(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[\s_\-.]/g, "")
-    .replace(/[áàäâã]/g, "a")
-    .replace(/[éèëê]/g, "e")
-    .replace(/[íìïî]/g, "i")
-    .replace(/[óòöôõ]/g, "o")
-    .replace(/[úùüû]/g, "u")
-    .replace(/ñ/g, "n");
+  return value.toLowerCase().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9$]/g, "");
 }
 
 /** Purchase amounts are never sale prices, including compound headers. */
 export function isPurchaseHeader(header: string): boolean {
-  return /costo|cost|compra|comprado|purchase|buy|adquisicion/.test(normalizeHeader(header));
+  return /costo|cost|compra|comprado|purchase|buy|adquisicion|inversion/.test(normalizeHeader(header));
 }
 
 // Three passes: hints, exact key/label, then substring. A file column is used at most once.
@@ -27,7 +21,7 @@ export function autoMap(
   const used = new Set<string>();
 
   const claim = (fieldKey: string, header: string) => {
-    if (mapping[fieldKey] || used.has(header) || ((fieldKey === "price" || fieldKey === "amount") && isPurchaseHeader(header))) return false;
+    if ((hints[normalizeHeader(header)] && hints[normalizeHeader(header)] !== fieldKey) || mapping[fieldKey] || used.has(header) || ((fieldKey === "price" || fieldKey === "amount") && isPurchaseHeader(header))) return false;
     mapping[fieldKey] = header;
     used.add(header);
     return true;

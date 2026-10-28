@@ -9,7 +9,7 @@ import { confirmTradeOperation, createOperation, updateSaleOperation } from './o
 import type { AppSession } from '../types/app-session';
 import type { Product } from '../types';
 
-vi.mock('./api-client', () => ({ apiRequest: vi.fn() }));
+vi.mock('./api-client', async importOriginal => ({ ...await importOriginal<typeof import('./api-client')>(), apiRequest: vi.fn() }));
 vi.mock('../lib/posthog-analytics', () => ({ capture: vi.fn(), deviceAdded: vi.fn(), identify: vi.fn(), observeInventory: vi.fn() }));
 const user = { uid: 'firebase-u', email: 'private@example.com', displayName: 'Private Owner', getIdToken: async () => 'secret' };
 const session = { user: { id: 'internal-u' }, store: { id: 'internal-s', name: 'Private Store' }, membership: { role: 'OWNER' } } as AppSession;
@@ -76,7 +76,7 @@ describe('successful PostHog business events', () => {
     await expect(createOperation(user, 'sales', { amount: 1234 })).rejects.toBe(error);
     await expect(createBackendInventoryItem(user, product)).rejects.toBe(error);
     expect(capture).not.toHaveBeenCalled(); expect(deviceAdded).not.toHaveBeenCalled(); expect(identify).not.toHaveBeenCalled();
-    await expect(importBackendRows(user, 'clients', [{ name: 'Private Customer' }])).rejects.toBe(error);
+    await expect(importBackendRows(user, 'clients', [{ name: 'Private Customer' }])).rejects.toThrow('Se perdió la conexión durante la importación. Revisá tu conexión y volvé a intentarlo.');
     expect(capture).toHaveBeenCalledExactlyOnceWith('excel_import_failed', { rows: 1 });
   });
 });

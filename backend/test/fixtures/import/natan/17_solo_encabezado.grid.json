@@ -1,0 +1,25 @@
+[
+  {
+    "name": "stock de equipos",
+    "rows": [
+      [
+        "Fecha",
+        "Origen",
+        "Modelo",
+        "Capacidad",
+        "Batería",
+        "IMEI",
+        "Calidad",
+        "Color",
+        "Costo USD",
+        "Reparación",
+        "Estado",
+        "Fecha venta",
+        "Accesorios",
+        "Cliente",
+        "DNI",
+        "Teléfono"
+      ]
+    ]
+  }
+]

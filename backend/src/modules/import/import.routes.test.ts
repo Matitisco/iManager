@@ -58,7 +58,7 @@ describe("importRoutes analyze", () => {
       const applied = await app.inject({ method: "POST", url: "/apply", payload: { ...payload, plan: analysis.plan } });
       expect(applied.statusCode).toBe(200);
       expect(applied.json().rows).toEqual(analysis.rows);
-      expect(applied.json().diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0 });
+      expect(applied.json().diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1 });
       const customField = `custom:${'c'.repeat(60)}`;
       analysis.plan[0].mapping[1].field = customField;
       const custom = await app.inject({ method: "POST", url: "/apply", payload: { ...payload, plan: analysis.plan } });
@@ -109,7 +109,7 @@ describe("importRoutes analyze", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       source: "heuristic",
-      notice: ANALYSIS_NOTICES.missingKey,
+      notice: null,
       currency: "ARS",
       summary: { sheetCount: 1, rowCount: 1 },
       rows: [{ name: "Ana", email: "ana@test.com" }],

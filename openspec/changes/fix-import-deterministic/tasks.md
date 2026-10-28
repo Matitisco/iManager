@@ -1,0 +1,5 @@
+- [x] Reconocimiento por encabezados y contenido, batería, determinismo y moneda.
+- [x] Validación compartida y mensajes claros por fila.
+- [x] Límites de archivos, lotes secuenciales y recuperación parcial.
+- [x] Grids, regresiones unitarias e integración con PostgreSQL de test.
+- [x] TypeScript y tests relacionados con máximo dos workers.

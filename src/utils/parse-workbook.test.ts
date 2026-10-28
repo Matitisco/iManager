@@ -135,20 +135,20 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     const fetchImpl = vi.fn(async (url: RequestInfo | URL) => String(url) === DECISIONS_URL
       ? new Response('', { status: 404 }) : stockModelResponse(mistakenStockPlan(grid)));
     const analysis = await analyzeImport(input, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledTimes(source === 'model' ? 2 : 0);
-    expect(analysis.source).toBe(source);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(analysis.source).toBe('heuristic');
     expect(analysis.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1 });
     expect(analysis.plan[0].mapping).toHaveLength(16);
-    expect(analysis.rows).toHaveLength(60);
+    expect(analysis.rows).toHaveLength(59);
     expect(analysis.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%', status: 'DISPONIBLE' });
     expect(analysis.rows[2]).toMatchObject({ status: 'EN_REVISION', originalStatus: 'SIN SERVICIO' });
     expect(analysis.rows[7].batteryHealth).toBe('');
     expect(analysis.diagnostics?.warnings).toEqual([{ row: 8, message: expect.stringContaining('sin batería') }]);
     expect(analysis.rows.every(row => !row.price)).toBe(true);
-    expect(analysis.rows[9].cost).toBe('');
+    expect(analysis.diagnostics?.rejected).toContainEqual({ row: 10, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') });
     expect(analysis.rows[1]).toMatchObject({ entryDate: grid[1][0], batteryNote: 'BATERIA' });
     expect(analysis.rows[1]).not.toHaveProperty('purchasedAt');
-    expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
+    expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ ...input, plan: analysis.plan }).rows).toEqual(analysis.rows);
   } finally {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -201,7 +201,7 @@ describe('regresiones sintéticas de la evaluación offline', () => {
             ...regressionFields.map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
           ] }),
       });
-      expect(analysis.source).toBe(fixture.via === 'heuristic' ? 'heuristic' : 'model');
+      expect(analysis.source).toBe('heuristic');
       expect(analysis.rows).toHaveLength(fixture.accepted);
       expect(analysis.diagnostics?.rejected ?? []).toEqual(fixture.rejected);
       expect(analysis.diagnostics?.discardedRows).toBe(fixture.rejected.length + (fixture.name === '11_totals_footer' ? 1 : 0));
@@ -237,5 +237,17 @@ describe('regresiones sintéticas de la evaluación offline', () => {
     for (const n of [2, 3, 4]) ws.getCell(`A${n}`).numFmt = '0.00E+00';
     const parsed = await parseWorkbook(new File([await wb.xlsx.writeBuffer() as ArrayBuffer], 'sintetico.xlsx'));
     expect(parsed.getSheet('Stock').map(row => row[0])).toEqual(['IMEI', '356789012340005', '3.56789e+14', '3567890123456789']);
+  });
+});
+
+// Commit the grids and reparse the anonymized sources so backend fixtures cannot drift.
+describe('fixtures anonimizados natan', () => {
+  const dir = path.resolve('backend/test/fixtures/import/natan');
+  const files = ['00_natan_anon', '01_hoja_extra', '02_encabezado_corrido', '03_columnas_vacias', '04_otro_orden_con_encabezado', '05_capacidades_mixtas', '06_bateria_mezclada', '07_minusculas_espacios', '08_imeis_raros', '09_celdas_raras', '10_blancos_y_total', '11_celdas_combinadas', '14_csv_puntoycoma', '15_encabezado_informal', '16_sin_columnas_venta', '17_solo_encabezado', '18_con_precio_venta'];
+  it.each(files)('%s coincide con su grid generado por parseWorkbook', async name => {
+    const file = `${name}.${name.startsWith('14_') ? 'csv' : 'xlsx'}`;
+    const workbook = await parseWorkbook(new File([readFileSync(path.join(dir, file))], file));
+    expect(workbook.sheetNames.map(name => ({ name, rows: workbook.getSheet(name) })))
+      .toEqual(JSON.parse(readFileSync(path.join(dir, `${name}.grid.json`), 'utf8')));
   });
 });
