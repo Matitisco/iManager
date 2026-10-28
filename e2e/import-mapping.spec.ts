@@ -26,7 +26,7 @@ const viewports = [
 
 for (const viewport of viewports) {
   test.describe(viewport.name, () => {
-    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+    test.use({ viewport: { width: viewport.width, height: viewport.height }, deviceScaleFactor: viewport.width === 390 ? 2 : 1 });
 
     test('importa el excel de ejemplo sin configurar columnas', async ({ page }, testInfo) => {
       test.setTimeout(120_000);
@@ -77,7 +77,7 @@ for (const viewport of viewports) {
       const preview = dialog.getByTestId('import-preview');
       await preview.scrollIntoViewIfNeeded();
       await expect(preview.getByTestId('import-preview-row').first()).toBeVisible();
-      await expect(dialog.locator('th[data-preview-key="currency"]')).toContainText('Moneda');
+      await expect(dialog.getByRole('complementary')).toHaveCount(0);
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
       await preview.evaluate((element) => { element.scrollTop = element.scrollHeight; });
       const previewTable = preview.getByRole('table');
@@ -85,21 +85,50 @@ for (const viewport of viewports) {
       await expect(preview.locator('[data-testid="import-preview-row"]').last()).toHaveAttribute('data-index', String(visibleCount - 1));
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-preview.png`) });
 
-      if (phone) await dialog.getByRole('button', { name: /Columnas \(/ }).click();
       const viewportWidth = page.viewportSize()!.width;
       const frame = await dialog.boundingBox();
       expect(frame!.x).toBeGreaterThanOrEqual(0);
       expect(frame!.x + frame!.width).toBeLessThanOrEqual(viewportWidth);
       await expect(dialog.getByTestId('import-confirm')).toBeInViewport();
-      const panel = dialog.getByRole('complementary', { name: 'Excel → campo' });
-      await expect(panel).toBeVisible();
-      await expect(panel.getByRole('combobox', { name: 'Importar Modelo como' })).toContainText('Modelo');
-      await expect(panel.getByRole('combobox', { name: 'Importar PRECIO ARS como' })).toContainText('Precio');
-      await expect(panel.getByRole('combobox', { name: 'Importar Batería como' })).toContainText('Batería');
-      await expect(dialog.getByTestId('import-adjust-open')).toHaveCount(0);
-      await expect(dialog.getByRole('navigation', { name: 'Pasos de ajuste de importación' })).toHaveCount(0);
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-columnas.png`) });
-      if (phone) await dialog.getByRole('button', { name: /Columnas \(/ }).click();
+      await expect(dialog.getByRole('button', { name: 'Importar Modelo como' })).toContainText('Modelo');
+      await expect(dialog.getByRole('button', { name: 'Importar PRECIO ARS como' })).toContainText('Precio');
+      await expect(dialog.getByRole('button', { name: 'Importar Batería como' })).toContainText('Batería');
+      const pending = dialog.getByRole('button', { name: /\d+ por revisar/ });
+      if (await pending.count()) {
+        const before = await preview.evaluate(element => element.scrollTop);
+        await pending.click();
+        await expect(dialog.locator('th.imp-unassigned .imp-heading-label').first()).toBeFocused();
+        expect(await preview.evaluate(element => element.scrollTop)).toBe(before);
+      }
+      const batteryGrip = dialog.getByRole('button', { name: 'Arrastrar para reordenar · Batería' });
+      await batteryGrip.focus();
+      await page.keyboard.press('ArrowRight');
+      await expect(preview.locator('th').nth(2)).toHaveAttribute('data-column-index', '1');
+      await page.keyboard.press('ArrowLeft');
+      await expect(preview.locator('th').nth(1)).toHaveAttribute('data-column-index', '1');
+      await preview.evaluate(element => { element.scrollTop = 0; });
+      await dialog.getByRole('button', { name: 'Importar Modelo como' }).click();
+      const selector = page.getByRole('dialog', { name: /^Importar A · Modelo como/ });
+      await expect(selector.getByRole('textbox', { name: 'Buscar campo' })).toBeFocused();
+      await selector.getByRole('textbox', { name: 'Buscar campo' }).fill('pre');
+      await expect(selector.getByRole('button', { name: /^Precio/ })).toContainText('Precio');
+      await expect(selector.getByRole('button', { name: /^Modelo/ })).toHaveCount(0);
+      await expect(selector.getByRole('button', { name: 'Nuevo campo…' })).toBeVisible();
+      await expect(selector.getByRole('button', { name: 'Descartar' })).toBeVisible();
+      const popup = await selector.boundingBox();
+      expect(popup!.x).toBeGreaterThanOrEqual(0);
+      expect(popup!.x + popup!.width).toBeLessThanOrEqual(viewportWidth);
+      expect(popup!.y + popup!.height).toBeLessThanOrEqual(viewport.height);
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-selector.png`) });
+      await page.keyboard.press('Escape');
+      await expect(dialog.getByRole('button', { name: 'Importar Modelo como' })).toBeFocused();
+      await dialog.getByRole('button', { name: 'Importar PRECIO ARS como' }).click();
+      const priceSelector = page.getByRole('dialog', { name: / · PRECIO ARS como$/ });
+      const applyResponse = page.waitForResponse(response => response.url().includes('/api/import/apply') && response.ok());
+      await priceSelector.getByRole('button', { name: 'Precio', exact: true }).click();
+      await applyResponse;
+      await expect(dialog.getByTestId('import-confirm')).toBeEnabled();
+      await expect(dialog.getByTestId('import-confirm')).toBeInViewport();
 
       const importResponse = page.waitForResponse(
         (response) => response.url().includes('/api/inventory/import') && response.request().method() === 'POST',

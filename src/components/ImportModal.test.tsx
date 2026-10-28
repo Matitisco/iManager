@@ -87,11 +87,11 @@ describe('previsualización de importación', () => {
     expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(80);
   });
 
-  it('en el celular conserva la tabla horizontal y el panel colapsable', async () => {
+  it('en el celular conserva la tabla horizontal y el selector desde el encabezado', async () => {
     await openPreview(40, true);
-    expect(screen.getByRole('button', { name: /Columnas \(/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
     expect(screen.getByText('Equipo 1')).toBeInTheDocument();
-    expect(screen.getAllByText('128 GB').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Importar Modelo como' })).toBeVisible();
     const preview = screen.getByTestId('import-preview');
     preview.scrollTop = 44 * 40;
     fireEvent.scroll(preview);
@@ -392,8 +392,8 @@ it('recorre un archivo CSV real, asigna Precio en vivo y confirma las filas prep
   try {
     await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['Modelo,Valor\niPhone 13,420\n'], 'stock-prueba.csv', { type: 'text/csv' }));
     await waitFor(() => expect(onAnalyze).toHaveBeenCalledWith([{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }]));
-    await userEvent.click(await screen.findByRole('combobox', { name: 'Importar Valor como' }));
-    await userEvent.click(screen.getByRole('option', { name: 'Precio' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Importar Valor como' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Precio' }));
     await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeEnabled());
     expect(request).toHaveBeenCalledWith('https://fixture.invalid/api/import/apply', expect.objectContaining({ method: 'POST', body: JSON.stringify({ section: 'inventory', sheets: [{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }], plan: result.plan, refreshMapping: false }) }), 45_000);
     await userEvent.click(screen.getByTestId('import-confirm'));
