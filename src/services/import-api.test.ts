@@ -276,3 +276,10 @@ describe('confirmación por lotes', () => {
     await expect(importBackendRows(mockUser, 'inventory', [{ model: 'iPhone 13', imei: '', price: null }])).rejects.toThrow('tardó demasiado');
   });
 });
+
+it('rechaza más de 5000 filas por hoja con nombre y mensaje claro antes de pedir analyze', async () => {
+  vi.mocked(fetchWithTimeout).mockClear();
+  await expect(analyzeImport(mockUser, 'inventory', [{ name: 'Stock', rows: Array.from({ length: 5001 }, () => ['iPhone 13']) }]))
+    .rejects.toThrow('El archivo tiene más de 5000 filas en la hoja Stock. Dividilo en partes.');
+  expect(fetchWithTimeout).not.toHaveBeenCalled();
+});

@@ -145,7 +145,9 @@ export async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
   const ext = file.name.split('.').pop()?.toLowerCase();
   if (ext === 'csv' || ext === 'xlsx') {
     const workbook = await (ext === 'csv' ? parseCsv(file) : parseXlsx(file));
-    const sheets = prepareImportSheets(workbook.sheetNames.map(name => ({ name, rows: workbook.getSheet(name) })));
+    // Parse first: the screen keeps its total-file limit, and the HTTP service
+    // enforces the API's per-sheet row limit with a sheet-specific message.
+    const sheets = prepareImportSheets(workbook.sheetNames.map(name => ({ name, rows: workbook.getSheet(name) })), { checkRowLimit: false });
     return { sheetNames: sheets.map(sheet => sheet.name), getSheet: name => sheets.find(sheet => sheet.name === name)?.rows ?? [] };
   }
   if (ext === 'xls') throw new Error('El formato .xls ya no es compatible. Exportá el archivo a .xlsx o .csv.');
