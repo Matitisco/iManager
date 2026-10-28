@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { GripVertical, Plus } from 'lucide-react';
-import { DeskSelect } from '../desk/select';
+import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { ImportColumnPicker } from './ImportColumnPicker';
 import { Field, Segs } from '../desk/ui';
 import { ReplayValue } from '../desk/replay-privacy';
 import { columnLetter, importColumns, assignImportColumn, reorderPreviewColumns, resizePreviewColumn } from '../lib/import-preview';
@@ -31,10 +31,9 @@ interface Props {
   children?: ReactNode;
 }
 
-type PreviewColumn = { key: string; label: string; source?: number; unused?: boolean };
-const FIRST_FIELDS = ['model', 'capacity', 'color', 'batteryHealth', 'imei', 'cost', 'price'];
+type PreviewColumn = { key: string; label: string; source: number; unused: boolean; pending: boolean; header: string };
 const ROW_HEIGHT = 44;
-const HEADER_HEIGHT = 64;
+const HEADER_HEIGHT = 76;
 
 function HeaderSettings({ active, rowCount, disabled, onChange }: {
   active: ImportSheetPlan;
@@ -86,9 +85,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const all = [...definitions, ...drafts];
   const catalog = fields.some(field => field.key === 'currency') ? fields : [...fields, { key: 'currency', label: 'Moneda', required: false }];
   const defaultCurrency = active.priceCurrency || currency;
-  const missingModel = !mapping.some(column => column.field === 'model');
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [highlight, setHighlight] = useState<string | null>(null);
+  const [picker, setPicker] = useState<{ source: number; anchor: HTMLElement; search: string } | null>(null);
   const [highlightSource, setHighlightSource] = useState<number | null>(null);
   const [creating, setCreating] = useState<number | null>(null);
   const [name, setName] = useState('');
@@ -98,9 +95,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [scrollTop, setScrollTop] = useState(0);
   const table = useRef<HTMLDivElement>(null);
-  const panel = useRef<HTMLElement>(null);
-  const panelToggle = useRef<HTMLButtonElement>(null);
-  const suggestions = useRef(new Map<string, string>());
+  const pendingCursor = useRef<number | null>(null);
   const gesture = useRef<{ key: string; kind: 'resize' | 'reorder'; x: number; width: number; target: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [gestureKey, setGestureKey] = useState<string | null>(null);
@@ -109,82 +104,47 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const unassigned = new Set(mapping.filter(column => column.field === 'ignore' && !discardedColumns[scope]?.includes(column.columnIndex)).map(column => column.columnIndex));
   const pending = mapping.filter(column => column.review?.length || unassigned.has(column.columnIndex));
   const pendingLabel = pending.length ? `${pending.length} por revisar` : 'Todo asignado';
-  for (const column of mapping) {
-    const id = `${scope}:${column.columnIndex}`;
-    if (!suggestions.current.has(id)) suggestions.current.set(id, column.field);
-  }
-
-  const destinations: PreviewColumn[] = [
-    ...catalog.map(field => ({ key: field.key, label: field.label, source: mapping.find(column => column.field === field.key)?.columnIndex })),
-    ...all.filter(field => plan.some(sheet => sheet.mapping.some(column => column.field === `custom:${field.key}`)))
-      .map(field => ({ key: `custom:${field.key}`, label: field.label, source: mapping.find(column => column.field === `custom:${field.key}`)?.columnIndex })),
-  ].sort((a, b) => {
-    const rank = (column: PreviewColumn) => FIRST_FIELDS.includes(column.key) ? FIRST_FIELDS.indexOf(column.key)
-      : column.source !== undefined ? FIRST_FIELDS.length : FIRST_FIELDS.length + 1;
-    return rank(a) - rank(b) || (a.source ?? Infinity) - (b.source ?? Infinity);
-  });
+  const destinations: PreviewColumn[] = mapping.map(column => ({
+    key: column.field === 'ignore' ? `unused:${column.columnIndex}` : column.field,
+    label: catalog.find(field => field.key === column.field)?.label ?? all.find(field => `custom:${field.key}` === column.field)?.label ?? column.header,
+    source: column.columnIndex, unused: column.field === 'ignore', pending: Boolean(column.review?.length), header: column.header,
+  }));
   const visual = orders[scope] ?? [];
-  const ordered = [...destinations].sort((a, b) => {
+  const columns = [...destinations].sort((a, b) => {
     if (a.key === 'model') return -1;
     if (b.key === 'model') return 1;
-    const rank = (key: string) => visual.includes(key) ? visual.indexOf(key) : visual.length + destinations.findIndex(column => column.key === key);
-    return rank(a.key) - rank(b.key);
+    const rank = (column: PreviewColumn) => visual.includes(String(column.source)) ? visual.indexOf(String(column.source)) : visual.length + column.source;
+    return rank(a) - rank(b);
   });
-  const columns: PreviewColumn[] = [...ordered, ...mapping.filter(column => column.field === 'ignore')
-    .map(column => ({ key: `unused:${column.columnIndex}`, label: column.header, source: column.columnIndex, unused: true }))];
   const order = columns.map(column => column.key);
-  const widthFor = (key: string) => widths[`${scope}:${key}`] ?? (key === 'model' ? 180 : 140);
+  const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : 160);
   const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
   const start = Math.min(Math.max(0, sheetRows.length - 1), Math.max(0, Math.floor((scrollTop - HEADER_HEIGHT) / ROW_HEIGHT) - 5));
   const end = Math.min(sheetRows.length, start + 24);
-  const examples = grid.slice(Math.max(active.headerRow, active.dataStartRow - 1), active.dataEndRow).slice(0, 2);
-
-  const selectColumn = (key: string, fromTable: boolean) => {
-    setHighlight(key);
-    const column = columns.find(item => item.key === key);
-    if (fromTable) {
-      setPanelOpen(true);
-      const suggestion = mapping.find(item => item.field === 'ignore' && item.header.toLocaleLowerCase('es').includes(column?.label.toLocaleLowerCase('es') || key));
-      const source = column?.source ?? suggestion?.columnIndex ?? pending[0]?.columnIndex ?? mapping[0]?.columnIndex;
-      setHighlightSource(source ?? null);
-      requestAnimationFrame(() => {
-        const row = panel.current?.querySelector<HTMLElement>(`[data-column-index="${source}"]`);
-        row?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-        row?.focus({ preventScroll: true });
-      });
-    } else {
-      setHighlightSource(column?.source ?? null);
-      const header = [...(table.current?.querySelectorAll<HTMLElement>('th') ?? [])].find(item => item.dataset.previewKey === key);
-      // Scroll only horizontally: keep the user's current equipment row in view.
-      if (header && table.current && key !== 'model') {
-        const pinned = widthFor('model');
-        const left = header.offsetLeft;
-        if (left < table.current.scrollLeft + pinned || left + header.offsetWidth > table.current.scrollLeft + table.current.clientWidth) {
-          table.current.scrollLeft = Math.max(0, left - pinned);
-        }
-      }
+  const reveal = (source: number, open: boolean, search = '') => {
+    if (disabled) return;
+    setHighlightSource(source);
+    pendingCursor.current = source;
+    const header = table.current?.querySelector<HTMLElement>(`th[data-column-index="${source}"]`);
+    const scroller = table.current;
+    if (!header || !scroller) return;
+    // Only horizontal scrolling: preserve the equipment row currently being reviewed.
+    const pinned = columns[0]?.key === 'model' ? widthFor('model') : 0;
+    if (!header.classList.contains('imp-pinned') && (header.offsetLeft < scroller.scrollLeft + pinned || header.offsetLeft + header.offsetWidth > scroller.scrollLeft + scroller.clientWidth)) {
+      scroller.scrollLeft = Math.max(0, header.offsetLeft - pinned);
     }
+    const anchor = header.querySelector<HTMLButtonElement>('.imp-heading-label')!;
+    anchor.focus({ preventScroll: true });
+    if (open) { setCreating(null); setPicker({ source, anchor, search }); }
   };
-
-  useEffect(() => { setCreating(null); setHighlight(null); setHighlightSource(null); setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
+  useEffect(() => { setPicker(null); setCreating(null); setHighlightSource(null); pendingCursor.current = null; setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
   useEffect(() => {
     if (!focusedField) return;
-    const column = columns.find(item => item.key === focusedField.key);
-    if (column) selectColumn(column.key, true);
+    const source = mapping.find(column => unassigned.has(column.columnIndex))?.columnIndex ?? mapping[0]?.columnIndex;
+    if (source !== undefined) reveal(source, true, catalog.find(field => field.key === focusedField.key)?.label ?? '');
   }, [focusedField]);
-  // Inline editors and the mobile panel consume Escape before the parent Sheet.
-  const closeInternal = (event: React.KeyboardEvent) => {
-    if (event.key !== 'Escape') return;
-    if (creating !== null) {
-      event.preventDefault(); event.stopPropagation();
-      const index = creating;
-      setCreating(null);
-      panel.current?.querySelector<HTMLElement>(`[data-column-index="${index}"] [role="combobox"]`)?.focus();
-    } else if (panelOpen && window.matchMedia('(max-width: 699px)').matches) {
-      event.preventDefault(); event.stopPropagation(); setPanelOpen(false); panelToggle.current?.focus();
-    }
-  };
-
+  useEffect(() => { if (disabled) setPicker(null); }, [disabled]);
+  const closePicker = () => { setPicker(null); setCreating(null); };
   const assign = (index: number, field: string) => {
     setDiscardedColumns(current => ({ ...current, [scope]: field === 'ignore'
       ? [...new Set([...(current[scope] ?? []), index])]
@@ -193,7 +153,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     const required = fields.filter(item => item.required).map(item => item.key);
     onChange(plan.map(sheet => sheet.name === active.name ? updatePlanMapping(active, next.mapping, required) : sheet), false);
     setHighlightSource(index);
-    setHighlight(field === 'ignore' ? `unused:${index}` : field);
+    closePicker();
   };
   const create = () => {
     const label = name.trim();
@@ -206,9 +166,11 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     setCreating(null);
   };
   const reorder = (key: string, target: number) => {
-    // Unused sources remain at the end; destinations can move freely after Modelo.
-    const keys = ordered.map(column => column.key);
-    setOrders(current => ({ ...current, [scope]: reorderPreviewColumns(keys, key, Math.min(keys.length - 1, target)) }));
+    const pinned = columns.find(column => column.key === 'model');
+    const keys = columns.map(column => column === pinned ? 'model' : String(column.source));
+    const source = columns.find(column => column.key === key);
+    if (!source) return;
+    setOrders(current => ({ ...current, [scope]: reorderPreviewColumns(keys, key === 'model' ? key : String(source.source), target).map(id => id === 'model' ? String(pinned!.source) : id) }));
   };
   const begin = (event: PointerEvent<HTMLElement>, key: string, kind: 'resize' | 'reorder') => {
     if (disabled || event.button > 0 || (kind === 'reorder' && key === 'model')) return;
@@ -226,7 +188,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     drag.moved ||= Math.abs(delta) > 4;
     if (drag.kind === 'reorder' && !drag.moved) return;
     setGestureKey(drag.key);
-    if (drag.kind === 'resize') setWidths(current => ({ ...current, [`${scope}:${drag.key}`]: resizePreviewColumn(drag.width, delta) }));
+    if (drag.kind === 'resize') setWidths(current => ({ ...current, [`${scope}:${columns.find(column => column.key === drag.key)?.source}`]: resizePreviewColumn(drag.width, delta) }));
     else {
       const scroller = table.current;
       if (!scroller) return;
@@ -234,9 +196,14 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
       if (event.clientX > bounds.right - 40) scroller.scrollLeft += 18;
       if (event.clientX < bounds.left + widthFor('model') + 20) scroller.scrollLeft -= 18;
       const x = event.clientX - bounds.left + scroller.scrollLeft;
-      let edge = 0;
-      drag.target = order.findIndex(key => { edge += widthFor(key); return x < edge; });
-      if (drag.target < 0) drag.target = ordered.length - 1;
+      const headers = [...scroller.querySelectorAll<HTMLElement>('th')];
+      drag.target = headers.findIndex(header => x < header.offsetLeft + header.offsetWidth);
+      // jsdom has no layout; the browser uses the actual widths, including table expansion.
+      if (!headers.some(header => header.offsetWidth)) {
+        let edge = 0;
+        drag.target = order.findIndex(key => { edge += widthFor(key); return x < edge; });
+      }
+      if (drag.target < 0) drag.target = columns.length - 1;
     }
   };
   const finish = (event: PointerEvent<HTMLElement>) => {
@@ -261,9 +228,12 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
 
   return <div className="imp-review" data-testid="import-summary">
     <div className="imp-review-summary">
-      <h4 className="imp-detected">Detectamos {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}, {new Intl.NumberFormat('es-AR').format(summary.rowCount)} {summary.rowCount === 1 ? 'equipo' : 'equipos'}</h4>
-      <div className="imp-review-notices">{discardNotice}<HeaderSettings key={active.name} active={active} rowCount={grid.length} disabled={disabled}
-        onChange={headerRow => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true)} /></div>
+      <div className="imp-review-notices">{discardNotice}</div>
+      <button type="button" className={`dsel imp-pending-chip${pending.length ? ' on' : ''}`} disabled={disabled || !pending.length} onClick={() => {
+        const indexes = columns.filter(column => unassigned.has(column.source) || column.pending).map(column => column.source);
+        const current = indexes.indexOf(pendingCursor.current ?? -1);
+        if (indexes.length) reveal(indexes[(current + 1) % indexes.length], false);
+      }}>{pending.length > 0 && <span className="imp-state-dot" />}{pendingLabel}{pending.length > 0 && <ChevronRight size={16} aria-hidden="true" />}</button>
     </div>
     {sheets.length > 1 && <div className="imp-sources" role="group" aria-label="Hojas a importar">
       {plan.map(sheet => {
@@ -278,31 +248,34 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     </div>}
     {missing.length > 0 && <div className="imp-review-error" role="alert" id="import-missing-model"><b>Falta {missing.join(', ')}. Asigná los campos obligatorios para importar.</b></div>}
     {!plan.some(sheet => sheet.include) && <div className="imp-review-error" role="status">Incluí al menos una hoja para importar.</div>}
-    <div className="imp-review-layout" onKeyDown={closeInternal}>
+    <div className="imp-review-layout">
       <div className="imp-table-area">
-        <button ref={panelToggle} type="button" className="btn2 s imp-panel-toggle" aria-expanded={panelOpen} aria-controls="import-column-panel" onClick={() => setPanelOpen(value => !value)}>Columnas ({pendingLabel}){missingModel ? ' · Falta Modelo' : ''}</button>
-        <div className="imp-table-title"><h4>Equipos a importar</h4><span data-testid="import-preview-count">{new Intl.NumberFormat('es-AR').format(rows.length)} {rows.length === 1 ? 'equipo' : 'equipos'}</span></div>
+        <div className="imp-table-title"><h4>Equipos a importar <span data-testid="import-preview-count">{new Intl.NumberFormat('es-AR').format(rows.length)} {rows.length === 1 ? 'equipo' : 'equipos'}</span></h4><HeaderSettings key={active.name} active={active} rowCount={grid.length} disabled={disabled}
+          onChange={headerRow => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true)} /></div>
         <div ref={table} className="imp-table-scroll" data-testid="import-preview" role="region" tabIndex={0} aria-label="Equipos a importar" aria-busy={applying} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
           <table className="dtable compact imp-preview-table" aria-label="Vista previa de equipos" aria-rowcount={sheetRows.length + 1} style={{ width: columns.reduce((total, column) => total + widthFor(column.key), 0) }}>
-            <colgroup>{columns.map(column => <col key={column.key} style={{ width: widthFor(column.key) }} />)}</colgroup>
-            <thead><tr>{columns.map(column => <th key={column.key} data-preview-key={column.key} scope="col"
-              onPointerDown={event => { if (event.pointerType !== 'touch' && !column.unused) begin(event, column.key, 'reorder'); }}
+            <colgroup>{columns.map(column => <col key={column.source} style={{ width: widthFor(column.key) }} />)}</colgroup>
+            <thead><tr>{columns.map(column => <th key={column.source} data-column-index={column.source} data-preview-key={column.key} scope="col"
+              onPointerDown={event => { if (event.pointerType === 'touch') suppressClick.current = false; else begin(event, column.key, 'reorder'); }}
               onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } selectColumn(column.key, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlight === column.key ? 'imp-selected ' : ''}${column.key === 'model' && missingModel ? 'imp-required ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } reveal(column.source, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending && !unassigned.has(column.source) ? 'imp-pending ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
               <div className="imp-column-heading">
-                <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || column.unused || undefined}
-                  onPointerDown={event => { if (!column.unused) begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-                  onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); if (!column.unused) reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={18} aria-hidden="true" /></button>
-                <button type="button" className="imp-heading-label" aria-label={column.unused ? `Sin usar · ${column.label} · Excel ${columnLetter(column.source!)}` : undefined}><b><ReplayValue>{column.label}</ReplayValue></b><small>{column.key === 'model' && missingModel ? 'Falta Modelo' : column.unused ? unassigned.has(column.source!) ? 'Sin asignar' : 'Sin usar' : column.source !== undefined ? `Excel · ${columnLetter(column.source)}` : column.key === 'currency' ? `${defaultCurrency} por defecto` : 'sin columna'}</small></button>
+                <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || undefined}
+                  onPointerDown={event => { begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onClick={event => event.stopPropagation()} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
+                  onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={18} aria-hidden="true" /></button>
+                <div className="imp-heading-content"><button type="button" className="imp-heading-label" data-testid={`import-column-${column.source}`} aria-label={`Importar ${column.header} como`} aria-haspopup="dialog" aria-description={`${column.unused ? unassigned.has(column.source) ? 'Sin asignar' : 'Descartada' : column.label}${column.pending ? ' · Por revisar' : ''}`} aria-expanded={picker?.source === column.source} disabled={disabled}>
+                  <b>{(unassigned.has(column.source) || column.pending) && <span className="imp-state-dot" />}<ReplayValue>{column.unused ? unassigned.has(column.source) ? 'Sin asignar' : 'Descartada' : column.label}</ReplayValue></b><ChevronDown size={14} aria-hidden="true" />
+                </button><small title={column.pending ? mapping.find(item => item.columnIndex === column.source)?.review?.join(' ') : column.header}><ReplayValue>{unassigned.has(column.source) || column.pending ? `${columnLetter(column.source)} · ${column.header}` : `Excel · ${columnLetter(column.source)}`}</ReplayValue></small></div>
+
               </div>
               <span className="imp-resize" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={column.unused ? `Ancho de columna sin usar ${columnLetter(column.source!)}: ${column.label}` : `Ancho de ${column.label}`} aria-valuemin={100} aria-valuemax={480} aria-valuenow={widthFor(column.key)}
                 onClick={event => event.stopPropagation()} onPointerDown={event => begin(event, column.key, 'resize')} onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-                onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); setWidths(current => ({ ...current, [`${scope}:${column.key}`]: resizePreviewColumn(widthFor(column.key), event.key === 'ArrowLeft' ? -20 : 20) })); } }} />
+                onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); setWidths(current => ({ ...current, [`${scope}:${column.source}`]: resizePreviewColumn(widthFor(column.key), event.key === 'ArrowLeft' ? -20 : 20) })); } }} />
             </th>)}</tr></thead>
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
               {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2}>
-                {columns.map(column => <td key={column.key} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlight === column.key ? 'imp-selected' : ''}`} onClick={() => selectColumn(column.key, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
+                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending && !unassigned.has(column.source) ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>
@@ -311,32 +284,18 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
         {sheetRows.length === 0 && <div className="wempty">No hay equipos para importar en esta hoja.</div>}
         <div className="imp-table-notices">{children}</div>
       </div>
-      <aside ref={panel} id="import-column-panel" className={`imp-panel${panelOpen ? ' imp-panel-open' : ''}`} aria-label="Excel → campo">
-        <div className="imp-panel-heading"><h4>Excel → campo</h4><span className={`spill ${pending.length ? 'lime' : 'ok'}`} role="status">{pendingLabel}</span>{unassigned.size > 0 && <span className="spill no">Sin asignar</span>}{missingModel && <b className="imp-model-warning">Falta Modelo</b>}</div>
-        <div className="imp-panel-rows">{mapping.map(column => {
-          const key = column.field === 'ignore' ? `unused:${column.columnIndex}` : column.field;
-          const suggested = suggestions.current.get(`${scope}:${column.columnIndex}`);
-          return <article key={column.columnIndex} tabIndex={-1} data-column-index={column.columnIndex} aria-label={`Columna ${column.header}`} className={`imp-panel-row${unassigned.has(column.columnIndex) ? ' imp-unassigned' : ''}${highlight === key || highlightSource === column.columnIndex ? ' imp-selected' : ''}`}
-            onClick={event => { if (!(event.target as HTMLElement).closest('.ds-select, .imp-new-inline')) selectColumn(key, false); }} onFocus={event => { if (event.target !== event.currentTarget) selectColumn(key, false); }}>
-            <span className="imp-letter">{columnLetter(column.columnIndex)}</span>
-            <div className="imp-source-name">{Boolean(column.review?.length) && <small className="text-amber-900" title={column.review?.join(" ")}>Por revisar</small>}<b title={column.header}><ReplayValue>{column.header}</ReplayValue></b><small><ReplayValue>{examples.map(row => row[column.columnIndex]?.trim() || '—').join(' · ')}</ReplayValue></small></div>
-            <DeskSelect label={`Importar ${column.header} como`} data-testid={`import-column-${column.columnIndex}`} value={column.field} displayValue={unassigned.has(column.columnIndex) ? 'Sin asignar' : undefined} disabled={disabled}
-              onChange={value => {
-                if (value === '__new') { setCreating(column.columnIndex); setName(''); setType('text'); setError(''); }
-                else assign(column.columnIndex, value);
-              }} options={[
-                ...catalog.map(field => ({ value: field.key, label: `${field.label}${suggested === field.key ? ' · Sugerido' : ''}` })),
-                ...all.map(field => ({ value: `custom:${field.key}`, label: `${field.label} · ${field.type === 'date' ? 'Fecha' : field.type === 'number' ? 'Número' : 'Texto'}${suggested === `custom:${field.key}` ? ' · Sugerido' : ''}` })),
-                { value: '__new', label: 'Nuevo campo…', icon: <Plus size={18} />, className: 'imp-new-field-option' }, { value: 'ignore', label: 'Descartar' },
-              ]} />
-            {creating === column.columnIndex && <div className="imp-new-inline" role="group" aria-label="Nuevo campo">
-              <Field label="Nombre" error={error}><input autoFocus aria-label="Nombre del nuevo campo" maxLength={100} value={name} onChange={event => { setName(event.target.value); setError(''); }} /></Field>
-              <Segs options={[{ id: 'text', label: 'Texto' }, { id: 'date', label: 'Fecha' }, { id: 'number', label: 'Número' }]} value={type} onChange={value => setType(value as CustomFieldInput['type'])} />
-              <button type="button" className="btn2 s" onClick={() => setCreating(null)}>Cancelar</button><button type="button" className="btn2 p" onClick={create}>Crear campo</button>
-            </div>}
-          </article>;
-        })}</div>
-      </aside>
     </div>
+    {picker && <ImportColumnPicker key={`${scope}:${picker.source}`} anchor={picker.anchor} title={`Importar ${columnLetter(picker.source)} · ${mapping[picker.source]?.header} como`} value={mapping[picker.source]?.field ?? 'ignore'} initialSearch={picker.search}
+      options={[...catalog.map(field => ({ value: field.key, label: field.label })), ...all.map(field => ({ value: `custom:${field.key}`, label: `${field.label} · ${field.type === 'date' ? 'Fecha' : field.type === 'number' ? 'Número' : 'Texto'}` }))].map(field => ({ ...field, letter: mapping.some(column => column.field === field.value) ? columnLetter(mapping.find(column => column.field === field.value)!.columnIndex) : undefined }))}
+      onClose={closePicker} onChoose={value => {
+        if (value === '__new') { setCreating(picker.source); setName(''); setType('text'); setError(''); }
+        else assign(picker.source, value);
+      }}>
+      {creating !== null && <div className="imp-new-inline" role="group" aria-label="Nuevo campo">
+        <Field label="Nombre" error={error}><input autoFocus aria-label="Nombre del nuevo campo" maxLength={100} value={name} onChange={event => { setName(event.target.value); setError(''); }} /></Field>
+        <Segs options={[{ id: 'text', label: 'Texto' }, { id: 'date', label: 'Fecha' }, { id: 'number', label: 'Número' }]} value={type} onChange={value => setType(value as CustomFieldInput['type'])} />
+        <div className="sacts"><button type="button" className="btn2 s" onClick={() => setCreating(null)}>Cancelar</button><button type="button" className="btn2 p" onClick={create}>Crear campo</button></div>
+      </div>}
+    </ImportColumnPicker>}
   </div>;
 }

@@ -25,7 +25,7 @@ it('importa sin precio y ofrece el filtro del resultado', async () => {
     diagnostics: { detectedRows: 1, acceptedRows: 1, discardedRows: 0, discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] },
     missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'],
   });
-  expect(screen.getByText('A definir')).toBeVisible();
+  expect(screen.getByTestId('import-price-notice')).toHaveTextContent('Sin columna de precio');
   expect(screen.queryByTestId('import-skipped-notice')).not.toBeInTheDocument();
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport).toHaveBeenCalledWith([{ model: 'iPhone 13' }]);
@@ -71,10 +71,10 @@ it('el acceso directo enfoca Precio sin convertirlo en obligatorio', async () =>
   expect(notice.closest('.imp-review-notices')).not.toBeNull();
   expect(screen.getByTestId('import-summary').querySelector('.import-guidance')).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
-  const select = screen.getByRole('article', { name: 'Columna Costo' });
-  await waitFor(() => expect(select).toHaveFocus());
-  expect(select).toHaveClass('imp-selected');
-  expect(select).not.toHaveAttribute('aria-invalid', 'true');
+  const search = screen.getByRole('textbox', { name: 'Buscar campo' });
+  await waitFor(() => expect(search).toHaveFocus());
+  expect(search).toHaveValue('Precio');
+  expect(screen.getByRole('dialog', { name: 'Importar B · Costo como' })).toBeVisible();
 });
 it('resalta Modelo sin mapear y bloquea cero filas', async () => {
   await preview(false);
@@ -97,9 +97,9 @@ it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas
   await userEvent.click(notice);
   await userEvent.click(within(screen.getByRole('dialog', { name: 'Filas descartadas' })).getByRole('button', { name: 'Asignar columna de modelo' }));
   expect(screen.queryByRole('dialog', { name: 'Filas descartadas' })).not.toBeInTheDocument();
-  const model = screen.getByRole('article', { name: 'Columna Modelo' });
-  await waitFor(() => expect(model).toHaveFocus());
-  expect(model).toHaveClass('imp-selected');
+  expect(screen.getByRole('dialog', { name: 'Importar A · Modelo como' })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Buscar campo' })).toHaveValue('Modelo');
+  await userEvent.keyboard('{Escape}');
   expect(screen.getByText('Falta Modelo. Asigná los campos obligatorios para importar.')).toBeVisible();
   expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
@@ -134,9 +134,8 @@ it('reincluye una hoja sin encabezado al asignar Modelo y conserva los índices 
   render(<ImportModal fields={fields} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={onApply} onImport={vi.fn()} />);
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['iPhone 13,300\niPhone 14,400'], 'stock.csv', { type: 'text/csv' }));
   await screen.findByTestId('import-summary');
-  const card = within(screen.getByRole('article', { name: 'Columna A' }));
-  await userEvent.click(card.getByRole('combobox', { name: 'Importar A como' }));
-  await userEvent.click(screen.getByRole('option', { name: /^Modelo/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Importar A como' }));
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Importar A · A como' })).getByRole('button', { name: /^Modelo/ }));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(onApply.mock.calls[0][1][0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1,
     mapping: [{ header: 'A', columnIndex: 0, field: 'model' }, { header: 'B', columnIndex: 1, field: 'cost' }] });
