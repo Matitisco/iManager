@@ -1,0 +1,3 @@
+- [x] Distinguir descartes explícitos y aplicar el estado rojo en tabla y panel.
+- [x] Cubrir asignación, descarte, destinos reutilizados y aislamiento entre hojas.
+- [x] Verificar tests relacionados, lint, build y vistas 1440/390.

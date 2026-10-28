@@ -63,7 +63,7 @@ it.each([1440, 1024, 390])('abre una sola pantalla y confirma sin ajuste a %i px
   expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
   expect(screen.getByText('Detectamos 1 hoja, 2 equipos')).toBeVisible();
   expect(screen.getAllByRole('article')).toHaveLength(6);
-  expect(screen.getByRole('complementary')).toHaveTextContent('2 por revisar');
+  expect(screen.getByRole('complementary')).toHaveTextContent('3 por revisar');
   expect(screen.getByRole('group', { name: 'Encabezado del archivo' })).not.toBeVisible();
   const confirm = screen.getByTestId('import-confirm');
   expect(confirm.closest('.sheet-foot')).toBeInTheDocument();
@@ -82,7 +82,7 @@ it('asigna una descartada, actualiza la tabla y descarta el destino anterior al 
   await waitFor(() => expect(table().getByText('420')).toBeVisible());
   expect(table().getByRole('columnheader', { name: /Precio/ })).toHaveTextContent('Excel · B');
   await choose('Obs. interna', 'Precio');
-  await waitFor(() => expect(card('Precio').getByRole('combobox')).toHaveTextContent('Descartar'));
+  await waitFor(() => expect(card('Precio').getByRole('combobox')).toHaveTextContent('Sin asignar'));
   await waitFor(() => expect(table().getByText('pantalla')).toBeVisible());
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport.mock.calls[0][0][0]).toMatchObject({ price: 'pantalla' });
@@ -350,4 +350,66 @@ it('arrastra desde etiqueta y fondo del encabezado, respeta el umbral y deja scr
     expect(table().getAllByRole('columnheader')[1]).toHaveAttribute('data-preview-key', 'color');
     expect(onApply).not.toHaveBeenCalled();
   } finally { vi.unstubAllGlobals(); }
+});
+
+const sourceCard = (name: string) => screen.getByRole('article', { name: `Columna ${name}` });
+const unusedHeader = (index: number) => screen.getByRole('table').querySelector(`[data-preview-key="unused:${index}"]`);
+const unusedCells = (index: number) => screen.getAllByTestId('import-preview-row').map(row => row.querySelectorAll('td')[table().getAllByRole('columnheader').findIndex(header => header.dataset.previewKey === `unused:${index}`)]);
+
+it('resalta encabezado, todas las celdas y tarjeta sin asignar, incluso al seleccionarla', async () => {
+  await setup();
+  for (const [name, index] of [['Precio', 1], ['Obs. interna', 2], ['Vacía', 3]] as const) {
+    expect(sourceCard(name)).toHaveClass('imp-unassigned');
+    expect(card(name).getByRole('combobox')).toHaveTextContent('Sin asignar');
+    expect(unusedHeader(index)).toHaveClass('imp-unassigned');
+    for (const cell of unusedCells(index)) expect(cell).toHaveClass('imp-unassigned');
+  }
+  expect(sourceCard('Modelo')).not.toHaveClass('imp-unassigned');
+  await userEvent.click(card('Precio').getByTitle('Precio'));
+  expect(sourceCard('Precio')).toHaveClass('imp-unassigned', 'imp-selected');
+  expect(unusedHeader(1)).toHaveClass('imp-unassigned', 'imp-selected');
+});
+
+it.each(['Precio', 'Descartar'])('quita el rojo al elegir %s antes de recibir la reaplicación', async destination => {
+  const { onApply } = await setup();
+  let resolve!: (analysis: ImportAnalysis) => void;
+  onApply.mockImplementation(() => new Promise(done => { resolve = done; }));
+  await choose('Precio', destination);
+  expect(sourceCard('Precio')).not.toHaveClass('imp-unassigned');
+  if (destination === 'Descartar') {
+    expect(unusedHeader(1)).not.toHaveClass('imp-unassigned');
+    for (const cell of unusedCells(1)) expect(cell).not.toHaveClass('imp-unassigned');
+  } else expect(unusedHeader(1)).toBeNull();
+  expect(sourceCard('Obs. interna')).toHaveClass('imp-unassigned');
+  await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
+  await act(async () => resolve(recalculate(onApply.mock.calls[0][1], onApply.mock.calls[0][0])));
+  expect(sourceCard('Precio')).not.toHaveClass('imp-unassigned');
+});
+
+it('vuelve a rojo si otra columna toma el destino de una antes descartada y luego asignada', async () => {
+  await setup();
+  await choose('Precio', 'Descartar');
+  await choose('Precio', 'Precio');
+  await choose('Obs. interna', 'Precio');
+  expect(sourceCard('Precio')).toHaveClass('imp-unassigned');
+  expect(unusedHeader(1)).toHaveClass('imp-unassigned');
+  expect(sourceCard('Obs. interna')).not.toHaveClass('imp-unassigned');
+});
+
+it('conserva descartes por índice entre hojas con encabezados duplicados', async () => {
+  const sheets = ['Stock', 'Otra'].map(name => ({ name, rows: stock.map(row => [...row]) }));
+  sheets.forEach(sheet => { sheet.rows[0][2] = 'Precio'; });
+  const plans = sheets.map(sheet => ({ ...sheetPlan(sheet.name), mapping: sheetPlan(sheet.name).mapping.map(column => ({ ...column, header: sheet.rows[0][column.columnIndex!] })) }));
+  await setup({ sheets, plan: plans });
+  const first = () => screen.getAllByRole('article', { name: 'Columna Precio' })[0];
+  const second = () => screen.getAllByRole('article', { name: 'Columna Precio' })[1];
+  await userEvent.click(within(first()).getByRole('combobox'));
+  await userEvent.click(screen.getByRole('option', { name: 'Descartar' }));
+  expect(first()).not.toHaveClass('imp-unassigned');
+  expect(second()).toHaveClass('imp-unassigned');
+  await userEvent.click(screen.getByRole('button', { name: 'Otra' }));
+  expect(first()).toHaveClass('imp-unassigned');
+  await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
+  expect(first()).not.toHaveClass('imp-unassigned');
+  expect(second()).toHaveClass('imp-unassigned');
 });

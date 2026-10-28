@@ -107,6 +107,8 @@
 .imp-resize:hover::after, .imp-resize:focus-visible::after, .imp-dragging .imp-resize::after { background: var(--lime); }
 .imp-preview-table th.imp-unused, .imp-preview-table.dtable.compact td.imp-unused { background: var(--bg); color: var(--secondary); border-left: 1px dashed var(--border); }
 .imp-preview-table th.imp-selected, .imp-preview-table.dtable.compact td.imp-selected { background: var(--lime-soft); color: var(--primary); }
+.imp-preview-table th.imp-unassigned, .imp-preview-table.dtable.compact td.imp-unassigned { background: var(--err-soft); border-left: 1px solid var(--err); }
+.imp-preview-table th.imp-unassigned .imp-heading-label b, .imp-preview-table th.imp-unassigned .imp-heading-label small { color: var(--err); }
 .imp-preview-table th.imp-required { background: var(--err-soft); }
 .imp-required .imp-heading-label small { color: var(--err); }
 .imp-dragging { outline: 2px solid var(--lime); outline-offset: -2px; }
@@ -126,6 +128,9 @@
 .imp-panel-row > .ds-select { grid-column: 2; min-width: 0; }
 .imp-panel-row .ds-select-trigger { background: var(--row); min-height: 48px; }
 .imp-panel-row.imp-pending, .imp-panel-row.imp-selected { background: var(--lime-soft); margin-inline: -14px; padding-inline: 14px; border-radius: 14px; }
+.imp-panel-row.imp-unassigned { background: var(--err-soft); margin-inline: -14px; padding-inline: 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--err); }
+.imp-panel-row.imp-unassigned .imp-letter { background: var(--err-soft); color: var(--err); }
+.imp-panel-row.imp-unassigned .imp-source-name b { color: var(--err); }
 .imp-new-inline { grid-column: 1 / -1; display: grid; gap: 8px; padding-top: 8px; min-width: 0; }
 .imp-new-inline .fl { margin: 0; }
 .ds-select-option.imp-new-field-option { position: relative; margin-top: 12px; background: var(--lime-soft); color: var(--primary); font-weight: 800; }
