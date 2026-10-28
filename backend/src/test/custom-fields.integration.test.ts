@@ -109,6 +109,8 @@ it('creates the suggested origin quality definition and persists every preview r
   vi.stubEnv('OPENAI_API_KEY', 'sk-test');
   try {
     const grid = syntheticQualityStockRows();
+    // An ambiguous extra model forces the fallback mapper to supply the free quality field.
+    grid.forEach(row => { row[15] = 'iPhone 16'; });
     const analysis = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'stock de equipos', rows: grid }] }, {
       fetchImpl: async url => String(url) === DECISIONS_URL ? new Response('', { status: 404 }) : stockModelResponse(mistakenQualityStockPlan(grid)),
     });
@@ -120,7 +122,8 @@ it('creates the suggested origin quality definition and persists every preview r
       payload: { rows, definitions: analysis.suggestedDefinitions } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ imported: analysis.rows.length, updated: 0, errors: [] });
-    expect(analysis.rows).toHaveLength(59);
+    expect(analysis.rows).toHaveLength(58);
+    expect(analysis.diagnostics?.discardedByReason).toEqual({ invalid_price: 1, duplicate: 1 });
     expect(await prisma.customFieldDefinition.findMany({ where: { storeId: store!.id } })).toEqual([
       expect.objectContaining({ key: 'calidad_origen', label: 'Calidad (origen)', type: 'text' }),
     ]);

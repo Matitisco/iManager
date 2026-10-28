@@ -10,7 +10,7 @@ const CONDITIONS: Record<string, string> = {
 };
 
 type Row = {
-  model?: string; price?: number | null; condition?: string; imei?: string; grade?: string;
+  model?: string; price?: number | string | null; condition?: string; imei?: string; grade?: string;
   color?: string; batteryHealth?: string; entryDate?: string | null; batteryNote?: string | null;
   purchasedAt?: string;
   capacity?: string;
@@ -74,7 +74,13 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
   const reject = (reason: DiscardReason, message: string) => ({ ok: false as const, reason, message, warnings });
   if (isInventoryFooter(raw)) return reject('footer', 'Total o nota al pie sin equipo');
   if (!raw.model?.trim()) return reject('missing_model', 'Modelo vacío');
-  if (raw.price != null && (!Number.isFinite(raw.price) || raw.price < 0)) return reject('invalid_price', 'Precio inválido');
+  if (/^=|^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/i.test(raw.model.trim())) {
+    return reject('missing_model', 'El modelo contiene una fórmula o un error de Excel. Escribí el nombre del equipo.');
+  }
+  if (raw.cost != null && String(raw.cost).trim() && (!Number.isFinite(Number(raw.cost)) || Number(raw.cost) < 0)) {
+    return reject('invalid_price', 'Costo inválido. Corregilo o dejá la celda vacía antes de importar.');
+  }
+  if (raw.price != null && (!String(raw.price).trim() || !Number.isFinite(Number(raw.price)) || Number(raw.price) < 0)) return reject('invalid_price', 'Precio inválido. Corregilo o dejá la celda vacía para definirlo después.');
   const conditionKey = raw.condition?.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const condition = conditionKey ? CONDITIONS[conditionKey] : 'USADO';
   if (!condition) return reject('invalid_row', 'La condición no existe');

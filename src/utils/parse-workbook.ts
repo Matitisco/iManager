@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { prepareImportSheets } from './import-limits';
 
 export interface ParsedWorkbook {
   sheetNames: string[];
@@ -31,6 +32,7 @@ export function cellText(value: unknown, cell?: Pick<ExcelJS.Cell, 'text' | 'num
         return '';
       }).join('').replace(/\s+/g, ' ').trim();
     }
+    if (typeof record.error === 'string') return record.error;
     if (typeof record.text === 'string') return cellText(record.text);
     if ('result' in record && record.result != null && record.result !== '') return cellText(record.result, cell);
     if (typeof record.formula === 'string' && record.formula.trim()) {
@@ -141,8 +143,11 @@ async function parseXlsx(file: File): Promise<ParsedWorkbook> {
 
 export async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
   const ext = file.name.split('.').pop()?.toLowerCase();
-  if (ext === 'csv') return parseCsv(file);
-  if (ext === 'xlsx') return parseXlsx(file);
+  if (ext === 'csv' || ext === 'xlsx') {
+    const workbook = await (ext === 'csv' ? parseCsv(file) : parseXlsx(file));
+    const sheets = prepareImportSheets(workbook.sheetNames.map(name => ({ name, rows: workbook.getSheet(name) })));
+    return { sheetNames: sheets.map(sheet => sheet.name), getSheet: name => sheets.find(sheet => sheet.name === name)?.rows ?? [] };
+  }
   if (ext === 'xls') throw new Error('El formato .xls ya no es compatible. Exportá el archivo a .xlsx o .csv.');
   throw new Error('Formato no soportado. Usá .csv o .xlsx.');
 }

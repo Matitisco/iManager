@@ -6,7 +6,7 @@ import { scoreImportRows } from "../../../test/import-score.js";
 import { scriptDecisionAnswers } from "../../../test/script-decisions.js";
 import { ANALYSIS_NOTICES, analyzeImport } from "./analyze-import.service.js";
 import { DECISIONS_MODEL, DECISIONS_URL } from "./responses-client.js";
-import type { ImportSheet } from "./sheet-plan.js";
+import { heuristicPlan, trustworthyInventoryPlan, type ImportSheet } from "./sheet-plan.js";
 
 const FIXTURES = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../test/fixtures/import");
 
@@ -61,9 +61,10 @@ describe("import fixtures offline", () => {
       { fetchImpl },
     );
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const trusted = trustworthyInventoryPlan(sheets, heuristicPlan(sheets, "inventory", expected.currency));
+    expect(fetchImpl).toHaveBeenCalledTimes(trusted ? 0 : 1);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(result.source).toBe("model");
+    expect(result.source).toBe(trusted ? "heuristic" : "model");
     // These fixtures use “Sellado”, which confirmation has always rejected as an unknown condition.
     // Preview must now exclude those rows too, instead of promising they will import.
     const hasSellado = name === 'f2_encabezado_dos_filas' || name === 'f7_nombres_raros';

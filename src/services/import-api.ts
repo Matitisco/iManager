@@ -2,7 +2,8 @@ import type { CustomFieldInput } from './custom-fields-api';
 import type { ImportDiagnostics } from '../lib/import-diagnostics';
 import { capture, deviceAdded } from '../lib/posthog-analytics';
 import type { AuthUserLike } from '../types/auth-user';
-import { apiRequest } from './api-client';
+import { apiRequest, ApiError } from './api-client';
+import { prepareImportSheets } from '../utils/import-limits';
 
 export type ImportSection = 'inventory' | 'sales' | 'clients' | 'trade-ins';
 
@@ -31,6 +32,7 @@ export type ImportSheetPlan = {
 };
 
 export type ImportAnalysis = {
+  warnings?: string[];
   suggestedDefinitions?: CustomFieldInput[];
   diagnostics?: ImportDiagnostics;
   missingRequiredFields?: string[];
@@ -65,17 +67,37 @@ function captureAnalysis(section: ImportSection, phase: 'analyze' | 'apply', res
 
 const ANALYZE_TIMEOUT_MS = 45_000;
 
+export function importErrorMessage(error: unknown, phase: 'analyze' | 'import'): string {
+  if (error instanceof ApiError) {
+    if (error.status === 413) return 'El archivo es demasiado grande. Dividilo en partes e intentá de nuevo.';
+    if (error.status === 400) return phase === 'analyze'
+      ? 'No se pudo leer la planilla. Revisá las hojas y columnas o dividí el archivo en partes.'
+      : 'No se pudieron importar las filas. Revisá los datos del archivo e intentá de nuevo.';
+    if (error.status >= 500) return 'No se pudo completar la importación por un problema del servidor. Volvé a intentarlo en unos minutos.';
+    return error.message;
+  }
+  if (error instanceof Error && /timeout|abort|tiempo/i.test(error.name + error.message)) {
+    return 'La importación tardó demasiado. Volvé a intentarlo o dividí el archivo en partes.';
+  }
+  if (error instanceof Error && /backend no configurado|precios inválidos/i.test(error.message)) return error.message;
+  return 'Se perdió la conexión durante la importación. Revisá tu conexión y volvé a intentarlo.';
+}
+
+async function spreadsheetRequest(user: AuthUserLike, path: string, body: unknown): Promise<ImportAnalysis> {
+  try {
+    return await apiRequest<ImportAnalysis>(user, path, {
+      method: 'POST', body, fallback: 'No se pudo leer la planilla.', timeoutMs: ANALYZE_TIMEOUT_MS,
+    });
+  } catch (error) { throw new Error(importErrorMessage(error, 'analyze'), { cause: error }); }
+}
+
 export async function analyzeImport(
   user: AuthUserLike,
   section: ImportSection,
   sheets: ImportSheetPayload[],
 ): Promise<ImportAnalysis> {
-  const result = await apiRequest<ImportAnalysis>(user, '/api/import/analyze', {
-    method: 'POST',
-    body: { section, sheets },
-    fallback: 'No se pudo leer la planilla.',
-    timeoutMs: ANALYZE_TIMEOUT_MS,
-  });
+  const prepared = prepareImportSheets(sheets);
+  const result = await spreadsheetRequest(user, '/api/import/analyze', { section, sheets: prepared });
   captureAnalysis(section, 'analyze', result);
   return result;
 }
@@ -94,12 +116,8 @@ export async function applyImportPlan(
   plan: ImportSheetPlan[],
   refreshMapping = false,
 ): Promise<ImportAnalysis> {
-  const result = await apiRequest<ImportAnalysis>(user, '/api/import/apply', {
-    method: 'POST',
-    body: { section, sheets, plan, refreshMapping },
-    fallback: 'No se pudo actualizar la importación.',
-    timeoutMs: ANALYZE_TIMEOUT_MS,
-  });
+  const prepared = prepareImportSheets(sheets);
+  const result = await spreadsheetRequest(user, '/api/import/apply', { section, sheets: prepared, plan, refreshMapping });
   captureAnalysis(section, 'apply', result);
   return result;
 }
@@ -126,6 +144,10 @@ export interface InventoryImportRow {
 }
 
 export interface ImportResult {
+  partial?: boolean;
+  message?: string;
+  skipped?: number;
+  withoutImei?: number;
   warnings?: { row: number; message: string }[];
   diagnostics?: ImportDiagnostics;
   priceToDefine?: number;
@@ -141,17 +163,81 @@ export async function importBackendRows(
   supplierId?: string,
   source: 'excel' | 'text' = 'excel',
   definitions?: CustomFieldInput[],
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<ImportResult> {
   try {
     if (section === 'inventory' && rows.some(row => row.price != null && typeof row.price === 'number' && !Number.isFinite(row.price))) {
       throw new Error('Revisá los precios inválidos del archivo o dejalos vacíos para definirlos después.');
     }
-    const result = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
-      method: 'POST',
-      body: { rows, ...(supplierId ? { supplierId } : {}), ...(definitions?.length ? { definitions } : {}) },
-      ...(section === 'inventory' && (definitions?.length || rows.some(row => Boolean(row.supplierName?.trim()))) ? { timeoutMs: 120_000 } : {}),
-      fallback: (status) => `Error al importar (${status})`,
-    });
+    let result: ImportResult | undefined;
+    const seenImeis = new Map<string, number>();
+    // Preserve the existing empty-request behavior (including configuration errors).
+    for (let offset = 0; offset < Math.max(rows.length, 1); offset += 400) {
+      const batch = rows.slice(offset, offset + 400);
+      const localErrors: ImportResult['errors'] = [];
+      const submitted = batch.flatMap((row, index) => {
+        const sourceRow = Number(row.sourceRow ?? ('_sourceRow' in row ? row._sourceRow : undefined)) || offset + index + 1;
+        const imei = String(row.imei ?? '').trim().replace(/^(\d{15})\.0+$/, '$1');
+        const first = section === 'inventory' && /^\d{15}$/.test(imei) ? seenImeis.get(imei) : undefined;
+        if (first !== undefined) {
+          localErrors.push({ row: sourceRow, imei, message: `IMEI repetido en el archivo (igual a la fila ${first})` });
+          return [];
+        }
+        return [rows.length > 400 || '_sourceRow' in row ? { ...row, sourceRow } : row];
+      });
+      let next: ImportResult;
+      try {
+        next = await apiRequest<ImportResult>(user, `/api/${section}/import`, {
+          method: 'POST',
+          body: { rows: submitted, ...(supplierId ? { supplierId } : {}), ...(definitions?.length ? { definitions } : {}) },
+          timeoutMs: 120_000,
+          fallback: 'No se pudo completar la importación.',
+        });
+      } catch (error) {
+        if (!result) throw error;
+        const firstRow = batch[0];
+        const sourceRow = Number(firstRow?.sourceRow ?? (firstRow && '_sourceRow' in firstRow ? firstRow._sourceRow : undefined)) || offset + 1;
+        const saved = result.imported + result.updated;
+        const noun = section === 'inventory' ? 'equipos' : 'registros';
+        const failure = error instanceof ApiError && error.status < 500
+          ? `no se pudo continuar en la fila ${sourceRow}. ${importErrorMessage(error, 'import')}`
+          : `falló la conexión en la fila ${sourceRow}.`;
+        let message = `Se importaron ${saved} ${noun} y ${failure} Volvé a importar el mismo archivo: los que ya entraron se actualizan, no se duplican.`;
+        if (section === 'inventory' && rows.some(row => !row.imei?.trim())) message += ' Los equipos sin IMEI pueden duplicarse al reimportar.';
+        result = { ...result, partial: true, message, errors: [...result.errors, { row: sourceRow, message }] };
+        break;
+      }
+      if (section !== 'inventory') {
+        // Other import endpoints number data rows from 2, independently per request.
+        const physicalRow = (localRow: number) => {
+          const row = submitted[localRow - 2];
+          return Number(row?.sourceRow ?? (row && '_sourceRow' in row ? row._sourceRow : undefined)) || localRow + offset;
+        };
+        next.errors = next.errors.map(error => ({ ...error, row: physicalRow(error.row) }));
+        if (next.warnings) next.warnings = next.warnings.map(warning => ({ ...warning, row: physicalRow(warning.row) }));
+        if (next.diagnostics?.warnings) next.diagnostics.warnings = next.diagnostics.warnings.map(warning => ({ ...warning, row: physicalRow(warning.row) }));
+        if (next.diagnostics?.rejected) next.diagnostics.rejected = next.diagnostics.rejected.map(error => ({ ...error, row: physicalRow(error.row) }));
+      }
+      // Only rows successfully persisted in earlier batches reserve an IMEI.
+      if (section === 'inventory') for (const [index, row] of submitted.entries()) {
+        const sourceRow = Number(row.sourceRow) || offset + index + 1;
+        if (next.errors.some(error => error.row === sourceRow)) continue;
+        const imei = String(row.imei ?? '').trim().replace(/^(\d{15})\.0+$/, '$1');
+        if (/^\d{15}$/.test(imei)) seenImeis.set(imei, sourceRow);
+      }
+      if (localErrors.length) {
+        next.errors.push(...localErrors);
+        if (next.diagnostics) {
+          next.diagnostics.detectedRows += localErrors.length;
+          next.diagnostics.discardedRows += localErrors.length;
+          next.diagnostics.discardedByReason.duplicate = (next.diagnostics.discardedByReason.duplicate ?? 0) + localErrors.length;
+          (next.diagnostics.rejected ??= []).push(...localErrors.map(error => ({ ...error, reason: 'duplicate' as const })));
+        }
+      }
+      result = result ? mergeImportResults(result, next) : next;
+      onProgress?.(Math.min(offset + batch.length, rows.length), rows.length);
+    }
+    result ??= { imported: 0, updated: 0, errors: [] };
     const saved = result.imported + result.updated;
     const diagnostic = result.diagnostics;
     capture('import_result', {
@@ -169,8 +255,33 @@ export async function importBackendRows(
     return result;
   } catch (error) {
     if (source === 'excel') capture('excel_import_failed', { rows: rows.length });
-    throw error;
+    throw new Error(importErrorMessage(error, 'import'), { cause: error });
   }
+}
+
+function mergeImportResults(left: ImportResult, right: ImportResult): ImportResult {
+  const result: ImportResult = { imported: left.imported + right.imported, updated: left.updated + right.updated,
+    errors: [...left.errors, ...right.errors] };
+  for (const key of ['priceToDefine', 'skipped', 'withoutImei'] as const) {
+    if (left[key] !== undefined || right[key] !== undefined) result[key] = (left[key] ?? 0) + (right[key] ?? 0);
+  }
+  if (left.warnings || right.warnings) result.warnings = [...(left.warnings ?? []), ...(right.warnings ?? [])];
+  if (left.diagnostics && right.diagnostics) {
+    const a = left.diagnostics, b = right.diagnostics;
+    const discardedByReason = { ...a.discardedByReason };
+    for (const [key, count] of Object.entries(b.discardedByReason)) {
+      const reason = key as keyof typeof discardedByReason;
+      discardedByReason[reason] = (discardedByReason[reason] ?? 0) + (count ?? 0);
+    }
+    result.diagnostics = { detectedRows: a.detectedRows + b.detectedRows, acceptedRows: a.acceptedRows + b.acceptedRows,
+      discardedRows: a.discardedRows + b.discardedRows, discardedByReason,
+      missingRequiredFields: [...new Set([...a.missingRequiredFields, ...b.missingRequiredFields])],
+      missingRecommendedFields: [...new Set([...a.missingRecommendedFields, ...b.missingRecommendedFields])],
+      ...(a.warnings || b.warnings ? { warnings: [...(a.warnings ?? []), ...(b.warnings ?? [])] } : {}),
+      ...(a.rejected || b.rejected ? { rejected: [...(a.rejected ?? []), ...(b.rejected ?? [])] } : {}),
+    };
+  }
+  return result;
 }
 
 export type TextProgressRow = { model: string; quantity: number };

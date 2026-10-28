@@ -1,0 +1,82 @@
+import { readFileSync } from 'node:fs';
+import { afterEach, expect, it, vi } from 'vitest';
+import { natanCases } from '../../test/fixtures/import/natan/cases.js';
+import type { AnalysisResult } from '../modules/import/analyze-import.service.js';
+import type { ImportSheet } from '../modules/import/sheet-plan.js';
+import { parseArDate } from '../lib/ar-date.js';
+import { prisma } from '../plugins/prisma.js';
+import { buildAuthHeaders, seedStoreContext } from './db.js';
+import { useIntegrationApp } from './integration-helpers.js';
+const { getApp } = useIntegrationApp();
+const headers = buildAuthHeaders();
+afterEach(() => vi.unstubAllEnvs());
+
+it.each(natanCases)('$file: analyze → apply → persistencia y reimportación', async fixture => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const { store } = await seedStoreContext();
+  const sheets: ImportSheet[] = JSON.parse(readFileSync(new URL(`../../test/fixtures/import/natan/${fixture.file}.grid.json`, import.meta.url), 'utf8'));
+  const payload = { section: 'inventory', sheets };
+  const analyze = await getApp().inject({ method: 'POST', url: '/api/import/analyze', headers, payload });
+  expect(analyze.statusCode, analyze.body).toBe(200);
+  const analysis: AnalysisResult = analyze.json();
+  expect(analysis.diagnostics).toMatchObject({ detectedRows: fixture.detected, acceptedRows: fixture.accepted, discardedByReason: fixture.reasons });
+  expect(analysis.rows).toHaveLength(fixture.accepted);
+  const apply = await getApp().inject({ method: 'POST', url: '/api/import/apply', headers, payload: { ...payload, plan: analysis.plan } });
+  expect(apply.statusCode, apply.body).toBe(200);
+  expect(apply.json().rows).toEqual(analysis.rows);
+  const rows = analysis.rows.map(row => ({
+    ...row, model: row.model, entryDate: row.entryDate, batteryNote: row.batteryNote, currency: row.currency, imei: row.imei ?? '', sourceRow: Number(row._sourceRow),
+    price: row.price?.trim() ? Number(row.price) : null,
+    ...(row.cost?.trim() ? { cost: Number(row.cost) } : { cost: undefined }),
+    customFields: Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value])),
+  }));
+  const run = () => getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows, definitions: analysis.suggestedDefinitions ?? [] } });
+  const first = await run();
+  expect(first.statusCode, first.body).toBe(200);
+  expect(first.json()).toMatchObject({ imported: fixture.accepted, updated: 0, errors: [] });
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(fixture.accepted);
+  const withoutImei = rows.filter(row => !row.imei).length;
+  expect(first.json().withoutImei ?? 0).toBe(withoutImei);
+  const second = await run();
+  expect(second.statusCode, second.body).toBe(200);
+  // Unidentified rows intentionally retain the old create behavior; identified rows are idempotent.
+  expect(second.json()).toMatchObject({ imported: withoutImei, updated: fixture.accepted - withoutImei, errors: [] });
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(fixture.accepted + withoutImei);
+  const stored = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
+  for (const row of rows.filter(row => row.imei)) {
+    const item = stored.find(item => item.imei === row.imei)!;
+    expect(item.model).toBe(row.model);
+    expect(Number(item.cost)).toBe(row.cost ?? 0);
+    expect(item.price == null ? null : Number(item.price)).toBe(row.price);
+    expect(item.entryDate?.toISOString().slice(0, 10) ?? null).toBe(row.entryDate ? parseArDate(row.entryDate)?.toISOString().slice(0, 10) : null);
+    expect(item.batteryNote).toBe(row.batteryNote || null);
+    expect(item.currency).toBe(row.currency ?? 'ARS');
+    if (row.customFields.calidad_origen) expect(item.customFields).toMatchObject({ calidad_origen: row.customFields.calidad_origen });
+    if (row.customFields.condicion_origen) expect(item.customFields).toMatchObject({ condicion_origen: row.customFields.condicion_origen });
+  }
+}, 30_000);
+
+it('00: confirmación directa conserva 59 equipos, rechaza duplicado con motivo y no deja filas parciales', async () => {
+  const { store } = await seedStoreContext();
+  const [sheet]: ImportSheet[] = JSON.parse(readFileSync(new URL('../../test/fixtures/import/natan/00_natan_anon.grid.json', import.meta.url), 'utf8'));
+  const rows = sheet.rows.map((row, index) => ({ sourceRow: index + 1, entryDate: row[0], model: row[2], capacity: row[3], batteryHealth: row[4], imei: row[5], color: row[7], cost: row[8], batteryNote: row[9], status: row[10] }));
+  for (let run = 0; run < 2; run++) {
+    const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ imported: run ? 0 : 59, updated: run ? 59 : 0,
+      errors: [{ row: 59, message: 'IMEI repetido en el archivo (igual a la fila 38)' }], diagnostics: { discardedByReason: { duplicate: 1 } } });
+    expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(59);
+  }
+});
+it('importes y modelos inválidos se rechazan por fila; precio ausente se guarda a definir', async () => {
+  const { store } = await seedStoreContext();
+  const rows = [...['texto', '-1', '=A1', '#N/A', '-', 'sin dato'].flatMap(value => [
+    { model: 'iPhone 13', imei: '', cost: value }, { model: 'iPhone 13', imei: '', price: value },
+  ]), ...['=A1', '#REF!', '#N/A', '#VALUE!'].map(model => ({ model, imei: '' })), { model: 'iPhone 13', imei: '' }];
+  const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows } });
+  expect(response.statusCode, response.body).toBe(200);
+  expect(response.json()).toMatchObject({ imported: 1, priceToDefine: 1, diagnostics: { discardedByReason: { invalid_price: 12, missing_model: 4 } } });
+  expect(response.json().errors.every((error: { message: string }) => /inválido|error de Excel/.test(error.message))).toBe(true);
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(1);
+  expect((await prisma.inventoryItem.findFirstOrThrow({ where: { storeId: store!.id } })).price).toBeNull();
+});

@@ -1,0 +1,94 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { autoMap } from './column-mapping.js';
+import { IMPORT_CATALOGS } from './import-catalog.js';
+import { analyzeImport, applyImportPlan } from './analyze-import.service.js';
+import { heuristicPlan } from './sheet-plan.js';
+const catalog = IMPORT_CATALOGS.inventory;
+afterEach(() => vi.unstubAllEnvs());
+const aliases: Record<string, string[]> = {
+  model: ['Producto', 'Dispositivo', 'Descripción', 'Detalle', 'iPhone', 'Celular', 'Artículo', 'Device'],
+  imei: ['Serie', 'S/N', 'Serial'], capacity: ['Memoria', 'Storage', 'Cap.'],
+  batteryHealth: ['Bat', 'Bat.', 'Battery', 'BH', 'Batt'],
+  cost: ['Precio de compra', 'Compra', 'P. compra', 'Precio compra USD', 'Inversión'],
+  status: ['Disponibilidad', 'Situación', 'Stock'], condition: ['Tipo', 'Nuevo/Usado', 'Estado físico'],
+  grade: ['Categoría', 'Cat.'], supplierName: ['Comprado a', 'Supplier', 'Vendedor origen'],
+  entryDate: ['Fecha', 'F. ingreso', 'Date', 'Fecha compra'], batteryNote: ['Observaciones', 'Notas', 'Reparaciones', 'Arreglos'],
+};
+it.each(Object.entries(aliases).flatMap(([field, aliases]) => aliases.map(alias => ({ field, alias }))))('$alias → $field con puntuación, tildes y mayúsculas', ({ field, alias }) => {
+  for (const header of [alias, `  ${alias.toUpperCase()} .  `]) {
+    expect(autoMap(['Modelo', 'IMEI', 'Capacidad', 'Color'].filter(h => !autoMap([h], catalog.fields, catalog.hints)[field]).concat(header), catalog.fields, catalog.hints)[field]).toBe(header);
+  }
+});
+it('completa por contenido al 80%, exige Luhn y nunca pisa encabezados', () => {
+  const sheets = [{ name: 'Stock', rows: [
+    ['Modelo', 'Otro', 'Desconocido', 'Otra', 'Salud desconocida', 'Sin título', 'Color'],
+    ...Array.from({ length: 10 }, (_, i) => ['iPhone 13', 'iPhone 14', i < 8 ? '359890930782405' : 'raro', '128 GB', '85%', 'USD 420', 'Negro']),
+  ] }];
+  const mapping = heuristicPlan(sheets, 'inventory', 'ARS')[0].mapping;
+  expect(mapping.map(c => c.field)).toEqual(['model', '', 'imei', 'capacity', 'batteryHealth', 'cost', 'color']);
+  sheets[0].rows[7][2] = '359890930782406';
+  expect(heuristicPlan(sheets, 'inventory', 'ARS')[0].mapping[2].field).toBe('');
+});
+it.each([false, true])('normaliza batería mezclada con encabezado=%s sin rechazar por 8*%%', header => {
+  const rows = ['85', '85%', '0.85', '8*%', '100', 'N/A'].map(battery => ['iPhone 13', battery, 'USD 450']);
+  if (header) rows.unshift(['Modelo', 'Batería', 'Costo USD']);
+  const sheets = [{ name: 'Stock', rows }];
+  const result = applyImportPlan({ section: 'inventory', currency: 'ARS', sheets, plan: heuristicPlan(sheets, 'inventory', 'ARS') });
+  expect(result.rows.map(row => row.batteryHealth)).toEqual(['85%', '85%', '85%', '', '100%', 'N/A']);
+  expect(result.diagnostics?.warnings).toContainEqual({ row: header ? 5 : 4, message: expect.stringContaining('sin batería') });
+});
+it('preserva varias notas y la moneda explícita del costo, y respeta elección manual', async () => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const input = { section: 'inventory' as const, currency: 'ARS' as const, sheets: [{ name: 'Stock', rows: [
+    ['Modelo', 'Costo USD', 'Notas', 'Arreglos'], ['iPhone 13', '420', 'Original', 'Pantalla cambiada'],
+  ] }] };
+  const result = await analyzeImport(input);
+  expect(result.rows[0]).toMatchObject({ cost: '420', currency: 'USD', batteryNote: 'Original; Pantalla cambiada' });
+  expect(result.warnings).toEqual([]);
+  result.plan[0].priceCurrency = 'ARS';
+  expect(applyImportPlan({ ...input, plan: result.plan }).rows[0].currency).toBe('ARS');
+});
+it.each(['texto', '-1', '=A1', '#N/A', '-', 'sin dato'])('rechaza costo/precio inválido %s sin inventar cero; vacío permite precio a definir', async amount => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  for (const field of ['Costo', 'Precio']) {
+    const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Stock', rows: [['Modelo', field], ['iPhone 13', amount], ['iPhone 14', '']] }] });
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].model).toBe('iPhone 14');
+    expect(result.diagnostics?.rejected).toContainEqual({ row: 2, reason: 'invalid_price', message: expect.stringMatching(/Costo|Precio/) });
+  }
+});
+it.each(['=A1', '#REF!', '#N/A', '#VALUE!'])('rechaza el modelo %s como error de Excel', async model => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Stock', rows: [['Modelo', 'Costo'], [model, '450']] }] });
+  expect(result.rows).toEqual([]);
+  expect(result.diagnostics?.rejected?.[0]).toMatchObject({ reason: 'missing_model', message: expect.stringContaining('error de Excel') });
+});
+it('diez respuestas distintas del respaldo no cambian campos críticos comprobados por contenido', async () => {
+  vi.stubEnv('OPENAI_API_KEY', 'test-only');
+  const sheets = [{ name: 'Stock', rows: [
+    ['Modelo', 'Otro modelo', 'Costo USD', 'Otro importe'],
+    ['iPhone 13', 'iPhone 14', '420', 'USD 900'],
+  ] }];
+  let run = 0;
+  const fetchImpl = vi.fn(async (url: RequestInfo | URL) => {
+    if (String(url).includes('decisions')) return new Response('', { status: 500 });
+    run++;
+    const plan = heuristicPlan(sheets, 'inventory', 'ARS')[0];
+    plan.mapping = [{ header: 'Otro modelo', columnIndex: 1, field: 'model' }, { header: 'Otro importe', columnIndex: 3, field: run % 2 ? 'cost' : 'price' }];
+    plan.condition = run % 2 ? 'NUEVO' : 'USADO';
+    return Response.json({ output_text: JSON.stringify({ sheets: [plan] }) });
+  });
+  const input = { section: 'inventory' as const, currency: 'ARS' as const, sheets };
+  const first = await analyzeImport(input, { fetchImpl });
+  for (let i = 0; i < 9; i++) expect(await analyzeImport(input, { fetchImpl })).toEqual(first);
+  expect(run).toBe(10);
+  expect(first.source).toBe('heuristic');
+  expect(first.rows[0]).toMatchObject({ model: 'iPhone 13', cost: '420', currency: 'USD' });
+});
+it('reconoce una columna de enteros 60–100 como batería y conserva notas ante celdas vacías', async () => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const sheets = [{ name: 'Stock', rows: [['iPhone 13', '85', 'USD 450'], ['iPhone 14', '100', 'USD 600']] }];
+  expect((await analyzeImport({ section: 'inventory', currency: 'ARS', sheets })).rows.map(row => row.batteryHealth)).toEqual(['85%', '100%']);
+  const notes = [{ name: 'Stock', rows: [['Modelo', 'Notas', 'Arreglos'], ['iPhone 13', 'Original', '']] }];
+  expect((await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: notes })).rows[0].batteryNote).toBe('Original');
+});

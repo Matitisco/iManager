@@ -7,7 +7,7 @@ import {
   plansFromAnswers,
   postDecisions,
 } from "./decisions-plan.js";
-import { isPurchaseHeader } from "./column-mapping.js";
+import { autoMap, isPurchaseHeader, normalizeHeader } from "./column-mapping.js";
 import type { ImportDiagnostics } from "./import-diagnostics.js";
 import { IMPORT_CATALOGS, type ImportSection } from "./import-catalog.js";
 import {
@@ -21,6 +21,10 @@ import {
 } from "./responses-client.js";
 import {
   applyPlans,
+  checkedCriticalFields,
+  trustworthyInventoryPlan,
+  parseMoney,
+  cellCurrency,
   headerLooksValid,
   heuristicPlan,
   heuristicSheet,
@@ -89,6 +93,7 @@ export type AnalysisLogEntry = {
 };
 
 export type AnalysisResult = {
+  warnings?: string[];
   suggestedDefinitions?: DefinitionInput[];
   source: AnalysisSource;
   notice: string | null;
@@ -111,18 +116,23 @@ export async function analyzeImport(
   deps: AnalyzeDeps = {},
 ): Promise<AnalysisResult> {
   const sheets = prepareSheets(input.sheets);
-  const heuristic = () => heuristicPlan(sheets, input.section, input.currency);
+  const fallbackPlan = heuristicPlan(sheets, input.section, input.currency);
+  const heuristic = () => fallbackPlan;
   const unrelated = unrelatedNotice(input.section);
   if (unrelated && !sectionHasRelevantColumns(sheets, input.section)) {
     const plan = heuristic().map((sheet) => ({ ...sheet, include: false }));
     return finish(input, sheets, deps, "heuristic", unrelated, plan, null, 0, 0, "none");
   }
+  if (input.section === "inventory" && trustworthyInventoryPlan(sheets, fallbackPlan)) {
+    return finish(input, sheets, deps, "heuristic", null, fallbackPlan, null, 0, 0, "none");
+  }
   const key = openAiApiKey();
-  if (!key) return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.missingKey, heuristic(), null, 0, 0, "none");
+  if (!key) return finish(input, sheets, deps, "heuristic", null, heuristic(), null, 0, 0, "none");
 
   const decisions = await decideImport(input, sheets, key, deps.fetchImpl);
   if (decisions.outcome === "ready") {
-    return finish(input, sheets, deps, "model", null, decisions.plan, DECISIONS_MODEL, decisions.inputTokens, decisions.outputTokens, "decisions");
+    const preferred = preferCheckedHeuristic(sheets, fallbackPlan, decisions.plan, input.section);
+    return finish(input, sheets, deps, preferred.preferred ? "heuristic" : "model", null, preferred.plan, DECISIONS_MODEL, decisions.inputTokens, decisions.outputTokens, "decisions");
   }
   if (decisions.outcome === "quota") {
     return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.quota, heuristic(), DECISIONS_MODEL, decisions.inputTokens, decisions.outputTokens, "decisions");
@@ -145,7 +155,30 @@ export async function analyzeImport(
   if (!accepted) {
     return finish(input, sheets, deps, "heuristic", ANALYSIS_NOTICES.error, heuristic(), model, call.inputTokens, call.outputTokens, "responses");
   }
-  return finish(input, sheets, deps, "model", null, accepted, model, call.inputTokens, call.outputTokens, "responses");
+  const preferred = preferCheckedHeuristic(sheets, fallbackPlan, accepted, input.section);
+  return finish(input, sheets, deps, preferred.preferred ? "heuristic" : "model", null, preferred.plan, model, call.inputTokens, call.outputTokens, "responses");
+}
+
+function preferCheckedHeuristic(sheets: ImportSheet[], heuristic: SheetPlan[], model: SheetPlan[], section: ImportSection) {
+  let preferred = false;
+  const plan = model.map(candidate => {
+    if (section !== "inventory") return candidate;
+    const fallback = heuristic.find(item => item.name === candidate.name);
+    const sheet = sheets.find(item => item.name === candidate.name);
+    if (!fallback?.include || !sheet) return candidate;
+    const checked = checkedCriticalFields(sheet, fallback);
+    if (!checked.has("model")) return candidate;
+    const headers = sheetHeaders(sheet.rows, candidate.headerRow);
+    const fallbackHeaders = sheetHeaders(sheet.rows, fallback.headerRow);
+    const conflict = candidate.include !== fallback.include || candidate.headerRow !== fallback.headerRow
+      || candidate.dataStartRow !== fallback.dataStartRow || fallback.mapping.some(column => checked.has(column.field) &&
+      mappingColumnIndex(fallbackHeaders, column) !== mappingColumnIndex(headers,
+        candidate.mapping.find(mapped => mapped.field === column.field) ?? { header: "", columnIndex: -1, field: "" }));
+    if (!conflict) return candidate;
+    preferred = true;
+    return fallback;
+  });
+  return { plan, preferred };
 }
 
 export function applyImportPlan(
@@ -286,6 +319,12 @@ export function acceptModelPlan(
     });
     if (modelMapping.length === 0) return fallback();
     const mapping = section === "inventory" ? repairBatteryMapping(rows, model.headerRow, modelMapping) : modelMapping;
+    if (section === "inventory") headers.forEach((header, columnIndex) => {
+      if (!autoMap([header], catalog.fields, catalog.hints).batteryNote) return;
+      const existing = mapping.find(column => column.columnIndex === columnIndex);
+      if (existing) existing.field = "batteryNote";
+      else mapping.push({ header, columnIndex, field: "batteryNote" });
+    });
     accepted += 1;
     const priceHeader = mapping.find((column) => column.field === "price")?.header ?? "";
     const detectedCurrency = priceCurrencyOf(priceHeader);
@@ -355,23 +394,39 @@ function finish(
       if (!sheet) return item;
       const headers = sheetHeaders(sheet.rows, item.headerRow);
       const mapping = item.mapping.map(column => {
-        if (column.field !== 'grade') return column;
+        if (column.field !== 'grade' && !(column.field === 'condition' && normalizeHeader(column.header) === 'estadofisico')) return column;
         const index = mappingColumnIndex(headers, column);
         const values = sheet.rows.slice(Math.max(item.headerRow + 1, item.dataStartRow) - 1, item.dataEndRow)
           .map(row => row[index]?.trim() ?? '').filter(Boolean);
-        if (!values.length || values.filter(value => !parseQuality(value).ok).length <= values.length / 2) return column;
-        if (!suggestedDefinitions.length) suggestedDefinitions.push({
-          entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0,
+        const grade = column.field === 'grade';
+        const valid = (value: string) => grade ? parseQuality(value).ok : /^(nuevo|new|usado|used|outlet|pre[ -]?owned)$/i.test(value);
+        if (!values.length || values.filter(value => !valid(value)).length <= values.length / 2) return column;
+        const key = grade ? 'calidad_origen' : 'condicion_origen';
+        if (!suggestedDefinitions.some(definition => definition.key === key)) suggestedDefinitions.push({
+          entity: 'inventory', key, label: grade ? 'Calidad (origen)' : 'Condición (origen)', type: 'text', order: 0,
         });
-        return { ...column, field: 'custom:calidad_origen' };
+        return { ...column, field: `custom:${key}` };
       });
       return { ...item, mapping };
     });
+  }
+  const warnings: string[] = [];
+  if (input.section === "inventory") for (const item of plan.filter(item => item.include)) {
+    const sheet = sheets.find(sheet => sheet.name === item.name);
+    const cost = item.mapping.find(column => column.field === "cost");
+    if (!sheet || !cost || item.priceCurrency || item.mapping.some(column => column.field === "currency")) continue;
+    const index = mappingColumnIndex(sheetHeaders(sheet.rows, item.headerRow), cost);
+    const values = sheet.rows.slice(item.dataStartRow - 1, item.dataEndRow).map(row => row[index]?.trim() ?? "").filter(Boolean);
+    if (cellCurrency(cost.header) || values.some(value => cellCurrency(value))) continue;
+    if (values.length && values.filter(value => { const n = parseMoney(value); return n != null && n >= 80 && n <= 1800; }).length / values.length >= 0.8) {
+      warnings.push(`La columna de costo no indica moneda: se importará en ${input.currency}. Podés cambiarla en la pantalla antes de importar.`);
+    }
   }
   const applied = applyPlans(sheets, plan, input.section, input.currency);
   const result: AnalysisResult = {
     source,
     notice,
+    warnings: [...new Set(warnings)],
     ...(suggestedDefinitions.length ? { suggestedDefinitions } : {}),
     currency: input.currency,
     plan: applied.plans,

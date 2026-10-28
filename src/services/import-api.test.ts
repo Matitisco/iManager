@@ -123,7 +123,7 @@ describe('import-api', () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ rows }),
-    });
+    }, 120_000);
   });
 
   it('surfaces import errors and fallback status messages', async () => {
@@ -132,7 +132,7 @@ describe('import-api', () => {
       .mockResolvedValueOnce(new Response(null, { status: 500 }));
 
     await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('Producto inexistente');
-    await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('Ocurrió un error en el servidor. Probá de nuevo en unos minutos.');
+    await expect(importBackendRows(mockUser, 'sales', [{ clientDni: '11222333' }])).rejects.toThrow('No se pudo completar la importación por un problema del servidor. Volvé a intentarlo en unos minutos.');
   });
 
   it('asks the backend to read the workbook and keeps the OpenAI key off the client', async () => {
@@ -215,4 +215,64 @@ it('no convierte un precio inválido en null al serializar el pedido', async () 
   vi.mocked(fetchWithTimeout).mockClear();
   await expect(importBackendRows(mockUser, 'inventory', [{ imei: '', model: 'iPhone 13', price: NaN }])).rejects.toThrow('Revisá los precios inválidos');
   expect(fetchWithTimeout).not.toHaveBeenCalled();
+});
+
+describe('confirmación por lotes', () => {
+  beforeEach(() => {
+    vi.mocked(fetchWithTimeout).mockReset();
+    setApiBaseUrl('https://api.imanager.test');
+  });
+  const rows = () => Array.from({ length: 1200 }, (_, i) => ({ imei: String(990000000000000 + i), model: 'iPhone 13', price: null, sourceRow: i + 10 }));
+  it('envía 1200 en tres lotes secuenciales de 400, timeout de 120 s, resultados y progreso acumulados', async () => {
+    let active = false;
+    let batch = 0;
+    vi.mocked(fetchWithTimeout).mockImplementation(async (_, init, timeout) => {
+      expect(active).toBe(false);
+      active = true;
+      expect(timeout).toBe(120_000);
+      const submitted = JSON.parse(String(init?.body)).rows;
+      expect(submitted).toHaveLength(400);
+      expect(submitted[0].sourceRow).toBe(10 + batch * 400);
+      const current = batch++;
+      await Promise.resolve();
+      active = false;
+      return json({ imported: 390, updated: 9, skipped: 1, priceToDefine: 399,
+        errors: [{ row: 11 + current * 400, message: 'IMEI inválido' }], warnings: [{ row: 12 + current * 400, message: 'Sin batería' }],
+        diagnostics: { detectedRows: 400, acceptedRows: 399, discardedRows: 1, discardedByReason: { invalid_imei: 1 }, missingRequiredFields: [], missingRecommendedFields: [] } });
+    });
+    const progress = vi.fn();
+    const result = await importBackendRows(mockUser, 'inventory', rows(), undefined, 'excel', undefined, progress);
+    expect(result).toMatchObject({ imported: 1170, updated: 27, skipped: 3, priceToDefine: 1197,
+      diagnostics: { detectedRows: 1200, acceptedRows: 1197, discardedRows: 3, discardedByReason: { invalid_imei: 3 } } });
+    expect(result.errors.map(error => error.row)).toEqual([11, 411, 811]);
+    expect(result.warnings?.map(warning => warning.row)).toEqual([12, 412, 812]);
+    expect(progress.mock.calls).toEqual([[400, 1200], [800, 1200], [1200, 1200]]);
+  });
+  it('devuelve lo guardado y mensaje recuperable si falla la conexión en el segundo lote', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 400, updated: 0, priceToDefine: 400, errors: [] }))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const result = await importBackendRows(mockUser, 'inventory', rows());
+    expect(result).toMatchObject({ imported: 400, updated: 0, partial: true, priceToDefine: 400,
+      message: 'Se importaron 400 equipos y falló la conexión en la fila 410. Volvé a importar el mismo archivo: los que ya entraron se actualizan, no se duplican.' });
+    expect(result.errors[0].row).toBe(410);
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(2);
+  });
+  it('rechaza IMEI repetido entre lotes conservando la fila física', async () => {
+    const input = rows();
+    input[400].imei = input[0].imei;
+    vi.mocked(fetchWithTimeout).mockImplementation(async (_, init) => json({ imported: JSON.parse(String(init?.body)).rows.length, updated: 0, errors: [] }));
+    const result = await importBackendRows(mockUser, 'inventory', input);
+    expect(result.imported).toBe(1199);
+    expect(result.errors).toEqual([{ row: 410, imei: input[0].imei, message: 'IMEI repetido en el archivo (igual a la fila 10)' }]);
+  });
+  it.each([400, 413, 500])('traduce HTTP %s de analyze e import sin exponer JSON técnico', async status => {
+    vi.mocked(fetchWithTimeout).mockImplementation(async () => json({ error: '{"issues":["too_big"]}' }, status));
+    await expect(analyzeImport(mockUser, 'inventory', [{ name: 'Stock', rows: [['Modelo']] }])).rejects.toThrow(/planilla|grande|servidor/);
+    await expect(importBackendRows(mockUser, 'inventory', [{ model: 'iPhone 13', imei: '', price: null }])).rejects.toThrow(/filas|grande|servidor/);
+  });
+  it('traduce timeout de analyze e import', async () => {
+    vi.mocked(fetchWithTimeout).mockRejectedValue(new DOMException('timeout', 'AbortError'));
+    await expect(analyzeImport(mockUser, 'inventory', [{ name: 'Stock', rows: [['Modelo']] }])).rejects.toThrow('tardó demasiado');
+    await expect(importBackendRows(mockUser, 'inventory', [{ model: 'iPhone 13', imei: '', price: null }])).rejects.toThrow('tardó demasiado');
+  });
 });

@@ -212,7 +212,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       );
 
       if (!inventoryItem) {
-        return reply.code(404).send({ error: "Inventory item not found" });
+        return reply.code(404).send({ error: "El equipo no existe en esta tienda" });
       }
 
       return { inventoryItem };
@@ -243,8 +243,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
               condition: z.string().optional(),
               grade: z.string().optional(),
               batteryHealth: z.coerce.string().optional(),
-              cost: z.coerce.number().optional(),
-              price: z.coerce.number().finite().nonnegative().nullable().optional(),
+              cost: z.union([z.number(), z.string()]).optional(),
+              price: z.union([z.number(), z.string()]).nullable().optional(),
               currency: z.enum(["ARS", "USD"]).optional(),
               status: z.string().optional(),
               purchasedAt: z.string().trim().optional(),
@@ -284,7 +284,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const deleted = await deleteInventoryItem(request.appUser.storeId, params.id, actor, { reason: readReason(request.body) });
 
       if (!deleted) {
-        return reply.code(404).send({ error: "Inventory item not found" });
+        return reply.code(404).send({ error: "El equipo no existe en esta tienda" });
       }
 
       return reply.code(204).send();
@@ -300,7 +300,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const actor = await requireSensitiveActor(request.appUser, reply);
       if (!actor) return;
       const item = await restoreInventoryItem(request.appUser.storeId, params.id, actor);
-      if (!item) return reply.code(404).send({ error: "Inventory item not found" });
+      if (!item) return reply.code(404).send({ error: "El equipo no existe en esta tienda" });
       return { inventoryItem: item };
     },
   );
@@ -332,7 +332,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const { name } = z.object({ name: z.string().trim().min(1).max(80) }).parse(request.body);
     const category = await renameCategory(request.appUser.storeId, id, name);
-    if (!category) return reply.code(404).send({ error: "Category not found" });
+    if (!category) return reply.code(404).send({ error: "La categoría no existe en esta tienda" });
     return { category };
   });
 
@@ -340,7 +340,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const deleted = await deleteCategory(request.appUser.storeId, id, await loadActor(request.appUser.userId));
-    if (!deleted) return reply.code(404).send({ error: "Category not found" });
+    if (!deleted) return reply.code(404).send({ error: "La categoría no existe en esta tienda" });
     return reply.code(204).send();
   });
 

@@ -156,7 +156,7 @@ async function assertCategoryBelongsToStore(storeId: string, categoryId?: string
   });
 
   if (!category) {
-    throw new InventoryError("Category not found", 404);
+    throw new InventoryError("La categoría no existe en esta tienda", 404);
   }
 }
 
@@ -650,7 +650,7 @@ export async function updateInventoryItem(
         where: { id: input.categoryId, storeId },
         select: { id: true },
       });
-      if (!category) throw new InventoryError("Category not found", 404);
+      if (!category) throw new InventoryError("La categoría no existe en esta tienda", 404);
     }
 
     const nextImei = input.imei !== undefined ? storedImei(input.imei) : undefined;
@@ -902,7 +902,7 @@ export async function listCategories(storeId: string): Promise<InventoryCategory
 
 export async function createCategory(storeId: string, name: string): Promise<InventoryCategoryResponse> {
   const trimmed = name.trim();
-  if (!trimmed) throw new InventoryError("Category name required", 400);
+  if (!trimmed) throw new InventoryError("Escribí el nombre de la categoría", 400);
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { storeId, name: trimmed } });
   if (existing?.archivedAt) {
     return inventoryPrisma.inventoryCategory.update({
@@ -911,7 +911,7 @@ export async function createCategory(storeId: string, name: string): Promise<Inv
       select: { id: true, name: true },
     });
   }
-  if (existing) throw new InventoryError("Category already exists", 409);
+  if (existing) throw new InventoryError("Ya existe una categoría con ese nombre", 409);
   const count = await inventoryPrisma.inventoryCategory.count({ where: { storeId } });
   const cat = await inventoryPrisma.inventoryCategory.create({ data: { storeId, name: trimmed, sortOrder: count }, select: { id: true, name: true } });
   return cat;
@@ -927,7 +927,7 @@ export async function reorderCategories(storeId: string, orderedIds: string[]): 
 
 export async function renameCategory(storeId: string, id: string, name: string): Promise<InventoryCategoryResponse | null> {
   const trimmed = name.trim();
-  if (!trimmed) throw new InventoryError("Category name required", 400);
+  if (!trimmed) throw new InventoryError("Escribí el nombre de la categoría", 400);
   const existing = await inventoryPrisma.inventoryCategory.findFirst({ where: { id, storeId } });
   if (!existing) return null;
   const updated = await inventoryPrisma.inventoryCategory.update({ where: { id }, data: { name: trimmed }, select: { id: true, name: true } });
@@ -955,7 +955,7 @@ export async function deleteCategory(storeId: string, id: string, actor?: Actor 
 export async function bulkMoveCategory(storeId: string, ids: string[], categoryId: string | null): Promise<number> {
   if (categoryId !== null) {
     const cat = await inventoryPrisma.inventoryCategory.findFirst({ where: { id: categoryId, storeId } });
-    if (!cat) throw new InventoryError("Category not found", 404);
+    if (!cat) throw new InventoryError("La categoría no existe en esta tienda", 404);
   }
   const result = await inventoryPrisma.inventoryItem.updateMany({
     where: { id: { in: ids }, storeId },
@@ -980,8 +980,8 @@ export interface ImportRow {
   condition?: string;
   grade?: string;
   batteryHealth?: string;
-  cost?: number;
-  price?: number | null;
+  cost?: number | string;
+  price?: number | string | null;
   currency?: "ARS" | "USD";
   status?: string;
   customFields?: Record<string, unknown>;
@@ -994,6 +994,7 @@ export interface ImportResult {
   updated: number;
   errors: { row: number; imei: string; message: string }[];
   priceToDefine: number;
+  withoutImei?: number;
 }
 
 export async function importInventoryItems(
@@ -1027,6 +1028,7 @@ export async function importInventoryItems(
 
   for (let i = 0; i < rows.length; i++) {
     const raw = { ...rows[i] };
+    if (typeof raw.price === 'string' && !raw.price.trim()) raw.price = null;
     const rowNum = raw.sourceRow ?? i + 1;
     let rowCurrency: string = raw.currency ?? importedCurrency;
     const validated = validateInventoryImportRow(raw, rowNum, seenImeis);
@@ -1044,7 +1046,7 @@ export async function importInventoryItems(
     const status = normalizedStatus.status;
     if (normalizedStatus.originalStatus) raw.customFields = { ...raw.customFields, originalStatus: normalizedStatus.originalStatus };
 
-    const providedCost = raw.cost == null || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
+    const providedCost = raw.cost == null || !String(raw.cost).trim() || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
     let customFields: Record<string, unknown>;
     try {
       // Store-specific custom definitions and DB constraints can only be checked at confirmation.
@@ -1170,6 +1172,7 @@ export async function importInventoryItems(
         result.imported++;
       }
       if (transaction) await transaction.$executeRawUnsafe('RELEASE SAVEPOINT import_row');
+      if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + 1;
     } catch (error) {
       if (transaction) {
         await transaction.$executeRawUnsafe('ROLLBACK TO SAVEPOINT import_row');
