@@ -23,6 +23,16 @@ describe("device quality", () => {
     expect(parseQuality(null)).toEqual({ ok: true, grade: "" });
   });
 
+  it.each([['A/A-', 'A/A-'], [' b / c ', 'B/C'], ['A+/A', 'A+/A']])('accepts slash quality %s without losing either grade', (raw, grade) => {
+    expect(parseQuality(raw)).toEqual({ ok: true, grade });
+    expect(inventoryGrade('USADO', raw)).toEqual({ ok: true, grade });
+    expect(inventoryGrade('NUEVO', raw)).toEqual({ ok: true, grade: '' });
+  });
+
+  it.each(['A/D', 'A/', '/C', 'A/B/C', 'AA/A', 'A//B', 'A-/foo'])('rejects malformed slash quality %s', raw => {
+    expect(parseQuality(raw).ok).toBe(false);
+  });
+
   it("rejects a grade outside the scale", () => {
     expect(parseQuality("D").ok).toBe(false);
     expect(parseQuality("excelente").ok).toBe(false);

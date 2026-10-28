@@ -11,7 +11,7 @@ const QUALITY_BY_KEY: Record<string, DeviceQuality> = {
 
 const EMPTY_QUALITY = new Set(["", "n/a", "na", "-", "—"]);
 
-export const QUALITY_ERROR = "La calidad tiene que ser A+, A, B o C";
+export const QUALITY_ERROR = "La calidad tiene que ser A+, A, B o C, o una combinación como A/A- o B/C";
 
 export type ParsedQuality =
   | { ok: true; grade: string }
@@ -26,11 +26,13 @@ export function isUsedCondition(condition: string | null | undefined): boolean {
   return key === "usado" || key === "used";
 }
 
-/** Accepts the cosmetic scale, or a blank value. Rejects anything else. */
+/** Accepts the cosmetic scale, slash-separated pairs, or a blank value. */
 export function parseQuality(value: string | null | undefined): ParsedQuality {
   const raw = (value ?? "").trim();
   if (!raw || EMPTY_QUALITY.has(raw.toLowerCase())) return { ok: true, grade: "" };
-  const grade = QUALITY_BY_KEY[raw.toLowerCase()];
+  const pair = raw.toUpperCase().replace(/\s*\/\s*/g, "/");
+  const grade = QUALITY_BY_KEY[raw.toLowerCase()]
+    ?? (/^[ABC][+-]?\/[ABC][+-]?$/.test(pair) ? pair : undefined);
   if (!grade) return { ok: false, message: QUALITY_ERROR };
   return { ok: true, grade };
 }

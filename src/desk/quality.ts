@@ -30,20 +30,22 @@ export function isUsedCondition(condition: string | null | undefined): boolean {
   return key === 'usado' || key === 'used';
 }
 
-export function canonicalQuality(value: string | null | undefined): DeviceQuality | '' {
+export function canonicalQuality(value: string | null | undefined): string {
   const raw = (value ?? '').trim();
   if (!raw || EMPTY_QUALITY.has(raw.toLowerCase())) return '';
-  return DEVICE_QUALITIES.find((item) => item.value.toLowerCase() === raw.toLowerCase())?.value ?? '';
+  const pair = raw.toUpperCase().replace(/\s*\/\s*/g, '/');
+  return DEVICE_QUALITIES.find((item) => item.value.toLowerCase() === raw.toLowerCase())?.value
+    ?? (/^[ABC][+-]?\/[ABC][+-]?$/.test(pair) ? pair : '');
 }
 
 /** Cosmetic grade shown for a used device. New devices, and anything outside the scale, stay blank. */
-export function displayQuality(condition: string | null | undefined, grade: string | null | undefined): DeviceQuality | '' {
+export function displayQuality(condition: string | null | undefined, grade: string | null | undefined): string {
   if (!isUsedCondition(condition)) return '';
   return canonicalQuality(grade);
 }
 
 /** Grade of a device that enters through a trade-in: those devices are used. */
-export function tradeQuality(grade: string | null | undefined): DeviceQuality | '' {
+export function tradeQuality(grade: string | null | undefined): string {
   return canonicalQuality(grade);
 }
 

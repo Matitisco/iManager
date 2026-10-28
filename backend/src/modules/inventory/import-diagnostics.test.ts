@@ -154,3 +154,17 @@ it('reports generic notes and amount-only footers equally in preview and direct 
   expect(analysis.diagnostics?.rejected).toEqual(confirmed.diagnostics?.rejected);
   expect(confirmed.diagnostics?.rejected?.map(({ row, reason }) => ({ row, reason }))).toEqual([3, 4, 5, 6].map(row => ({ row, reason: 'footer' })));
 });
+
+it.each(['0,87', '0.87'])('persists decimal battery %s and slash qualities on create and reimport', async batteryHealth => {
+  const rows = ['A/A-', 'B/C'].map((grade, i) => ({ model: 'iPhone 13', imei: `99000000000000${i}`, grade, batteryHealth }));
+  const created = await importInventoryItems('store-test', rows);
+  expect(created).toMatchObject({ imported: 2, errors: [] });
+  expect(created.warnings ?? []).toEqual([]);
+  for (const [i, grade] of ['A/A-', 'B/C'].entries()) {
+    expect(prismaMock.inventoryItem.create.mock.calls[i][0].data).toMatchObject({ batteryHealth: '87%', grade });
+  }
+  prismaMock.inventoryItem.findFirst.mockResolvedValue({ id: 'existing-item', customFields: {}, price: null, cost: 0, currency: 'USD', condition: 'USADO', grade: 'A/A-' });
+  const updated = await importInventoryItems('store-test', rows);
+  expect(updated).toMatchObject({ updated: 2, errors: [] });
+  expect(prismaMock.inventoryItem.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ batteryHealth: '87%', grade: 'B/C' }) }));
+});

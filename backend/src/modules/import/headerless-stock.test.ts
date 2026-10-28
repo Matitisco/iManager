@@ -278,7 +278,9 @@ describe('calidad libre y rechazos compartidos', () => {
     const chosen = applyImportPlan({ section: 'inventory', sheets: input, currency: 'USD', plan: gradePlan });
     expect(chosen.plan[0].mapping.some(column => column.field === 'grade')).toBe(true);
     expect(chosen.suggestedDefinitions).toBeUndefined();
-    expect(chosen.rows).toHaveLength(0);
+    expect(chosen.rows).toHaveLength(19);
+    expect(chosen.rows.every(row => ['A/A-', 'B/C'].includes(row.grade))).toBe(true);
+    expect(chosen.diagnostics?.discardedByReason.invalid_row).toBeGreaterThan(0);
   });
 
   it.each([['A', 'B', 'AA'], ['A', 'AA', ''], ['A', 'B', 'C']])('preserva toda la columna si alguna calidad es inválida: %s', async (...grades) => {
