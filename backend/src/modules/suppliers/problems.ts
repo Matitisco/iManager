@@ -22,7 +22,6 @@ export interface ProblemSummary { problems: number; devices: number }
 /** Shared short label; status has priority, then claim, then open repair. */
 export function deviceProblemLabel(status: string, hasClaim: boolean, inService: boolean): string | null {
   if (status === "EN_RMA") return "En RMA";
-  if (status === "EN_REVISION") return "En revisión";
   if (hasClaim) return "Reclamo";
   if (inService) return "En servicio técnico";
   return null;

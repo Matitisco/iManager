@@ -25,7 +25,7 @@ async function fixture() {
   const fallback = await device();
   const rma = await device({ status: "EN_RMA" });
   const repair = await device();
-  const healthy = await device();
+  const healthy = await device({ status: "EN_REVISION" }); // Review alone is not a purchase problem.
   const old = await device({ stockPurchaseId: previous.id });
   const loose = await device({ stockPurchaseId: null });
   const noOrigin = await device({ supplierId: null, stockPurchaseId: null, model: "iPhone SE", capacity: "64GB" });
