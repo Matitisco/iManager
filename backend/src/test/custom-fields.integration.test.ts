@@ -104,15 +104,22 @@ describe('custom equipment fields and import', () => {
 it('creates the suggested origin quality definition and persists every preview row in one confirmation', async () => {
   const { analyzeImport } = await import('../modules/import/analyze-import.service.js');
   const { DECISIONS_URL } = await import('../modules/import/responses-client.js');
-  const { syntheticQualityStockRows, mistakenQualityStockPlan, stockModelResponse } = await import('../../test/fixtures/headerless-stock.js');
+  const { syntheticQualityStockRows } = await import('../../test/fixtures/headerless-stock.js');
   const { headers, store } = await context();
   vi.stubEnv('OPENAI_API_KEY', 'sk-test');
   try {
     const grid = syntheticQualityStockRows();
-    // An ambiguous extra model forces the fallback mapper to supply the free quality field.
+    // Decisions supplies the quality field even with an ambiguous extra model.
     grid.forEach(row => { row[15] = 'iPhone 16'; });
     const analysis = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'stock de equipos', rows: grid }] }, {
-      fetchImpl: async url => String(url) === DECISIONS_URL ? new Response('', { status: 404 }) : stockModelResponse(mistakenQualityStockPlan(grid)),
+      fetchImpl: async (url, init) => {
+        expect(String(url)).toBe(DECISIONS_URL);
+        const fields = ['entryDate', 'supplierName', 'model', 'capacity', 'batteryHealth', 'imei', 'grade', 'color', 'cost', 'batteryNote', 'status'];
+        const body = JSON.parse(String(init?.body)) as { questions: { name: string; type: string }[] };
+        return Response.json({ answers: body.questions.map(question => ({ name: question.name,
+          ...(question.type === 'predicate' ? { probability: 1 } : { choice: question.name.endsWith('_hdr') ? '0' : fields[Number(/_c(\d+)/.exec(question.name)?.[1])] ?? 'ignore', confidence: 1 }),
+        })) });
+      },
     });
     const rows = analysis.rows.map(row => ({
       imei: row.imei, model: row.model, sourceRow: Number(row._sourceRow), entryDate: row.entryDate,

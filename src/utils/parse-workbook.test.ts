@@ -114,7 +114,6 @@ describe('ejemplo-stock.xlsx', () => {
 
 
 it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX rows through the real parser (%s)', async source => {
-  const { syntheticStockRows, mistakenStockPlan, stockModelResponse } = await import('../../backend/test/fixtures/headerless-stock');
   const { applyImportPlan } = await import('../../backend/src/modules/import/analyze-import.service');
   const previousKey = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
@@ -132,11 +131,17 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     expect(grid[0][4]).toBe('0.8');
     expect(grid[0][5]).toBe('990000000000000');
     const input = { section: 'inventory' as const, currency: 'USD' as const, sheets: [{ name: workbook.sheetNames[0], rows: grid }] };
-    const fetchImpl = vi.fn(async (url: RequestInfo | URL) => String(url) === DECISIONS_URL
-      ? new Response('', { status: 404 }) : stockModelResponse(mistakenStockPlan(grid)));
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(url)).toBe(DECISIONS_URL);
+      const fields = ['entryDate', 'supplierName', 'model', 'capacity', 'batteryHealth', 'imei', 'ignore', 'color', 'cost', 'batteryNote', 'status'];
+      const body = JSON.parse(String(init?.body)) as { questions: { name: string; type: string }[] };
+      return Response.json({ answers: body.questions.map(question => ({ name: question.name,
+        ...(question.type === 'predicate' ? { probability: 1 } : { choice: question.name.endsWith('_hdr') ? '0' : fields[Number(/_c(\d+)/.exec(question.name)?.[1])] ?? 'ignore', confidence: 1 }),
+      })) });
+    });
     const analysis = await analyzeImport(input, { fetchImpl });
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(analysis.source).toBe('heuristic');
+    expect(fetchImpl).toHaveBeenCalledTimes(source === 'model' ? 3 : 0);
+    expect(analysis.source).toBe(source);
     expect(analysis.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1 });
     expect(analysis.plan[0].mapping).toHaveLength(16);
     expect(analysis.rows).toHaveLength(59);
@@ -180,7 +185,7 @@ async function syntheticStockXlsx(): Promise<Uint8Array> {
 }
 
 describe('regresiones sintéticas de la evaluación offline', () => {
-  it.each(excelRegressionFixtures().flatMap(fixture => ['heuristic', 'decisions', 'responses'].map(via => ({ ...fixture, via }))))('$name ($via): preview == confirmación, sin sobrescrituras', async fixture => {
+  it.each(excelRegressionFixtures().flatMap(fixture => ['heuristic', 'decisions', 'fallback'].map(via => ({ ...fixture, via }))))('$name ($via): preview == confirmación, sin sobrescrituras', async fixture => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Stock');
     fixture.rows.forEach(row => ws.addRow(row));
@@ -188,20 +193,18 @@ describe('regresiones sintéticas de la evaluación offline', () => {
     const bytes = await wb.xlsx.writeBuffer();
     const parsed = await parseWorkbook(new File([bytes as ArrayBuffer], 'sintetico.xlsx'));
     const grid = parsed.getSheet('Stock');
-    const plan = { name: 'Stock', include: true, headerRow: 1, dataStartRow: 2, dataEndRow: grid.length,
-      condition: '', splitModelCapacity: false, batteryAsPercent: true, priceCurrency: '',
-      mapping: regressionFields.map((field, columnIndex) => ({ header: grid[0][columnIndex], field, columnIndex })),
-    };
     vi.stubEnv('OPENAI_API_KEY', fixture.via === 'heuristic' ? '' : 'sk-offline-test');
     try {
       const analysis = await analyzeImport({ section: 'inventory', currency: 'USD', sheets: [{ name: 'Stock', rows: grid }] }, {
-        fetchImpl: async url => String(url) !== DECISIONS_URL ? Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ sheets: [plan] }) }] }] })
-          : fixture.via !== 'decisions' ? new Response('', { status: 404 }) : Response.json({ answers: [
+        fetchImpl: async url => {
+          expect(String(url)).toBe(DECISIONS_URL);
+          return fixture.via !== 'decisions' ? new Response('', { status: 404 }) : Response.json({ answers: [
             { name: 'h0_inc', probability: 1 }, { name: 'h0_hdr', choice: '1', confidence: 1 },
             ...regressionFields.map((choice, index) => ({ name: `h0_c${index}`, choice, confidence: 1 })),
-          ] }),
+          ] });
+        },
       });
-      expect(analysis.source).toBe('heuristic');
+      expect(analysis.source).toBe(fixture.via === 'decisions' ? 'model' : 'heuristic');
       expect(analysis.rows).toHaveLength(fixture.accepted);
       expect(analysis.diagnostics?.rejected ?? []).toEqual(fixture.rejected);
       expect(analysis.diagnostics?.discardedRows).toBe(fixture.rejected.length + (fixture.name === '11_totals_footer' ? 1 : 0));
