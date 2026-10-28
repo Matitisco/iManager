@@ -1,0 +1,3 @@
+# Diseño
+
+Separar la revisión Excel de inventario en un componente con tabla virtualizada y panel responsive. Mantener las filas normalizadas del backend como fuente de la vista y del envío. Reaplicar con debounce de 250 ms, invalidación inmediata de respuestas anteriores y restauración del último plan confirmado ante error. Orden y anchos son estado visual independiente; Modelo permanece primero y fijo. Usar Sheet, DeskSelect, Field, Segs y tokens desk existentes. Nuevo campo se edita inline; Escape cierra controles internos primero. No modificar el analizador de texto ni los módulos genéricos.

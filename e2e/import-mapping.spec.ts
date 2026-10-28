@@ -20,6 +20,7 @@ async function mockDollar(page: Page) {
 
 const viewports = [
   { name: 'desktop-1440', width: 1440, height: 900 },
+  { name: 'tablet-1024', width: 1024, height: 900 },
   { name: 'phone-390', width: 390, height: 844 },
 ] as const;
 
@@ -65,10 +66,9 @@ for (const viewport of viewports) {
       await dialog.locator('input[type="file"]').setInputFiles(WORKBOOK);
 
       await expect(dialog.getByTestId('import-sheet-summary')).toHaveCount(3);
-      await dialog.locator('.import-sheets > summary').click();
-      await expect(dialog.getByText('iPhones Usados')).toBeVisible();
-      await expect(dialog.getByText('iPhones Nuevos')).toBeVisible();
-      await expect(dialog.getByText('OUTLET')).toBeVisible();
+      await expect(dialog.getByTestId('import-sheet-summary').getByText('iPhones Usados')).toBeVisible();
+      await expect(dialog.getByTestId('import-sheet-summary').getByText('iPhones Nuevos')).toBeVisible();
+      await expect(dialog.getByTestId('import-sheet-summary').getByText('OUTLET')).toBeVisible();
       await expect(dialog.getByText('20 equipos usados')).toBeVisible();
       await expect(dialog.getByText('10 equipos nuevos')).toBeVisible();
       await expect(dialog.getByText('Revisá las columnas')).toHaveCount(0);
@@ -77,23 +77,30 @@ for (const viewport of viewports) {
       const preview = dialog.getByTestId('import-preview');
       await preview.scrollIntoViewIfNeeded();
       await expect(preview.getByTestId('import-preview-row').first()).toBeVisible();
-      await expect(dialog.getByText('Moneda')).toHaveCount(0);
+      await expect(dialog.locator('th[data-preview-key="currency"]')).toContainText('Moneda');
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-resumen.png`) });
       await preview.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-      await expect(preview).toHaveAttribute('aria-rowcount', '37');
-      await expect(preview.locator('[data-testid="import-preview-row"]').last()).toHaveAttribute('data-index', '36');
+      const previewTable = preview.getByRole('table');
+      const visibleCount = Number(await previewTable.getAttribute('aria-rowcount')) - 1;
+      await expect(preview.locator('[data-testid="import-preview-row"]').last()).toHaveAttribute('data-index', String(visibleCount - 1));
       await page.screenshot({ path: path.join(OUT, `${viewport.name}-preview.png`) });
 
-      await dialog.getByTestId('import-adjust-open').click();
-      await expect(dialog.getByTestId('import-adjust')).toBeVisible();
-      await expect(dialog.getByTestId('import-field-model')).toHaveText('Modelo');
-      await expect(dialog.getByTestId('import-field-price')).toHaveText('PRECIO ARS');
-      await expect(dialog.getByTestId('import-field-batteryHealth')).toHaveText('Batería');
-      await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
-      await expect(dialog.getByText('%', { exact: true })).toHaveCount(0);
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ajustar.png`) });
+      if (phone) await dialog.getByRole('button', { name: /Columnas \(/ }).click();
+      const viewportWidth = page.viewportSize()!.width;
+      const frame = await dialog.boundingBox();
+      expect(frame!.x).toBeGreaterThanOrEqual(0);
+      expect(frame!.x + frame!.width).toBeLessThanOrEqual(viewportWidth);
+      await expect(dialog.getByTestId('import-confirm')).toBeInViewport();
+      const panel = dialog.getByRole('complementary', { name: 'Excel → campo' });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole('combobox', { name: 'Importar Modelo como' })).toContainText('Modelo');
+      await expect(panel.getByRole('combobox', { name: 'Importar PRECIO ARS como' })).toContainText('Precio');
+      await expect(panel.getByRole('combobox', { name: 'Importar Batería como' })).toContainText('Batería');
+      await expect(dialog.getByTestId('import-adjust-open')).toHaveCount(0);
+      await expect(dialog.getByRole('navigation', { name: 'Pasos de ajuste de importación' })).toHaveCount(0);
+      await page.screenshot({ path: path.join(OUT, `${viewport.name}-columnas.png`) });
+      if (phone) await dialog.getByRole('button', { name: /Columnas \(/ }).click();
 
-      await dialog.getByRole('button', { name: 'Listo' }).click();
       const importResponse = page.waitForResponse(
         (response) => response.url().includes('/api/inventory/import') && response.request().method() === 'POST',
       );

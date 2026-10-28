@@ -1,0 +1,5 @@
+- [x] Reemplazar ajuste de inventario por tabla y panel en summary, con hojas, encabezados y avisos.
+- [x] Implementar reaplicación debounced, descarte de respuestas viejas y rollback.
+- [x] Incorporar campos nuevos, selección vinculada, orden y ancho con pointer y teclado.
+- [x] Actualizar regresiones, flujo de archivo, e2e sin ejecutarlos y verificar TypeScript y clases.
+- [x] Preparar la entrega por PR con checks y merge encadenados según las reglas del repo.

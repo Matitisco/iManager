@@ -66,15 +66,13 @@ it('el acceso directo enfoca Precio sin convertirlo en obligatorio', async () =>
   await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
   const select = screen.getByRole('article', { name: 'Columna Costo' });
   await waitFor(() => expect(select).toHaveFocus());
-  expect(select).toHaveClass('flash');
+  expect(select).toHaveClass('imp-selected');
   expect(select).not.toHaveAttribute('aria-invalid', 'true');
 });
 it('resalta Modelo sin mapear y bloquea cero filas', async () => {
   await preview(false);
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
-  await userEvent.click(screen.getByTestId('import-adjust-open'));
-  expect(screen.getByText('Falta asignar Modelo.')).toBeVisible();
-  await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));
+  expect(screen.getByText('Falta Modelo. Asigná los campos obligatorios para importar.')).toBeVisible();
   expect(screen.getByRole('button', { name: 'Importar 0 filas' })).toBeDisabled();
 });
 
@@ -92,9 +90,8 @@ it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas
   await userEvent.click(within(notice).getByRole('button', { name: 'Asignar columna de modelo' }));
   const model = screen.getByRole('article', { name: 'Columna Modelo' });
   await waitFor(() => expect(model).toHaveFocus());
-  expect(model).toHaveClass('flash');
-  expect(screen.getByText('Falta asignar Modelo.')).toBeVisible();
-  await userEvent.click(screen.getByRole('button', { name: 'Atrás' }));
+  expect(model).toHaveClass('imp-selected');
+  expect(screen.getByText('Falta Modelo. Asigná los campos obligatorios para importar.')).toBeVisible();
   expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
 });
@@ -114,7 +111,7 @@ it('conserva todos los motivos y el enlace dentro del aviso con cero filas', asy
 
 it('conserva el error de mapeo cuando hay filas para revisar', async () => {
   await preview(true, { missingRequiredFields: ['model'] });
-  expect(screen.getByText('Falta mapear Modelo.')).toBeVisible();
+  expect(screen.getByText('Falta Modelo. Asigná los campos obligatorios para importar.')).toBeVisible();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
 });
 
@@ -126,11 +123,10 @@ it('reincluye una hoja sin encabezado al asignar Modelo y conserva los índices 
   const onApply = vi.fn(async (_sheets, plan) => ({ ...value, plan, rows: [{ model: 'iPhone 13', cost: '300' }], missingRequiredFields: [] }));
   render(<ImportModal fields={fields} onClose={vi.fn()} onAnalyze={vi.fn().mockResolvedValue(value)} onApply={onApply} onImport={vi.fn()} />);
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['iPhone 13,300\niPhone 14,400'], 'stock.csv', { type: 'text/csv' }));
-  await userEvent.click(await screen.findByTestId('import-adjust-open'));
+  await screen.findByTestId('import-summary');
   const card = within(screen.getByRole('article', { name: 'Columna A' }));
-  await userEvent.click(card.getByRole('button', { name: 'Campo existente' }));
   await userEvent.click(card.getByRole('combobox', { name: 'Importar A como' }));
-  await userEvent.click(screen.getByRole('option', { name: 'Modelo' }));
+  await userEvent.click(screen.getByRole('option', { name: /^Modelo/ }));
   await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
   expect(onApply.mock.calls[0][1][0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1,
     mapping: [{ header: 'A', columnIndex: 0, field: 'model' }, { header: 'B', columnIndex: 1, field: 'cost' }] });

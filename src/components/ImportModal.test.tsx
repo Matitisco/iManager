@@ -70,30 +70,30 @@ async function openPreview(count: number, sheet = false) {
 }
 
 describe('previsualización de importación', () => {
-  it('lista todos los equipos en filas compactas virtualizadas', async () => {
+  it('lista todos los equipos en tabla virtualizada', async () => {
     await openPreview(3000);
     expect(screen.getByTestId('import-preview-count')).toHaveTextContent(`${new Intl.NumberFormat('es-AR').format(3000)} equipos`);
     const preview = screen.getByTestId('import-preview');
-    expect(preview.parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
+    expect(preview.querySelector('table')).toBeInTheDocument();
     const rendered = preview.querySelectorAll('[data-testid="import-preview-row"]');
     expect(rendered.length).toBeGreaterThan(0);
     expect(rendered.length).toBeLessThan(80);
     expect(screen.getByText('Equipo 1')).toBeInTheDocument();
     expect(screen.queryByText('ZZ-ULTIMO')).not.toBeInTheDocument();
 
-    preview.scrollTop = 72 * 2990;
+    preview.scrollTop = 44 * 2990;
     fireEvent.scroll(preview);
     expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
     expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(80);
   });
 
-  it('en el celular muestra la lista completa como tarjetas', async () => {
+  it('en el celular conserva la tabla horizontal y el panel colapsable', async () => {
     await openPreview(40, true);
-    expect(screen.getByTestId('import-preview').parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
+    expect(screen.getByRole('button', { name: /Columnas \(/ })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByText('Equipo 1')).toBeInTheDocument();
-    expect(screen.getAllByText(/128 GB · Black · USADO · 90%/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('128 GB').length).toBeGreaterThan(0);
     const preview = screen.getByTestId('import-preview');
-    preview.scrollTop = 72 * 40;
+    preview.scrollTop = 44 * 40;
     fireEvent.scroll(preview);
     expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
   });
@@ -158,9 +158,9 @@ describe('previsualización de importación', () => {
     if (!(input instanceof HTMLInputElement)) throw new Error('falta el input');
     await userEvent.upload(input, new File(['Nombre,Nota\nAna,8\n'], 'alumnos.csv', { type: 'text/csv' }));
     expect(await screen.findByTestId('import-unrelated')).toHaveTextContent('Este archivo no parece tener equipos para importar.');
-    expect(screen.queryByTestId('import-preview')).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId('import-preview-row')).toHaveLength(0);
     expect(screen.queryByText('No encontramos filas para importar. Podés ajustar el encabezado.')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('import-confirm')).not.toBeInTheDocument();
+    expect(screen.getByTestId('import-confirm')).toBeDisabled();
     expect(onImport).not.toHaveBeenCalled();
   });
 });
@@ -371,4 +371,33 @@ it.each([false, true])('adds suggested origin quality drafts once and reuses exi
   const call = onImport.mock.calls[0] as unknown as [Record<string, string>[], unknown?];
   expect(call[0][0]).toMatchObject({ 'custom:calidad_origen': 'A/A-', _sourceRow: '38' });
   expect(call[1]).toEqual(exists ? undefined : [definition]);
+});
+
+it('recorre un archivo CSV real, asigna Precio en vivo y confirma las filas preparadas', async () => {
+  const { applyImportPlan } = await import('../services/import-api');
+  const request = vi.spyOn(await import('../services/fetch-with-timeout'), 'fetchWithTimeout');
+  const result = analysis(1);
+  result.rows = [{ model: 'iPhone 13', price: '420', currency: 'USD', _sourceRow: '2', _sourceSheet: 'Hoja 1' }];
+  result.plan[0].mapping = [{ header: 'Modelo', columnIndex: 0, field: 'model' }, { header: 'Valor', columnIndex: 1, field: 'price' }];
+  const initial = { ...result, rows: [{ ...result.rows[0], price: '' }], plan: result.plan.map(plan => ({ ...plan, mapping: plan.mapping.map(column => column.field === 'price' ? { ...column, field: 'ignore' } : column) })) };
+  const account = { uid: 'fixture', email: null, displayName: null, getIdToken: vi.fn(async () => 'fixture-token') };
+  (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__ = 'https://fixture.invalid';
+  request.mockResolvedValue(new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  const onImport = vi.fn(async (_rows: Record<string, string>[]) => ({ imported: 1, updated: 0, errors: [] }));
+  const onAnalyze = vi.fn(async () => initial);
+  render(<ImportModal fields={fields} onAnalyze={onAnalyze} onApply={(sheets, plan, refresh) => applyImportPlan(account, 'inventory', sheets, plan, refresh)} onImport={onImport} onClose={vi.fn()} />);
+  try {
+    await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['Modelo,Valor\niPhone 13,420\n'], 'stock-prueba.csv', { type: 'text/csv' }));
+    expect(onAnalyze).toHaveBeenCalledWith([{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }]);
+    await userEvent.click(await screen.findByRole('combobox', { name: 'Importar Valor como' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Precio' }));
+    await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeEnabled());
+    expect(request).toHaveBeenCalledWith('https://fixture.invalid/api/import/apply', expect.objectContaining({ method: 'POST', body: JSON.stringify({ section: 'inventory', sheets: [{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }], plan: result.plan, refreshMapping: false }) }), 45_000);
+    await userEvent.click(screen.getByTestId('import-confirm'));
+    expect(onImport).toHaveBeenCalledWith(result.rows);
+    expect(await screen.findByText('Importación completada')).toBeVisible();
+  } finally {
+    request.mockRestore();
+    delete (globalThis as typeof globalThis & { __IMANAGER_TEST_API_BASE_URL__?: string }).__IMANAGER_TEST_API_BASE_URL__;
+  }
 });
