@@ -20,10 +20,10 @@ async function preview() {
 it('avisa antes de confirmar, cuenta equipos únicos e incluye vendidos y archivados', async () => {
   await preview();
   const warning = await screen.findByTestId('import-imei-warning');
-  expect(warning).toHaveTextContent('Se actualizarán 2 equipos existentes por IMEI');
-  expect(warning).toHaveTextContent('Modelo, Precio, Color');
-  expect(warning).not.toHaveTextContent('Batería');
-  expect(warning).toHaveTextContent('Los campos omitidos se conservan');
+  expect(warning).toHaveTextContent('2 actualizaciones por IMEI');
+  expect(warning).toHaveAttribute('title', 'Campos del archivo que pueden reemplazar datos: Modelo, Precio, Color. Los campos omitidos se conservan.');
+  expect(warning.closest('.imp-review-notices')).not.toBeNull();
+  expect(screen.getByTestId('import-summary').querySelector('.import-imei-warning')).toBeNull();
   expect(mocks.importBackendRows).not.toHaveBeenCalled();
 });
 it('bloquea la vista previa si falla la consulta de IMEI existentes', async () => {

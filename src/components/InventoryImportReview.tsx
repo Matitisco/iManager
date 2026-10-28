@@ -218,7 +218,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   return <div className="imp-review" data-testid="import-summary">
     <div className="imp-review-summary">
       <h4 className="imp-detected">Detectamos {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}, {new Intl.NumberFormat('es-AR').format(summary.rowCount)} {summary.rowCount === 1 ? 'equipo' : 'equipos'}</h4>
-      {discardNotice}
+      <div className="imp-review-notices">{discardNotice}</div>
     </div>
     <div className="imp-sources">
       {plan.length > 1 && <DeskSelect label="Hoja a revisar" value={active.name} onChange={onSheet} options={plan.map(sheet => ({ value: sheet.name, label: sheet.name }))} />}
@@ -243,8 +243,8 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
         }} /></label>}
       </div>
     </details>
-    {missing.length > 0 && <div className="import-guidance missing" role="alert" id="import-missing-model"><b>Falta {missing.join(', ')}. Asigná los campos obligatorios para importar.</b></div>}
-    {!plan.some(sheet => sheet.include) && <div className="import-guidance" role="status">Incluí al menos una hoja para importar.</div>}
+    {missing.length > 0 && <div className="imp-review-error" role="alert" id="import-missing-model"><b>Falta {missing.join(', ')}. Asigná los campos obligatorios para importar.</b></div>}
+    {!plan.some(sheet => sheet.include) && <div className="imp-review-error" role="status">Incluí al menos una hoja para importar.</div>}
     <div className="imp-review-layout" onKeyDown={closeInternal}>
       <div className="imp-table-area">
         <button ref={panelToggle} type="button" className="btn2 s imp-panel-toggle" aria-expanded={panelOpen} aria-controls="import-column-panel" onClick={() => setPanelOpen(value => !value)}>Columnas ({pendingLabel}){missingModel ? ' · Falta Modelo' : ''}</button>

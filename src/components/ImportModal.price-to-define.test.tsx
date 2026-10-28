@@ -66,6 +66,10 @@ it('usa missingRequiredFields del backend para bloquear y resaltar', async () =>
 });
 it('el acceso directo enfoca Precio sin convertirlo en obligatorio', async () => {
   await preview();
+  const notice = screen.getByTestId('import-price-notice');
+  expect(notice).toHaveTextContent('Sin columna de precio · Asignar');
+  expect(notice.closest('.imp-review-notices')).not.toBeNull();
+  expect(screen.getByTestId('import-summary').querySelector('.import-guidance')).toBeNull();
   await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
   const select = screen.getByRole('article', { name: 'Columna Costo' });
   await waitFor(() => expect(select).toHaveFocus());
