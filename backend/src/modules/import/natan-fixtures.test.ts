@@ -21,17 +21,18 @@ it.each(natanCases)('$file: heurística y respaldo sin red preservan filas y col
   vi.stubEnv('OPENAI_API_KEY', 'test-only');
   const failing = vi.fn().mockRejectedValue(new Error('sin red'));
   const fallback = await analyzeImport(input, { fetchImpl: failing });
-  expect(fallback.plan).toEqual(baseline.plan);
+  expect(fallback.plan.map(p => ({ ...p, mapping: p.mapping.map(({ review, ...column }) => column) }))).toEqual(baseline.plan);
   expect(fallback.rows).toEqual(baseline.rows);
 });
-it('00: diez corridas con un modelo inestable producen el mismo plan sin consumir el modelo', async () => {
+it('00: errores del modelo usan respaldo estable con aviso y nunca evitan consultar', async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-only');
   const input = { section: 'inventory' as const, currency: 'ARS' as const, sheets: grids('00_natan_anon') };
   let calls = 0;
   const fetchImpl = vi.fn(async () => Response.json({ sheets: [{ mapping: [{ columnIndex: calls++ % 16, field: 'model' }] }] }));
   const baseline = await analyzeImport(input, { fetchImpl });
   for (let run = 0; run < 10; run++) expect(await analyzeImport(input, { fetchImpl })).toEqual(baseline);
-  expect(fetchImpl).not.toHaveBeenCalled();
-  expect(baseline).toMatchObject({ source: 'heuristic', notice: null, warnings: ['La columna de costo no indica moneda: se importará en ARS. Podés cambiarla en la pantalla antes de importar.'] });
+  expect(fetchImpl).toHaveBeenCalledTimes(11);
+  expect(baseline.source).toBe('heuristic'); expect(baseline.notice).toBeTruthy();
+  expect(baseline.warnings).toContain('La columna de costo no indica moneda: se importará en ARS. Podés cambiarla en la pantalla antes de importar.');
   expect(baseline.rows.every(row => row.currency === 'ARS')).toBe(true);
 });

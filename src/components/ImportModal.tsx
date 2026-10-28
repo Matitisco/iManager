@@ -431,6 +431,7 @@ export const ImportModal: React.FC<Props> = ({
         onSheet={setActiveSheet} onChange={reapply}
         onDraft={definition => setDraftDefinitions(current => [...current, definition])}
       >
+        {notice && <div className="import-guidance" role="status">{notice}</div>}
         {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
       </InventoryImportReview>}
 

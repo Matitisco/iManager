@@ -36,6 +36,7 @@ const planSchema = z.object({
   dataEndRow: z.number().int().min(0).max(MAX_IMPORT_ROWS),
   mapping: z.array(z.object({
     header: z.string().max(200),
+    review: z.array(z.string().max(1000)).max(40).optional(),
     columnIndex: z.number().int().min(0).max(39).optional(),
     field: z.string().max(67),
   })).max(40),

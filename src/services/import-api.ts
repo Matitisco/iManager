@@ -13,6 +13,7 @@ export type ImportSheetPayload = {
 };
 
 export type ImportColumnMapping = {
+  review?: string[];
   header: string;
   columnIndex?: number;
   field: string;

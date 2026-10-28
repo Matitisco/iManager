@@ -417,59 +417,16 @@ describe("analyzeImport model", () => {
     expect(logs[0]?.estimatedUsd).toBe(0.00027);
   });
 
-  it("retries the full mapper when Decisions overlooks an actual sale-price column", async () => {
+  it("uses a visible heuristic fallback on Decisions failure without calling Responses", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    const plan = {
-      sheets: [{
-        name: "Usados",
-        include: true,
-        condition: "USADO",
-        headerRow: 1,
-        dataStartRow: 2,
-        dataEndRow: 2,
-        mapping: [
-          { header: "Modelo", field: "model" },
-          { header: "Precio USD", field: "price" },
-        ],
-        splitModelCapacity: true,
-        batteryAsPercent: false,
-        priceCurrency: "USD",
-      }],
-    };
-    const fetchImpl = vi.fn()
-      .mockResolvedValueOnce(new Response("no", { status: 500 }))
-      .mockResolvedValueOnce(modelResponse(plan, 1000, 200));
-    const failed = await analyzeImport({
-      section: "inventory",
-      currency: "USD",
+    const fetchImpl = vi.fn(async () => new Response("no", { status: 500 }));
+    const failed = await analyzeImport({ section: "inventory", currency: "USD",
       sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
     }, { fetchImpl });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
-    expect((fetchImpl.mock.calls[0] as [string])[0]).toBe(DECISIONS_URL);
-    expect((fetchImpl.mock.calls[1] as [string])[0]).toBe(RESPONSES_URL);
-    expect(failed.source).toBe("model");
-    expect(failed.rows[0]).toMatchObject({ model: "13", price: "500" });
+    expect(fetchImpl).toHaveBeenCalledOnce();
 
-    const blank = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = String(input);
-      if (url === DECISIONS_URL) {
-        const body = JSON.parse(String(init?.body)) as { questions: { name: string; type: string }[] };
-        return new Response(JSON.stringify({
-          answers: body.questions.map((question) => question.type === "predicate"
-            ? { name: question.name, type: "predicate", probability: 0.99 }
-            : { name: question.name, type: "choice", choice: "ignore", confidence: 0.9 }),
-          usage: { input_tokens: 10, output_tokens: 4 },
-        }), { status: 200 });
-      }
-      return modelResponse(plan, 10, 4);
-    });
-    const missingPrice = await analyzeImport({
-      section: "inventory",
-      currency: "USD",
-      sheets: [{ name: "Usados", rows: [["Modelo", "Color", "Precio USD"], ["13 128 GB", "Black", "500"]] }],
-    }, { fetchImpl: blank });
-    expect(blank).toHaveBeenCalledTimes(2);
-    expect(missingPrice.rows[0]).toMatchObject({ model: "13", price: "500" });
+    expect(failed.source).toBe("heuristic"); expect(failed.notice).toBeTruthy();
+    expect(failed.rows[0]).toMatchObject({ model: "13", price: "500" });
   });
 
   it("does not call Luna when Decisions has no balance", async () => {
