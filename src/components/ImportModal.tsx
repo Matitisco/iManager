@@ -418,21 +418,20 @@ export const ImportModal: React.FC<Props> = ({
         definitions={customFieldDefinitions} drafts={draftDefinitions} currency={currency}
         applying={applying} disabled={importing || Boolean(customFieldDefinitionsError)}
         missing={requiredMissing.map(field => field.label)} focusedField={focusedField}
-        discardNotice={<InventoryDiscardNotice diagnostics={diagnostics} onAssignModel={() => adjustField('model')} />}
+        discardNotice={<>
+          <InventoryDiscardNotice diagnostics={diagnostics} onAssignModel={() => adjustField('model')} />
+          {missingPriceColumn && <span role="status" data-testid="import-price-notice">
+            Sin columna de precio · <button type="button" className="wlink" aria-label="Asignar columna de precio" onClick={() => adjustField('price')}>Asignar</button>
+          </span>}
+          {!missingPriceColumn && noPriceRows > 0 && <span role="status" title="Se importarán con precio a definir. Los precios ya guardados se conservan.">{countLabel(noPriceRows, { one: 'equipo sin precio', many: 'equipos sin precio' })}</span>}
+          {updatingCount > 0 && <span role="status" data-testid="import-imei-warning" title={`Campos del archivo que pueden reemplazar datos: ${replacementFields.join(', ')}. Los campos omitidos se conservan.`}>
+            {countLabel(updatingCount, { one: 'actualización por IMEI', many: 'actualizaciones por IMEI' })}
+          </span>}
+        </>}
         onSheet={setActiveSheet} onChange={reapply}
         onDraft={definition => setDraftDefinitions(current => [...current, definition])}
       >
         {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
-        {missingPriceColumn && <div className="import-guidance" role="status" data-testid="import-price-notice">
-          <b>Tu archivo no tiene columna de precio de venta asignada.</b>
-          <p>Podés importar los equipos con precio a definir. Asigná la columna desde Excel → campo.</p>
-          <button type="button" className="wlink" onClick={() => adjustField('price')}>Asignar columna de precio</button>
-        </div>}
-        {!missingPriceColumn && noPriceRows > 0 && <div className="import-guidance" role="status"><b>{noPriceRows} {noPriceRows === 1 ? 'equipo sin precio' : 'equipos sin precio'} de venta.</b><p>Se importarán con precio a definir. Los precios ya guardados se conservan.</p></div>}
-        {updatingCount > 0 && <div className="import-imei-warning" role="status" data-testid="import-imei-warning">
-          <b>{updatingCount === 1 ? 'Se actualizará 1 equipo existente por IMEI' : `Se actualizarán ${updatingCount} equipos existentes por IMEI`}</b>
-          <p>Campos del archivo que pueden reemplazar datos: {replacementFields.join(', ')}. Los campos omitidos se conservan.</p>
-        </div>}
       </InventoryImportReview>}
 
       {step === 'summary' && !inventoryReview && summary && !unrelated && (

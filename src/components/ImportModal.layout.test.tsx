@@ -39,18 +39,32 @@ async function capture(page: Page, name: string) {
   mkdirSync(process.env.IMPORT_DISCARD_SHOTS, { recursive: true });
   await page.screenshot({ path: path.join(process.env.IMPORT_DISCARD_SHOTS, `${name}.png`) });
 }
-it.each([1440, 390])('agrupa descartes y aprovecha el alto con scroll y encabezado fijo a %i px', async width => {
+it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, warnings }))))('agrupa descartes y aprovecha el alto a $width px (avisos: $warnings)', async ({ width, warnings }) => {
   const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: width === 390, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
   const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 }, deviceScaleFactor: width === 390 ? 2 : 1 });
   try {
     const value = fixture();
+    if (warnings) {
+      value.plan[0].mapping.find(column => column.field === 'price')!.field = 'ignore';
+      value.rows.forEach(row => { row.price = ''; });
+    }
     const onClose = vi.fn();
     const onImport = vi.fn().mockResolvedValue({ imported: 100, updated: 0, errors: [] });
-    render(<div className="desk-app"><ImportModal fields={fields} nouns={{ one: 'equipo', many: 'equipos' }} onAnalyze={vi.fn(async sheets => { value.plan[0].name = sheets[0].name; value.summary.sheets[0].name = sheets[0].name; return value; })} onApply={vi.fn().mockResolvedValue(value)} onImport={onImport} onClose={onClose} /></div>);
+    render(<div className="desk-app"><ImportModal fields={fields} existingImeis={warnings ? value.rows.slice(0, 2).map(row => row.imei) : []} nouns={{ one: 'equipo', many: 'equipos' }} onAnalyze={vi.fn(async sheets => { value.plan[0].name = sheets[0].name; value.summary.sheets[0].name = sheets[0].name; return value; })} onApply={vi.fn().mockResolvedValue(value)} onImport={onImport} onClose={onClose} /></div>);
     await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['Modelo,Capacidad,Color,Batería,IMEI,Costo,Precio\niPhone 13,128GB,Negro,90%,350000000000001,300,420'], 'stock.csv', { type: 'text/csv' }));
     const trigger = await screen.findByRole('button', { name: '57 filas descartadas · Ver motivos' });
     expect(trigger.closest('.imp-table-notices')).toBeNull();
     expect(screen.queryByText('Sin modelo')).not.toBeInTheDocument();
+    expect(screen.getByTestId('import-summary').querySelector('.import-guidance, .import-imei-warning')).toBeNull();
+    if (warnings) {
+      expect(screen.getByTestId('import-price-notice').parentElement).toBe(trigger.parentElement);
+      expect(screen.getByTestId('import-imei-warning').parentElement).toBe(trigger.parentElement);
+      await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
+      const price = screen.getByRole('article', { name: 'Columna Precio' });
+      await waitFor(() => expect(price).toHaveFocus());
+      expect(price).toHaveClass('imp-unassigned', 'imp-selected');
+      if (width === 390) await userEvent.click(screen.getByRole('button', { name: /Columnas \(/ }));
+    }
     await mount(page);
     const frame = page.locator('.imp-review-sheet');
     const table = page.getByTestId('import-preview');
@@ -59,16 +73,26 @@ it.each([1440, 390])('agrupa descartes y aprovecha el alto con scroll y encabeza
       const foot = node.querySelector('.sheet-foot')!.getBoundingClientRect();
       const box = node.getBoundingClientRect();
       const sheetScroll = node.querySelector('.sheet-scroll')!;
+      const panel = node.querySelector<HTMLElement>('.imp-panel')!;
+      const panelRows = node.querySelector<HTMLElement>('.imp-panel-rows')!;
       return { x: box.x, right: box.right, bottom: box.bottom, footBottom: foot.bottom, outerOverflow: sheetScroll.scrollHeight - sheetScroll.clientHeight,
+        panelBottom: panel.getBoundingClientRect().bottom, panelOverflow: panelRows.scrollHeight > panelRows.clientHeight, outerScroll: getComputedStyle(sheetScroll).overflowY,
         tableBottom: scroll.getBoundingClientRect().bottom, footTop: foot.top, height: scroll.clientHeight, vertical: scroll.scrollHeight > scroll.clientHeight, horizontal: scroll.scrollWidth > scroll.clientWidth };
     });
-    await capture(page, `importador-${width}`);
     expect(geometry.x).toBeGreaterThanOrEqual(0);
     expect(geometry.right).toBeLessThanOrEqual(width);
     expect(geometry.bottom).toBeLessThanOrEqual(width === 390 ? 844 : 900);
     expect(geometry.footBottom).toBeLessThanOrEqual(geometry.bottom);
     expect(geometry.outerOverflow).toBeLessThanOrEqual(1);
-    expect(geometry.height).toBeGreaterThan(width === 390 ? 300 : 400);
+    expect(geometry.outerScroll).toBe('hidden');
+    if (width === 1440) {
+      expect(geometry.panelBottom).toBeCloseTo(geometry.tableBottom, 0);
+      expect(geometry.panelOverflow).toBe(true);
+      const headingTop = (await page.locator('.imp-panel-heading').boundingBox())!.y;
+      await page.locator('.imp-panel-rows').evaluate(node => { node.scrollTop = 300; });
+      expect((await page.locator('.imp-panel-heading').boundingBox())!.y).toBeCloseTo(headingTop, 0);
+    }
+    expect(geometry.height).toBeGreaterThan(width === 390 ? (warnings ? 280 : 300) : 400);
     expect(geometry.vertical).toBe(true);
     expect(geometry.horizontal).toBe(true);
     expect(geometry.footTop - geometry.tableBottom).toBeLessThanOrEqual(25);
@@ -77,7 +101,8 @@ it.each([1440, 390])('agrupa descartes y aprovecha el alto con scroll y encabeza
     expect((await table.locator('thead').boundingBox())!.y).toBeCloseTo(headerTop, 0);
     expect((await table.locator('td.imp-pinned').first().boundingBox())!.x).toBeCloseTo((await table.boundingBox())!.x + 1, 0);
     await table.evaluate(node => { node.scrollTop = 0; node.scrollLeft = 0; });
-    await capture(page, `importador-${width}`);
+    if (width === 1440) await page.locator('.imp-panel-rows').evaluate((node, hasWarnings) => { node.scrollTop = hasWarnings ? node.scrollHeight : 0; }, warnings);
+    await capture(page, `importador-${width}${warnings ? '-avisos' : ''}`);
     if (width === 390) {
       await userEvent.click(screen.getByRole('button', { name: /Columnas \(/ }));
     }
@@ -91,10 +116,11 @@ it.each([1440, 390])('agrupa descartes y aprovecha el alto con scroll y encabeza
     expect(detail).not.toHaveTextContent('Motivo individual');
     await mount(page);
     const detailBox = (await page.getByRole('dialog', { name: 'Filas descartadas' }).boundingBox())!;
+    await expect(page.getByRole('heading', { name: 'Filas descartadas' }).evaluate(node => getComputedStyle(node).color)).resolves.toBe('rgb(22, 24, 29)');
     expect(detailBox.x).toBeGreaterThanOrEqual(0);
     expect(detailBox.x + detailBox.width).toBeLessThanOrEqual(width);
     expect(detailBox.y + detailBox.height).toBeLessThanOrEqual(width === 390 ? 844 : 900);
-    await capture(page, `motivos-${width}`);
+    if (!warnings) await capture(page, `motivos-${width}`);
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog', { name: 'Filas descartadas' })).not.toBeInTheDocument();

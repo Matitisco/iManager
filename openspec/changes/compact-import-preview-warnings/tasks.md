@@ -1,0 +1,4 @@
+- [x] Compactar avisos de la vista previa y conservar acceso a Precio.
+- [x] Asegurar alto disponible y scroll interno de tabla y panel.
+- [x] Verificar regresiones #634/#635, avisos, foco y geometría 1440/390.
+- [x] TypeScript frontend/backend y 92 tests relacionados; preparar entrega por PR con merge condicionado a CI verde.

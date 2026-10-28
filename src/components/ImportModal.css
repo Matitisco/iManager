@@ -71,12 +71,17 @@
 
 /* Variant C reuses the desk Sheet, table, fields, select and status tokens. */
 .sheet.inv-import.imp-review-sheet { width: 1180px; max-width: calc(100vw - 48px); height: min(88dvh, calc(100dvh - 48px)); }
-.imp-review-sheet > .sheet-scroll { display: flex; overflow: auto; }
+.imp-review-sheet > .sheet-scroll { display: flex; min-height: 0; overflow: hidden; }
 .imp-review-sheet .inv-import-body { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .imp-review { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .imp-review-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin-bottom: 12px; flex: none; }
 .imp-detected { margin: 0; font-size: 18px; font-weight: 800; }
 .imp-discard-trigger { min-height: 36px; white-space: nowrap; }
+.imp-review-notices { display: flex; flex-wrap: wrap; align-items: center; gap: 0 8px; min-width: 0; font-size: 12px; }
+.imp-review-notices > span:not(:first-child)::before { content: '·'; margin-right: 8px; }
+.imp-review-notices > span { color: var(--secondary); line-height: 24px; }
+.imp-review-notices > span .wlink { color: var(--primary); }
+.imp-review-error { flex: none; margin-bottom: 12px; color: var(--err); font-size: 13px; }
 .imp-discard-groups { list-style: none; margin: 0; padding: 0; }
 .imp-discard-groups li { padding: 14px 0; border-bottom: 1px solid var(--border); }
 .imp-discard-groups li:first-child { padding-top: 0; }
@@ -96,7 +101,7 @@
 .imp-table-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .imp-table-title h4, .imp-panel-heading h4 { margin: 0; font-size: 14px; font-weight: 800; }
 .imp-table-title > span { font-size: 13px; color: var(--secondary); }
-.imp-table-scroll { flex: 1; min-width: 0; min-height: 130px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 16px; position: relative; isolation: isolate; }
+.imp-table-scroll { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: 16px; position: relative; isolation: isolate; }
 .imp-preview-table { table-layout: fixed; border-collapse: separate; border-spacing: 0; }
 .imp-preview-table thead { position: sticky; top: 0; z-index: 3; }
 .imp-preview-table th { position: relative; background: var(--bg); height: 64px; }
@@ -132,7 +137,7 @@
 .imp-panel-heading { padding: 12px 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid var(--border); flex: none; }
 .imp-panel-heading h4 { margin-right: auto; }
 .imp-model-warning { color: var(--err); font-size: 12px; width: 100%; }
-.imp-panel-rows { overflow-y: auto; padding: 0 14px 8px; min-height: 0; }
+.imp-panel-rows { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 8px; min-height: 0; }
 .imp-panel-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid var(--border); min-width: 0; scroll-margin-block: 8px; }
 .imp-letter { display: inline-flex; align-items: center; justify-content: center; align-self: start; min-width: 28px; height: 28px; border-radius: 10px; background: var(--row); font-size: 12px; font-weight: 800; }
 .imp-source-name { display: flex; flex-direction: column; min-width: 0; }
