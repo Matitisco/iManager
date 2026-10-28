@@ -39,9 +39,12 @@ it('conserva motivos reales junto al precio a definir y al resultado', async () 
     diagnostics: { detectedRows: 4, acceptedRows: 1, discardedRows: 3, discardedByReason: { missing_model: 1, section_header: 1, invalid_price: 1 }, missingRequiredFields: [], missingRecommendedFields: ['price', 'imei'] },
   });
   expect(screen.getByTestId('import-skipped-notice')).toHaveTextContent('3 filas descartadas');
-  expect(screen.getByTestId('import-skipped-notice')).toHaveTextContent('Sin modelo: 1');
-  expect(screen.getByTestId('import-skipped-notice')).toHaveTextContent('Encabezados de sección: 1');
-  expect(screen.getByTestId('import-skipped-notice')).toHaveTextContent('Precio inválido: 1');
+  await userEvent.click(screen.getByRole('button', { name: '3 filas descartadas · Ver motivos' }));
+  const detail = within(screen.getByRole('dialog', { name: 'Filas descartadas' }));
+  expect(detail.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+    'Encabezados de sección1 filaFilas no informadas', 'Sin modelo1 filaFilas no informadas', 'Precio inválido1 filaFilas no informadas',
+  ]);
+  await userEvent.keyboard('{Escape}');
   expect(screen.getByTestId('import-confirm')).toBeEnabled();
   onImport.mockResolvedValue({ imported: 1, updated: 0, errors: [], priceToDefine: 1,
     diagnostics: { detectedRows: 2, acceptedRows: 1, discardedRows: 1, discardedByReason: { invalid_imei: 1 }, missingRequiredFields: [], missingRecommendedFields: [] } });
@@ -81,13 +84,15 @@ it.each([1, 3])('integra el motivo y el acceso a Modelo con %i filas descartadas
     diagnostics: { detectedRows: count, acceptedRows: 0, discardedRows: count, discardedByReason: { missing_model: count }, missingRequiredFields: ['model'], missingRecommendedFields: ['price'] },
   });
   const notice = screen.getByTestId('import-skipped-notice');
-  expect(within(notice).getByText(`${count} ${count === 1 ? 'fila descartada' : 'filas descartadas'} por falta de modelo.`)).toBeVisible();
+  expect(notice).toHaveTextContent(`${count} ${count === 1 ? 'fila descartada' : 'filas descartadas'} · Ver motivos`);
   expect(within(notice).queryByRole('list')).not.toBeInTheDocument();
   expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();
   expect(screen.getByTestId('import-confirm')).toBeDisabled();
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport).not.toHaveBeenCalled();
-  await userEvent.click(within(notice).getByRole('button', { name: 'Asignar columna de modelo' }));
+  await userEvent.click(notice);
+  await userEvent.click(within(screen.getByRole('dialog', { name: 'Filas descartadas' })).getByRole('button', { name: 'Asignar columna de modelo' }));
+  expect(screen.queryByRole('dialog', { name: 'Filas descartadas' })).not.toBeInTheDocument();
   const model = screen.getByRole('article', { name: 'Columna Modelo' });
   await waitFor(() => expect(model).toHaveFocus());
   expect(model).toHaveClass('imp-selected');
@@ -100,9 +105,10 @@ it('conserva todos los motivos y el enlace dentro del aviso con cero filas', asy
   await preview(false, {
     diagnostics: { detectedRows: 3, acceptedRows: 0, discardedRows: 3, discardedByReason: { missing_model: 1, section_header: 1, invalid_price: 1 }, missingRequiredFields: ['model'], missingRecommendedFields: ['price'] },
   });
-  const notice = within(screen.getByTestId('import-skipped-notice'));
+  await userEvent.click(screen.getByTestId('import-skipped-notice'));
+  const notice = within(screen.getByRole('dialog', { name: 'Filas descartadas' }));
   expect(notice.getAllByRole('listitem').map(item => item.textContent)).toEqual([
-    'Encabezados de sección: 1', 'Sin modelo: 1', 'Precio inválido: 1',
+    'Encabezados de sección1 filaFilas no informadas', 'Sin modelo1 filaFilas no informadas', 'Precio inválido1 filaFilas no informadas',
   ]);
   expect(notice.getByRole('button', { name: 'Asignar columna de modelo' })).toBeVisible();
   expect(screen.queryByText(/Falta mapear/)).not.toBeInTheDocument();

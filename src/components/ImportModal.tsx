@@ -83,6 +83,32 @@ function DiscardNotice({ diagnostics, zeroRows = false, children }: {
   </div>;
 }
 
+function InventoryDiscardNotice({ diagnostics, onAssignModel }: {
+  diagnostics: ImportDiagnostics | null;
+  onAssignModel: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!diagnostics?.discardedRows) return null;
+  const reasons = IMPORT_DISCARD_REASONS.filter(reason => (diagnostics.discardedByReason[reason] ?? 0) > 0);
+  return <>
+    <button type="button" className="wlink imp-discard-trigger" data-testid="import-skipped-notice" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+      {countLabel(diagnostics.discardedRows, { one: 'fila descartada', many: 'filas descartadas' })} · Ver motivos
+    </button>
+    {open && <Sheet title="Filas descartadas" className="imp-discard-sheet hist-screen" overlayClassName="subov" mobileBack onClose={() => setOpen(false)} footer={<button type="button" className="btn2 s" onClick={() => setOpen(false)}>Cerrar</button>}>
+      <ul className="imp-discard-groups">
+        {reasons.map(reason => {
+          const rows = [...new Set(diagnostics.rejected?.filter(item => item.reason === reason).map(item => item.row))].sort((a, b) => a - b);
+          return <li key={reason}>
+            <div><b>{IMPORT_DISCARD_LABELS[reason]}</b><span className="spill off">{countLabel(diagnostics.discardedByReason[reason]!, { one: 'fila', many: 'filas' })}</span></div>
+            <p>{rows.length ? `Filas: ${rows.join(', ')}` : 'Filas no informadas'}</p>
+          </li>;
+        })}
+      </ul>
+      {(diagnostics.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => { setOpen(false); onAssignModel(); }}>Asignar columna de modelo</button>}
+    </Sheet>}
+  </>;
+}
+
 export const ImportModal: React.FC<Props> = ({
   customFieldDefinitions = [], customFieldDefinitionsError, fields, onImport, onClose, onStageChange, onFilterPriceToDefine, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
@@ -392,13 +418,11 @@ export const ImportModal: React.FC<Props> = ({
         definitions={customFieldDefinitions} drafts={draftDefinitions} currency={currency}
         applying={applying} disabled={importing || Boolean(customFieldDefinitionsError)}
         missing={requiredMissing.map(field => field.label)} focusedField={focusedField}
+        discardNotice={<InventoryDiscardNotice diagnostics={diagnostics} onAssignModel={() => adjustField('model')} />}
         onSheet={setActiveSheet} onChange={reapply}
         onDraft={definition => setDraftDefinitions(current => [...current, definition])}
       >
         {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
-        <DiscardNotice diagnostics={diagnostics} zeroRows={summary.rowCount === 0}>
-          {(diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
-        </DiscardNotice>
         {missingPriceColumn && <div className="import-guidance" role="status" data-testid="import-price-notice">
           <b>Tu archivo no tiene columna de precio de venta asignada.</b>
           <p>Podés importar los equipos con precio a definir. Asigná la columna desde Excel → campo.</p>
