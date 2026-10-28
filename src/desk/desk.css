@@ -2667,4 +2667,6 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .inv-card:has(.inv-entry-date) .inv-meta, .inv-card:has(.inv-entry-date) .inv-price { grid-row: 4; }
 @media (max-width: 760px) { .eq-custom-grid { grid-template-columns: minmax(0, 1fr); } }
 .inv-stock-table .dcell { min-width: 240px; }
+.inv-battery-note { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-meta .inv-battery-note { max-width: 100%; }
 .eq-sheet .eq-purchase-problems:empty { min-height: 0; }

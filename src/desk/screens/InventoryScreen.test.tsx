@@ -65,6 +65,28 @@ describe('Inventory column filters', () => {
     expect(screen.getByText('1 de 1')).toBeInTheDocument();
   });
 
+  it('muestra el detalle después de Batería con el texto completo y guiones para notas vacías', () => {
+    const note = 'Batería reemplazada en servicio técnico; conservar el comprobante y revisar la autonomía durante la garantía.';
+    context.inventory = [
+      item('1', { batteryNote: note }),
+      item('2', { batteryNote: null }),
+      item('3', { batteryNote: '' }),
+      item('4', { batteryNote: '   ' }),
+      item('5'),
+    ];
+    renderScreen();
+    const headers = screen.getAllByRole('columnheader');
+    const index = headers.findIndex(header => header.textContent === 'Detalle batería');
+    expect(headers[index - 1]).toHaveTextContent('Batería');
+    expect(headers[index + 1]).toHaveTextContent('Precio');
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    const detail = within(rows[0]).getAllByRole('cell')[index];
+    expect(within(detail).getByTitle(note)).toHaveTextContent(note);
+    for (const row of rows.slice(1)) {
+      expect(within(row).getAllByRole('cell')[index]).toHaveTextContent(/^—$/);
+    }
+  });
+
   it('filters the table by each column, including rows off the first page', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
@@ -406,6 +428,17 @@ describe('Inventory phone list', () => {
 
   afterEach(() => {
     window.matchMedia = originalMatchMedia;
+  });
+
+  it('muestra el detalle después de la batería con title y un guion si está vacío', () => {
+    const note = 'Batería original con autonomía reducida; revisar durante el próximo servicio.';
+    context.inventory = [item('1', { batteryNote: note }), item('2', { batteryNote: '   ' })];
+    renderScreen();
+    const detail = within(screen.getByTestId('phone-rows')).getByTitle(note);
+    expect(detail).toHaveTextContent(`Detalle batería: ${note}`);
+    expect(detail.previousElementSibling).toHaveTextContent('100%');
+    expect(screen.getByText('Detalle batería: —')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('keeps all empty-state actions working without a zero-results footer', async () => {
