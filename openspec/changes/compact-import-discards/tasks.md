@@ -1,0 +1,4 @@
+- [x] Indicador compacto y segunda hoja con motivos agrupados.
+- [x] Tabla y panel adaptados al alto disponible.
+- [x] Tests relacionados y revisión visual 1440/390.
+- [x] Lint frontend/backend; build de producción delegado al job PWA de CI.

@@ -27,6 +27,7 @@ interface Props {
   onSheet: (name: string) => void;
   onChange: (plan: ImportSheetPlan[], refresh: boolean) => void;
   onDraft: (definition: CustomFieldInput) => void;
+  discardNotice?: ReactNode;
   children?: ReactNode;
 }
 
@@ -35,7 +36,7 @@ const FIRST_FIELDS = ['model', 'capacity', 'color', 'batteryHealth', 'imei', 'co
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 64;
 
-export function InventoryImportReview({ active, sheets, plan, rows, summary, fields, definitions, drafts, currency, missing, applying, disabled, focusedField, onSheet, onChange, onDraft, children }: Props) {
+export function InventoryImportReview({ active, sheets, plan, rows, summary, fields, definitions, drafts, currency, missing, applying, disabled, focusedField, onSheet, onChange, onDraft, discardNotice, children }: Props) {
   const grid = sheets.find(sheet => sheet.name === active.name)?.rows ?? [];
   const mapping = importColumns(active, grid);
   const all = [...definitions, ...drafts];
@@ -209,8 +210,11 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     return row[column.key]?.trim() || '—';
   };
 
-  return <div className="imp-review" data-testid="import-summary" onKeyDown={closeInternal}>
-    <h4 className="imp-detected">Detectamos {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}, {new Intl.NumberFormat('es-AR').format(summary.rowCount)} {summary.rowCount === 1 ? 'equipo' : 'equipos'}</h4>
+  return <div className="imp-review" data-testid="import-summary">
+    <div className="imp-review-summary">
+      <h4 className="imp-detected">Detectamos {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}, {new Intl.NumberFormat('es-AR').format(summary.rowCount)} {summary.rowCount === 1 ? 'equipo' : 'equipos'}</h4>
+      {discardNotice}
+    </div>
     <div className="imp-sources">
       {plan.length > 1 && <DeskSelect label="Hoja a revisar" value={active.name} onChange={onSheet} options={plan.map(sheet => ({ value: sheet.name, label: sheet.name }))} />}
       {plan.map(sheet => {
@@ -236,7 +240,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     </details>
     {missing.length > 0 && <div className="import-guidance missing" role="alert" id="import-missing-model"><b>Falta {missing.join(', ')}. Asigná los campos obligatorios para importar.</b></div>}
     {!plan.some(sheet => sheet.include) && <div className="import-guidance" role="status">Incluí al menos una hoja para importar.</div>}
-    <div className="imp-review-layout">
+    <div className="imp-review-layout" onKeyDown={closeInternal}>
       <div className="imp-table-area">
         <button ref={panelToggle} type="button" className="btn2 s imp-panel-toggle" aria-expanded={panelOpen} aria-controls="import-column-panel" onClick={() => setPanelOpen(value => !value)}>Columnas ({pendingLabel}){missingModel ? ' · Falta Modelo' : ''}</button>
         <div className="imp-table-title"><h4>Equipos a importar</h4><span data-testid="import-preview-count">{new Intl.NumberFormat('es-AR').format(rows.length)} {rows.length === 1 ? 'equipo' : 'equipos'}</span></div>

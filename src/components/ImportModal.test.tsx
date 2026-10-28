@@ -365,7 +365,10 @@ it.each([false, true])('adds suggested origin quality drafts once and reuses exi
     onAnalyze={vi.fn(async () => result)} onApply={vi.fn(async () => result)} onImport={onImport} />);
   await userEvent.upload(document.querySelector('input[type="file"]') as HTMLInputElement,
     new File(['Modelo,Precio,Calidad\niPhone 13,100,A/A-'], 'synthetic.csv', { type: 'text/csv' }));
-  expect(await screen.findByTestId('import-skipped-notice')).toHaveTextContent('Duplicadas: 1 — fila 59: IMEI repetido en el archivo (igual a la fila 38)');
+  await userEvent.click(await screen.findByTestId('import-skipped-notice'));
+  const detail = screen.getByRole('dialog', { name: 'Filas descartadas' });
+  expect(detail).toHaveTextContent('Duplicadas1 filaFilas: 59');
+  await userEvent.keyboard('{Escape}');
   await userEvent.click(screen.getByRole('button', { name: /Importar 1 equipo/ }));
   await waitFor(() => expect(onImport).toHaveBeenCalledOnce());
   const call = onImport.mock.calls[0] as unknown as [Record<string, string>[], unknown?];
