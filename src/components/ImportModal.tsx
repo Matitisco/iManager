@@ -97,6 +97,7 @@ export const ImportModal: React.FC<Props> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [excluded, setExcluded] = useState<Set<number>>(new Set());
   const [step, setStep] = useState<Step>('upload');
+  const [readingLabel, setReadingLabel] = useState('Leyendo archivo…');
   const [readingHeight, setReadingHeight] = useState(0);
   const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => { onStageChange?.(step === 'upload' ? 'file' : step === 'reading' ? 'analyze' : step === 'adjust' ? 'mapping' : 'review'); }, [step, onStageChange]);
@@ -173,6 +174,7 @@ export const ImportModal: React.FC<Props> = ({
       return;
     }
     const requestId = ++requestRef.current;
+    setReadingLabel('Analizando columnas…');
     beginReading();
     try {
       const analysis = await onAnalyzeText(value);
@@ -205,21 +207,29 @@ export const ImportModal: React.FC<Props> = ({
     }
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
+    setReadingLabel('Leyendo archivo…');
+    beginReading();
     try {
+      // Yield before parsing so the reading state can render.
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+      if (requestRef.current !== requestId) return;
       const workbook = await parseWorkbook(file);
+      if (requestRef.current !== requestId) return;
       const nextSheets = workbook.sheetNames
         .map((name) => ({ name, rows: workbook.getSheet(name) }))
         .filter((item) => item.rows.some((row) => row.some(Boolean)));
       if (nextSheets.length === 0) {
         setFileError('El archivo está vacío');
+        setStep('upload');
         return;
       }
       if (nextSheets.reduce((total, item) => total + item.rows.length, 0) > 5000) {
         setFileError('El archivo supera las 5000 filas.');
+        setStep('upload');
         return;
       }
       setSheets(nextSheets);
-      beginReading();
+      setReadingLabel('Analizando columnas…');
       const analysis = await onAnalyze(nextSheets);
       if (requestRef.current !== requestId) return;
       applyResult(analysis);
@@ -364,7 +374,10 @@ export const ImportModal: React.FC<Props> = ({
         </div>
       )}
 
-      {step === 'reading' && <ListSkeleton variant="lines" rows={5} testId="import-reading" />}
+      {step === 'reading' && <div role="status" aria-live="polite" aria-busy="true">
+        <p className="import-guidance">{readingLabel}</p>
+        <ListSkeleton variant="lines" rows={5} testId="import-reading" />
+      </div>}
 
       {step === 'summary' && summary && unrelated && (
         <div data-testid="import-unrelated" role="status" className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-5">
@@ -628,7 +641,7 @@ export const ImportModal: React.FC<Props> = ({
           {source === 'paste' ? 'Analizar listado' : 'Elegir archivo'}
         </button>
       </>}
-      {step === 'reading' && <button type="button" className="btn2 s" onClick={backUpload}>Volver</button>}
+      {step === 'reading' && <button type="button" className="btn2 s" disabled onClick={backUpload}>Volver</button>}
       {step === 'summary' && <>
         <button type="button" className="btn2 s" disabled={busy} onClick={backUpload}>Volver</button>
         {!isInventory && !unrelated && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={openAdjust}>Ajustar importación</button>}
@@ -639,7 +652,7 @@ export const ImportModal: React.FC<Props> = ({
     </div>
   );
 
-  return <Sheet title={inventoryReview ? 'Importar equipos' : title} onClose={onClose} busy={importing || (!isInventory && applying)} className={`inv-import${inventoryReview ? ' imp-review-sheet' : ''}`} footer={footer}>
+  return <Sheet title={inventoryReview ? 'Importar equipos' : title} onClose={onClose} busy={importing || step === 'reading' || (!isInventory && applying)} className={`inv-import${inventoryReview ? ' imp-review-sheet' : ''}`} footer={footer}>
     {body}
   </Sheet>;
 };

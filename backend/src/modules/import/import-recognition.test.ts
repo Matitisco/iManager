@@ -92,3 +92,30 @@ it('reconoce una columna de enteros 60–100 como batería y conserva notas ante
   const notes = [{ name: 'Stock', rows: [['Modelo', 'Notas', 'Arreglos'], ['iPhone 13', 'Original', '']] }];
   expect((await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: notes })).rows[0].batteryNote).toBe('Original');
 });
+
+it.each([
+  ['clientes únicos', Array.from({ length: 10 }, (_, i) => `Cliente ${String.fromCharCode(65 + i)}`)],
+  ['notas largas', Array(10).fill('Observaciones del equipo con mucho texto que supera los cuarenta caracteres')],
+  ['colores', ['Negro', 'Blanco', 'Rojo', 'Negro', 'Blanco', 'Rojo', 'Azul', 'Azul', 'Verde', 'Verde']],
+  ['estado', Array(10).fill('Reservado')],
+  ['condición', Array(10).fill('USADO')],
+  ['calidad', ['A', 'AA', 'AB+', 'A', 'AA', 'AB+', 'canje', 'canje', 'A', 'AA']],
+  ['fechas', Array(10).fill('2026-10-01')],
+  ['números', Array(10).fill('450')],
+])('no confunde %s con proveedor aunque esté antes de Modelo', (_name, values) => {
+  const rows = values.map(value => [value, 'iPhone 13', 'USD 450']);
+  const plan = heuristicPlan([{ name: 'Stock', rows }], 'inventory', 'ARS')[0];
+  expect(plan.mapping.some(column => column.field === 'supplierName')).toBe(false);
+});
+
+it('infiere proveedor repetido, tolera prefijos y nunca pisa encabezados', () => {
+  const values = ['Origen Norte', 'origen norte', 'Origen Norte', 'CANJE / Ana', 'REINGRESO'];
+  const rows = values.map(value => [value, 'iPhone 13', 'USD 450']);
+  expect(heuristicPlan([{ name: 'Stock', rows }], 'inventory', 'ARS')[0].mapping[0].field).toBe('supplierName');
+  const withHeader = [['Observaciones', 'Modelo', 'Costo USD'], ...rows];
+  expect(heuristicPlan([{ name: 'Stock', rows: withHeader }], 'inventory', 'ARS')[0].mapping[0].field).toBe('batteryNote');
+  const explicit = [['Otro', 'Modelo', 'Costo USD', 'Proveedor'], ...rows.map(row => [...row, 'Proveedor elegido'])];
+  const mapping = heuristicPlan([{ name: 'Stock', rows: explicit }], 'inventory', 'ARS')[0].mapping;
+  expect(mapping[0].field).toBe('');
+  expect(mapping[3].field).toBe('supplierName');
+});

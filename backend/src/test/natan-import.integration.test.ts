@@ -21,11 +21,12 @@ it.each(natanCases)('$file: analyze → apply → persistencia y reimportación'
   const analysis: AnalysisResult = analyze.json();
   expect(analysis.diagnostics).toMatchObject({ detectedRows: fixture.detected, acceptedRows: fixture.accepted, discardedByReason: fixture.reasons });
   expect(analysis.rows).toHaveLength(fixture.accepted);
+  expect(Object.fromEntries(analysis.plan[0].mapping.filter(column => column.field).map(column => [column.columnIndex, column.field]))).toEqual(fixture.mapping);
   const apply = await getApp().inject({ method: 'POST', url: '/api/import/apply', headers, payload: { ...payload, plan: analysis.plan } });
   expect(apply.statusCode, apply.body).toBe(200);
   expect(apply.json().rows).toEqual(analysis.rows);
   const rows = analysis.rows.map(row => ({
-    ...row, model: row.model, entryDate: row.entryDate, batteryNote: row.batteryNote, currency: row.currency, imei: row.imei ?? '', sourceRow: Number(row._sourceRow),
+    ...row, supplierName: row.supplierName, model: row.model, entryDate: row.entryDate, batteryNote: row.batteryNote, currency: row.currency, imei: row.imei ?? '', sourceRow: Number(row._sourceRow),
     price: row.price?.trim() ? Number(row.price) : null,
     ...(row.cost?.trim() ? { cost: Number(row.cost) } : { cost: undefined }),
     customFields: Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value])),
@@ -42,10 +43,15 @@ it.each(natanCases)('$file: analyze → apply → persistencia y reimportación'
   // Unidentified rows intentionally retain the old create behavior; identified rows are idempotent.
   expect(second.json()).toMatchObject({ imported: withoutImei, updated: fixture.accepted - withoutImei, errors: [] });
   expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(fixture.accepted + withoutImei);
-  const stored = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
+  const stored = await prisma.inventoryItem.findMany({ where: { storeId: store!.id }, include: { supplier: true } });
+  expect(await prisma.supplier.count({ where: { storeId: store!.id } })).toBe(new Set(rows.map(row => row.supplierName?.trim().toLocaleLowerCase('es')).filter(Boolean)).size);
   for (const row of rows.filter(row => row.imei)) {
     const item = stored.find(item => item.imei === row.imei)!;
     expect(item.model).toBe(row.model);
+    if (row.supplierName) {
+      expect(item.supplierId).toBeTruthy();
+      expect(item.supplier).toMatchObject({ storeId: store!.id, name: row.supplierName.trim() });
+    }
     expect(Number(item.cost)).toBe(row.cost ?? 0);
     expect(item.price == null ? null : Number(item.price)).toBe(row.price);
     expect(item.entryDate?.toISOString().slice(0, 10) ?? null).toBe(row.entryDate ? parseArDate(row.entryDate)?.toISOString().slice(0, 10) : null);

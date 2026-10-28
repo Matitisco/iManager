@@ -388,7 +388,7 @@ it('recorre un archivo CSV real, asigna Precio en vivo y confirma las filas prep
   render(<ImportModal fields={fields} onAnalyze={onAnalyze} onApply={(sheets, plan, refresh) => applyImportPlan(account, 'inventory', sheets, plan, refresh)} onImport={onImport} onClose={vi.fn()} />);
   try {
     await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['Modelo,Valor\niPhone 13,420\n'], 'stock-prueba.csv', { type: 'text/csv' }));
-    expect(onAnalyze).toHaveBeenCalledWith([{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }]);
+    await waitFor(() => expect(onAnalyze).toHaveBeenCalledWith([{ name: 'Hoja 1', rows: [['Modelo', 'Valor'], ['iPhone 13', '420']] }]));
     await userEvent.click(await screen.findByRole('combobox', { name: 'Importar Valor como' }));
     await userEvent.click(screen.getByRole('option', { name: 'Precio' }));
     await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeEnabled());

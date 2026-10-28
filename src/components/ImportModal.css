@@ -92,8 +92,12 @@
 .imp-preview-table .imp-pinned { position: sticky; left: 0; z-index: 2; box-shadow: 1px 0 0 var(--border); }
 .imp-preview-table.dtable.compact td.imp-pinned { font-weight: 700; color: var(--primary); }
 .imp-column-heading { display: flex; align-items: center; gap: 4px; min-width: 0; }
-.imp-grip { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; min-height: 44px; color: var(--section); cursor: grab; touch-action: none; }
+.desk-app .imp-grip { flex: none; display: flex; align-items: center; justify-content: center; width: 24px; min-height: 44px; color: var(--primary); cursor: grab; touch-action: none; }
 .imp-grip[aria-disabled="true"] { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+  .imp-preview-table th:not(.imp-pinned):not(.imp-unused), .imp-heading-label { cursor: grab; }
+  .imp-preview-table th.imp-dragging, .imp-dragging .imp-heading-label, .imp-dragging .imp-grip { cursor: grabbing; }
+}
 .imp-heading-label { min-width: 0; flex: 1; text-align: left; min-height: 48px; }
 .imp-heading-label b, .imp-heading-label small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .imp-heading-label b { font-size: 12px; text-transform: uppercase; color: var(--secondary); }

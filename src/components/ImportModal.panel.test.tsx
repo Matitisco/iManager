@@ -34,7 +34,7 @@ function recalculate(plan: ImportSheetPlan[], sheets: ImportSheetPayload[]): Imp
     suggestedDefinitions: [{ entity: 'inventory', key: 'location', label: 'Ubicación', type: 'text', order: 1 }],
     summary: { rowCount: rows.length, sheetCount: sheets.length, sheets: plan.map(item => ({ name: item.name, included: item.include, rows: rows.filter(row => row._sourceSheet === item.name).length, condition: '' })) } };
 }
-async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; width?: number } = {}) {
+async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; width?: number; fields?: typeof fields } = {}) {
   if (options.width) vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: query.includes('max-width') && options.width! < 700, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
   const sheets = options.sheets ?? [{ name: 'Stock', rows: stock }];
   vi.mocked(parseWorkbook).mockResolvedValue({ sheetNames: sheets.map(item => item.name), getSheet: name => sheets.find(item => item.name === name)!.rows });
@@ -42,7 +42,7 @@ async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPa
   const onApply = vi.fn(async (_sheets: ImportSheetPayload[], plan: ImportSheetPlan[], _refresh: boolean): Promise<ImportAnalysis> => recalculate(plan, sheets));
   const onImport = vi.fn(async (_rows: Record<string, string>[], _definitions?: unknown) => ({ imported: 2, updated: 0, errors: [] }));
   const onClose = vi.fn();
-  const view = render(<ImportModal fields={fields} nouns={{ one: 'equipo', many: 'equipos' }}
+  const view = render(<ImportModal fields={options.fields ?? fields} nouns={{ one: 'equipo', many: 'equipos' }}
     customFieldDefinitions={[{ id: 'quality-id', entity: 'inventory', key: 'quality', label: 'Calidad', type: 'text', order: 0 }]}
     onAnalyze={vi.fn(async () => value)} onApply={onApply} onImport={onImport} onClose={onClose} />);
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['fixture'], 'stock.xlsx'));
@@ -154,7 +154,7 @@ it('vincula selección y scroll de tabla/panel y consume Escape antes de cerrar'
 
 it('reordena y redimensiona con teclado sin modificar el plan ni el envío', async () => {
   const { onApply, onImport, value } = await setup();
-  const grip = table().getByRole('button', { name: 'Reordenar Precio' });
+  const grip = table().getByRole('button', { name: 'Arrastrar para reordenar · Precio' });
   grip.focus(); await userEvent.keyboard('{ArrowLeft}');
   expect(table().getAllByRole('columnheader').slice(0, 3).map(node => node.dataset.previewKey)).toEqual(['model', 'price', 'color']);
   expect(grip).toHaveFocus();
@@ -178,7 +178,7 @@ it('redimensiona con pointer events de mouse y touch y permite reordenar desde e
       fireEvent.pointerUp(edge, { clientX: 140, pointerType });
     }
     expect(edge).toHaveAttribute('aria-valuenow', '220');
-    const grip = table().getByRole('button', { name: 'Reordenar Precio' });
+    const grip = table().getByRole('button', { name: 'Arrastrar para reordenar · Precio' });
     fireEvent.pointerDown(grip, { clientX: 340, button: 0 });
     fireEvent.pointerMove(grip, { clientX: 190 });
     fireEvent.pointerUp(grip, { clientX: 190 });
@@ -249,4 +249,105 @@ it('cambia hojas y encabezados y conserva inclusión y columnas físicas', async
   expect(onApply.mock.calls[1][2]).toBe(true);
   expect(onApply.mock.calls[1][1][1]).toMatchObject({ headerRow: 0, dataStartRow: 1 });
   expect(screen.getByRole('article', { name: 'Columna A' })).toBeInTheDocument();
+});
+
+it('muestra lectura desde la selección y análisis hasta resolver la vista previa', async () => {
+  const sheets = [{ name: 'Stock', rows: stock }];
+  let parsed!: (value: Awaited<ReturnType<typeof parseWorkbook>>) => void;
+  let analyzed!: (value: ImportAnalysis) => void;
+  vi.mocked(parseWorkbook).mockImplementationOnce(() => new Promise(resolve => { parsed = resolve; }));
+  const onAnalyze = vi.fn(() => new Promise<ImportAnalysis>(resolve => { analyzed = resolve; }));
+  render(<ImportModal fields={fields} onAnalyze={onAnalyze} onApply={vi.fn()} onImport={vi.fn()} onClose={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText('Archivo a importar'), { target: { files: [new File(['fixture'], 'stock.xlsx')] } });
+  expect(screen.getByText('Leyendo archivo…')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Elegir archivo CSV o XLSX' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Volver' })).toBeDisabled();
+  await waitFor(() => expect(parsed).toBeTypeOf('function'));
+  await act(async () => parsed({ sheetNames: ['Stock'], getSheet: () => stock }));
+  expect(screen.queryByText('Leyendo archivo…')).not.toBeInTheDocument();
+  expect(screen.getByText('Analizando columnas…')).toBeVisible();
+  await act(async () => analyzed(recalculate([sheetPlan()], sheets)));
+  expect(screen.getByTestId('import-summary')).toBeVisible();
+  expect(screen.queryByTestId('import-reading')).not.toBeInTheDocument();
+  expect(screen.queryByText('Analizando columnas…')).not.toBeInTheDocument();
+});
+
+it.each(['lectura', 'análisis', 'vacío', 'demasiadas filas'])('recupera el error de %s y permite elegir el mismo archivo otra vez', async failure => {
+  const sheets = [{ name: 'Stock', rows: stock }];
+  let reject!: (reason: Error) => void;
+  const workbook = { sheetNames: ['Stock'], getSheet: () => stock };
+  vi.mocked(parseWorkbook).mockResolvedValue(workbook);
+  const onAnalyze = vi.fn(async () => recalculate([sheetPlan()], sheets));
+  if (failure === 'lectura') vi.mocked(parseWorkbook).mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+  if (failure === 'análisis') onAnalyze.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; }));
+  if (failure === 'vacío') vi.mocked(parseWorkbook).mockResolvedValueOnce({ sheetNames: ['Stock'], getSheet: () => [] });
+  if (failure === 'demasiadas filas') vi.mocked(parseWorkbook).mockResolvedValueOnce({ sheetNames: ['Stock'], getSheet: () => Array.from({ length: 5001 }, () => ['iPhone 13']) });
+  render(<ImportModal fields={fields} onAnalyze={onAnalyze} onApply={vi.fn()} onImport={vi.fn()} onClose={vi.fn()} />);
+  const file = new File(['fixture'], 'stock.xlsx');
+  await userEvent.upload(screen.getByLabelText('Archivo a importar'), file);
+  if (failure === 'lectura' || failure === 'análisis') {
+    await waitFor(() => expect(reject).toBeTypeOf('function'));
+    expect(screen.getByText(failure === 'lectura' ? 'Leyendo archivo…' : 'Analizando columnas…')).toBeVisible();
+    await act(async () => reject(new Error('No se pudo leer el archivo. Probá de nuevo.')));
+  }
+  expect(await screen.findByRole('alert')).toHaveTextContent(/No se pudo leer|está vacío|supera las 5000/);
+  expect(screen.queryByTestId('import-reading')).not.toBeInTheDocument();
+  await userEvent.upload(screen.getByLabelText('Archivo a importar'), file);
+  expect(await screen.findByTestId('import-summary')).toBeVisible();
+});
+
+it('prioriza campos importantes y conserva el resto en orden del Excel y el orden manual tras recalcular', async () => {
+  const keys = ['supplierName', 'status', 'model', 'entryDate', 'price', 'cost', 'imei', 'grade', 'batteryHealth', 'color', 'capacity', 'condition'];
+  const labels = ['Proveedor', 'Estado', 'Modelo', 'Fecha', 'Precio', 'Costo', 'IMEI', 'Calidad', 'Batería', 'Color', 'Capacidad', 'Condición'];
+  const rows = [labels, keys.map(key => key === 'model' ? 'iPhone 13' : 'valor')];
+  const plan = { ...sheetPlan(), dataEndRow: 2, mapping: keys.map((field, columnIndex) => ({ field, columnIndex, header: labels[columnIndex] })) };
+  const { onApply } = await setup({ plan: [plan], sheets: [{ name: 'Stock', rows }], fields: keys.map((key, i) => ({ key, label: labels[i], required: key === 'model' })) });
+  const order = () => table().getAllByRole('columnheader').map(node => node.dataset.previewKey);
+  expect(order()).toEqual(['model', 'capacity', 'color', 'batteryHealth', 'imei', 'cost', 'price', 'supplierName', 'status', 'entryDate', 'grade', 'condition', 'currency']);
+  table().getByRole('button', { name: 'Arrastrar para reordenar · Proveedor' }).focus();
+  await userEvent.keyboard('{ArrowLeft}');
+  const manual = order();
+  expect(manual[6]).toBe('supplierName');
+  await userEvent.click(screen.getByLabelText('Incluir hoja Stock'));
+  await waitFor(() => expect(onApply).toHaveBeenCalledOnce());
+  await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeDisabled());
+  expect(order()).toEqual(manual);
+});
+
+it('arrastra desde etiqueta y fondo del encabezado, respeta el umbral y deja scroll táctil fuera del grip', async () => {
+  const { onApply } = await setup();
+  class TestPointerEvent extends MouseEvent {
+    pointerType: string;
+    constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerType = init.pointerType ?? 'mouse'; }
+  }
+  vi.stubGlobal('PointerEvent', TestPointerEvent);
+  try {
+    const header = () => screen.getByRole('table').querySelector<HTMLElement>('[data-preview-key="price"]')!;
+    const label = within(header()).getByRole('button', { name: /^Precio/ });
+    fireEvent.pointerDown(label, { clientX: 400 });
+    fireEvent.pointerMove(label, { clientX: 397 });
+    fireEvent.pointerUp(label, { clientX: 397 });
+    fireEvent.click(label);
+    expect(screen.getByRole('complementary')).toHaveClass('imp-panel-open');
+    expect(table().getAllByRole('columnheader')[1]).toHaveAttribute('data-preview-key', 'color');
+    for (const target of [label, header()]) {
+      fireEvent.pointerDown(target, { clientX: 400 });
+      fireEvent.pointerMove(target, { clientX: 190 });
+      fireEvent.pointerUp(target, { clientX: 190 });
+      fireEvent.click(target);
+      expect(table().getAllByRole('columnheader')[1]).toHaveAttribute('data-preview-key', 'price');
+    }
+    const manual = table().getAllByRole('columnheader').map(node => node.dataset.previewKey);
+    fireEvent.pointerDown(label, { clientX: 190, pointerType: 'touch' });
+    fireEvent.pointerMove(label, { clientX: 700, pointerType: 'touch' });
+    fireEvent.pointerUp(label, { clientX: 700, pointerType: 'touch' });
+    expect(table().getAllByRole('columnheader').map(node => node.dataset.previewKey)).toEqual(manual);
+    const grip = within(header()).getByRole('button', { name: 'Arrastrar para reordenar · Precio' });
+    expect(grip).toHaveAttribute('title', 'Arrastrar para reordenar');
+    fireEvent.pointerDown(grip, { clientX: 190, pointerType: 'touch' });
+    fireEvent.pointerMove(grip, { clientX: 700, pointerType: 'touch' });
+    fireEvent.pointerUp(grip, { clientX: 700, pointerType: 'touch' });
+    expect(table().getAllByRole('columnheader')[1]).toHaveAttribute('data-preview-key', 'color');
+    expect(onApply).not.toHaveBeenCalled();
+  } finally { vi.unstubAllGlobals(); }
 });
