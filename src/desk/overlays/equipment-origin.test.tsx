@@ -5,11 +5,12 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
 import { fetchBackendInventoryItem, type InventoryItemDetail } from '../../services/inventory-api';
 import { fetchSupplierPurchase } from '../../services/suppliers-api';
+import { ExchangeProvider } from '../exchange';
 import { DeskProvider } from '../ui';
 import { EquipmentDetail } from './equipment';
 
 const ctx = vi.hoisted(() => ({
-  user: { uid: 'owner' }, appSession: { store: { id: 'store' }, membership: { role: 'OWNER' } },
+  user: { uid: 'owner' }, appSession: { store: { id: 'store' }, membership: { role: 'OWNER', sections: undefined as string[] | undefined } },
   inventory: [] as Product[], sales: [], repairOrders: [], updateProduct: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
@@ -19,7 +20,7 @@ const open = vi.fn();
 const close = vi.fn();
 const item: Product = {
   id: 'eq', model: 'iPhone 15 Pro', capacity: '256GB', color: 'Titanio natural', imei: '350900000300922',
-  condition: 'USADO', batteryHealth: '79%', grade: 'A', price: 1800000, status: 'DISPONIBLE',
+  condition: 'USADO', batteryHealth: '79%', grade: 'A', cost: 1200000, currency: 'ARS', price: 1800000, status: 'DISPONIBLE',
   supplierId: 'supplier', supplierName: 'Importadora Andes', stockPurchaseId: 'purchase', purchasedAt: '2026-09-05',
 };
 const detail = (problems = 4): InventoryItemDetail => ({ ...item, purchaseSummary: { problems, devices: 11 } });
@@ -29,13 +30,13 @@ function mount(child: ReactNode = <EquipmentDetail id="eq" />) {
 beforeEach(() => {
   vi.clearAllMocks();
   ctx.inventory = [{ ...item }];
-  ctx.appSession = { store: { id: 'store' }, membership: { role: 'OWNER' } };
+  ctx.appSession = { store: { id: 'store' }, membership: { role: 'OWNER', sections: undefined as string[] | undefined } };
   vi.mocked(fetchBackendInventoryItem).mockResolvedValue(detail());
-  vi.mocked(fetchSupplierPurchase).mockResolvedValue({ id: 'purchase', name: null, purchasedAt: '2026-09-05', notes: null, devices: 11, problemCount: 4, claimCount: 3, totalCost: 5000, currency: 'USD', summary: { devices: 11, problems: 4 }, items: [{ id: 'other', model: 'iPhone 14', capacity: '128GB', imei: '350900000269246', status: 'EN_REVISION', cost: 500, currency: 'USD', problem: true, problemLabel: 'En revisión', createdAt: '2026-09-05' }] });
+  vi.mocked(fetchSupplierPurchase).mockResolvedValue({ id: 'purchase', name: null, purchasedAt: '2026-09-05', notes: null, devices: 11, problemCount: 4, claimCount: 3, totalCost: 5000, currency: 'USD', summary: { devices: 11, problems: 4 }, items: [{ id: 'other', model: 'iPhone 14', capacity: '128GB', imei: '350900000269246', status: 'EN_RMA', cost: 500, currency: 'USD', problem: true, problemLabel: 'En RMA', createdAt: '2026-09-05' }] });
 });
 it('muestra el resumen del backend y el proveedor abre su ficha', async () => {
   mount();
-  expect(await screen.findByTestId('equipment-purchase-problems')).toHaveTextContent('4 de 11 equipos de esta compra tuvieron problemas');
+  expect(await screen.findByTestId('equipment-purchase-problems')).toHaveTextContent('4 de 11 equipos de esta compra tienen problemas');
   expect(fetchBackendInventoryItem).toHaveBeenCalledWith(ctx.user, 'eq');
   await userEvent.click(within(screen.getByTestId('equipment-supplier')).getByRole('button', { name: /Importadora Andes/ }));
   expect(open).toHaveBeenCalledWith({ type: 'supplier', id: 'supplier' });
@@ -104,4 +105,48 @@ it('descarta respuestas tardías de otro equipo y otra tienda', async () => {
   await waitFor(() => expect(fetchBackendInventoryItem).toHaveBeenCalledWith(ctx.user, 'eq2'));
   await act(async () => resolve(detail(4)));
   expect(screen.queryByTestId('equipment-purchase-problems')).not.toBeInTheDocument();
+});
+
+it.each([
+  [1, 1, '1 de 1 equipo de esta compra tiene problemas'],
+  [1, 11, '1 de 11 equipos de esta compra tiene problemas'],
+])('usa presente con %s problemas entre %s equipos', async (problems, devices, text) => {
+  vi.mocked(fetchBackendInventoryItem).mockResolvedValue({ ...item, purchaseSummary: { problems, devices } });
+  mount();
+  expect(await screen.findByTestId('equipment-purchase-problems')).toHaveTextContent(text);
+});
+it.each([false, true])('muestra la fila IMEI con layout phone=%s', async phone => {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  mount();
+  await screen.findByTestId('equipment-purchase-problems');
+  expect(screen.getByText('IMEI').closest('.kv')?.textContent?.replace(/\s/g, '')).toBe(`IMEI${item.imei}`);
+});
+it.each(['ARS', 'USD'] as const)('muestra costo con moneda %s y privacidad', async currency => {
+  ctx.inventory = [{ ...item, cost: 1200, currency }];
+  mount(<ExchangeProvider settings={{ currency, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1250, manualSell: 1300 }}><EquipmentDetail id="eq" /></ExchangeProvider>);
+  await screen.findByTestId('equipment-purchase-problems');
+  const row = screen.getByText('Costo').closest('.kv')!;
+  expect(within(row as HTMLElement).getByText(currency === 'USD' ? 'US$ 1.200' : '$ 1.200')).toHaveAttribute('data-ph-mask');
+});
+it.each([0, undefined])('distingue costo cero de ausente (%s)', async cost => {
+  ctx.inventory = [{ ...item, cost }];
+  mount();
+  await screen.findByTestId('equipment-purchase-problems');
+  expect(screen.getByText('Costo').closest('.kv')).toHaveTextContent(cost === 0 ? '$ 0' : '—');
+});
+it.each([{ sections: undefined }, { sections: ['inventory'] }, { sections: ['inventory', 'reports'] }])('respeta permisos financieros para STAFF ($sections)', async ({ sections }) => {
+  ctx.appSession.membership = { role: 'STAFF', sections };
+  mount();
+  await screen.findByTestId('equipment-purchase-problems');
+  if (sections?.includes('reports')) expect(screen.getByText('Costo').closest('.kv')).toHaveTextContent('$ 1.200.000');
+  else {
+    expect(screen.queryByText('Costo')).not.toBeInTheDocument();
+    expect(screen.queryByText('$ 1.200.000')).not.toBeInTheDocument();
+  }
+});
+it('muestra la fila IMEI aunque falte el dato', async () => {
+  ctx.inventory = [{ ...item, imei: '' }];
+  mount();
+  await screen.findByTestId('equipment-purchase-problems');
+  expect(screen.getByText('IMEI').closest('.kv')).toHaveTextContent('—');
 });

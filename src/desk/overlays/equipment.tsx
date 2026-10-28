@@ -56,7 +56,6 @@ export function EquipmentDetail({ id }: { id: string }) {
   const [editor, setEditor] = useState<CatalogKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const phone = usePhoneLayout();
   const statuses = catalogChoices(catalogs?.options ?? [], 'INVENTORY_STATUS', EQ_STATUS);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<{ key: string; summary: InventoryItemDetail['purchaseSummary'] } | null>(null);
@@ -117,7 +116,8 @@ export function EquipmentDetail({ id }: { id: string }) {
       {item.status === 'VENDIDO' && item.pendingSaleRegistration ? (
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
-      {phone ? <div className="kv"><span>IMEI</span><b data-ph-mask>{item.imei ? formatImei(item.imei) : '—'}</b></div> : null}
+      <div className="kv"><span>IMEI</span><b data-ph-mask>{item.imei ? formatImei(item.imei) : '—'}</b></div>
+      {seeCosts ? <div className="kv"><span>Costo</span><b data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
       <div className="kv"><span>Calidad</span><b title={qualityDetail(displayQuality(item.condition, item.grade)) || undefined}>{displayQuality(item.condition, item.grade) || '—'}</b></div>
@@ -127,7 +127,7 @@ export function EquipmentDetail({ id }: { id: string }) {
         <div className="kv sup-origin" data-testid="equipment-purchase"><span>Compra</span><b><button type="button" disabled={busy} onClick={() => setPurchaseOpen(true)}>{item.purchaseName || formatShortDate(item.purchasedAt)}</button></b></div>
         <div className="eq-purchase-problems" aria-busy={summaryPending}>
           {summaryPending ? <Skeleton className="eq-purchase-skeleton" /> : null}
-          {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} {summary.devices === 1 ? 'equipo' : 'equipos'} de esta compra {summary.problems === 1 ? 'tuvo' : 'tuvieron'} problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
+          {summary && summary.problems > 0 ? <button className="sup-flag" type="button" disabled={busy} onClick={() => setPurchaseOpen(true)} data-testid="equipment-purchase-problems"><span>{summary.problems} de {summary.devices} {summary.devices === 1 ? 'equipo' : 'equipos'} de esta compra {summary.problems === 1 ? 'tiene' : 'tienen'} problemas</span><span className="chev" aria-hidden="true">›</span></button> : null}
         </div>
       </> : null}
       <div className="kv"><span>Fecha de ingreso</span><b>{item.entryDate ? formatShortDate(item.entryDate) : '—'}</b></div>

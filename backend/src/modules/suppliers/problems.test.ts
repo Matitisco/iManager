@@ -9,10 +9,18 @@ function claim(id: string, changes: Partial<ProblemClaim> = {}): ProblemClaim {
 
 describe("equipos distintos con problemas", () => {
   it.each([
-    ["EN_REVISION", false, false, "En revisión"], ["EN_RMA", true, true, "En RMA"],
+    ["EN_REVISION", false, false, null], ["EN_REVISION", true, false, "Reclamo"],
+    ["EN_REVISION", false, true, "En servicio técnico"], ["EN_RMA", false, false, "En RMA"], ["EN_RMA", true, true, "En RMA"],
     ["VENDIDO", true, false, "Reclamo"], ["DISPONIBLE", false, true, "En servicio técnico"],
     ["DISPONIBLE", false, false, null],
   ])("%s", (status, claims, repair, expected) => expect(deviceProblemLabel(status as string, claims as boolean, repair as boolean)).toBe(expected));
+
+  it("no cuenta revisión sin reclamo ni reparación y conserva el total de equipos", () => {
+    const items = [{ ...item, status: "EN_REVISION" }, { ...item, id: "two", status: "EN_RMA" }];
+    const problems = indexProblems(items, [], []);
+    expect(problems.get("one")).toMatchObject({ problem: false, label: null });
+    expect(summarizeProblems(items, problems)).toEqual({ problems: 1, devices: 2 });
+  });
 
   it("deduplica reclamos por ambas claves y equipos con múltiples señales", () => {
     const items = [{ ...item, status: "EN_REVISION" }, { ...item, id: "two", imei: "456" }];
