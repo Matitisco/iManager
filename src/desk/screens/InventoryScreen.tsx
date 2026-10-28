@@ -390,6 +390,7 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
+                <th>Detalle batería</th>
                 <th className="r">
                   <span className="thf">Precio
                     <ColumnFilter label="precio" align="right" {...menu('precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '', priceToDefine: false })}>
@@ -443,6 +444,7 @@ export function InventoryScreen() {
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>
                   <td>{item.batteryHealth ? <Battery value={item.batteryHealth} /> : '—'}</td>
+                  <td><span className="inv-battery-note" title={item.batteryNote || undefined}>{item.batteryNote?.trim() ? item.batteryNote : '—'}</span></td>
                   <td className="r"><b data-ph-mask>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b></td>
                   <td>
                     {item.archivedAt ? <span className="spill mid">Archivado</span> : item.status ? <Pill status={item.status} kind="INVENTORY_STATUS" /> : '—'}
@@ -612,6 +614,7 @@ function InventoryCard({ item, money, sell }: { item: Product; money: MoneyApi; 
       <span className="inv-meta">
         <small>{condition || '—'}</small>
         {specs ? <small>{specs}</small> : null}
+        <small className="inv-battery-note" title={item.batteryNote || undefined}>Detalle batería: {item.batteryNote?.trim() ? item.batteryNote : '—'}</small>
       </span>
       <span className="inv-price">
         <b data-ph-mask>{item.price == null ? 'A definir' : item.price > 0 ? money.show(item.price, item.currency) : 'Sin precio'}</b>
