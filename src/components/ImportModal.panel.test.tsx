@@ -64,7 +64,8 @@ it.each([1440, 1024, 390])('abre una sola pantalla y confirma sin ajuste a %i px
   expect(screen.getByText('Detectamos 1 hoja, 2 equipos')).toBeVisible();
   expect(screen.getAllByRole('article')).toHaveLength(6);
   expect(screen.getByRole('complementary')).toHaveTextContent('3 por revisar');
-  expect(screen.getByRole('group', { name: 'Encabezado del archivo' })).not.toBeVisible();
+  expect(screen.queryByRole('group', { name: 'Encabezado del archivo' })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Incluir hoja Stock')).not.toBeInTheDocument();
   const confirm = screen.getByTestId('import-confirm');
   expect(confirm.closest('.sheet-foot')).toBeInTheDocument();
   expect(confirm.parentElement?.children).toHaveLength(2);
@@ -86,6 +87,30 @@ it('asigna una descartada, actualiza la tabla y descarta el destino anterior al 
   await waitFor(() => expect(table().getByText('pantalla')).toBeVisible());
   await userEvent.click(screen.getByTestId('import-confirm'));
   expect(onImport.mock.calls[0][0][0]).toMatchObject({ price: 'pantalla' });
+});
+
+it('edita el encabezado desde los avisos y cierra el popover sin cerrar la importación', async () => {
+  const { onApply, onClose } = await setup();
+  const trigger = () => screen.getByRole('button', { name: /Encabezado: .* · Cambiar/ });
+  expect(trigger().closest('.imp-review-notices')).toBeInTheDocument();
+  await userEvent.click(trigger());
+  expect(screen.getByRole('button', { name: 'Sin encabezado' })).toHaveFocus();
+  await userEvent.click(screen.getByRole('button', { name: 'Sin encabezado' }));
+  await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+  expect(trigger()).toHaveTextContent('Encabezado: sin encabezado · Cambiar');
+  await userEvent.click(screen.getByRole('button', { name: 'Fila 1 es encabezado' }));
+  await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2));
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Fila de encabezado' }), { target: { value: '2' } });
+  await waitFor(() => expect(onApply).toHaveBeenCalledTimes(3));
+  expect(onApply.mock.calls[2][1][0]).toMatchObject({ headerRow: 2, dataStartRow: 3 });
+  expect(onApply.mock.calls.every(call => call[2] === true)).toBe(true);
+  await userEvent.keyboard('{Escape}');
+  expect(trigger()).toHaveFocus();
+  expect(screen.queryByRole('group', { name: 'Encabezado del archivo' })).not.toBeInTheDocument();
+  expect(onClose).not.toHaveBeenCalled();
+  await userEvent.click(trigger());
+  await userEvent.click(screen.getByRole('heading', { name: 'Equipos a importar' }));
+  expect(trigger()).toHaveAttribute('aria-expanded', 'false');
 });
 
 it('descarta una asignada y vuelve a precio a definir sin bloquear la importación', async () => {
@@ -238,12 +263,11 @@ it('cancela el debounce al desmontar', async () => {
 it('cambia hojas y encabezados y conserva inclusión y columnas físicas', async () => {
   const first = sheetPlan(); const second = sheetPlan('Otra');
   const { onApply } = await setup({ plan: [first, second], sheets: [{ name: 'Stock', rows: stock }, { name: 'Otra', rows: stock }] });
-  await userEvent.click(screen.getByRole('combobox', { name: 'Hoja a revisar' }));
-  await userEvent.click(screen.getByRole('option', { name: 'Otra' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Otra' }));
   await userEvent.click(screen.getByLabelText('Incluir hoja Stock'));
   await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeEnabled());
   expect(onApply.mock.calls[0][1][0].include).toBe(false);
-  await userEvent.click(screen.getByText('Encabezado · Fila 1'));
+  await userEvent.click(screen.getByRole('button', { name: 'Encabezado: fila 1 · Cambiar' }));
   await userEvent.click(screen.getByRole('button', { name: 'Sin encabezado' }));
   await waitFor(() => expect(onApply).toHaveBeenCalledTimes(2));
   expect(onApply.mock.calls[1][2]).toBe(true);
@@ -301,7 +325,7 @@ it('prioriza campos importantes y conserva el resto en orden del Excel y el orde
   const labels = ['Proveedor', 'Estado', 'Modelo', 'Fecha', 'Precio', 'Costo', 'IMEI', 'Calidad', 'Batería', 'Color', 'Capacidad', 'Condición'];
   const rows = [labels, keys.map(key => key === 'model' ? 'iPhone 13' : 'valor')];
   const plan = { ...sheetPlan(), dataEndRow: 2, mapping: keys.map((field, columnIndex) => ({ field, columnIndex, header: labels[columnIndex] })) };
-  const { onApply } = await setup({ plan: [plan], sheets: [{ name: 'Stock', rows }], fields: keys.map((key, i) => ({ key, label: labels[i], required: key === 'model' })) });
+  const { onApply } = await setup({ plan: [plan, { ...plan, name: 'Otra', include: false }], sheets: [{ name: 'Stock', rows }, { name: 'Otra', rows }], fields: keys.map((key, i) => ({ key, label: labels[i], required: key === 'model' })) });
   const order = () => table().getAllByRole('columnheader').map(node => node.dataset.previewKey);
   expect(order()).toEqual(['model', 'capacity', 'color', 'batteryHealth', 'imei', 'cost', 'price', 'supplierName', 'status', 'entryDate', 'grade', 'condition', 'currency']);
   table().getByRole('button', { name: 'Arrastrar para reordenar · Proveedor' }).focus();

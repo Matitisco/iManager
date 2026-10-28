@@ -36,6 +36,50 @@ const FIRST_FIELDS = ['model', 'capacity', 'color', 'batteryHealth', 'imei', 'co
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 64;
 
+function HeaderSettings({ active, rowCount, disabled, onChange }: {
+  active: ImportSheetPlan;
+  rowCount: number;
+  disabled: boolean;
+  onChange: (headerRow: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const options = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    options.current?.querySelector('button')?.focus();
+    const dismiss = (event: Event) => {
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', dismiss);
+    document.addEventListener('focusin', dismiss);
+    return () => {
+      document.removeEventListener('pointerdown', dismiss);
+      document.removeEventListener('focusin', dismiss);
+    };
+  }, [open]);
+  return <div ref={container} className="imp-header-settings" onKeyDown={event => {
+    if (event.key === 'Escape' && open) {
+      event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current?.focus();
+    }
+  }}>
+    <button ref={trigger} type="button" className="wlink imp-header-trigger" aria-expanded={open} aria-controls="import-header-options" onClick={() => setOpen(value => !value)}>
+      Encabezado: {active.headerRow === 0 ? 'sin encabezado' : `fila ${active.headerRow}`} · Cambiar
+    </button>
+    {open && <div ref={options} id="import-header-options" className="imp-header-popover" role="group" aria-label="Encabezado del archivo">
+      <div className="sgs imp-header-mode">
+        <button type="button" className={`sg${active.headerRow === 0 ? ' on' : ''}`} aria-pressed={active.headerRow === 0} disabled={disabled} onClick={() => onChange(0)}>Sin encabezado</button>
+        <button type="button" className={`sg${active.headerRow > 0 ? ' on' : ''}`} aria-pressed={active.headerRow > 0} disabled={disabled} onClick={() => onChange(1)}>Fila 1 es encabezado</button>
+      </div>
+      {active.headerRow > 0 && <label className="imp-header-row"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={rowCount} value={active.headerRow} disabled={disabled} onChange={event => {
+        const headerRow = Number(event.target.value);
+        if (headerRow >= 1 && headerRow <= rowCount) onChange(headerRow);
+      }} /></label>}
+    </div>}
+  </div>;
+}
+
 export function InventoryImportReview({ active, sheets, plan, rows, summary, fields, definitions, drafts, currency, missing, applying, disabled, focusedField, onSheet, onChange, onDraft, discardNotice, children }: Props) {
   const grid = sheets.find(sheet => sheet.name === active.name)?.rows ?? [];
   const mapping = importColumns(active, grid);
@@ -218,31 +262,20 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   return <div className="imp-review" data-testid="import-summary">
     <div className="imp-review-summary">
       <h4 className="imp-detected">Detectamos {sheets.length} {sheets.length === 1 ? 'hoja' : 'hojas'}, {new Intl.NumberFormat('es-AR').format(summary.rowCount)} {summary.rowCount === 1 ? 'equipo' : 'equipos'}</h4>
-      <div className="imp-review-notices">{discardNotice}</div>
+      <div className="imp-review-notices">{discardNotice}<HeaderSettings key={active.name} active={active} rowCount={grid.length} disabled={disabled}
+        onChange={headerRow => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true)} /></div>
     </div>
-    <div className="imp-sources">
-      {plan.length > 1 && <DeskSelect label="Hoja a revisar" value={active.name} onChange={onSheet} options={plan.map(sheet => ({ value: sheet.name, label: sheet.name }))} />}
+    {sheets.length > 1 && <div className="imp-sources" role="group" aria-label="Hojas a importar">
       {plan.map(sheet => {
         const info = summary.sheets.find(item => item.name === sheet.name);
-        return <label key={sheet.name} className="imp-source-row" data-testid="import-sheet-summary">
+        return <div key={sheet.name} className="imp-source-row" data-testid="import-sheet-summary">
           <input type="checkbox" data-testid={`import-sheet-${sheet.name}`} aria-label={`Incluir hoja ${sheet.name}`} checked={sheet.include} disabled={disabled}
             onChange={() => onChange(plan.map(item => item.name === sheet.name ? { ...item, include: !item.include } : item), false)} />
           <button type="button" onClick={() => onSheet(sheet.name)} aria-pressed={active.name === sheet.name}><ReplayValue>{sheet.name}</ReplayValue></button>
-          <span>{info?.rows ?? 0} {info?.rows === 1 ? 'equipo' : 'equipos'}{info?.condition === 'USADO' ? ' usados' : info?.condition === 'NUEVO' ? ' nuevos' : ''}</span>
-        </label>;
+          <span>· {info?.rows ?? 0} {info?.rows === 1 ? 'equipo' : 'equipos'}{info?.condition === 'USADO' ? ' usados' : info?.condition === 'NUEVO' ? ' nuevos' : ''}</span>
+        </div>;
       })}
-    </div>
-    <details className="imp-header-settings" key={scope}>
-      <summary>Encabezado · {active.headerRow === 0 ? 'Sin encabezado' : `Fila ${active.headerRow}`}</summary>
-      <div className="imp-header-mode" role="group" aria-label="Encabezado del archivo">
-        <button type="button" aria-pressed={active.headerRow === 0} disabled={disabled} onClick={() => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow: 0, dataStartRow: 1 } : item), true)}>Sin encabezado</button>
-        <button type="button" aria-pressed={active.headerRow > 0} disabled={disabled} onClick={() => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow: 1, dataStartRow: 2 } : item), true)}>Fila 1 es encabezado</button>
-        {active.headerRow > 0 && <label className="imp-header-row"><span>Fila de encabezado</span><input aria-label="Fila de encabezado" type="number" min={1} max={grid.length} value={active.headerRow} disabled={disabled} onChange={event => {
-          const headerRow = Number(event.target.value);
-          if (headerRow >= 1 && headerRow <= grid.length) onChange(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true);
-        }} /></label>}
-      </div>
-    </details>
+    </div>}
     {missing.length > 0 && <div className="imp-review-error" role="alert" id="import-missing-model"><b>Falta {missing.join(', ')}. Asigná los campos obligatorios para importar.</b></div>}
     {!plan.some(sheet => sheet.include) && <div className="imp-review-error" role="status">Incluí al menos una hoja para importar.</div>}
     <div className="imp-review-layout" onKeyDown={closeInternal}>

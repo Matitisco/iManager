@@ -1,0 +1,3 @@
+- [x] Compactar selección de hojas y mover encabezado a popover accesible.
+- [x] Adaptar regresiones y verificar geometría a 1440 y 390.
+- [x] Ejecutar TypeScript frontend/backend y tests relacionados.
