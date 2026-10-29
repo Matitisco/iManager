@@ -15,7 +15,7 @@ import { createWedgeBuffer, focusNextControl } from '../../lib/keyboard-wedge';
 import { frequentModels } from '../../lib/scan-batch';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import type { Product } from '../../types';
-import { conditionLabel, equipmentTitle, isInStock, formatImei } from '../format';
+import { conditionLabel, equipmentTitle, formatImei } from '../format';
 import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
@@ -31,7 +31,7 @@ import { CameraScanner } from '../scan/CameraScanner';
 import { draftFromCode, type ScanDraft } from '../scan/draft';
 import { useModelAutofill } from '../scan/use-model-autofill';
 import { ScanCameraButton, ScanReady } from '../scan/ImeiScanField';
-import { Actions, Field, Segs, Sheet, SheetActionMenu, SheetActions, signalDesk, useDesk } from '../ui';
+import { Actions, Field, Segs, Sheet, SheetActions, signalDesk, useDesk } from '../ui';
 import { ScanReviewSheet, scanProduct } from './scan-review';
 import { clearBad, BASE_CAPS, BASE_CONDITIONS, MODELS, EQ_STATUS, stampedCurrency, type FormProps } from './shared';
 import { archivedProduct } from '../archive-cache';
@@ -96,8 +96,8 @@ export function EquipmentDetail({ id }: { id: string }) {
   return (
     <>
     <Sheet title={equipmentTitle(item.model, item.capacity)} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
-      <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-      {isInStock(item.status) || (canManageSensitive && !item.archivedAt) ? <SheetActionMenu>{isInStock(item.status) ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Vender</button> : null}{canManageSensitive && !item.archivedAt ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity) })}>Archivar</button> : null}</SheetActionMenu> : null}
+      <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={() => open({ type: 'edit-eq', id: item.id })}>Editar</button>
+      {canManageSensitive && !item.archivedAt ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity) })}>Archivar</button> : null}
       <button className="btn2 p sheet-primary" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
     </SheetActions>}>
       {error && <div className="ferr">{error}</div>}

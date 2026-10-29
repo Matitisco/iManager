@@ -11,7 +11,7 @@ import { restoreBackendClient } from '../services/clients-api';
 import { restoreBackendInventoryItem } from '../services/inventory-api';
 import { ReasonSheet } from './ReasonSheet';
 export { ReasonSheet } from './ReasonSheet';
-import { isActiveTradeOperation, isVoidRow } from './format';
+import { isActiveTradeOperation, isInStock, isVoidRow } from './format';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from './RepairForms';
 import { usePhoneLayout } from './section-notices';
 import { DeskIcon, Dialog, useDesk, useEscape } from './ui';
@@ -39,7 +39,8 @@ export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; on
 
 function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }) {
   const { open, close, canManageSensitive = true } = useDesk();
-  const { sales = [], returns = [] } = useAppContext();
+  const { sales = [], returns = [], inventory = [] } = useAppContext();
+  const equipment = overlay.kind === 'eq' ? inventory.find(row => row.id === overlay.id) : null;
   const claim = overlay.kind === 'return' ? returns?.find(row => row.id === overlay.id) ?? archivedReturn(overlay.id) : null;
   const cancelledReturn = Boolean(claim && (claim.deletedAt || claim.status === 'ANULADO'));
   const sale = overlay.kind === 'sale' ? sales.find(row => row.id === overlay.id) ?? voidedSale(overlay.id) : null;
@@ -109,6 +110,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
         {phone ? <div className="sheet-grab" aria-hidden="true" /> : null}
         <div data-ph-mask={['cl', 'sale', 'cj', 'return'].includes(overlay.kind) || undefined} className="ctxh">{claim ? `${claim.code} · ${claim.clientName || 'Sin cliente'}` : overlay.label}</div>
         {!cancelledSale ? <button type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: edit, id: overlay.id } as Overlay)}><DeskIcon name="edit" size={18} />Editar</button> : null}
+        {equipment && isInStock(equipment.status) && !equipment.archivedAt ? <button type="button" onClick={() => open({ type: 'new-sale', productId: equipment.id, source: 'inventory' })}><DeskIcon name="cart" size={18} />Vender</button> : null}
         {overlay.kind === 'sale' && (() => {
           const sale = sales.find((row) => row.id === overlay.id);
           return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
