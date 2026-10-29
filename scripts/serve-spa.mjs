@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { timingSafeEqual } from 'node:crypto';
 
 const defaultRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..', 'dist'));
 const firebaseConfig = JSON.parse(await readFile(new URL('../firebase-applet-config.json', import.meta.url), 'utf8'));
@@ -18,8 +19,29 @@ const types = {
   '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
-export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim() } = {}) {
+function sameSecret(received, expected) {
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// Optional gate for non-production environments. Inactive unless both variables are set.
+export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass = process.env.BASIC_AUTH_PASS } = {}) {
+  if (!user || !pass) return () => true;
+  return (request, response) => {
+    const header = request.headers.authorization || '';
+    const decoded = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString('utf8') : '';
+    const separator = decoded.indexOf(':');
+    if (separator >= 0 && sameSecret(decoded.slice(0, separator), user) && sameSecret(decoded.slice(separator + 1), pass)) return true;
+    response.writeHead(401, { 'www-authenticate': 'Basic realm="iManager test", charset="UTF-8"', 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' });
+    response.end('Acceso restringido');
+    return false;
+  };
+}
+
+export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim(), basicAuth = createBasicAuthGuard() } = {}) {
   return async (request, response) => {
+    if (!basicAuth(request, response)) return;
     const url = new URL(request.url || '/', 'http://localhost');
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.
     // These endpoints must NEVER fall through to the SPA or static cache.
