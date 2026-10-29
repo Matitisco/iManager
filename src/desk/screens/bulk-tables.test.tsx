@@ -165,7 +165,7 @@ describe('bulk table wiring', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar V-/ }));
     confirm('Anular'); await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledTimes(2));
   });
-  it('deletes cancelled integrated, linked and historical sales through the existing method', async () => {
+  it('blocks another cancellation for cancelled integrated, linked and historical sales', () => {
     ctx.sales = [
       { ...ctx.sales[0], status: 'CANCELADA' },
       { ...ctx.sales[0], id: 's2', saleNumber: 2, status: 'CANCELADA', integratedOperation: false, tradeInId: 't1' },
@@ -173,16 +173,15 @@ describe('bulk table wiring', () => {
     ];
     mount(SalesScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
-    confirm('Anular');
-    await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledTimes(3));
-    expect(ctx.deleteSale.mock.calls).toEqual([['s1', ''], ['s2', ''], ['s3', '']]);
+    expect(screen.getByRole('button', { name: 'Anular' })).toBeDisabled();
+    expect(ctx.deleteSale).not.toHaveBeenCalled();
     expect(ctx.updateSale).not.toHaveBeenCalled();
   });
-  it('handles active and historically cancelled records in one selection', () => {
+  it('blocks cancellation when the selection includes a historically cancelled sale', () => {
     ctx.sales.push({ ...ctx.sales[0], id: 's2', saleNumber: 2, status: 'CANCELADA' });
     mount(SalesScreen);
     fireEvent.click(screen.getByRole('checkbox', { name: /Seleccionar todos/ }));
-    expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Anular' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: /Cancelar/ })).not.toBeInTheDocument();
   });
   it('keeps sales amounts and codes on one line in the displayed currency', () => {

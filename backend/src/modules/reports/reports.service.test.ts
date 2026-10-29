@@ -216,6 +216,32 @@ describe("getReportsOverview", () => {
     expect(result.paymentMethods[0]).toMatchObject({ revenue: 300, count: 2, share: 100 });
   });
 
+  it('excludes missing and zero costs from margin and its revenue base in both periods', async () => {
+    const common = { status: 'COMPLETADA', amountCurrency: 'ARS', paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10') };
+    saleFindManyMock.mockResolvedValueOnce([
+      { ...common, amount: 100, inventoryItem: { cost: 60 } },
+      { ...common, amount: 200, inventoryItem: { cost: null } },
+      { ...common, amount: 300, inventoryItem: { cost: 0 } },
+      { ...common, amount: 400, inventoryItem: null },
+      { ...common, status: 'PENDIENTE', amount: 500, inventoryItem: { cost: null } },
+    ]).mockResolvedValueOnce([
+      { ...common, amount: 100, inventoryItem: { cost: 80 } },
+      { ...common, amount: 900, inventoryItem: null },
+    ]);
+    const result = await getReportsOverview('store-1', { rangeKey: 'custom', startDate: new Date('2026-04-01'), endDate: new Date('2026-04-30') });
+    expect(result.summary).toMatchObject({ revenue: 1000, grossProfit: 40, marginRate: 40, unitsSold: 4, salesWithoutCost: 3, pendingSales: 1 });
+    expect(result.comparison).toMatchObject({ grossProfit: 20, grossProfitChange: 100 });
+    expect(result.salesSeries.reduce((total, point) => total + point.revenue, 0)).toBe(1000);
+    expect(result.paymentMethods[0]).toMatchObject({ revenue: 1000, count: 4 });
+  });
+
+  it('returns zero margin when every sale lacks cost and ignores their return reversals', async () => {
+    saleFindManyMock.mockResolvedValue([{ status: 'COMPLETADA', amount: 100, paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10'), inventoryItem: { cost: 0 } }]);
+    returnCaseFindManyMock.mockResolvedValue([{ settlement: 'REINTEGRO', resolvedAt: new Date('2026-04-15'), creditNote: null, events: [], moneyAmount: 100, sale: { amount: 100, inventoryItem: { cost: 0 } } }]);
+    const result = await getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null });
+    expect(result.summary).toMatchObject({ revenue: 100, grossProfit: 0, marginRate: 0, salesWithoutCost: 1, returnsCount: 1, returnsAmount: 100 });
+  });
+
   it('rejects cross-currency totals when the quote is missing', async () => {
     storeFindMock.mockResolvedValue({ currency: 'USD' });
     rateMock.mockResolvedValue(null);

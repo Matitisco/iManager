@@ -45,22 +45,25 @@ describe.each([390, 1440])('section novelty rows at %spx', width => {
       ? within(screen.getByRole('table')).getAllByRole('row').slice(1)
       : Array.from(document.querySelectorAll<HTMLElement>('.phone-row'));
     expect(records()).toHaveLength(8);
+    const visibleNotices = section === 'inventory' ? 1 : 2;
     expect(records()[0]).toHaveClass('novedad');
-    expect(records()[1]).toHaveClass('novedad');
+    if (section === 'inventory') expect(records()[1]).not.toHaveClass('novedad');
+    else expect(records()[1]).toHaveClass('novedad');
     expect(records()[2]).not.toHaveClass('novedad');
-    expect(screen.getAllByTestId('notice-dot')).toHaveLength(2);
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(visibleNotices);
     expect(screen.queryByTestId('notice-reason')).not.toBeInTheDocument();
     expect(screen.queryByTestId('section-notices')).not.toBeInTheDocument();
-    expect(document.querySelector('.is-void.novedad')).toBeInTheDocument();
+    if (section === 'inventory') expect(document.querySelector('.is-void.novedad')).not.toBeInTheDocument();
+    else expect(document.querySelector('.is-void.novedad')).toBeInTheDocument();
     // Acknowledgment clears backend pending versions while the current visit remains marked.
     context.sectionChanges = { [section]: [] };
     await act(async () => { view.rerender(renderScreen()); });
-    expect(screen.getAllByTestId('notice-dot')).toHaveLength(2);
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(visibleNotices);
     expect(records()[0]).toHaveClass('novedad');
     context.sectionChanges = { [section]: [{ id: '1', updatedAt: '2026-10-23T12:00:00.000Z' }, { id: '3', updatedAt: '2026-10-23T12:00:00.000Z' }] };
     await act(async () => { view.rerender(renderScreen()); });
     expect(context.viewSection).toHaveBeenCalledTimes(1);
-    expect(screen.getAllByTestId('notice-dot')).toHaveLength(2);
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(visibleNotices);
     expect(context.sectionChanges[section]).toHaveLength(2);
     view.unmount();
     render(renderScreen());

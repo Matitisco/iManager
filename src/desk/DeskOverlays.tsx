@@ -117,7 +117,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
           return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
         })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
-        {canManageSensitive ? <button className="danger" type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'return' || overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
+        {canManageSensitive && !cancelledSale ? <button className="danger" type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'return' || overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
       </div>
     </div>
   );

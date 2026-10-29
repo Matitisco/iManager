@@ -105,6 +105,9 @@ describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) 
     expect(within(card).getByText('1 disponible · 2 reservados · 1 en reparación')).toBeInTheDocument();
     expect(card).not.toHaveTextContent('vendidos');
     expect(card).not.toHaveTextContent('en revisión');
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 6');
+    expect(screen.queryByText(/Modelo 5/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Modelo 6/)).not.toBeInTheDocument();
   });
 
   it('abre el filtro del mail con solo equipos En revisión sin archivar', async () => {
@@ -1028,9 +1031,9 @@ describe('origen y filtro de proveedores #308', () => {
   });
 });
 
-it('respeta Precio ↑ y ↓ aunque los archivados sean novedades', async () => {
+it('respeta Precio ↑ y ↓ aunque los equipos sean novedades', async () => {
   window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
-  context.inventory = [item('1', { model: 'Barato', price: 500 }), item('2', { model: 'Caro', price: 1090, archivedAt: '2026-10-26T12:00:00Z' })];
+  context.inventory = [item('1', { model: 'Barato', price: 500 }), item('2', { model: 'Caro', price: 1090 })];
   context.sectionChanges = { inventory: [{ id: '2', updatedAt: '2026-10-26T12:00:00Z' }] };
   renderScreen();
   const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });

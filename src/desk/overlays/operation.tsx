@@ -13,7 +13,7 @@ import { voidedSale } from '../archive-cache';
 import { RecordHistoryButton } from '../RecordHistoryButton';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale } from '../../types';
 import type { OperationInput, OperationSource } from '../../services/operations-api';
-import { saleBuyer, equipmentTitle, isInStock, formatInputMoney, formatMoneyInput, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
+import { saleBuyer, equipmentTitle, isInStock, isVoidRow, formatInputMoney, formatMoneyInput, formatShortDate, parseMoney, paymentLabel, saleCode, saleEquipment, formatImei } from '../format';
 import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
@@ -649,7 +649,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const plan = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
     ? cancellationPlan(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
     : { refund: 0, credit: 0 };
-  if (confirmCancel) {
+  if (confirmCancel && !isVoidRow(sale)) {
     return (
       <ConfirmOperationDialog
         title={`Anular venta ${saleCode(sale)}`}
@@ -675,7 +675,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const renderAmount = (amount: number, currency?: string | null, prefix = '') => <SaleDetailMoney amount={amount} source={recordCurrency(currency, money.active)} display={displayCurrency} secondary={secondaryCurrency} rate={money.rate} prefix={prefix} />;
   return (
     <Sheet title={saleCode(sale)} onClose={close} busy={busy} className="sale-sheet sale-detail-sheet" footer={
-      sale.voidedAt ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
+      isVoidRow(sale) ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
           {canManageSensitive || integrated ? <SheetActionMenu>

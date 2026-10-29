@@ -22,6 +22,7 @@ export interface ReportsOverviewInput {
 export interface ReportsSummary {
   revenue: number;
   grossProfit: number;
+  salesWithoutCost: number;
   unitsSold: number;
   averageTicket: number;
   pendingSales: number;
@@ -206,7 +207,7 @@ type CompletedSale = {
   product: string;
   category: string;
   clientName: string;
-  cost: number;
+  cost: number | null;
 };
 
 export function formatPaymentMethodLabel(value: string) {
@@ -270,16 +271,18 @@ export function buildInventoryAging(
   });
 }
 
-function summarizeCompleted(sales: Array<{ amount: number; cost: number }>) {
+function summarizeCompleted(sales: Array<{ amount: number; cost: number | null }>) {
   const revenue = sales.reduce((accumulator, sale) => accumulator + sale.amount, 0);
-  const grossProfit = sales.reduce(
+  const costedSales = sales.filter((sale): sale is { amount: number; cost: number } => sale.cost !== null);
+  const marginRevenue = costedSales.reduce((total, sale) => total + sale.amount, 0);
+  const grossProfit = costedSales.reduce(
     (accumulator, sale) => accumulator + (sale.amount - sale.cost),
     0
   );
   const unitsSold = sales.length;
   const averageTicket = unitsSold > 0 ? revenue / unitsSold : 0;
 
-  return { revenue, grossProfit, unitsSold, averageTicket };
+  return { revenue, grossProfit, marginRevenue, salesWithoutCost: sales.length - costedSales.length, unitsSold, averageTicket };
 }
 
 type ReportsQueryInput = {
@@ -501,6 +504,9 @@ export async function getReportsOverview(
     if (projected.blocked) throw new ReportsError('No se pudo convertir el reporte. Revisá la cotización del local.', 503);
     return projected.value;
   };
+  // Zero is also the stored default for equipment whose cost was never entered.
+  const knownCost = (item: { cost: unknown; currency?: string | null } | null) =>
+    item && toNumber(item.cost) > 0 ? convert(item.cost, item.currency) : null;
 
   const completedSales: CompletedSale[] = sales
     .filter((sale) => sale.status === "COMPLETADA")
@@ -512,7 +518,7 @@ export async function getReportsOverview(
       product: buildProductLabel(sale.inventoryItem),
       category: sale.category?.name?.trim() || "Sin categoría",
       clientName: sale.client?.name?.trim() || "Sin cliente",
-      cost: convert(sale.inventoryItem?.cost, sale.inventoryItem?.currency),
+      cost: knownCost(sale.inventoryItem),
     }));
 
   const activeTradeIns = tradeIns.filter((tradeIn) => tradeIn.status !== "CANCELADO");
@@ -526,13 +532,14 @@ export async function getReportsOverview(
   const previousMetrics = summarizeCompleted(
     previousSales.map((sale) => ({
       amount: convert(sale.amount, sale.amountCurrency),
-      cost: convert(sale.inventoryItem?.cost, sale.inventoryItem?.currency),
+      cost: knownCost(sale.inventoryItem),
     }))
   );
   const adjustedProfit = (metrics: typeof currentMetrics, from: Date | null, to: Date | null) => {
     const returns = commercialReturns.flatMap(row => {
       const at = returnCompensatedAt(row);
       if (!at || (from && at < from) || (to && at > to)) return [];
+      if (!row.sale?.inventoryItem || toNumber(row.sale.inventoryItem.cost) <= 0) return [];
       const reversal = returnReversal({
         saleAmount: toNumber(row.sale?.amount ?? row.moneyAmount),
         moneyAmount: toNumber(row.moneyAmount),
@@ -550,7 +557,7 @@ export async function getReportsOverview(
   const { revenue, unitsSold, averageTicket } = currentMetrics;
   const grossProfit = adjustedProfit(currentMetrics, input.startDate, input.endDate);
   if (previousWindow) previousMetrics.grossProfit = adjustedProfit(previousMetrics, previousWindow.startDate, previousWindow.endDate);
-  const marginRate = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
+  const marginRate = currentMetrics.marginRevenue > 0 ? (grossProfit / currentMetrics.marginRevenue) * 100 : 0;
   const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
     completedSales
@@ -650,6 +657,7 @@ export async function getReportsOverview(
     summary: {
       revenue,
       grossProfit,
+      salesWithoutCost: currentMetrics.salesWithoutCost,
       unitsSold,
       averageTicket,
       pendingSales,

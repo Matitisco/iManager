@@ -174,7 +174,7 @@ export function InventoryScreen() {
     const q = query.trim().toLowerCase();
     let list = source.filter((item) => {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
-      return (archivedMode || columns.statuses.length === 0 || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
+      return (archivedMode || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number | null; currency?: string | null }) => money.number(item.price ?? 0, item.currency) ?? item.price ?? 0;
     const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);
