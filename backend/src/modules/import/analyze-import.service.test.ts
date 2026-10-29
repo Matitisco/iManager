@@ -1,10 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ANALYSIS_NOTICES, analyzeImport, type AnalysisLogEntry } from "./analyze-import.service.js";
+import { ANALYSIS_NOTICES, analyzeImport, applyImportPlan, type AnalysisLogEntry } from "./analyze-import.service.js";
 import { scriptDecisionAnswers } from "../../../test/script-decisions.js";
 import { DECISIONS_MODEL, DECISIONS_URL, DEFAULT_IMPORT_MODEL, RESPONSES_URL, estimateDecisionsUsd } from "./responses-client.js";
 import { normalizeBattery, splitModelCapacity, type ImportSheet } from "./sheet-plan.js";
 
 const RATE = 1540;
+
+it.each([
+  { field: 'grade', values: ['A', 'A/A-', 'B/C'] },
+  { field: 'condition', values: ['USADO', 'NUEVO', 'PRE-OWNED'] },
+])('manual: conserva $field nativo cuando todos los valores son reconocidos', ({ field, values }) => {
+  const sheets: ImportSheet[] = [{ name: 'Equipos', rows: [['Modelo', field], ...values.map(value => ['iPhone 13', value])] }];
+  const result = applyImportPlan({ section: 'inventory', currency: 'USD', sheets, plan: [{
+    name: 'Equipos', include: true, condition: '', headerRow: 1, dataStartRow: 2, dataEndRow: 4,
+    mapping: [{ header: 'Modelo', columnIndex: 0, field: 'model' }, { header: field, columnIndex: 1, field }],
+    splitModelCapacity: false, batteryAsPercent: false, priceCurrency: 'USD',
+  }] });
+  expect(result.rows).toHaveLength(values.length);
+  expect(result.plan[0].mapping[1].field).toBe(field);
+  expect(result.suggestedDefinitions).toBeUndefined();
+  expect(result.rows.every(row => row[field] && !Object.keys(row).some(key => key.startsWith('custom:')))).toBe(true);
+});
 
 function ars(usd: number, override?: string): string {
   return override ?? String(usd * RATE);

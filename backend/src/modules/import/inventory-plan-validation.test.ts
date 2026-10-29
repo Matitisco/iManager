@@ -72,12 +72,15 @@ it.each([['A', 'grade'], ['AA+', 'custom:condicion_origen']])('repairs any inval
   expect(applyImportPlan({ ...input, sheets, plan: result.plan }).rows).toEqual(result.rows);
   if (field.startsWith('custom:')) expect(result.suggestedDefinitions?.[0].key).toBe('condicion_origen');
 });
-it('preserves a minority invalid quality value too, and leaves manual type decisions authoritative', () => {
+it('preserves a minority invalid quality value in manual plans too', () => {
   const sheets = [{ name: 'Stock', rows: [['Modelo', 'Calidad'], ...['A','A','A','XX'].map(q => ['iPhone 13', q])] }];
   const raw = heuristicPlan(sheets, 'inventory', 'USD');
   const repaired = repairInventoryQuality(sheets, raw);
   expect(repaired.plan[0].mapping[1].field).toBe('custom:calidad_origen');
-  expect(applyImportPlan({ ...input, sheets, plan: raw }).diagnostics?.discardedRows).toBe(1);
+  const manual = applyImportPlan({ ...input, sheets, plan: raw });
+  expect(manual.plan).toEqual(repaired.plan);
+  expect(manual.suggestedDefinitions).toEqual(repaired.definitions);
+  expect(manual.diagnostics).toMatchObject({ acceptedRows: 4, discardedRows: 0 });
 });
 it('bounds the entire analysis below 20 seconds when fetch ignores cancellation', async () => {
   vi.useFakeTimers(); vi.stubEnv('OPENAI_API_KEY', 'test');

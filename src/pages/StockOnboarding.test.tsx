@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { StockOnboarding } from "./StockOnboarding";
+import type { CustomFieldInput } from '../services/custom-fields-api';
 const context = vi.hoisted(() => ({
   user: { uid: "u" },
   appSession: {
@@ -41,7 +42,7 @@ vi.mock("../desk/DeskOverlays", async () => {
     return <><button onClick={() => { onSaved?.(); desk.close(); }}>Guardar manual</button><button onClick={desk.close}>Cancelar manual</button></>;
   } };
 });
-vi.mock("../components/ImportModal", () => ({ ImportModal: ({ onImport, onClose, onStageChange }: { onImport: (rows: Record<string, string>[]) => Promise<unknown>; onClose: () => void; onStageChange?: (at: 'mapping') => void }) => <><button onClick={() => { void onImport([{ model: 'Equipo' }]); }}>Importar prueba</button><button onClick={onClose}>Cancelar Excel</button><button onClick={() => onStageChange?.('mapping')}>Mapear prueba</button></> }));
+vi.mock("../components/ImportModal", () => ({ ImportModal: ({ onImport, onClose, onStageChange }: { onImport: (rows: Record<string, string>[], definitions?: CustomFieldInput[]) => Promise<unknown>; onClose: () => void; onStageChange?: (at: 'mapping') => void }) => <><button onClick={() => { void onImport([{ model: 'Equipo' }]); }}>Importar prueba</button><button onClick={() => { void onImport([{ model: 'Equipo', 'custom:calidad_origen': 'AB+' }], [{ entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0 }]); }}>Importar calidad</button><button onClick={onClose}>Cancelar Excel</button><button onClick={() => onStageChange?.('mapping')}>Mapear prueba</button></> }));
 vi.mock("../services/import-api", () => api);
 const analysis = {
   currency: "USD",
@@ -78,6 +79,19 @@ beforeEach(() => {
   api.analyzeInventoryTextProgress.mockResolvedValue(analysis);
 });
 describe("guardado revisado", () => {
+  it('envía definiciones y valores personalizados al confirmar Excel en tienda vacía', async () => {
+    api.importBackendRows.mockResolvedValue({ imported: 1, updated: 0, errors: [] });
+    render(<StockOnboarding onFinish={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Subir Excel' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Importar calidad' }));
+    await waitFor(() => expect(api.importBackendRows).toHaveBeenCalledWith(
+      context.user, 'inventory',
+      [expect.objectContaining({ model: 'Equipo', customFields: { calidad_origen: 'AB+' } })],
+      undefined, 'excel',
+      [{ entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0 }],
+    ));
+  });
+
   it("ofrece Excel primero en el segundo y último paso, sin invitación", () => {
     render(<StockOnboarding onFinish={vi.fn()} />);
     expect(screen.getByText("Paso 2 de 2")).toBeVisible();

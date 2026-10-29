@@ -1,5 +1,7 @@
 # iManager - Project Status
 
+- Importación en tienda vacía (2026-10-29): aplicar planes manuales conserva calidad/condición libre mediante la reparación existente y devuelve sus definiciones; el onboarding comparte el payload de ImportHost y envía customFields y definitions. Regresiones sobre f2c53cd reproducen 32/3 filas frente a 59; con el fix se guardan 59 sin errores y se crea la definición correspondiente. Campos nativos reconocidos conservados; 152 tests relacionados y TypeScript frontend/backend aprobados, máximo dos workers, PostgreSQL local exclusivo de test, sin build ni datos reales.
+
 - Importar equipos · contadores separados (2026-10-29): «por revisar» cuenta y recorre solo columnas asignadas con dudas amarillas; «sin asignar» muestra y recorre las rojas por separado. Chips ocultos en cero y navegación circular independiente en orden visual. Regresión de 16 columnas con G y L–P sin asignar; E2E verifica colores de headers y chip rojo.
 
 - Importación · batería decimal y calidad con barra (2026-10-28): acepta `0,87`/`0.87` como `87%` en preview y confirmación, incluso sin el flag del plan; conserva porcentajes explícitos. `A/A-` y `B/C` se mantienen como calidad y se muestran en equipos usados, también al reimportar. Regresión sintética CSV con separador `;`: 59/59 filas, sin dudas ni reprompts por estos formatos. Tests relacionados y TypeScript frontend/backend; sin build ni acceso a producción.

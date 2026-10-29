@@ -3,9 +3,10 @@ import { fetchBackendInventory, fetchArchivedInventory } from '../../services/in
 import { useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { parseImportNumber } from '../../lib/import-number';
+import { inventoryImportPayload } from '../../lib/inventory-import-payload';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
 import { ImportModal } from '../../components/ImportModal';
-import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection, type InventoryImportRow } from '../../services/import-api';
+import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from '../../services/import-api';
 import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 import { requestPriceToDefineFilter } from '../price-to-define-filter';
@@ -80,26 +81,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         ...(supplier ? [{ key: 'purchasedAt', label: 'Fecha de compra', required: false }, { key: 'purchaseName', label: 'Nombre de compra', required: false }] : []),
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text', definitions?: CustomFieldInput[]) => {
-        const payload: InventoryImportRow[] = rows.map((row) => ({
-          sourceRow: row._sourceRow ? Number(row._sourceRow) : undefined,
-          entryDate: row.entryDate,
-          batteryNote: row.batteryNote,
-          supplierName: row.supplierName,
-          imei: row.imei ?? '',
-          model: row.model ?? '',
-          price: row.price?.trim() ? parseImportNumber(row.price) ?? Number.NaN : null,
-          capacity: row.capacity,
-          color: row.color,
-          condition: row.condition,
-          grade: row.grade,
-          batteryHealth: row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
-          cost: parseImportNumber(row.cost),
-          currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
-          customFields: { ...(row.serial ? { serial: row.serial } : {}), ...(row.originalStatus ? { originalStatus: row.originalStatus } : {}), ...Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value])) },
-          status: row.status,
-          purchasedAt: row.purchasedAt,
-          purchaseName: row.purchaseName,
-        }));
+        const payload = inventoryImportPayload(rows);
         const result = definitions?.length
           ? await importBackendRows(user, 'inventory', payload, supplier?.id, source, definitions)
           : await importBackendRows(user, 'inventory', payload, supplier?.id, source);
