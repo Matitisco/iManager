@@ -63,10 +63,14 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
       expect(screen.getByTestId('import-price-notice').parentElement).toBe(trigger.parentElement);
       expect(screen.getByTestId('import-imei-warning').parentElement).toBe(trigger.parentElement);
       await userEvent.click(screen.getByRole('button', { name: 'Asignar columna de precio' }));
-      const price = screen.getByRole('article', { name: 'Columna Precio' });
-      await waitFor(() => expect(price).toHaveFocus());
-      expect(price).toHaveClass('imp-unassigned', 'imp-selected');
-      if (width === 390) await userEvent.click(screen.getByRole('button', { name: /Columnas \(/ }));
+      expect(screen.getByRole('textbox', { name: 'Buscar campo' })).toHaveValue('Precio');
+      await mount(page);
+      const popup = await page.locator('.imp-picker').boundingBox();
+      expect(popup!.x).toBeGreaterThanOrEqual(0);
+      expect(popup!.x + popup!.width).toBeLessThanOrEqual(width);
+      expect(popup!.y + popup!.height).toBeLessThanOrEqual(width === 390 ? 844 : 900);
+      await capture(page, `selector-${width}`);
+      await userEvent.keyboard('{Escape}');
     }
     await mount(page);
     const frame = page.locator('.imp-review-sheet');
@@ -76,10 +80,9 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
       const foot = node.querySelector('.sheet-foot')!.getBoundingClientRect();
       const box = node.getBoundingClientRect();
       const sheetScroll = node.querySelector('.sheet-scroll')!;
-      const panel = node.querySelector<HTMLElement>('.imp-panel')!;
-      const panelRows = node.querySelector<HTMLElement>('.imp-panel-rows')!;
+      const area = node.querySelector<HTMLElement>('.imp-table-area')!;
       return { x: box.x, right: box.right, bottom: box.bottom, footBottom: foot.bottom, outerOverflow: sheetScroll.scrollHeight - sheetScroll.clientHeight,
-        panelBottom: panel.getBoundingClientRect().bottom, panelOverflow: panelRows.scrollHeight > panelRows.clientHeight, outerScroll: getComputedStyle(sheetScroll).overflowY,
+        areaWidth: area.clientWidth, tableWidth: scroll.clientWidth, outerScroll: getComputedStyle(sheetScroll).overflowY,
         tableBottom: scroll.getBoundingClientRect().bottom, footTop: foot.top, height: scroll.clientHeight, vertical: scroll.scrollHeight > scroll.clientHeight, horizontal: scroll.scrollWidth > scroll.clientWidth };
     });
     expect(geometry.x).toBeGreaterThanOrEqual(0);
@@ -88,13 +91,8 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     expect(geometry.footBottom).toBeLessThanOrEqual(geometry.bottom);
     expect(geometry.outerOverflow).toBeLessThanOrEqual(1);
     expect(geometry.outerScroll).toBe('hidden');
-    if (width === 1440) {
-      expect(geometry.panelBottom).toBeCloseTo(geometry.tableBottom, 0);
-      expect(geometry.panelOverflow).toBe(true);
-      const headingTop = (await page.locator('.imp-panel-heading').boundingBox())!.y;
-      await page.locator('.imp-panel-rows').evaluate(node => { node.scrollTop = 300; });
-      expect((await page.locator('.imp-panel-heading').boundingBox())!.y).toBeCloseTo(headingTop, 0);
-    }
+    expect(Math.abs(geometry.areaWidth - geometry.tableWidth)).toBeLessThanOrEqual(2);
+    expect(await page.locator('.imp-panel').count()).toBe(0);
     expect(geometry.height).toBeGreaterThan(width === 390 ? (warnings ? 340 : 380) : 500);
     expect(geometry.vertical).toBe(true);
     expect(geometry.horizontal).toBe(true);
@@ -104,7 +102,6 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     expect((await table.locator('thead').boundingBox())!.y).toBeCloseTo(headerTop, 0);
     expect((await table.locator('td.imp-pinned').first().boundingBox())!.x).toBeCloseTo((await table.boundingBox())!.x + 1, 0);
     await table.evaluate(node => { node.scrollTop = 0; node.scrollLeft = 0; });
-    if (width === 1440) await page.locator('.imp-panel-rows').evaluate((node, hasWarnings) => { node.scrollTop = hasWarnings ? node.scrollHeight : 0; }, warnings);
     await capture(page, `importador-${width}${warnings ? '-avisos' : ''}`);
     if (!warnings) {
       await userEvent.click(screen.getByRole('button', { name: 'Encabezado: fila 1 · Cambiar' }));
@@ -115,9 +112,6 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
       expect(popover.y + popover.height).toBeLessThan(geometry.footTop);
       await capture(page, `encabezado-${width}`);
       await userEvent.keyboard('{Escape}');
-    }
-    if (width === 390) {
-      await userEvent.click(screen.getByRole('button', { name: /Columnas \(/ }));
     }
     await userEvent.click(trigger);
     const detail = screen.getByRole('dialog', { name: 'Filas descartadas' });
@@ -138,7 +132,6 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     await waitFor(() => expect(trigger).toHaveFocus());
     expect(screen.queryByRole('dialog', { name: 'Filas descartadas' })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    if (width === 390) expect(screen.getByRole('complementary')).toHaveClass('imp-panel-open');
     await userEvent.click(screen.getByTestId('import-confirm'));
     expect(onImport).toHaveBeenCalledWith(value.rows);
   } finally { media.mockRestore(); await page.close(); }
