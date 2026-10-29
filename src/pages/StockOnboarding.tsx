@@ -2,6 +2,7 @@ import { ReplayValue } from '../desk/replay-privacy';
 import { capture } from '../lib/posthog-analytics';
 import { track, rowBucket } from '../lib/analytics';
 import { parseImportNumber } from "../lib/import-number";
+import { inventoryImportPayload } from '../lib/inventory-import-payload';
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -691,19 +692,16 @@ function StockFlow({
           onApply={(sheets, plan, refresh) =>
             applyImportPlan(user, "inventory", sheets, plan, refresh)
           }
-          onImport={async (imported) => {
+          onImport={async (imported, definitions) => {
             let result: Awaited<ReturnType<typeof importBackendRows>>;
             try {
               result = await importBackendRows(
                 user,
                 "inventory",
-                imported.map((row) => ({
-                  ...row,
-                  imei: row.imei ?? "",
-                  model: row.model,
-                  price: row.price?.trim() ? parseImportNumber(row.price) ?? Number.NaN : null,
-                  cost: parseImportNumber(row.cost),
-                })),
+                inventoryImportPayload(imported),
+                undefined,
+                'excel',
+                definitions,
               );
             } catch (cause) {
               importFinished('excel', 0, 1);

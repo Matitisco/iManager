@@ -11,6 +11,46 @@ const { getApp } = useIntegrationApp();
 const headers = buildAuthHeaders();
 afterEach(() => vi.unstubAllEnvs());
 
+it.each([
+  { field: 'grade', key: 'calidad_origen' },
+  { field: 'condition', key: 'condicion_origen' },
+])('00: tienda vacía conserva calidad libre asignada a $field al aplicar y confirmar', async ({ field, key }) => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const { store } = await seedStoreContext();
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(0);
+  const fixture = natanCases.find(fixture => fixture.file === '00_natan_anon')!;
+  const sheets: ImportSheet[] = JSON.parse(readFileSync(new URL('../../test/fixtures/import/natan/00_natan_anon.grid.json', import.meta.url), 'utf8'));
+  const analyze = await getApp().inject({ method: 'POST', url: '/api/import/analyze', headers, payload: { section: 'inventory', sheets } });
+  expect(analyze.statusCode).toBe(200);
+  const analysis: AnalysisResult = analyze.json();
+  const plan = analysis.plan.map(item => ({ ...item, mapping: item.mapping.map(column => column.columnIndex === 6 ? { ...column, field } : column) }));
+  const apply = await getApp().inject({ method: 'POST', url: '/api/import/apply', headers, payload: { section: 'inventory', sheets, plan } });
+  expect(apply.statusCode).toBe(200);
+  const applied: AnalysisResult = apply.json();
+  expect(applied.source).toBe('manual');
+  expect(applied.rows.length).toBe(fixture.accepted);
+  expect(applied.diagnostics).toMatchObject({ acceptedRows: fixture.accepted, discardedByReason: fixture.reasons });
+  expect(applied.plan[0].mapping.find(column => column.columnIndex === 6)?.field).toBe(`custom:${key}`);
+  expect(applied.suggestedDefinitions).toEqual([expect.objectContaining({ entity: 'inventory', key, type: 'text' })]);
+  // Reapplying an already repaired plan must retain its suggested definition.
+  const repeated = await getApp().inject({ method: 'POST', url: '/api/import/apply', headers, payload: { section: 'inventory', sheets, plan: applied.plan } });
+  expect(repeated.statusCode).toBe(200);
+  expect(repeated.json().suggestedDefinitions).toEqual(applied.suggestedDefinitions);
+  const rows = applied.rows.map(row => ({
+    ...row, imei: row.imei ?? '', sourceRow: Number(row._sourceRow),
+    price: row.price?.trim() ? Number(row.price) : null,
+    cost: row.cost?.trim() ? Number(row.cost) : undefined,
+    customFields: Object.fromEntries(Object.entries(row).filter(([key]) => key.startsWith('custom:')).map(([key, value]) => [key.slice(7), value])),
+  }));
+  const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows, definitions: applied.suggestedDefinitions } });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toMatchObject({ imported: fixture.accepted, updated: 0, errors: [] });
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(fixture.accepted);
+  expect(await prisma.customFieldDefinition.count({ where: { storeId: store!.id, entity: 'inventory', key } })).toBe(1);
+  const stored = await prisma.inventoryItem.findMany({ where: { storeId: store!.id }, select: { customFields: true } });
+  expect(stored.map(item => (item.customFields as Record<string, unknown>)[key] ?? '').sort()).toEqual(rows.map(row => row.customFields[key]).sort());
+});
+
 it.each(natanCases)('$file: analyze → apply → persistencia y reimportación', async fixture => {
   vi.stubEnv('OPENAI_API_KEY', '');
   const { store } = await seedStoreContext();

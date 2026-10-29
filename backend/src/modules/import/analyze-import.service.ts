@@ -434,7 +434,7 @@ function finish(
   billing: "decisions" | "responses" | "none",
 ): AnalysisResult {
   let suggestedDefinitions: DefinitionInput[] = [];
-  if (input.section === 'inventory' && source !== 'manual') {
+  if (input.section === 'inventory') {
     const repaired = repairInventoryQuality(sheets, plan);
     plan = protectInventoryMappings(sheets, repaired.plan);
     suggestedDefinitions = repaired.definitions;

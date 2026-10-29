@@ -1,0 +1,4 @@
+- [x] Reproducir la pérdida de filas y campos personalizados con tests de regresión.
+- [x] Compartir reparación de planes y payload de confirmación.
+- [x] Verificar 59 equipos persistidos, definiciones y campos nativos válidos.
+- [x] Ejecutar tests relacionados y TypeScript frontend/backend.
