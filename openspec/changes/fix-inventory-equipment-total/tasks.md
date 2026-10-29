@@ -1,0 +1,4 @@
+- [x] Verificar el conteo actual y su diferencia con Todos.
+- [x] Agregar regresiones para 59 equipos, estados, archivados y actualizaciones en escritorio y móvil.
+- [x] Cambiar el total, texto y desglose conservando el valor del stock.
+- [x] Ejecutar tests relacionados, TypeScript frontend/backend y revisión visual 1440/390.

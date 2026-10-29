@@ -16,7 +16,7 @@ const context = vi.hoisted(() => ({
   viewSection: vi.fn(async () => undefined),
   inventory: [] as Product[],
   suppliers: [] as { id: string; name: string }[],
-  appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string } } | null,
+  appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string; onboardingStartedAt?: string; currency?: string } } | null,
   operationNotifications: [] as OperationNotification[],
   markNotificationRead: vi.fn(async () => undefined),
 }));
@@ -47,6 +47,84 @@ function renderScreen() {
     </DeskProvider>,
   );
 }
+
+describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) => {
+  let originalMatchMedia: typeof window.matchMedia;
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: phone && query.includes('760'), media: query,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    }));
+    context.appSession = { store: { name: 'Tienda Centro', onboardingStartedAt: '2026-10-29', currency: 'USD' } };
+    context.inventory = Array.from({ length: 59 }, (_, index) => item(String(index + 1), {
+      status: index < 23 ? 'DISPONIBLE' : index < 53 ? 'EN_REVISION' : 'VENDIDO',
+      currency: 'USD', price: 100,
+    }));
+    context.operationNotifications = [];
+  });
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+    context.appSession = { store: { name: 'Tienda Centro' } };
+  });
+
+  it('coincide con Todos tras importar 59 filas y conserva el valor de los disponibles', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const summary = screen.getByTestId('onboarding-inventory-summary');
+    const card = within(summary).getByText('Equipos').parentElement!;
+    expect(within(card).getByText('59')).toBeInTheDocument();
+    expect(within(card).getByText('23 disponibles · 30 en revisión · 6 vendidos')).toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('59 de 59');
+    expect(within(summary).getByText('US$ 2.300')).toBeInTheDocument();
+    expect(within(summary).queryByText('Equipos en stock')).not.toBeInTheDocument();
+
+    // Los filtros y la paginación de la lista no cambian el total global.
+    if (phone) {
+      await user.click(within(screen.getByTestId('inventory-status-filter')).getByRole('button'));
+      await user.click(screen.getByRole('menuitemcheckbox', { name: 'En revisión' }));
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Página 2' }));
+      await user.click(screen.getByRole('button', { name: 'En revisión' }));
+    }
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('30 de 59');
+    expect(within(card).getByText('59')).toBeInTheDocument();
+    expect(within(card).getByText('23 disponibles · 30 en revisión · 6 vendidos')).toBeInTheDocument();
+  });
+
+  it('excluye archivados y cuenta reservados, estados personalizados y vacíos sin ceros', () => {
+    context.inventory = [
+      item('1', { status: '' }), item('2', { status: 'RESERVADO' }),
+      item('3', { status: 'RESERVADO' }), item('4', { status: 'En reparación' }),
+      item('5', { status: 'DISPONIBLE', archivedAt: '2026-10-28' }),
+      item('6', { status: 'VENDIDO', archivedAt: '2026-10-28' }),
+    ];
+    renderScreen();
+    const card = within(screen.getByTestId('onboarding-inventory-summary')).getByText('Equipos').parentElement!;
+    expect(within(card).getByText('4')).toBeInTheDocument();
+    expect(within(card).getByText('1 disponible · 2 reservados · 1 en reparación')).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('vendidos');
+    expect(card).not.toHaveTextContent('en revisión');
+  });
+
+  it('muestra cero sin desglose cuando no quedan equipos no archivados', () => {
+    context.inventory = [item('1', { archivedAt: '2026-10-28' })];
+    renderScreen();
+    const card = within(screen.getByTestId('onboarding-inventory-summary')).getByText('Equipos').parentElement!;
+    expect(within(card).getByText('0')).toBeInTheDocument();
+    expect(card.querySelectorAll('small')).toHaveLength(1);
+  });
+
+  it('usa singular en los estados nativos y no muestra el resumen sin onboarding', () => {
+    context.inventory = [item('1', { status: 'VENDIDO' }), item('2', { status: 'RESERVADO' })];
+    const view = renderScreen();
+    expect(screen.getByText('1 reservado · 1 vendido')).toBeInTheDocument();
+    view.unmount();
+    context.appSession = { store: { name: 'Tienda Centro' } };
+    renderScreen();
+    expect(screen.queryByTestId('onboarding-inventory-summary')).not.toBeInTheDocument();
+  });
+});
 
 describe('Inventory column filters', () => {
   beforeEach(() => {
