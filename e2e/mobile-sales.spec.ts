@@ -1,3 +1,4 @@
+import { IMPORT_SALES_ENABLED } from '../src/config/featureFlags';
 import { expandListOptions, openDeskSection } from './navigation';
 import { openSheetActions, sheetAction } from './sheet-actions';
 import { expect, test, type Page } from '@playwright/test';
@@ -65,6 +66,7 @@ test.describe('desktop sales stays put', () => {
     await expect(page.getByRole('columnheader', { name: /Venta/ })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar cliente, equipo o número')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Importar', exact: true })).toHaveCount(IMPORT_SALES_ENABLED ? 1 : 0);
   });
 });
 
@@ -94,7 +96,7 @@ test.describe('sales on a phone', () => {
     await expect(page.getByTestId('sales-status')).toContainText('Estado');
     await settleMotion(page, '.stage');
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
-    await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
+    await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toHaveCount(IMPORT_SALES_ENABLED ? 1 : 0);
     const dockBox = await page.getByTestId('mobile-dock').boundingBox();
     const tabBox = await page.getByTestId('mobile-tab-bar').boundingBox();
     expect(dockBox && tabBox && dockBox.y + dockBox.height <= tabBox.y + 1).toBeTruthy();
@@ -106,13 +108,17 @@ test.describe('sales on a phone', () => {
     await expect(page.getByPlaceholder('Buscar cliente, equipo o número')).toBeVisible();
     await page.getByRole('button', { name: 'Buscar' }).click();
 
-    await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
-    const importer = page.getByRole('dialog', { name: 'Importar ventas' });
-    await expect(importer.locator('.sheet-grab')).toBeVisible();
-    await expect(importer.locator('.sheet-foot').getByRole('button', { name: 'Cancelar' })).toBeVisible();
-    await settleMotion(page, '.sheet');
-    await expectFits(page);
-    await importer.getByRole('button', { name: 'Cerrar' }).click();
+    if (IMPORT_SALES_ENABLED) {
+      await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
+      const importer = page.getByRole('dialog', { name: 'Importar ventas' });
+      await expect(importer.locator('.sheet-grab')).toBeVisible();
+      await expect(importer.locator('.sheet-foot').getByRole('button', { name: 'Cancelar' })).toBeVisible();
+      await settleMotion(page, '.sheet');
+      await expectFits(page);
+      await importer.getByRole('button', { name: 'Cerrar' }).click();
+    } else {
+      await expect(page.getByRole('dialog', { name: 'Importar ventas' })).toHaveCount(0);
+    }
 
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta' }).click();
     const form = page.getByRole('dialog', { name: 'Registrar venta' });

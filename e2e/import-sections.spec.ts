@@ -1,3 +1,4 @@
+import { IMPORT_SALES_ENABLED } from '../src/config/featureFlags';
 import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
@@ -34,7 +35,7 @@ for (const viewport of viewports) {
   test.describe(viewport.name, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test('previsualiza ventas y clientes antes de confirmar', async ({ page }, testInfo) => {
+    test('previsualiza clientes y respeta el flag de importación de ventas', async ({ page }, testInfo) => {
       test.setTimeout(180_000);
       const phone = viewport.width < 700;
       const email = buildTestEmail(testInfo, viewport.name);
@@ -97,34 +98,40 @@ for (const viewport of viewports) {
 
       await openTab(page, 'sales');
       await expect(page.getByRole('heading', { level: 1, name: 'Ventas' })).toBeVisible();
-      if (phone) await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
-      else await page.getByRole('button', { name: 'Importar' }).click();
+      if (IMPORT_SALES_ENABLED) {
+        if (phone) await page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' }).click();
+        else await page.getByRole('button', { name: 'Importar' }).click();
 
-      const salesDialog = page.getByRole('dialog', { name: 'Importar ventas' });
-      await expect(salesDialog).toBeVisible();
-      await salesDialog.locator('input[type="file"]').setInputFiles(GASTOS);
-      await expect(salesDialog.getByTestId('import-unrelated')).toHaveText('Este archivo no parece tener ventas para importar.');
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-ajeno.png`) });
-      await salesDialog.getByRole('button', { name: 'Volver' }).click();
-      await salesDialog.locator('input[type="file"]').setInputFiles(SALES);
-      await expect(salesDialog.getByTestId('import-preview-count')).toHaveText('10 ventas');
-      await expect(salesDialog.getByText('Ventas a importar')).toBeVisible();
-      await expect(salesDialog.getByText('Lucía Fernández').first()).toBeVisible();
-      await expect(salesDialog.getByText('Moneda')).toHaveCount(0);
-      const salesPreview = salesDialog.getByTestId('import-preview');
-      await expect(salesPreview).toHaveAttribute('aria-rowcount', '10');
-      await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-preview.png`) });
-      const salesImport = page.waitForResponse(
-        (response) => response.url().includes('/api/sales/import') && response.request().method() === 'POST',
-      );
-      await salesDialog.getByTestId('import-confirm').click();
-      const salesResponse = await salesImport;
-      expect(salesResponse.ok()).toBe(true);
-      const salesBody = await salesResponse.json() as { imported: number; errors: unknown[] };
-      expect(salesBody.imported).toBe(10);
-      expect(salesBody.errors).toEqual([]);
-      await expect(salesDialog.getByText('10 creados')).toBeVisible();
-      await salesDialog.locator('button.btn2', { hasText: 'Cerrar' }).click();
+        const salesDialog = page.getByRole('dialog', { name: 'Importar ventas' });
+        await expect(salesDialog).toBeVisible();
+        await salesDialog.locator('input[type="file"]').setInputFiles(GASTOS);
+        await expect(salesDialog.getByTestId('import-unrelated')).toHaveText('Este archivo no parece tener ventas para importar.');
+        await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-ajeno.png`) });
+        await salesDialog.getByRole('button', { name: 'Volver' }).click();
+        await salesDialog.locator('input[type="file"]').setInputFiles(SALES);
+        await expect(salesDialog.getByTestId('import-preview-count')).toHaveText('10 ventas');
+        await expect(salesDialog.getByText('Ventas a importar')).toBeVisible();
+        await expect(salesDialog.getByText('Lucía Fernández').first()).toBeVisible();
+        await expect(salesDialog.getByText('Moneda')).toHaveCount(0);
+        const salesPreview = salesDialog.getByTestId('import-preview');
+        await expect(salesPreview).toHaveAttribute('aria-rowcount', '10');
+        await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-preview.png`) });
+        const salesImport = page.waitForResponse(
+          (response) => response.url().includes('/api/sales/import') && response.request().method() === 'POST',
+        );
+        await salesDialog.getByTestId('import-confirm').click();
+        const salesResponse = await salesImport;
+        expect(salesResponse.ok()).toBe(true);
+        const salesBody = await salesResponse.json() as { imported: number; errors: unknown[] };
+        expect(salesBody.imported).toBe(10);
+        expect(salesBody.errors).toEqual([]);
+        await expect(salesDialog.getByText('10 creados')).toBeVisible();
+        await salesDialog.locator('button.btn2', { hasText: 'Cerrar' }).click();
+      } else {
+        await expect(page.getByRole('button', { name: 'Importar', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Importar ventas' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Registrar venta', exact: true }).first()).toBeVisible();
+      }
 
       await openTab(page, 'clients');
       await expect(page.getByRole('heading', { level: 1, name: 'Clientes' })).toBeVisible();
@@ -135,8 +142,10 @@ for (const viewport of viewports) {
       await page.getByRole('button', { name: 'Página anterior' }).click();
       await page.getByPlaceholder('Buscar por nombre, DNI o teléfono').fill('Lucía');
       await expect(page.getByText('Lucía Fernández').first()).toBeVisible();
-      await expect(page.getByText('03/10/2026').first()).toBeVisible();
-      await expect(page.getByText('$ 850.000').first()).toBeVisible();
+      if (IMPORT_SALES_ENABLED) {
+        await expect(page.getByText('03/10/2026').first()).toBeVisible();
+        await expect(page.getByText('$ 850.000').first()).toBeVisible();
+      }
     });
   });
 }

@@ -1,3 +1,4 @@
+import { IMPORT_SALES_ENABLED } from '../../config/featureFlags';
 import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
 import { isVoidRow, mergeRecordRows } from '../format';
@@ -163,7 +164,7 @@ export function SalesScreen() {
           <div className="dright">
             <SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" />
             <MenuButton label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
-            <ImportButton onClick={() => open({ type: 'import', kind: 'sale' })} />
+            {IMPORT_SALES_ENABLED ? <ImportButton onClick={() => open({ type: 'import', kind: 'sale' })} /> : null}
             <DeskCta onClick={() => open({ type: 'new-sale' })}>Registrar venta</DeskCta>
           </div>
         )}
@@ -357,7 +358,7 @@ export function SalesScreen() {
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
       )}
-      {phone && !selection.mode ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'sale' })} /> : null}
+      {phone && !selection.mode ? <MobileDock primary="Registrar venta" onPrimary={() => open({ type: 'new-sale' })} secondary={IMPORT_SALES_ENABLED ? "Importar" : undefined} onSecondary={IMPORT_SALES_ENABLED ? () => open({ type: 'import', kind: 'sale' }) : undefined} /> : null}
     </div>
   );
 }
