@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mock = vi.hoisted(() => ({
   periodicReportSettings: { findUnique: vi.fn(), upsert: vi.fn(), findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
   periodicReportDelivery: { findMany: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
@@ -17,6 +17,7 @@ const row = { storeId: 's1', enabled: true, frequency: 'WEEKLY', sendDay: 1, sen
 export const report: MailReport = { storeName: 'Casa <script>', timezone: zone, currency: 'ARS', period: latestDuePeriod(now, zone, 'WEEKLY'), periodLabel: '19/10/2026 al 25/10/2026', capturedAt: now.toISOString(), sales: 1000, sold: 2, profit: 300, stock: 4, reviewCount: 3, trades: 1, claims: 1, pendingClaims: 1, refunds: 0, debt: 10, debtors: 1, differences: 1, counts: 1, countDay: '2026-10-23' };
 type Delivery = { id: string; recipient: string; status: string; subject: string; html: string; text: string };
 let deliveries: Delivery[];
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 beforeEach(() => {
   vi.resetAllMocks(); deliveries = [];
   mock.periodicReportSettings.findMany.mockResolvedValue([row]);
@@ -87,7 +88,29 @@ describe('settings and delivery', () => {
     await expect(sendTestReport('s1', input, { now, mailer })).resolves.toMatchObject({ sent: true });
     expect(mailer.mock.calls[0][0]).toMatchObject({ subject: expect.stringContaining('Prueba ·') });
     expect(mock.periodicReportDelivery.upsert).not.toHaveBeenCalled(); expect(mock.periodicReportSettings.update).not.toHaveBeenCalled();
+    expect(mock.periodicReportSettings.upsert).toHaveBeenCalledWith({ where: { storeId: 's1' }, create: { storeId: 's1' }, update: {} });
+    expect(mock.periodicReportSettings.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { lastTestAt: now } }));
     mock.periodicReportSettings.updateMany.mockResolvedValue({ count: 0 });
     await expect(sendTestReport('s1', input, { now, mailer })).rejects.toMatchObject({ statusCode: 429 });
+  });
+  it('persists the Resend HTTP id as providerId for scheduled deliveries', async () => {
+    vi.stubEnv('RESEND_API_KEY', 'test-key'); vi.stubEnv('MAIL_FROM', 'reports@example.test');
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response(JSON.stringify({ id: 'resend-provider-id' }))));
+    expect(await runDueReports({ now })).toBe(2);
+    expect(deliveries).toEqual(expect.arrayContaining([expect.objectContaining({ status: 'SENT', providerId: 'resend-provider-id' })]));
+  });
+  it.each(['http', 'network', 'timeout', 'invalid'])('maps Resend %s failures to the existing 502 without saving the draft', async failure => {
+    vi.stubEnv('RESEND_API_KEY', 'test-key'); vi.stubEnv('MAIL_FROM', 'reports@example.test');
+    const fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock);
+    if (failure === 'http') fetchMock.mockResolvedValue(new Response('{"message":"provider detail"}', { status: 422 }));
+    if (failure === 'network') fetchMock.mockRejectedValue(new TypeError('network unavailable'));
+    if (failure === 'timeout') fetchMock.mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+    if (failure === 'invalid') fetchMock.mockResolvedValue(new Response('{}'));
+    const input = { enabled: true, frequency: 'MONTHLY' as const, recipients: ['draft@test.local'], sendDay: 23, sendTime: '17:45' };
+    await expect(sendTestReport('s1', input, { now })).rejects.toMatchObject({ statusCode: 502, message: 'No se pudo enviar el mail de prueba.' });
+    expect(mock.periodicReportSettings.upsert).toHaveBeenCalledWith({ where: { storeId: 's1' }, create: { storeId: 's1' }, update: {} });
+    expect(mock.periodicReportSettings.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { lastTestAt: now } }));
+    expect(mock.periodicReportSettings.update).not.toHaveBeenCalled();
+    expect(mock.periodicReportDelivery.upsert).not.toHaveBeenCalled();
   });
 });

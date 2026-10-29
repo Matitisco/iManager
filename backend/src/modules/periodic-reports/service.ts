@@ -66,7 +66,7 @@ export async function runDueReports(options: { now?: Date; mailer?: Mailer | nul
       const recipients = parseRecipients([row.recipients]).emails;
       if (!recipients.length) throw new DomainError('Agregá al menos un correo.');
       if (!mailer) {
-        log.warn(`Reporte automático ${row.storeId}: envío omitido, SMTP sin configurar.`);
+        log.warn(`Reporte automático ${row.storeId}: envío omitido, correo sin configurar.`);
         await prisma.periodicReportSettings.update({ where: { storeId: row.storeId }, data: { lastError: MISSING_MAIL } });
         continue;
       }
@@ -97,7 +97,7 @@ export async function runDueReports(options: { now?: Date; mailer?: Mailer | nul
           complete = false;
           await prisma.periodicReportDelivery.update({ where: { id: delivery.id }, data: { status: 'UNCERTAIN' } });
           await prisma.periodicReportSettings.update({ where: { storeId: row.storeId }, data: { lastError: SEND_FAILURE } });
-          log.warn(`Reporte automático ${row.storeId}: resultado SMTP incierto; requiere revisión.`);
+          log.warn(`Reporte automático ${row.storeId}: resultado del envío incierto; requiere revisión.`);
         }
       }
       if (complete) await prisma.periodicReportSettings.update({ where: { storeId: row.storeId }, data: { lastPeriodKey: due.key, lastSentAt: now, lastError: null } });
@@ -112,7 +112,7 @@ export async function sendTestReport(storeId: string, input: PeriodicReportInput
   const emails = validate({ ...input, enabled: true });
   const now = options.now ?? new Date();
   const mailer = options.mailer === undefined ? createSmtpMailer() : options.mailer;
-  if (!mailer) { (options.log ?? console).warn(`Reporte de prueba ${storeId}: SMTP sin configurar; no se envió.`); return { sent: false, message: MISSING_MAIL }; }
+  if (!mailer) { (options.log ?? console).warn(`Reporte de prueba ${storeId}: correo sin configurar; no se envió.`); return { sent: false, message: MISSING_MAIL }; }
   // Persistent, atomic throttle across API replicas. A test never saves the draft settings.
   await prisma.periodicReportSettings.upsert({ where: { storeId }, create: { storeId }, update: {} });
   const claim = await prisma.periodicReportSettings.updateMany({ where: { storeId, OR: [{ lastTestAt: null }, { lastTestAt: { lte: new Date(now.getTime() - 60000) } }] }, data: { lastTestAt: now } });

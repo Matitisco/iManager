@@ -6,3 +6,6 @@
 - [x] Conteo EN_REVISION, sección HTML/texto y enlace al filtro de inventario
 - [x] Documentar timer recomendado y variables de producción, incluidas Firebase
 - [x] TypeScript y tests relacionados con SMTP falso
+- [x] Transporte HTTP Resend prioritario, timeout e idempotencia con tests unitarios
+- [x] Regresiones de prueba sin guardado y recuperación/reapertura del formulario
+- [x] Actualizar activación y verificar TypeScript/tests relacionados (49 backend, 29 frontend)

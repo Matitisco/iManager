@@ -12,6 +12,35 @@ export function smtpConfigured(env: NodeJS.ProcessEnv = process.env) {
   return Boolean(env.SMTP_HOST?.trim() && (env.SMTP_FROM?.trim() || env.SMTP_USER?.trim()) && (!env.SMTP_USER?.trim() || env.SMTP_PASS));
 }
 export function createSmtpMailer(env: NodeJS.ProcessEnv = process.env): Mailer | null {
+  const apiKey = env.RESEND_API_KEY?.trim();
+  if (apiKey) {
+    const from = env.SMTP_FROM?.trim() || env.MAIL_FROM?.trim();
+    if (!from) return null;
+    return async message => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            ...(message.idempotencyKey ? { 'Idempotency-Key': message.idempotencyKey } : {}),
+          },
+          body: JSON.stringify({ from, to: message.to, subject: message.subject, text: message.text, html: message.html }),
+        });
+        if (!response.ok) throw new Error('Resend send failed');
+        const result: unknown = await response.json();
+        if (!result || typeof result !== 'object' || !('id' in result) || typeof result.id !== 'string' || !result.id.trim()) {
+          throw new Error('Resend returned no message id');
+        }
+        return result.id;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+  }
   if (!smtpConfigured(env)) return null;
   const port = Number(env.SMTP_PORT || 587);
   const transporter = nodemailer.createTransport({
