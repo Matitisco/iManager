@@ -14,7 +14,7 @@ import { latestDuePeriod } from './schedule.js';
 const now = new Date('2026-10-26T12:00:00Z');
 const zone = 'America/Argentina/Buenos_Aires';
 const row = { storeId: 's1', enabled: true, frequency: 'WEEKLY', sendDay: 1, sendTime: '09:00', recipients: 'a@example.test, b@example.test', lastPeriodKey: null, store: { timezone: zone } };
-export const report: MailReport = { storeName: 'Casa <script>', timezone: zone, currency: 'ARS', period: latestDuePeriod(now, zone, 'WEEKLY'), periodLabel: '19/10/2026 al 25/10/2026', capturedAt: now.toISOString(), sales: 1000, sold: 2, profit: 300, stock: 4, trades: 1, claims: 1, pendingClaims: 1, refunds: 0, debt: 10, debtors: 1, differences: 1, counts: 1, countDay: '2026-10-23' };
+export const report: MailReport = { storeName: 'Casa <script>', timezone: zone, currency: 'ARS', period: latestDuePeriod(now, zone, 'WEEKLY'), periodLabel: '19/10/2026 al 25/10/2026', capturedAt: now.toISOString(), sales: 1000, sold: 2, profit: 300, stock: 4, reviewCount: 3, trades: 1, claims: 1, pendingClaims: 1, refunds: 0, debt: 10, debtors: 1, differences: 1, counts: 1, countDay: '2026-10-23' };
 type Delivery = { id: string; recipient: string; status: string; subject: string; html: string; text: string };
 let deliveries: Delivery[];
 beforeEach(() => {

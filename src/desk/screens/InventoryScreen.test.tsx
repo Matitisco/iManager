@@ -1,7 +1,7 @@
 import type { SectionChanges } from '../../services/section-views-api';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
@@ -105,6 +105,40 @@ describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) 
     expect(within(card).getByText('1 disponible · 2 reservados · 1 en reparación')).toBeInTheDocument();
     expect(card).not.toHaveTextContent('vendidos');
     expect(card).not.toHaveTextContent('en revisión');
+  });
+
+  it('abre el filtro del mail con solo equipos En revisión sin archivar', async () => {
+    const previousUrl = window.location.href;
+    try {
+      context.inventory.push(item('60', { status: 'EN_REVISION', archivedAt: '2026-10-28' }));
+      window.history.replaceState(null, '', '#/stock/equipos?status=EN_REVISION');
+      renderScreen();
+      await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('30 de 60'));
+      expect(screen.queryByText(/Modelo 60/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Modelo 1(?:\s|$)/)).not.toBeInTheDocument();
+      expect(screen.getByText(/Modelo 24/)).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', previousUrl);
+    }
+  });
+
+  it('el enlace limpia la búsqueda y los filtros previos con el inventario ya abierto', async () => {
+    const previousUrl = window.location.href;
+    try {
+      const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+      renderScreen();
+      if (phone) await user.click(screen.getByRole('button', { name: 'Buscar' }));
+      await user.type(screen.getByPlaceholderText(phone ? 'Buscar por IMEI, modelo o color' : 'Buscar modelo o color'), 'sin coincidencias');
+      expect(screen.getByTestId('inventory-total')).toHaveTextContent('0 de 59');
+      act(() => {
+        window.history.replaceState(null, '', '#/stock/equipos?status=EN_REVISION');
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+      });
+      await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('30 de 59'));
+      expect(screen.getByPlaceholderText(phone ? 'Buscar por IMEI, modelo o color' : 'Buscar modelo o color')).toHaveValue('');
+    } finally {
+      window.history.replaceState(null, '', previousUrl);
+    }
   });
 
   it('muestra cero sin desglose cuando no quedan equipos no archivados', () => {

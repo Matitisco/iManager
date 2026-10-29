@@ -1,4 +1,4 @@
-// One-shot cron entrypoint. Schedule */5 * * * * UTC after manual activation.
+// Optional one-shot entrypoint; the API timer is the recommended scheduler.
 import '../src/config/env.js';
 import { prisma } from '../src/plugins/prisma.js';
 import { runDueReportsLocked } from '../src/modules/periodic-reports/service.js';
