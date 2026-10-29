@@ -1,3 +1,4 @@
+import { reviewSaleImport } from "./sale-import-preview.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DomainError } from "../../lib/domain-error.js";
@@ -106,13 +107,14 @@ export async function importRoutes(app: FastifyInstance) {
       const body = sheetsSchema.parse(request.body);
       assertAccess(body.section, request.appUser);
       const currency = await storeCurrency(request.appUser.storeId, prisma);
-      return analyzeImport({
+      const analysis = await analyzeImport({
         section: body.section,
         sheets: body.sheets as ImportSheet[],
         currency,
       }, {
         log: (entry) => request.log.info(entry, "import analysis usage"),
       });
+      return body.section === "sales" ? reviewSaleImport(request.appUser.storeId, analysis) : analysis;
     },
   );
 
@@ -124,7 +126,7 @@ export async function importRoutes(app: FastifyInstance) {
       const body = applySchema.parse(request.body);
       assertAccess(body.section, request.appUser);
       const currency = await storeCurrency(request.appUser.storeId, prisma);
-      return applyImportPlan({
+      const analysis = applyImportPlan({
         section: body.section,
         sheets: body.sheets as ImportSheet[],
         plan: body.plan as SheetPlan[],
@@ -133,6 +135,7 @@ export async function importRoutes(app: FastifyInstance) {
       }, {
         log: (entry) => request.log.info(entry, "import analysis usage"),
       });
+      return body.section === "sales" ? reviewSaleImport(request.appUser.storeId, analysis) : analysis;
     },
   );
 }

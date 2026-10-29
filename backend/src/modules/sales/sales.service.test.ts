@@ -316,7 +316,7 @@ describe("sales.service", () => {
     });
     expect(prismaMock.client.update).toHaveBeenCalledWith({
       where: { id: "client-1" },
-      data: expect.objectContaining({ totalSpent: { increment: new Decimal(1000) } }),
+      data: expect.objectContaining({ totalSpent: { increment: new Decimal(1) } }),
     });
   });
 
@@ -340,7 +340,7 @@ describe("sales.service", () => {
     });
   });
 
-  it('rejects repeated rows and retries before changing client balances or stock', async () => {
+  it('preserves repeated physical rows and recognizes retries before changing balances or stock', async () => {
     const fingerprints = new Set<string>();
     prismaMock.sale.findFirst.mockImplementation(async ({ where }) => {
       const fingerprint = where.customFields?.equals;
@@ -350,16 +350,17 @@ describe("sales.service", () => {
       fingerprints.add(data.customFields.importFingerprint);
       return { id: 'imported-sale' };
     });
+    prismaMock.client.create.mockImplementation(async ({ data }) => ({ id: 'qa-client', ...data, email: null, totalSpent: new Decimal(0), lastPurchaseAt: null }));
     prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
     const row = { clientName: 'Lucía Fernández', device: 'iPhone 13', date: '22/10/2026', amount: '1.250,50', currency: 'USD' };
     const result = await importSales('store-1', [row, row]);
-    expect(result).toMatchObject({ imported: 1, errors: [{ row: 3, message: 'Esta venta ya fue importada; no se duplicó' }], diagnostics: { detectedRows: 2, acceptedRows: 1, discardedRows: 1, discardedByReason: { duplicate: 1 } } });
-    expect(prismaMock.sale.create).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ imported: 2, errors: [], diagnostics: { detectedRows: 2, acceptedRows: 2, discardedRows: 0, discardedByReason: {} } });
+    expect(prismaMock.sale.create).toHaveBeenCalledTimes(2);
     expect(prismaMock.client.create).toHaveBeenCalledTimes(1);
     const writes = prismaMock.client.update.mock.calls.length;
-    expect(await importSales('store-1', [{ ...row, amount: '1250.50' }])).toMatchObject({ imported: 0, errors: [{ row: 2 }] });
+    expect(await importSales('store-1', [{ ...row, amount: '1250.50' }])).toMatchObject({ imported: 0, updated: 1, errors: [] });
     expect(prismaMock.client.update).toHaveBeenCalledTimes(writes);
-    expect(prismaMock.sale.create).toHaveBeenCalledTimes(1);
+    expect(prismaMock.sale.create).toHaveBeenCalledTimes(2);
     // A different amount represents a different historical sale.
     expect(await importSales('store-1', [{ ...row, amount: '1300' }])).toMatchObject({ imported: 1, errors: [] });
     expect(prismaMock.$executeRaw).toHaveBeenCalled();

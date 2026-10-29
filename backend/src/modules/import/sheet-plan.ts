@@ -598,7 +598,7 @@ export function applyPlans(
     const usable = plan.mapping.filter((column) => column.field && (known.has(column.field) || (section === "inventory" && /^custom:[a-z][a-z0-9_]{0,59}$/.test(column.field))) && mappingColumnIndex(headers, column) >= 0);
     const seen = new Set<string>();
     const mapping = usable.filter((column) => {
-      if (seen.has(column.field) && column.field !== "batteryNote") return false;
+      if (seen.has(column.field) && column.field !== "batteryNote" && column.field !== "notes") return false;
       seen.add(column.field);
       return true;
     });
@@ -627,15 +627,15 @@ export function applyPlans(
       for (let rowIndex = start; rowIndex <= end; rowIndex += 1) {
         const line = grid[rowIndex - 1] ?? [];
         if (line.every((cell) => !cell.trim())) { countDiscard(diagnostics, "empty"); continue; }
-        if (section !== "inventory" && isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
+        if (section !== "inventory" && section !== "sales" && isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
         const filledCells = line.filter((cell) => cell.trim());
-        if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
+        if (section === "clients" && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
         const record: Record<string, string> = {};
         for (const column of mapping) {
           const index = mappingColumnIndex(headers, column);
           const value = (line[index] ?? "").trim();
-          record[column.field] = column.field === "batteryNote" && record.batteryNote
-            ? (value ? `${record.batteryNote}; ${value}` : record.batteryNote) : value;
+          record[column.field] = ["batteryNote", "notes"].includes(column.field) && record[column.field]
+            ? (value ? `${record[column.field]}; ${value}` : record[column.field]) : value;
         }
         if (section === "inventory") {
           const values = line.map(parseMoney);
@@ -657,6 +657,25 @@ export function applyPlans(
               }
             });
           }
+        }
+        if (section === "sales") {
+          const mappedIndexes = new Set(mapping.map(column => mappingColumnIndex(headers, column)));
+          const extras = line.flatMap((value, index) => value.trim() && !mappedIndexes.has(index)
+            ? [`${headers[index] || `Columna ${columnLetter(index)}`} (origen): ${value}`] : []);
+          if (extras.length) {
+            record.notes = [record.notes, ...extras].filter(Boolean).join('\n');
+            record._unassigned = String(extras.length);
+          }
+          // Preserve even mapped cells before date/phone/money normalization.
+          record._sourceData = JSON.stringify(line);
+          const values = line.map(parseMoney);
+          const matchesSum = !record.clientName?.trim() && !record.device?.trim() && !record.productImei?.trim()
+            && values.some((value, index) => value != null && value > 0 && totals[index]?.count >= 2 && Math.abs(value - totals[index].sum) < 0.005);
+          if ((!record.productImei?.trim() && line.some(cell => /^(total|subtotal|suma)(?:\s|:|$)/i.test(cell.trim()))) || matchesSum) {
+            record._possibleTotal = 'true';
+          } else values.forEach((value, index) => {
+            if (value != null && totals[index]) { totals[index].sum += value; totals[index].count++; }
+          });
         }
         // Unmapped columns still belong to this physical device. Keep their raw cells in notes.
         if (section === "inventory") {
@@ -719,7 +738,7 @@ export function applyPlans(
         if (!filled) { countDiscard(diagnostics, "empty"); continue; }
         diagnostics.acceptedRows += 1;
         count += 1;
-        rows.push({ ...normalized, ...(section === "inventory" ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
+        rows.push({ ...normalized, ...(["inventory", "sales"].includes(section) ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
 

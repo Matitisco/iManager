@@ -8,7 +8,7 @@ const INSTAGRAM = /^[A-Za-z0-9._]{1,30}$/;
 const JUNK_LABEL = /^(total|subtotal|suma|notas?|observaciones?)$/;
 const HEADER_NAME = /^(nombre|cliente|comprador|telefono|whatsapp|celular|mail|email|dni|documento)$/;
 
-const PAYMENTS = ["TRANSFERENCIA", "EFECTIVO", "TARJETA", "CANJE / PAGO", "T. Crédito"] as const;
+const PAYMENTS = ["TRANSFERENCIA", "EFECTIVO", "TARJETA", "CANJE / PAGO", "T. Crédito", "POR REVISAR"] as const;
 
 export function normalizeImportDate(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
@@ -61,13 +61,13 @@ export function normalizePayment(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
   if ((PAYMENTS as readonly string[]).includes(trimmed)) return trimmed;
   const value = normalizeHeader(trimmed);
-  if (!value) return "EFECTIVO";
+  if (!value) return "POR REVISAR";
   if (/canje|permuta/.test(value)) return "CANJE / PAGO";
   if (/transfer|transf|mercadopago|^mp$|banco/.test(value)) return "TRANSFERENCIA";
   if (/tcredito|tarjetacredito/.test(value)) return "T. Crédito";
   if (/tarjeta|debito|credito|visa|master/.test(value)) return "TARJETA";
   if (/efectivo|cash|contado/.test(value)) return "EFECTIVO";
-  return "EFECTIVO";
+  return "POR REVISAR";
 }
 
 export function normalizeImei(raw: string | undefined): string {
@@ -136,20 +136,20 @@ function normalizeSaleRow(
   if ("date" in next) next.date = normalizeImportDate(next.date);
   if ("clientName" in next) next.clientName = next.clientName.trim().replace(/\s+/g, " ");
   if ("device" in next) next.device = next.device.trim().replace(/\s+/g, " ");
-  if ("productImei" in next) next.productImei = normalizeImei(next.productImei);
-  if ("paymentMethod" in next) next.paymentMethod = normalizePayment(next.paymentMethod);
+  // Keep invalid identifiers visible; validation records them without linking stock.
+  if ("productImei" in next) next.productImei = normalizeImei(next.productImei) || next.productImei;
+  if ("paymentMethod" in next) {
+    const payment = normalizePayment(next.paymentMethod);
+    if (payment === 'POR REVISAR' && next.paymentMethod) next.notes = [next.notes, `paymentMethod (origen): ${next.paymentMethod}`].filter(Boolean).join('\n');
+    next.paymentMethod = payment;
+  }
   if ("tradeIn" in next) next.tradeIn = normalizeTradeIn(next.tradeIn);
   if ("seller" in next) next.seller = next.seller.trim().replace(/\s+/g, " ");
   if ("clientDni" in next) next.clientDni = normalizeImportedDni(next.clientDni);
   if ("clientPhone" in next) next.clientPhone = normalizeImportedPhone(next.clientPhone);
   const fromColumn = normalizeCurrencyToken(next.currency);
   const fromCell = amountCellCurrency(rawAmount);
-  next.currency = fromColumn || fromCell || columnCurrency || storeCurrency;
-  const who = next.clientName?.trim() || next.device?.trim() || next.productImei?.trim();
-  if (!who || isJunkLabel(next.clientName) || HEADER_NAME.test(normalizeHeader(next.clientName ?? ""))) return null;
-  // Keep recognizable sales with bad prices for review and per-row errors;
-  // free-form notes without a device/date still stay out of the import.
-  if (!/^-?\d+(\.\d+)?$/.test(next.amount ?? "") && !next.device && !next.productImei && !parseArDate(next.date)) return null;
+  next.currency = fromColumn || (next.currency?.trim() ? next.currency : "") || fromCell || columnCurrency || storeCurrency;
   return next;
 }
 

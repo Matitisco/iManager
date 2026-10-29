@@ -393,9 +393,8 @@ describe("commissions API (adapted from #122)", () => {
     expect(rows.map(row => row.sellerMemberId)).toEqual([null, f.member.id, f.member.id]);
     expect(rows.every(row => row.registeredByUserId === f.user.id)).toBe(true);
     expect(Number(rows[1].exchangeRate)).toBe(1400);
-    expect((await detail(f.member.id)).earned.ARS).toBe(200);
-    const bad = await importSales(f.storeId, [{ device: "D", amount: "1000", sellerMemberId: "foreign" }]);
-    expect(bad.errors).toHaveLength(1);
+    expect((await detail(f.member.id)).earned.USD).toBe(0.17);
+    await expect(importSales(f.storeId, [{ device: "D", amount: "1000", sellerMemberId: "foreign" }])).rejects.toThrow();
   });
   it("uses current rate for legacy sales assigned in bulk and handles month boundaries", async () => {
     const f = await fixture();

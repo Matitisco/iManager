@@ -725,6 +725,8 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
+      {typeof sale.customFields?.importReview === 'string' && <div className="sales-import-note"><span className="spill mid">Por revisar</span><p>{sale.customFields.importReview}</p></div>}
+      {typeof sale.customFields?.notas === 'string' && sale.customFields.notas && <div className="kv"><span>Notas</span><b className="sales-import-note" data-ph-mask>{sale.customFields.notas}</b></div>}
       <div className="kv"><span>Cobro</span>{sale.status === 'PENDIENTE' ? renderAmount(displayedDue, sale.amountCurrency, 'Deuda ') : <b><Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></b>}</div>
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
       <SaleAccountPanel saleId={sale.id} currency={sale.amountCurrency} renderAmount={renderAmount} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />

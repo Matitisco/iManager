@@ -1,6 +1,8 @@
+import { addSaleReview, prepareSaleReviewRows, type SaleReviewRow } from '../import/sale-import-row.js';
+import { priceSaleReviewRows } from '../import/sale-import-rate.js';
+import { saleImportNotes } from '../import/sale-import-preview.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { trackFirstSale } from '../analytics/first-sale.js';
-import { createHash } from 'node:crypto';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -544,6 +546,16 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
 // ── Import ────────────────────────────────────────────────────────────────────
 
 export interface SaleImportRow {
+  sourceRow?: number;
+  _sourceRow?: string;
+  _sourceSheet?: string;
+  _sourceData?: string;
+  _possibleTotal?: string;
+  _unassigned?: string;
+  _exchangeRate?: string;
+  _rateSource?: string;
+  _rateDate?: string;
+  notes?: string;
   sellerMemberId?: string | null;
   exchangeRate?: number;
   date?: string;
@@ -561,6 +573,7 @@ export interface SaleImportRow {
 }
 
 export interface SaleImportResult {
+  warnings?: { row: number; message: string }[];
   diagnostics?: ImportDiagnostics;
   imported: number;
   updated: number;
@@ -582,175 +595,113 @@ export async function importSales(
   rows: SaleImportRow[],
   actor?: Actor,
 ): Promise<SaleImportResult> {
-  let imported = 0;
-  const errors: { row: number; message: string }[] = [];
-  const collector = importErrorCollector(errors);
-  const clients: ImportClient[] = await prisma.client.findMany({
-    where: { storeId },
-    select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
-  });
-  const members = await prisma.storeMember.findMany({
-    where: { storeId },
-    select: { id: true, userId: true, user: { select: { displayName: true } } },
-  });
-  const sellers = members.map((member) => ({ userId: member.userId, displayName: member.user.displayName }));
-
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const rowNum = i + 2;
-
-    try {
-      const clientName = r.clientName?.trim().replace(/\s+/g, " ") ?? "";
-      const device = r.device?.trim().replace(/\s+/g, " ") ?? "";
+  const currency = await storeCurrency(storeId, prisma);
+  const prepared = prepareSaleReviewRows(rows.map(row => Object.fromEntries(Object.entries(row)
+    .filter(([, value]) => value != null).map(([key, value]) => [key, String(value)]))), currency);
+  await priceSaleReviewRows(prepared, true);
+  const result = await withSerializableRetry(async tx => {
+    let imported = 0, updated = 0;
+    const warnings: { row: number; message: string }[] = [];
+    const saleIds: string[] = [];
+    const clients: ImportClient[] = await tx.client.findMany({
+      where: { storeId },
+      select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
+    });
+    const members = await tx.storeMember.findMany({ where: { storeId }, select: { id: true, userId: true, user: { select: { displayName: true } } } });
+    const sellers = members.map(member => ({ userId: member.userId, displayName: member.user.displayName }));
+    // Stable ordering plus one store lock keeps concurrent retries and batch changes atomic.
+    await lockTransactionKey(tx, `sale-import:${storeId}`);
+    for (let i = 0; i < prepared.length; i++) {
+      const r: SaleReviewRow = { ...prepared[i] };
+      const rowNum = Number(r.sourceRow || r._sourceRow) || i + 2;
+      const importFingerprint = r._importFingerprint;
+      const duplicate = await tx.sale.findFirst({
+        where: { storeId, customFields: { path: ['importFingerprint'], equals: importFingerprint } }, select: { id: true },
+      });
+      if (duplicate) {
+        updated++;
+        warnings.push({ row: rowNum, message: 'Venta ya importada: se conservó la existente, sin duplicarla' });
+        continue;
+      }
+      const clientName = r.clientName || '';
+      const device = r.device || '';
       const imei = normalizeImei(r.productImei);
       const dni = normalizeImportedDni(r.clientDni);
       const phone = normalizeImportedPhone(r.clientPhone);
       const tradeIn = normalizeTradeIn(r.tradeIn);
-      const seller = r.seller?.trim() ?? "";
-      const amount = parseMoney(r.amount ?? "");
-      if (amount == null) {
-        collector.reject({ row: rowNum, message: "Importe inválido" }, "invalid_price");
-        continue;
-      }
-      if (!clientName && !device && !imei) {
-        collector.reject({ row: rowNum, message: "La venta no tiene cliente ni equipo" }, "missing_identity");
-        continue;
-      }
-
+      const seller = r.seller?.trim() || '';
+      const isTotal = r._possibleTotal === 'true';
+      const originalAmount = isTotal || r._unpriced === 'true' ? 0 : parseMoney(r.amount || '') ?? 0;
+      const amount = r.currency === 'ARS' ? Number(r._amountUsd) : originalAmount;
+      const amountCurrency = 'USD';
       const paymentMethod = normalizePayment(r.paymentMethod);
-      const status = r.status?.trim() === "PENDIENTE" ? "PENDIENTE" : "COMPLETADA";
-      const soldAt = parseArDateOr(normalizeImportDate(r.date) || r.date);
-      const dateLabel = formatArDate(soldAt);
-      const rowCurrency = normalizeCurrencyToken(r.currency);
-
-      const committed = await withSerializableRetry(async (tx) => {
-        const amountCurrency = currencyOnWrite(rowCurrency, true, await storeCurrency(storeId, tx));
-        const importFingerprint = createHash('sha256').update(JSON.stringify([
-          dateLabel, clientName.toLowerCase(), dni, phone, device.toLowerCase(), imei,
-          amount, amountCurrency, paymentMethod, tradeIn, seller.toLowerCase(), status,
-          r.sellerMemberId ?? null,
-        ])).digest('hex');
-        // Serialize identical retries before any client/stock/balance mutation.
-        await lockTransactionKey(tx, `sale-import:${storeId}:${importFingerprint}`);
-        const duplicate = await tx.sale.findFirst({
-          where: { storeId, customFields: { path: ['importFingerprint'], equals: importFingerprint } },
-          select: { id: true },
+      const status = r.status?.trim() === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA';
+      const soldAt = parseArDateOr(r.date);
+      const dateLabel = (r.date || 'Por revisar').slice(0, 120);
+      const clientLink = !isTotal && (clientName || dni || phone) ? decideClientLink(clients, { name: clientName, dni, phone }) : { action: 'skip' as const };
+      let clientId: string | null = null;
+      if (clientLink.action === 'use') clientId = clientLink.clientId;
+      if (clientLink.action === 'ambiguous') addSaleReview(r, 'Cliente ambiguo: se conserva sin vincular');
+      if (clientLink.action === 'create' && clientName) {
+        const created = await tx.client.create({
+          data: { storeId, name: clientName.slice(0, 120), dni: dni || null, phone: phone || null },
+          select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
         });
-        if (duplicate) throw new SalesError('Esta venta ya fue importada; no se duplicó', 409);
-        let newClient: ImportClient | null = null;
-        const clientLink = clientName || dni || phone
-          ? decideClientLink(clients, { name: clientName, dni, phone })
-          : { action: "skip" as const };
-        let clientId: string | null = null;
-        if (clientLink.action === "use") clientId = clientLink.clientId;
-        if (clientLink.action === "create" && clientName) {
-          const created = await tx.client.create({
-            data: {
-              storeId,
-              name: clientName.slice(0, 120),
-              dni: dni || null,
-              phone: phone || null,
-            },
-            select: { id: true, name: true, dni: true, phone: true, email: true, totalSpent: true, lastPurchaseAt: true },
-          });
-          newClient = created;
-          clientId = created.id;
-        }
-
-        let item = imei
-          ? await tx.inventoryItem.findFirst({
-            where: { storeId, imei },
-            select: { id: true, status: true, archivedAt: true, reservedDepositId: true },
-          })
-          : null;
-        if (item) {
-          await lockInventory(tx, storeId, item.id);
-          item = await tx.inventoryItem.findFirst({ where: { id: item.id, storeId }, select: { id: true, status: true, archivedAt: true, reservedDepositId: true } });
-        }
-        if (item?.reservedDepositId) throw new SalesError("El equipo está reservado. Registrá la venta aplicando la seña desde Nueva venta", 409);
-        const activeSale = item
-          ? await tx.sale.findFirst({
-            where: { storeId, inventoryItemId: item.id, status: { not: "CANCELADA" } },
-            select: { id: true },
-          })
-          : null;
-        const stock = decideInventoryLink(item, Boolean(activeSale));
-        const inventoryItemId = stock.action === "link" ? stock.inventoryItemId : null;
-        const openTrades = clientId && tradeIn
-          ? await tx.tradeIn.findMany({
-            where: { storeId, clientId, sale: { is: null } },
-            select: { id: true, deviceReceived: true },
-          })
-          : [];
-        const tradeInId = matchOpenTradeIn(openTrades, tradeIn);
-        const sellerUserId = matchSellerUserId(sellers, seller);
-        const customFields: Record<string, string> = { importFingerprint };
-        if (seller) customFields.vendedor = seller;
-        if (sellerUserId) customFields.sellerUserId = sellerUserId;
-        if (tradeIn) customFields.canje = tradeIn;
-        if (imei && !inventoryItemId) customFields.imei = imei;
-        const deviceLabel = [device, !inventoryItemId && imei ? imei : ""].filter(Boolean).join(" · ").slice(0, 120) || null;
-        const linkedClient = clientId ? await tx.client.findFirst({ where: { storeId, id: clientId } }) : null;
-        const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-
-        const sellerMemberId = r.sellerMemberId !== undefined ? r.sellerMemberId : (sellerUserId ? members.find(member => member.userId === sellerUserId)?.id ?? null : null);
-        await assertSeller(tx, storeId, sellerMemberId);
-        const exchangeRate = await saleExchangeRate(r.exchangeRate);
-        const sale = await tx.sale.create({
-          data: {
-            saleNumber,
-            sellerMemberId,
-            registeredByUserId: actor?.userId ?? null,
-            exchangeRate,
-            storeId,
-            clientId,
-            clientName: clientName || linkedClient?.name || "",
-            inventoryItemId,
-            tradeInId,
-            deviceLabel,
-            dateLabel,
-            amount: toDecimal(amount),
-            ...(amountCurrency ? { amountCurrency } : {}),
-            paymentMethod,
-            status,
-            customFields: normalizeCustomFields(customFields),
-            soldAt,
-            warrantyDays: null,
-          },
-        });
-
-        if (sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
-        if (inventoryItemId) {
-          await tx.inventoryItem.update({
-            where: { id: inventoryItemId },
-            data: { status: "VENDIDO" },
-          });
-        }
-
-        if (linkedClient) {
-          const nextPurchase = !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt
-            ? soldAt
-            : linkedClient.lastPurchaseAt;
-          await tx.client.update({
-            where: { id: linkedClient.id },
-            data: { totalSpent: { increment: toDecimal(amount) }, lastPurchaseAt: nextPurchase },
-          });
-        }
-        return { saleId: sale.id, newClient };
-      });
-
-      if (committed.newClient) clients.push(committed.newClient);
-      void trackFirstSale(storeId, committed.saleId, 'import', actor?.userId);
-      imported++;
-    } catch (e) {
-      collector.reject({
-        row: rowNum,
-        message: e instanceof Error ? e.message : "Error desconocido",
-      }, e instanceof SalesError && e.statusCode === 409 ? "duplicate" : "save_error");
+        clients.push(created); clientId = created.id;
+      }
+      let item = imei && !isTotal ? await tx.inventoryItem.findFirst({
+        where: { storeId, imei }, select: { id: true, status: true, archivedAt: true, reservedDepositId: true },
+      }) : null;
+      if (item) {
+        await lockInventory(tx, storeId, item.id);
+        item = await tx.inventoryItem.findFirst({ where: { id: item.id, storeId }, select: { id: true, status: true, archivedAt: true, reservedDepositId: true } });
+      }
+      const activeSale = item ? await tx.sale.findFirst({ where: { storeId, inventoryItemId: item.id, status: { not: 'CANCELADA' } }, select: { id: true } }) : null;
+      const stock = decideInventoryLink(item, Boolean(activeSale) || Boolean(item?.reservedDepositId) || Boolean(r._review?.includes('IMEI repetido')));
+      const inventoryItemId = stock.action === 'link' ? stock.inventoryItemId : null;
+      if (imei && !inventoryItemId) addSaleReview(r, item ? 'IMEI no disponible en stock: se importó sin modificar el equipo' : 'IMEI no encontrado en stock: se importó sin vincular equipo');
+      const openTrades = clientId && tradeIn ? await tx.tradeIn.findMany({ where: { storeId, clientId, sale: { is: null } }, select: { id: true, deviceReceived: true } }) : [];
+      const tradeInId = matchOpenTradeIn(openTrades, tradeIn);
+      const sellerUserId = matchSellerUserId(sellers, seller);
+      const customFields: Record<string, string> = { importFingerprint };
+      if (seller) customFields.vendedor = seller;
+      if (sellerUserId) customFields.sellerUserId = sellerUserId;
+      if (tradeIn) customFields.canje = tradeIn;
+      if (imei && !inventoryItemId) customFields.imei = imei;
+      customFields.notas = saleImportNotes(r);
+      if (r._review) customFields.importReview = r._review;
+      if (r._sourceData) customFields.importSourceData = r._sourceData;
+      if (r._sourceSheet) customFields.importSourceSheet = r._sourceSheet;
+      customFields.importSourceRow = String(rowNum);
+      customFields.importOriginalAmount = r.amount || '';
+      customFields.importOriginalCurrency = r.currency;
+      if (r._rateDate) customFields.importRateDate = r._rateDate;
+      if (r._rateSource) customFields.importRateSource = r._rateSource;
+      const deviceLabel = [device, !inventoryItemId && imei ? imei : ''].filter(Boolean).join(' · ').slice(0, 120) || null;
+      const linkedClient = clientId ? await tx.client.findFirst({ where: { storeId, id: clientId } }) : null;
+      const saleNumber = await allocateDocumentNumber(tx, storeId, 'sale');
+      const sellerMemberId = r.sellerMemberId || (sellerUserId ? members.find(member => member.userId === sellerUserId)?.id ?? null : null);
+      await assertSeller(tx, storeId, sellerMemberId);
+      const exchangeRate = await saleExchangeRate(r._exchangeRate ? Number(r._exchangeRate) : r.exchangeRate ? Number(r.exchangeRate) : undefined);
+      const sale = await tx.sale.create({ data: {
+        saleNumber, sellerMemberId, registeredByUserId: actor?.userId ?? null, exchangeRate,
+        storeId, clientId, clientName: clientName || linkedClient?.name || '', inventoryItemId, tradeInId, deviceLabel,
+        dateLabel, amount: toDecimal(amount), amountCurrency, paymentMethod, status,
+        customFields: normalizeCustomFields(customFields), soldAt, warrantyDays: null,
+      } });
+      if (sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
+      if (inventoryItemId) await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { status: 'VENDIDO' } });
+      if (linkedClient) await tx.client.update({ where: { id: linkedClient.id }, data: {
+        totalSpent: { increment: toDecimal(amount) }, lastPurchaseAt: !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt ? soldAt : linkedClient.lastPurchaseAt,
+      } });
+      if (r._review) warnings.push({ row: rowNum, message: r._review });
+      saleIds.push(sale.id); imported++;
     }
-  }
-
-  return { imported, updated: 0, errors, diagnostics: collector.finish(rows.length, imported) };
+    return { imported, updated, errors: [], warnings, saleIds, diagnostics: importErrorCollector([]).finish(rows.length, imported + updated) };
+  }, 5, 120_000);
+  for (const id of result.saleIds) void trackFirstSale(storeId, id, 'import', actor?.userId);
+  const { saleIds: _saleIds, ...response } = result;
+  return response;
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────

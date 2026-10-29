@@ -6,7 +6,7 @@ import { importSales } from '../modules/sales/sales.service.js';
 
 useIntegrationApp();
 
-describe('sale import deduplication', () => {
+describe('sale import physical duplicates and concurrent retries', () => {
   it('serializes concurrent retries without duplicating sales, balances or document numbers', async () => {
     const context = await seedStoreContext();
     const storeId = context.store!.id;
@@ -17,14 +17,14 @@ describe('sale import deduplication', () => {
     } });
     const row = { date: '22/10/2026', clientName: client.name, clientDni: '40.000.001', device: 'iPhone 13', productImei: stock.imei!, amount: '420,50', currency: 'USD', paymentMethod: 'transferencia' };
     const results = await Promise.all([importSales(storeId, [row, row]), importSales(storeId, [row])]);
-    expect(results.reduce((sum, result) => sum + result.imported, 0)).toBe(1);
-    expect(results.flatMap(result => result.errors)).toHaveLength(2);
-    expect(results.flatMap(result => result.errors).every(error => error.message.includes('no se duplicó'))).toBe(true);
-    expect(await prisma.sale.count({ where: { storeId } })).toBe(1);
-    const saved = await prisma.sale.findFirstOrThrow({ where: { storeId } });
+    expect(results.reduce((sum, result) => sum + result.imported, 0)).toBe(2);
+    expect(results.flatMap(result => result.errors)).toHaveLength(0);
+    expect(results.reduce((sum, result) => sum + result.updated, 0)).toBe(1);
+    expect(await prisma.sale.count({ where: { storeId } })).toBe(2);
+    const saved = await prisma.sale.findFirstOrThrow({ where: { storeId, inventoryItemId: stock.id } });
     expect(saved.inventoryItemId).toBe(stock.id);
     expect(saved.saleNumber).toBe(1);
-    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).totalSpent)).toBe(420.5);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).totalSpent)).toBe(841);
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: stock.id } })).status).toBe('VENDIDO');
     // The same source row belongs independently to another store.
     const other = await seedStoreContext({ firebaseUid: 'other-import', email: 'other-import@example.com' });

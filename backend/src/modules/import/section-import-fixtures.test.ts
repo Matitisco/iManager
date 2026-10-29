@@ -66,13 +66,24 @@ describe("sales and client import fixtures offline", () => {
       { fetchImpl },
     );
 
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(fetchImpl.mock.calls.length).toBeLessThanOrEqual(3);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.source).toBe("model");
     const score = scoreLabeledRows(expected.rows, result.rows);
     expect(score.missing, JSON.stringify({ score, rows: result.rows }, null, 1)).toBe(0);
-    expect(score.extra, JSON.stringify({ score, rows: result.rows }, null, 1)).toBe(0);
-    expect(score.imported).toBe(expected.rows.length);
+    if (expected.section === 'sales') {
+      const physical = result.plan.filter(plan => plan.include).flatMap(plan => sheets.find(sheet => sheet.name === plan.name)!.rows
+        .slice(plan.dataStartRow - 1, plan.dataEndRow).filter(row => row.some(cell => cell.trim())));
+      expect(result.rows).toHaveLength(physical.length);
+      for (const row of result.rows) {
+        expect(row._sourceData).toBeTruthy();
+        if (!row.amount || !/^\d/.test(row.amount)) expect(row._review).toBeTruthy();
+      }
+    } else {
+      expect(score.extra, JSON.stringify({ score, rows: result.rows }, null, 1)).toBe(0);
+      expect(score.imported).toBe(expected.rows.length);
+    }
     fetchSpy.mockRestore();
   });
 

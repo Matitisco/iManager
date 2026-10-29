@@ -196,6 +196,8 @@ function sectionAnalysis(kind: 'sales' | 'clients', count: number): ImportAnalys
       paymentMethod: 'TRANSFERENCIA',
       tradeIn: 'iPhone 11',
       seller: 'Martín',
+      _sourceRow: String(index + 2),
+      _sourceSheet: 'Hoja 1',
     }
     : {
       name: index === count - 1 ? 'ZZ-ULTIMO' : `Cliente ${index + 1}`,
@@ -251,12 +253,12 @@ describe('previsualización de ventas y clientes', () => {
     await userEvent.upload(input, new File(['a,b\n1,2\n'], 'planilla.csv', { type: 'text/csv' }));
     expect(await screen.findByTestId('import-preview-count')).toHaveTextContent(`80 ${nouns.many}`);
     expect(screen.getByText(heading)).toBeInTheDocument();
-    expect(screen.getByText(first)).toBeInTheDocument();
+    expect(screen.getAllByText(first).length).toBeGreaterThan(0);
     const preview = screen.getByTestId('import-preview');
     expect(preview.querySelectorAll('[data-testid="import-preview-row"]').length).toBeLessThan(40);
-    preview.scrollTop = 72 * 79;
+    preview.scrollTop = (kind === 'sales' ? 64 : 72) * 79;
     fireEvent.scroll(preview);
-    expect(screen.getByText('ZZ-ULTIMO')).toBeInTheDocument();
+    expect(screen.getAllByText('ZZ-ULTIMO').length).toBeGreaterThan(0);
     unmount();
 
     render(
@@ -275,7 +277,8 @@ describe('previsualización de ventas y clientes', () => {
     if (!(phoneInput instanceof HTMLInputElement)) throw new Error('falta el input');
     await userEvent.upload(phoneInput, new File(['a,b\n1,2\n'], 'planilla.csv', { type: 'text/csv' }));
     expect(await screen.findByText(heading)).toBeInTheDocument();
-    expect(screen.getByTestId('import-preview').parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
+    if (kind === 'sales') expect(screen.getByTestId('sales-import-review')).toBeInTheDocument();
+    else expect(screen.getByTestId('import-preview').parentElement?.parentElement).toHaveAttribute('data-layout', 'cards');
   });
 
   it.each([

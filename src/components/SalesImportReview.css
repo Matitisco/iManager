@@ -1,0 +1,39 @@
+.sheet.sales-import-sheet > .sheet-scroll { display: block; overflow: auto; }
+.sales-import-review { display: grid; gap: 14px; min-width: 0; }
+.sales-import-settings summary { cursor: pointer; }
+.sales-import-range { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-top: 12px; }
+.sales-import-scroll { max-height: 380px; overflow: auto; border: 1px solid var(--border); border-radius: 16px; }
+.sales-import-table { min-width: 100%; width: max-content; table-layout: fixed; }
+.sales-import-table thead { position: sticky; top: 0; z-index: 1; background: var(--card); }
+.sales-import-table th { min-width: 176px; max-width: 220px; vertical-align: top; }
+.sales-import-table th:first-child { min-width: 56px; }
+.sales-import-table th label { display: grid; gap: 6px; }
+.sales-import-table th small { font-weight: 500; text-transform: none; color: var(--secondary); }
+.sales-import-table select { width: 100%; height: 48px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); color: var(--primary); padding: 0 10px; font: inherit; text-transform: none; }
+.sales-import-table td { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sales-import-table td small { display: block; font-size: 12px; color: var(--secondary); overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.sales-import-pending { background: var(--lime-soft); }
+.sales-import-column-review { display: block; white-space: normal; margin-top: 6px; }
+.sales-import-preserved { margin: 0; color: var(--secondary); font-size: 13px; }
+.sales-import-detail { border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+.sales-import-detail ul { list-style: disc; padding-left: 20px; font-size: 13px; display: grid; gap: 6px; }
+.sales-import-detail p { font-size: 13px; margin: 12px 0 0; }
+.sales-import-values { max-height: 210px; overflow: auto; }
+.sales-import-values .kv b { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sales-import-cards, .sales-import-mapping-mobile { display: none; }
+.sales-import-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .sheet.inv-import table.sales-import-table { display: none; }
+  .sales-import-cards, .sales-import-mapping-mobile { display: block; }
+  .sales-import-range { grid-template-columns: 1fr 1fr; }
+  .sales-import-range > :first-child { grid-column: 1 / -1; }
+  .sales-import-mapping-mobile .fl { margin-top: 12px; }
+  .sales-import-mapping-mobile select { width: 100%; height: 48px; font-size: 16px; color: var(--primary); background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; }
+  .desk-app button.sales-import-card { position: absolute; width: 100%; display: grid; align-content: center; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
+  .desk-app button.sales-import-card.sales-import-pending { background: var(--lime-soft); }
+  .sales-import-card > span { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+  .sales-import-card b, .sales-import-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sales-import-card strong { flex-shrink: 0; }
+  .sales-import-card small { font-size: 12px; color: var(--secondary); }
+  .sales-import-detail { padding: 12px; }
+}

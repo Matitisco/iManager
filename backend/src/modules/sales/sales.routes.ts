@@ -77,11 +77,21 @@ export async function salesRoutes(app: FastifyInstance) {
 
   app.post(
     "/import",
-    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("sales")] },
+    { bodyLimit: 6 * 1024 * 1024, preHandler: [authenticate, resolveAppUser, requireSectionAccess("sales")] },
     async (request, reply) => {
       requireMember(request);
 
       const rowSchema = z.object({
+        sourceRow: z.number().int().positive().optional(),
+        _sourceRow: z.string().optional(),
+        _sourceSheet: z.string().optional(),
+        _sourceData: z.string().max(100000).optional(),
+        _possibleTotal: z.string().optional(),
+        _unassigned: z.string().optional(),
+        _exchangeRate: z.string().optional(),
+        _rateSource: z.enum(['historical', 'today']).optional(),
+        _rateDate: z.string().optional(),
+        notes: z.string().optional(),
         sellerMemberId: z.string().min(1).nullable().optional(),
         exchangeRate: z.number().finite().positive().optional(),
         date:          z.string().trim().optional(),
@@ -97,7 +107,7 @@ export async function salesRoutes(app: FastifyInstance) {
         seller:        z.string().trim().optional(),
         status:        z.string().trim().optional(),
       });
-      const { rows } = z.object({ rows: z.array(rowSchema) }).parse(request.body);
+      const { rows } = z.object({ rows: z.array(rowSchema).max(5000) }).parse(request.body);
       const result = await importSales(request.appUser.storeId, rows, await loadActor(request.appUser.userId));
       return reply.code(200).send(result);
     }

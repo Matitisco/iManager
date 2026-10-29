@@ -112,7 +112,7 @@ for (const viewport of viewports) {
         await expect(salesDialog.getByTestId('import-preview-count')).toHaveText('10 ventas');
         await expect(salesDialog.getByText('Ventas a importar')).toBeVisible();
         await expect(salesDialog.getByText('Lucía Fernández').first()).toBeVisible();
-        await expect(salesDialog.getByText('Moneda')).toHaveCount(0);
+        await expect(salesDialog.getByTestId('sales-import-review')).toBeVisible();
         const salesPreview = salesDialog.getByTestId('import-preview');
         await expect(salesPreview).toHaveAttribute('aria-rowcount', '10');
         await page.screenshot({ path: path.join(OUT, `${viewport.name}-ventas-preview.png`) });
