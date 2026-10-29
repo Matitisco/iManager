@@ -152,3 +152,7 @@ export async function markNotificationReadApi(user: AuthUserLike, id: string) {
 export async function markAllNotificationsReadApi(user: AuthUserLike) {
   return request<{ count: number }>(user, '/api/notifications/read-all', 'POST', {});
 }
+
+export async function restoreSaleOperation(user: AuthUserLike, id: string) {
+  return request<OperationResult>(user, `/api/sales/${encodeURIComponent(id)}/restore`, 'POST', {});
+}

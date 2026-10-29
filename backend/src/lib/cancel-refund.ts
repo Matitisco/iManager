@@ -59,7 +59,8 @@ function generalPool(movements: RefundMovement[]): Decimal {
   const loose = Decimal.max(netCollected(unlinked(movements)), ZERO);
   const credited = movements.reduce((total, row) => {
     if (row.kind !== "CREDITO" || !row.saleId) return total;
-    return total.plus(Decimal.max(money(row.amount), ZERO));
+    // Reverting a cancellation compensates its credit with a signed ledger row.
+    return total.plus(money(row.amount));
   }, ZERO);
   return Decimal.max(loose.minus(credited), ZERO);
 }

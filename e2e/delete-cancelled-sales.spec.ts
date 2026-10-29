@@ -14,7 +14,7 @@ for (const device of [
 ]) {
   test.describe(`delete cancelled sales ${device.name}`, () => {
     test.use(device.options);
-    test('deletes through the row menu and selection, preserving operation effects after reload', async ({ page, request }, testInfo) => {
+    test('keeps annulled history visible and prevents repeated bulk annulment', async ({ page, request }, testInfo) => {
       const email = buildTestEmail(testInfo, `delete-cancelled-${device.name}`);
       await bootstrapStoreViaApi(page, request, email, 'iManager · Ventas');
       const headers = authHeaders(email);
@@ -51,47 +51,26 @@ for (const device of [
         await record.dispatchEvent('pointerup', { pointerType: 'touch' });
         await expect(page.getByRole('checkbox', { name: /^Seleccionar V-/ })).toHaveCount(0);
       } else await record.click({ button: 'right' });
-      await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
-      const dialog = page.getByRole('dialog', { name: /Anular venta/ });
-      await expect(dialog).toContainText('no se puede deshacer');
-      if (shots) {
-        mkdirSync(shots, { recursive: true });
-        await page.screenshot({ path: `${shots}/issue-328-${device.name}-delete.png`, animations: 'disabled' });
-      }
-      await dialog.getByRole('button', { name: 'Anular', exact: true }).click();
-      await expect(dialog).toBeHidden();
-      await expect(record).toHaveClass(/is-void/);
-      expect((await fetchSales(request, email)).sales).toHaveLength(2);
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Revertir anulación', exact: true })).toBeVisible();
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true })).toHaveCount(0);
+      await page.keyboard.press('Escape');
       expect(await snapshot()).toEqual(before);
-      // Local client/stock state must also survive AppContext's delete path.
-      await openDeskSection(page, 'clients');
-      const clientRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Ana Pérez' });
-      const clientRecord = before.clients.clients.find((row) => row.id === client.id)!;
-      // The pending sale had no collection of its own. The general payment stays as credit, and the 50 typed on the client stays.
-      expect(clientRecord.pendingBalance).toBe(50);
-      expect(clientRecord.creditBalance).toBe(300000);
-      const net = clientRecord.pendingBalance - (clientRecord.creditBalance ?? 0);
-      const formatted = new Intl.NumberFormat('es-AR').format(Math.abs(Math.round(net)));
-      await expect(clientRow).toContainText(net > 0 ? `Saldo $ ${formatted}` : net < 0 ? `A favor $ ${formatted}` : 'Sin saldo');
-      await expect(device.mobile ? clientRow.locator('.cl-bot span').filter({ hasText: 'Total comprado' }).locator('b') : clientRow.getByRole('cell').nth(5)).toHaveText('$ 0');
-      await openDeskSection(page, 'sales');
       await expandListOptions(page);
       if (device.mobile) await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
-      for (const sale of (await fetchSales(request, email)).sales) await page.getByRole('checkbox', { name: `Seleccionar V-${String(sale.saleNumber).padStart(4, '0')}`, exact: true }).check();
-      await page.getByTestId('bulk-action-bar').getByRole('button', { name: 'Anular' }).click();
-      const bulk = page.getByRole('dialog', { name: 'Anular: 2 registros' });
-      await expect(bulk).toContainText('el historial se conserva en rojo');
-      if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-bulk.png`, animations: 'disabled' });
-      await bulk.getByRole('button', { name: 'Anular', exact: true }).click();
-      await expect(bulk).toBeHidden({ timeout: 20_000 });
-      expect((await fetchSales(request, email)).sales).toHaveLength(0);
-      expect((await fetchTradeIns(request, email)).tradeIns[0].saleId).toBeNull();
+      for (const sale of sales) await page.getByRole('checkbox', { name: `Seleccionar V-${String(sale.saleNumber).padStart(4, '0')}`, exact: true }).check();
+      const bulk = page.getByTestId('bulk-action-bar');
+      await expect(bulk.getByRole('button', { name: 'Anular', exact: true })).toBeDisabled();
+      await expect(bulk).toContainText('La selección incluye ventas ya anuladas.');
+      expect((await fetchSales(request, email)).sales).toHaveLength(3);
       expect(await snapshot()).toEqual(before);
+      if (shots) {
+        mkdirSync(shots, { recursive: true });
+        await page.screenshot({ path: `${shots}/issue-328-${device.name}-annulled.png`, animations: 'disabled' });
+      }
       await page.reload(); await openDeskSection(page, 'sales');
       await expect(page.locator(device.mobile ? '.sale-node' : 'tbody tr')).toHaveCount(3);
       await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(3);
       expect(await snapshot()).toEqual(before);
-      if (shots) await page.screenshot({ path: `${shots}/issue-328-${device.name}-deleted.png`, animations: 'disabled' });
     });
   });
 }

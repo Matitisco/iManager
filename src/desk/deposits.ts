@@ -4,5 +4,5 @@ export function depositAmount(deposit: Pick<ClientDeposit, 'currency' | 'amount'
   if (currency === 'USD') return deposit.usdAmount;
   return rate && rate > 0 ? Math.round(deposit.usdAmount * rate * 100) / 100 : null;
 }
-export const depositStatus = { ACTIVE: 'Activa', CREDIT: 'Saldo a favor', APPLIED: 'Aplicada', REFUNDED: 'Devuelta' };
+export const depositStatus = { ACTIVE: 'Activa', CREDIT: 'Saldo a favor', APPLIED: 'Aplicada', REFUNDED: 'Devuelta', REVERSED: 'Revertida' };
 export const depositAvailable = (row: ClientDeposit) => row.status === 'ACTIVE' || row.status === 'CREDIT';

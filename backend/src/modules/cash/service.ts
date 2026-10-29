@@ -259,3 +259,20 @@ export async function reverseCashSource(tx: Tx, storeId: string, sourceType: str
   const rows = await tx.cashMovement.findMany({ where: { storeId, sourceType, sourceId, voidedAt: null, reversalOf: null } });
   for (const row of rows) await reverse(tx, row, actor, 'Devolución desde el origen');
 }
+
+/** Re-collect exactly the reversed instruments, respecting current open sessions. */
+export async function restoreCashMovements(tx: Tx, storeId: string, ids: string[], actor: Actor) {
+  await lockCash(tx, storeId);
+  const rows = await tx.cashMovement.findMany({ where: { storeId, id: { in: ids } } });
+  for (const row of rows) {
+    const reversal = await tx.cashMovement.findFirst({ where: { storeId, reversalOf: row.id } });
+    if (!reversal) continue;
+    const box = row.registerId ? await register(tx, storeId, row.registerId) : null;
+    const currency = row.currency ?? box!.currency;
+    const method = row.method ?? box!.method;
+    const data = { amount: row.amount, kind: row.kind, category: row.category, sourceType: row.sourceType, sourceId: row.sourceId, exchangeRate: row.exchangeRate, createdBy: actor.userId, requestKey: `restore:${reversal.id}`, note: 'Reversión de anulación de venta' };
+    if (await tx.cashMovement.findFirst({ where: { storeId, requestKey: data.requestKey } })) continue;
+    if (row.registerId) await appendAutomatic(tx, storeId, currency, method, data);
+    else await tx.cashMovement.create({ data: { ...data, storeId, currency, method } });
+  }
+}

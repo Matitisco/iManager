@@ -19,7 +19,7 @@ describe("client balance and deletion", () => {
     expect(clientDeleteRefusal([row("ACTIVE", 1000)], "ARS")).toMatch(/seña activa/);
     expect(clientDeleteRefusal([row("CREDIT", 15500)], "ARS")).toBe("No se puede archivar: tiene saldo a favor ($ 15.500). Registrá la devolución del saldo desde la ficha y volvé a intentar.");
     expect(clientDeleteRefusal([row("CREDIT", 40, "USD", 40, 1)], "USD")).toMatch(/US\$ 40/);
-    expect(clientDeleteRefusal([row("APPLIED", 30), row("REFUNDED", 10)], "ARS")).toBeNull();
+    expect(clientDeleteRefusal([row("APPLIED", 30), row("REFUNDED", 10), row("REVERSED", 20)], "ARS")).toBeNull();
     expect(clientDeleteRefusal([], null)).toBeNull();
   });
 });

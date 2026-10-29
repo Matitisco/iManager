@@ -42,7 +42,7 @@ export function clientDeleteRefusal(deposits: DepositBalanceRow[], balanceCurren
     const formatted = formatArMoney(credit, balanceCurrency === "USD" ? "USD" : "ARS");
     return `No se puede archivar: tiene saldo a favor (${formatted}). Registrá la devolución del saldo desde la ficha y volvé a intentar.`;
   }
-  if (deposits.some((row) => row.status !== "APPLIED" && row.status !== "REFUNDED")) {
+  if (deposits.some((row) => !["APPLIED", "REFUNDED", "REVERSED"].includes(row.status))) {
     return "El cliente tiene señas que todavía no se pueden borrar.";
   }
   return null;
