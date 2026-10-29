@@ -1,0 +1,4 @@
+- [x] Preparar campos automáticos conservando fuentes, descartes y destinos.
+- [x] Aplicar encabezados neutros y revisión desde el pie a 1440 y 390.
+- [x] Probar valores, nombres, duplicados, múltiples hojas, errores y layout.
+- [x] Verificar TypeScript y preparar publicación sobre origin/main con merge condicionado a CI verde.

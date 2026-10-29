@@ -4,12 +4,13 @@ import { ReplayValue } from '../desk/replay-privacy';
 import { DeskSelect } from '../desk/select';
 import { toActionMessage } from '../lib/user-message';
 import React, { useEffect, useRef, useState } from 'react';
-import { Upload, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Upload, AlertCircle, CheckCircle2, ArrowRight, Plus } from 'lucide-react';
 import { Sheet } from '../desk/ui';
 import { assignColumn, columnKey, fieldToColumn, mappingFromFields, planColumns, updatePlanMapping } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
 import { expandTextRows, textRowError } from '../lib/text-import-review';
+import { prepareAutomaticImportFields, unassignedImportColumns, type DiscardedImportColumns } from '../lib/import-custom-fields';
 import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
 import { ListSkeleton } from '../desk/list-skeleton';
@@ -114,6 +115,8 @@ export const ImportModal: React.FC<Props> = ({
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
   const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
+  const [discardedColumns, setDiscardedColumns] = useState<DiscardedImportColumns>({});
+  const [newFieldReview, setNewFieldReview] = useState<{ sheet: string; request: number } | null>(null);
   const [draftDefinitions, setDraftDefinitions] = useState<CustomFieldInput[]>([]);
   const [source, setSource] = useState<'excel' | 'paste' | 'txt'>('excel');
   const [text, setText] = useState('');
@@ -254,6 +257,8 @@ export const ImportModal: React.FC<Props> = ({
         setStep('upload');
         return;
       }
+      setDiscardedColumns({});
+      setNewFieldReview(null);
       setSheets(nextSheets);
       setReadingLabel('Analizando columnas…');
       const analysis = await onAnalyze(nextSheets);
@@ -323,13 +328,25 @@ export const ImportModal: React.FC<Props> = ({
   };
   const inventoryReview = isInventory && !textPreview && step === 'summary';
 
+  const newFieldSheets = included.map(sheet => ({ sheet, columns: unassignedImportColumns(sheet, sheets.find(source => source.name === sheet.name)?.rows ?? [], discardedColumns) }));
+  const newFieldCount = newFieldSheets.reduce((total, source) => total + source.columns.length, 0);
+  const reviewNewFields = () => {
+    const source = newFieldSheets.find(source => source.sheet.name === active?.name && source.columns.length) ?? newFieldSheets.find(source => source.columns.length);
+    if (!source) return;
+    setActiveSheet(source.sheet.name);
+    setNewFieldReview(current => ({ sheet: source.sheet.name, request: (current?.request ?? 0) + 1 }));
+  };
+
   const handleImport = async () => {
     if (importing || !canImport) return;
     setImporting(true);
     setFileError(null);
     try {
-      const definitions = draftDefinitions.filter(definition => selectedRows.some(row => Object.hasOwn(row, `custom:${definition.key}`)));
-      const importingRows = textPreview ? expandTextRows(selectedRows) : selectedRows;
+      const prepared = isInventory && !textPreview
+        ? prepareAutomaticImportFields(selectedRows, sheets, plan, [...customFieldDefinitions, ...draftDefinitions], discardedColumns)
+        : { rows: textPreview ? expandTextRows(selectedRows) : selectedRows, definitions: draftDefinitions.filter(definition => selectedRows.some(row => Object.hasOwn(row, `custom:${definition.key}`))) };
+      const importingRows = prepared.rows;
+      const definitions = prepared.definitions.filter(definition => !customFieldDefinitions.some(existing => existing.key === definition.key));
       const response = definitions.length ? await onImport(importingRows, definitions) : await onImport(importingRows);
       setResult(response);
       setStep('result');
@@ -417,6 +434,7 @@ export const ImportModal: React.FC<Props> = ({
         active={active} sheets={sheets} plan={plan} rows={rows} summary={summary} fields={fields}
         definitions={customFieldDefinitions} drafts={draftDefinitions} currency={currency}
         applying={applying} disabled={importing || Boolean(customFieldDefinitionsError)}
+        discardedColumns={discardedColumns} onDiscardedColumns={setDiscardedColumns} newFieldReview={newFieldReview}
         missing={requiredMissing.map(field => field.label)} focusedField={focusedField}
         discardNotice={<>
           <InventoryDiscardNotice diagnostics={diagnostics} onAssignModel={() => adjustField('model')} />
@@ -658,7 +676,7 @@ export const ImportModal: React.FC<Props> = ({
   };
 
   const footer = (
-    <div className="import-actions">
+    <div className={`import-actions${inventoryReview && newFieldCount ? ' imp-new-field-actions' : ''}`}>
       {step === 'upload' && <>
         <button type="button" className="btn2 s" onClick={onClose}>Cancelar</button>
         <button type="button" className="btn2 p" disabled={source === 'paste' && !text.trim()} onClick={() => source === 'paste' ? void handleText(text) : fileInputRef.current?.click()}>
@@ -668,6 +686,10 @@ export const ImportModal: React.FC<Props> = ({
       {step === 'reading' && <button type="button" className="btn2 s" disabled onClick={backUpload}>Volver</button>}
       {step === 'summary' && <>
         <button type="button" className="btn2 s" disabled={busy} onClick={backUpload}>Volver</button>
+        {inventoryReview && newFieldCount > 0 && <div className="imp-new-field-notice" data-testid="import-new-fields">
+          <span className="imp-new-field-plus"><Plus size={12} aria-hidden="true" /></span>
+          <span>{newFieldCount} {newFieldCount === 1 ? 'columna se guarda como campo nuevo' : 'columnas se guardan como campos nuevos'} · <button type="button" className="wlink" disabled={busy} onClick={reviewNewFields}>Revisar</button></span>
+        </div>}
         {!isInventory && !unrelated && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={openAdjust}>Ajustar importación</button>}
         {(!unrelated || inventoryReview) && <button type="button" className="btn2 p" data-testid="import-confirm" aria-busy={importing} disabled={!canImport || importing || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel} <ArrowRight size={15} aria-hidden="true" /></button>}
       </>}

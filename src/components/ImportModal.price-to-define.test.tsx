@@ -28,7 +28,9 @@ it('importa sin precio y ofrece el filtro del resultado', async () => {
   expect(screen.getByTestId('import-price-notice')).toHaveTextContent('Sin columna de precio');
   expect(screen.queryByTestId('import-skipped-notice')).not.toBeInTheDocument();
   await userEvent.click(screen.getByTestId('import-confirm'));
-  expect(onImport).toHaveBeenCalledWith([{ model: 'iPhone 13' }]);
+  expect(onImport).toHaveBeenCalledWith([{ model: 'iPhone 13', 'custom:cf_costo': '420' }], [
+    expect.objectContaining({ key: 'cf_costo', label: 'Costo', type: 'text' }),
+  ]);
   expect(await screen.findByTestId('import-price-result')).toHaveTextContent('1 equipo quedó con precio a definir');
   await userEvent.click(screen.getByRole('button', { name: 'Ver equipos con precio a definir' }));
   expect(filter).toHaveBeenCalledOnce();

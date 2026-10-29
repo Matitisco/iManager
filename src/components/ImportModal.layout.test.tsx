@@ -133,7 +133,11 @@ it.each([1440, 390].flatMap(width => [false, true].map(warnings => ({ width, war
     expect(screen.queryByRole('dialog', { name: 'Filas descartadas' })).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
     await userEvent.click(screen.getByTestId('import-confirm'));
-    expect(onImport).toHaveBeenCalledWith(value.rows);
+    if (warnings) {
+      expect(onImport.mock.calls[0][0]).toHaveLength(value.rows.length);
+      expect(onImport.mock.calls[0][0][0]).toMatchObject({ ...value.rows[0], 'custom:cf_precio': '420' });
+      expect(onImport.mock.calls[0][1]).toEqual([expect.objectContaining({ label: 'Precio', type: 'text' })]);
+    } else expect(onImport).toHaveBeenCalledWith(value.rows);
   } finally { media.mockRestore(); await page.close(); }
 }, 20000);
 
@@ -158,5 +162,56 @@ it.each([1440, 390])('muestra varias hojas en una línea de chips a %i px', asyn
     if (width === 390) expect(await strip.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true);
     expect(await page.locator('.sheet-scroll').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
     await capture(page, `varias-hojas-${width}`);
+  } finally { await page.close(); }
+});
+
+it.each([1440, 390])('campos nuevos neutros y revisión con pie visible a %i px', async width => {
+  vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: width === 390, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  const value = fixture();
+  value.diagnostics = undefined;
+  const headers = ['Modelo', 'IMEI', 'Batería', 'Precio', 'Obs. interna', '', 'Seguimiento'];
+  const originalRows = value.rows.slice(0, 42).map((row, index) => [row.model, row.imei, row.batteryHealth, row.price, index % 2 ? 'ok' : 'rev. pantalla', index % 2 ? 'cargador' : 'caja', '12/01/27']);
+  value.rows = value.rows.slice(0, 42).map((row, index) => ({ ...row, _sourceRow: String(index + 2), _sourceSheet: 'Stock' }));
+  value.summary.rowCount = 42; value.summary.sheets[0].rows = 42;
+  value.plan[0].dataEndRow = 43;
+  value.plan[0].mapping = headers.map((header, columnIndex) => ({ header, columnIndex, field: ['model', 'imei', 'batteryHealth', 'price', 'ignore', 'ignore', 'ignore'][columnIndex] }));
+  render(<div className="desk-app"><ImportModal fields={fields} nouns={{ one: 'equipo', many: 'equipos' }} onAnalyze={async sheets => {
+    value.plan[0].name = sheets[0].name;
+    value.rows.forEach(row => { row._sourceSheet = sheets[0].name; });
+    return value;
+  }} onApply={vi.fn().mockResolvedValue(value)} onImport={vi.fn().mockResolvedValue({ imported: 42, updated: 0, errors: [] })} onClose={vi.fn()} /></div>);
+  await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File([[headers, ...originalRows].map(row => row.join(',')).join('\n')], 'stock.csv', { type: 'text/csv' }));
+  await screen.findByTestId('import-new-fields');
+  expect(screen.getByTestId('import-column-5')).toHaveTextContent('Campo nuevo: Columna F');
+  const page = await browser.newPage({ viewport: { width, height: width === 390 ? 844 : 900 }, deviceScaleFactor: width === 390 ? 2 : 1 });
+  try {
+    await mount(page);
+    const notice = page.getByTestId('import-new-fields');
+    const confirm = page.getByTestId('import-confirm');
+    const noticeBox = (await notice.boundingBox())!;
+    const confirmBox = (await confirm.boundingBox())!;
+    expect(noticeBox.x).toBeGreaterThanOrEqual(0);
+    expect(noticeBox.x + noticeBox.width).toBeLessThanOrEqual(width);
+    if (width === 390) expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(confirmBox.y);
+    expect(confirmBox.y + confirmBox.height).toBeLessThanOrEqual(width === 390 ? 844 : 900);
+    expect(await confirm.isEnabled()).toBe(true);
+    const newHeader = page.locator('th.imp-unassigned').first();
+    expect(await newHeader.evaluate(node => getComputedStyle(node).borderTopColor)).toBe('rgb(154, 160, 170)');
+    expect(await page.locator('td.imp-unassigned').first().evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 255, 255)');
+    // Static DOM mirror: place the reviewed source after the pinned model at both widths.
+    const revealNew = () => page.getByTestId('import-preview').evaluate(node => {
+      const header = node.querySelector<HTMLElement>('th.imp-unassigned')!;
+      node.scrollLeft = Math.max(0, header.offsetLeft - node.querySelector<HTMLElement>('th.imp-pinned')!.offsetWidth);
+    });
+    if (width === 390) await revealNew();
+    await capture(page, `01-sin-asignar-${width}`);
+    await userEvent.click(screen.getByRole('button', { name: 'Revisar' }));
+    await mount(page);
+    await revealNew();
+    expect(await page.locator('th.imp-new-field-review').count()).toBe(3);
+    expect(await page.locator('th.imp-new-field-review').first().evaluate(node => getComputedStyle(node).borderTopColor)).toBe('rgb(255, 208, 0)');
+    expect(await page.locator('th.imp-new-field-review').first().evaluate(node => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 244, 194)');
+    expect(await page.locator('.sheet-scroll').evaluate(node => node.scrollHeight - node.clientHeight)).toBeLessThanOrEqual(1);
+    await capture(page, `02-revisar-${width}`);
   } finally { await page.close(); }
 });

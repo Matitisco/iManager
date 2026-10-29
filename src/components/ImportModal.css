@@ -124,8 +124,27 @@
 .imp-resize:hover::after, .imp-resize:focus-visible::after, .imp-dragging .imp-resize::after { background: var(--lime); }
 .imp-preview-table th.imp-unused, .imp-preview-table.dtable.compact td.imp-unused { background: var(--bg); color: var(--secondary); border-left: 1px dashed var(--border); }
 .desk-app th.imp-selected button.imp-heading-label { box-shadow: 0 0 0 1px var(--primary); }
-.imp-preview-table th.imp-unassigned, .imp-preview-table.dtable.compact td.imp-unassigned { background: var(--err-soft); border-left: 1px solid var(--err); }
-.imp-preview-table th.imp-unassigned .imp-heading-label b, .imp-preview-table th.imp-unassigned .imp-heading-content small { color: var(--err); }
+.imp-preview-table th.imp-unassigned { border-top: 3px solid var(--section); border-left: 1px solid var(--border); }
+.imp-preview-table.dtable.compact td.imp-unassigned { background: var(--card); border-left: 1px solid var(--border); }
+.imp-new-field-plus { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--row); color: var(--secondary); box-shadow: inset 0 0 0 1px var(--border); }
+.imp-new-field-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); font-weight: 600; }
+.imp-new-field-label [data-ph-mask] { color: var(--primary); font-weight: 800; }
+.imp-preview-table th.imp-new-field-review { background: var(--lime-soft); border-top-color: var(--lime); }
+.imp-preview-table.dtable.compact td.imp-new-field-review { background: color-mix(in srgb, var(--lime-soft) 62%, var(--card)); }
+.imp-new-field-review .imp-new-field-plus { background: var(--lime); box-shadow: none; color: var(--primary); }
+.imp-new-field-review .imp-new-field-plus svg { color: var(--primary); }
+.imp-new-field-actions { flex-wrap: nowrap; gap: 16px; }
+.imp-new-field-actions > .btn2.s { flex: 0 0 180px; }
+.imp-new-field-actions > .btn2.p { flex: 0 0 300px; margin-left: 0; }
+.imp-new-field-notice { display: flex; flex: 1; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; color: var(--secondary); font-size: 13px; line-height: 1.4; text-align: right; }
+.imp-new-field-notice .wlink { color: var(--primary); font-size: inherit; font-weight: 800; }
+@media (max-width: 1000px) {
+  .imp-new-field-actions { flex-wrap: wrap; gap: 10px; }
+  .imp-new-field-notice { order: -1; flex-basis: 100%; justify-content: flex-start; text-align: left; }
+  .imp-new-field-notice > .imp-new-field-plus { display: none; }
+  .imp-new-field-actions > .btn2.s { flex: 1; }
+  .imp-new-field-actions > .btn2.p { flex: 1.5; }
+}
 .imp-dragging { outline: 2px solid var(--lime); outline-offset: -2px; }
 .imp-resize:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 .imp-table-notices { margin-top: 14px; flex: none; }
@@ -137,14 +156,9 @@
 .imp-review-notices { justify-content: flex-start; flex: 1; }
 .imp-review-chips { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-left: auto; }
 .desk-app button.imp-pending-chip { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
-.desk-app button.imp-unassigned-chip { background: var(--err-soft); border-color: var(--err); color: var(--err); }
-.imp-unassigned-chip .imp-state-dot { background: var(--err); }
 .imp-table-title h4 > span { font-weight: 500; margin-left: 8px; }
 .imp-preview-table th.imp-pending, .imp-preview-table.dtable.compact td.imp-pending { background: var(--lime-soft); }
 .imp-preview-table th.imp-pending { border-top: 3px solid var(--lime); }
-.imp-preview-table th.imp-unassigned { border-top: 3px solid var(--err); }
-.desk-app th.imp-unassigned button.imp-heading-label { border-color: var(--err); color: var(--err); }
-.imp-unassigned .imp-state-dot { background: var(--err); }
 .desk-app th.imp-unused:not(.imp-unassigned) button.imp-heading-label { border-style: dashed; background: transparent; color: var(--secondary); }
 .imp-heading-label:focus-visible, .imp-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .imp-picker-layer { position: fixed; inset: 0; z-index: 120; }
