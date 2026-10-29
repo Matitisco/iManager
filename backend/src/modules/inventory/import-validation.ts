@@ -19,6 +19,12 @@ type Row = {
 };
 
 export const ILLEGIBLE_IMEI_MESSAGE = 'IMEI ilegible: el Excel guardó el número en notación científica y se perdieron dígitos; formateá la columna como texto';
+export const POSSIBLE_TOTAL_NOTE = 'Parece una fila de total';
+
+export function isPossibleInventoryTotal(raw: Row, cells: string[]): boolean {
+  // Even an unreadable identifier is evidence of a device, before any cleanup.
+  return !raw.imei?.trim() && cells.some(cell => /\b(?:total(?:es)?|sub\s*total(?:es)?|suma)\b/i.test(cell));
+}
 
 function parseImportImei(value: string | undefined) {
   let text = value?.trim() ?? '';
@@ -106,6 +112,9 @@ export function prepareInventoryImportRow(raw: Record<string, string>, row: numb
   const next = { ...raw };
   const notes: string[] = [];
   let needsReview = false;
+  // The spreadsheet stage inspects original cells before identifiers are cleaned.
+  // Confirmation only preserves that decision; origin notes are not new evidence.
+  if (raw.batteryNote?.split('\n').includes(POSSIBLE_TOTAL_NOTE)) needsReview = true;
   const preserve = (field: string, fallback = '') => {
     needsReview = true;
     if (next[field]?.trim()) notes.push(`${field} (origen): ${next[field]}`);

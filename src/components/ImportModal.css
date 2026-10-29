@@ -159,6 +159,9 @@
 .imp-table-title h4 > span { font-weight: 500; margin-left: 8px; }
 .imp-preview-table th.imp-pending, .imp-preview-table.dtable.compact td.imp-pending { background: var(--lime-soft); }
 .imp-preview-table th.imp-pending { border-top: 3px solid var(--lime); }
+.imp-preview-table.dtable.compact .imp-total-row td { background: #fffbeb; color: #92400e; }
+.imp-total-note { display: block; overflow: hidden; text-overflow: ellipsis; font-size: 10px; font-weight: 600; }
+.imp-total-count { align-self: center; color: #92400e; font-size: 12px; font-weight: 600; }
 .desk-app th.imp-unused:not(.imp-unassigned) button.imp-heading-label { border-style: dashed; background: transparent; color: var(--secondary); }
 .imp-heading-label:focus-visible, .imp-picker button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .imp-picker-layer { position: fixed; inset: 0; z-index: 120; }

@@ -33,6 +33,9 @@ it.each(fixtures)('$file: every nonempty source row survives preview, apply, com
   expect(response.statusCode, response.body).toBe(200);
   expect(response.json()).toMatchObject({ imported: count, updated: 0, errors: [] });
   expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(count);
+  const possibleTotals = await prisma.inventoryItem.findMany({ where: { storeId: store!.id, batteryNote: { contains: 'Parece una fila de total' } } });
+  expect(possibleTotals).toHaveLength(fixture.file.startsWith('natan') ? 0 : 1);
+  for (const total of possibleTotals) expect(total.status).toBe('EN_REVISION');
   if (fixture.file.startsWith('natan')) {
     const duplicate = await prisma.inventoryItem.findFirstOrThrow({ where: { storeId: store!.id, batteryNote: { contains: 'IMEI duplicado en el archivo:' } } });
     expect(duplicate).toMatchObject({ imei: null, status: 'EN_REVISION' });

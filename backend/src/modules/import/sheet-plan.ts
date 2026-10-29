@@ -4,7 +4,7 @@ import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, isPurchaseHeader, normalizeHeader, isIgnoredInventoryHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
-import { isInventoryFooter, prepareInventoryImportRow } from "../inventory/import-validation.js";
+import { isInventoryFooter, isPossibleInventoryTotal, POSSIBLE_TOTAL_NOTE, prepareInventoryImportRow } from "../inventory/import-validation.js";
 import { recordRejection, countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
@@ -607,6 +607,7 @@ export function applyPlans(
     const usdHeader = headers.find((header) => priceKind(header) === "usd") ?? "";
     const usdIndex = usdHeader ? headers.indexOf(usdHeader) : -1;
     let count = 0;
+    const totals = headers.map(() => ({ sum: 0, count: 0, subtotal: 0, subtotalCount: 0 }));
     const start = Math.max(plan.headerRow + 1, plan.dataStartRow);
     const end = Math.min(grid.length, Math.max(start - 1, plan.dataEndRow));
 
@@ -635,6 +636,27 @@ export function applyPlans(
           const value = (line[index] ?? "").trim();
           record[column.field] = column.field === "batteryNote" && record.batteryNote
             ? (value ? `${record.batteryNote}; ${value}` : record.batteryNote) : value;
+        }
+        if (section === "inventory") {
+          const values = line.map(parseMoney);
+          const matchesSum = !record.model?.trim() && !record.imei?.trim() && values.some((value, index) => {
+            const total = totals[index];
+            return value != null && value > 0 && total && ((total.count >= 2 && Math.abs(value - total.sum) < 0.005)
+              || (total.subtotalCount >= 2 && Math.abs(value - total.subtotal) < 0.005));
+          });
+          if (isPossibleInventoryTotal(record, line) || matchesSum) {
+            record.batteryNote = [record.batteryNote, POSSIBLE_TOTAL_NOTE].filter(Boolean).join('\n');
+            record.status = 'EN_REVISION';
+            // Do not count previous aggregates twice; keep both section and grand totals.
+            for (const total of totals) { total.subtotal = 0; total.subtotalCount = 0; }
+          } else {
+            values.forEach((value, index) => {
+              if (value != null && value > 0 && totals[index]) {
+                totals[index].sum += value; totals[index].count += 1;
+                totals[index].subtotal += value; totals[index].subtotalCount += 1;
+              }
+            });
+          }
         }
         // Unmapped columns still belong to this physical device. Keep their raw cells in notes.
         if (section === "inventory") {
