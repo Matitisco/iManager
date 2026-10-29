@@ -15,6 +15,8 @@ const context = vi.hoisted(() => ({
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
+const flags = vi.hoisted(() => ({ IMPORT_SALES_ENABLED: false }));
+vi.mock('../../config/featureFlags', () => flags);
 
 function sale(number: number, overrides: Partial<Sale> = {}): Sale {
   return {
@@ -343,5 +345,21 @@ describe.each([390, 1440])('unified void status at %ipx', width => {
     expect(screen.getByText('Cliente 2')).toBeInTheDocument();
     expect(screen.getByText('Cliente 3')).toBeInTheDocument();
     expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
+  });
+});
+
+describe('sales import feature flag', () => {
+  const originalMatchMedia = window.matchMedia;
+  afterEach(() => { window.matchMedia = originalMatchMedia; flags.IMPORT_SALES_ENABLED = false; });
+
+  it.each([false, true])('hides import and restores it when enabled (phone=%s)', phone => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [];
+    const view = renderScreen();
+    expect(screen.queryByRole('button', { name: 'Importar' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Registrar venta' }).length).toBeGreaterThan(0);
+    flags.IMPORT_SALES_ENABLED = true;
+    view.rerender(<DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider>);
+    expect(screen.getByRole('button', { name: 'Importar' })).toBeInTheDocument();
   });
 });

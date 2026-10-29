@@ -1,3 +1,4 @@
+import { IMPORT_SALES_ENABLED } from '../config/featureFlags';
 import { useModalLayer } from './modal-layer';
 import { archivedReturn, voidedSale } from './archive-cache';
 import { StockOnboarding } from '../pages/StockOnboarding';
@@ -31,7 +32,7 @@ import { ReturnDelete, ReturnDetail, ReturnForm } from './overlays/return-case';
 import { SupplierDetail, SupplierForm } from './overlays/supplier';
 
 export function DeskOverlays({ overlay, onSaved }: { overlay: Overlay | null; onSaved?: () => void | Promise<void> }) {
-  if (!overlay) return null;
+  if (!overlay || (overlay.type === 'import' && overlay.kind === 'sale' && !IMPORT_SALES_ENABLED)) return null;
   if (overlay.type === 'ctx') return <ContextMenu overlay={overlay} />;
   if (overlay.type === 'import') return <ImportHost kind={overlay.kind} supplierId={overlay.supplierId} supplierName={overlay.supplierName} onSaved={onSaved} />;
   return <OverlayBody key={`${overlay.type}-${'id' in overlay ? overlay.id : ''}`} overlay={overlay} onSaved={onSaved} />;

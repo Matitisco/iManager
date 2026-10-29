@@ -9,6 +9,9 @@ import { rememberVoidedSales } from './archive-cache';
 
 const ctx = vi.hoisted(() => ({ sales: [{ id: 'sale', status: 'COMPLETADA', voidedAt: null as string | null }], returns: [] }));
 const layout = vi.hoisted(() => ({ phone: false }));
+const flags = vi.hoisted(() => ({ IMPORT_SALES_ENABLED: false }));
+vi.mock('../config/featureFlags', () => flags);
+vi.mock('./overlays/import', () => ({ ImportHost: ({ kind }: { kind: string }) => <div data-testid={`import-${kind}`} /> }));
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('./section-notices', async original => ({ ...await original<typeof import('./section-notices')>(), usePhoneLayout: () => layout.phone }));
 const close = vi.fn(); const open = vi.fn();
@@ -118,5 +121,23 @@ describe('measured context menu placement', () => {
     expect(menu().querySelector('.sheet-grab')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Seleccionar varios' }));
     expect(onSelect).toHaveBeenCalledOnce(); expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe('sales import feature flag', () => {
+  afterEach(() => { flags.IMPORT_SALES_ENABLED = false; });
+
+  it.each([false, true])('blocks direct sales import overlays (phone=%s)', phone => {
+    layout.phone = phone;
+    const view = render(<DeskOverlays overlay={{ type: 'import', kind: 'sale' }} />);
+    expect(screen.queryByTestId('import-sale')).not.toBeInTheDocument();
+    flags.IMPORT_SALES_ENABLED = true;
+    view.rerender(<DeskOverlays overlay={{ type: 'import', kind: 'sale' }} />);
+    expect(screen.getByTestId('import-sale')).toBeInTheDocument();
+  });
+
+  it.each(['inv', 'cl'] as const)('keeps the %s import available', kind => {
+    render(<DeskOverlays overlay={{ type: 'import', kind }} />);
+    expect(screen.getByTestId(`import-${kind}`)).toBeInTheDocument();
   });
 });
