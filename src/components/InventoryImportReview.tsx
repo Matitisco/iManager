@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical, Plus } from 'lucide-react';
 import { ImportColumnPicker } from './ImportColumnPicker';
 import { Field, Segs } from '../desk/ui';
 import { ReplayValue } from '../desk/replay-privacy';
 import { columnLetter, importColumns, assignImportColumn, reorderPreviewColumns, resizePreviewColumn } from '../lib/import-preview';
+import { automaticFieldName, unassignedImportColumns, importColumnScope, type DiscardedImportColumns } from '../lib/import-custom-fields';
 import { updatePlanMapping } from '../lib/import-mapping';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
@@ -27,6 +28,9 @@ interface Props {
   onSheet: (name: string) => void;
   onChange: (plan: ImportSheetPlan[], refresh: boolean) => void;
   onDraft: (definition: CustomFieldInput) => void;
+  discardedColumns?: DiscardedImportColumns;
+  onDiscardedColumns?: (value: DiscardedImportColumns) => void;
+  newFieldReview?: { sheet: string; request: number } | null;
   discardNotice?: ReactNode;
   children?: ReactNode;
 }
@@ -79,7 +83,7 @@ function HeaderSettings({ active, rowCount, disabled, onChange }: {
   </div>;
 }
 
-export function InventoryImportReview({ active, sheets, plan, rows, summary, fields, definitions, drafts, currency, missing, applying, disabled, focusedField, onSheet, onChange, onDraft, discardNotice, children }: Props) {
+export function InventoryImportReview({ active, sheets, plan, rows, summary, fields, definitions, drafts, currency, missing, applying, disabled, focusedField, onSheet, onChange, onDraft, discardedColumns = {}, onDiscardedColumns, newFieldReview, discardNotice, children }: Props) {
   const grid = sheets.find(sheet => sheet.name === active.name)?.rows ?? [];
   const mapping = importColumns(active, grid);
   const all = [...definitions, ...drafts];
@@ -99,9 +103,9 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const gesture = useRef<{ key: string; kind: 'resize' | 'reorder'; x: number; width: number; target: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [gestureKey, setGestureKey] = useState<string | null>(null);
-  const scope = `${active.name}:${active.headerRow}`;
-  const [discardedColumns, setDiscardedColumns] = useState<Record<string, number[]>>({});
-  const unassigned = new Set(mapping.filter(column => column.field === 'ignore' && !discardedColumns[scope]?.includes(column.columnIndex)).map(column => column.columnIndex));
+  const scope = importColumnScope(active);
+  const [reviewingNewFields, setReviewingNewFields] = useState(false);
+  const unassigned = new Set(unassignedImportColumns(active, grid, discardedColumns).map(column => column.columnIndex));
   const destinations: PreviewColumn[] = mapping.map(column => ({
     key: column.field === 'ignore' ? `unused:${column.columnIndex}` : column.field,
     label: catalog.find(field => field.key === column.field)?.label ?? all.find(field => `custom:${field.key}` === column.field)?.label ?? column.header,
@@ -116,7 +120,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   });
   const pending = columns.filter(column => column.pending);
   const order = columns.map(column => column.key);
-  const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : 160);
+  const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : unassigned.has(columns.find(column => column.key === key)?.source ?? -1) ? 260 : 160);
   const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
   const start = Math.min(Math.max(0, sheetRows.length - 1), Math.max(0, Math.floor((scrollTop - HEADER_HEIGHT) / ROW_HEIGHT) - 5));
   const end = Math.min(sheetRows.length, start + 24);
@@ -135,7 +139,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     anchor.focus({ preventScroll: true });
     if (open) { setCreating(null); setPicker({ source, anchor, search }); }
   };
-  useEffect(() => { setPicker(null); setCreating(null); setHighlightSource(null); cursors.current = { pending: null, unassigned: null }; setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
+  useEffect(() => { setPicker(null); setCreating(null); setHighlightSource(null); setReviewingNewFields(false); cursors.current = { pending: null, unassigned: null }; setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
   useEffect(() => {
     if (!focusedField) return;
     const source = mapping.find(column => unassigned.has(column.columnIndex))?.columnIndex ?? mapping[0]?.columnIndex;
@@ -150,11 +154,16 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     cursors.current[kind] = source;
     reveal(source, false);
   };
+  useEffect(() => {
+    if (newFieldReview?.sheet !== active.name) return;
+    setReviewingNewFields(true);
+    revealNext('unassigned');
+  }, [newFieldReview]);
   const closePicker = () => { setPicker(null); setCreating(null); };
   const assign = (index: number, field: string) => {
-    setDiscardedColumns(current => ({ ...current, [scope]: field === 'ignore'
-      ? [...new Set([...(current[scope] ?? []), index])]
-      : (current[scope] ?? []).filter(column => column !== index) }));
+    onDiscardedColumns?.({ ...discardedColumns, [scope]: field === 'ignore'
+      ? [...new Set([...(discardedColumns[scope] ?? []), index])]
+      : (discardedColumns[scope] ?? []).filter(column => column !== index) });
     const next = assignImportColumn(active, grid, index, field);
     const required = fields.filter(item => item.required).map(item => item.key);
     onChange(plan.map(sheet => sheet.name === active.name ? updatePlanMapping(active, next.mapping, required) : sheet), false);
@@ -239,9 +248,6 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
         {pending.length > 0 && <button type="button" className="dsel imp-pending-chip on" disabled={disabled} onClick={() => revealNext('pending')}>
           <span className="imp-state-dot" />{pending.length} por revisar<ChevronRight size={16} aria-hidden="true" />
         </button>}
-        {unassigned.size > 0 && <button type="button" className="dsel imp-pending-chip imp-unassigned-chip" disabled={disabled} onClick={() => revealNext('unassigned')}>
-          <span className="imp-state-dot" />{unassigned.size} sin asignar<ChevronRight size={16} aria-hidden="true" />
-        </button>}
       </div>
     </div>
     {sheets.length > 1 && <div className="imp-sources" role="group" aria-label="Hojas a importar">
@@ -267,14 +273,14 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <thead><tr>{columns.map(column => <th key={column.source} data-column-index={column.source} data-preview-key={column.key} scope="col"
               onPointerDown={event => { if (event.pointerType === 'touch') suppressClick.current = false; else begin(event, column.key, 'reorder'); }}
               onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } reveal(column.source, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } reveal(column.source, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
               <div className="imp-column-heading">
                 <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || undefined}
                   onPointerDown={event => { begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onClick={event => event.stopPropagation()} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
                   onKeyDown={event => { if (['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); reorder(column.key, order.indexOf(column.key) + (event.key === 'ArrowLeft' ? -1 : 1)); } }}><GripVertical size={18} aria-hidden="true" /></button>
-                <div className="imp-heading-content"><button type="button" className="imp-heading-label" data-testid={`import-column-${column.source}`} aria-label={`Importar ${column.header} como`} aria-haspopup="dialog" aria-description={`${column.unused ? unassigned.has(column.source) ? 'Sin asignar' : 'Descartada' : column.label}${column.pending ? ' · Por revisar' : ''}`} aria-expanded={picker?.source === column.source} disabled={disabled}>
-                  <b>{(unassigned.has(column.source) || column.pending) && <span className="imp-state-dot" />}<ReplayValue>{column.unused ? unassigned.has(column.source) ? 'Sin asignar' : 'Descartada' : column.label}</ReplayValue></b><ChevronDown size={14} aria-hidden="true" />
-                </button><small title={column.pending ? mapping.find(item => item.columnIndex === column.source)?.review?.join(' ') : column.header}><ReplayValue>{unassigned.has(column.source) || column.pending ? `${columnLetter(column.source)} · ${column.header}` : `Excel · ${columnLetter(column.source)}`}</ReplayValue></small></div>
+                <div className="imp-heading-content"><button type="button" className="imp-heading-label" data-testid={`import-column-${column.source}`} aria-label={`Importar ${column.header} como`} aria-haspopup="dialog" aria-description={`${column.unused ? unassigned.has(column.source) ? `Campo nuevo: ${automaticFieldName(active, grid, column.source)}` : 'Descartada' : column.label}${column.pending ? ' · Por revisar' : ''}`} aria-expanded={picker?.source === column.source} disabled={disabled}>
+                  <b>{unassigned.has(column.source) ? <><span className="imp-new-field-plus"><Plus size={12} aria-hidden="true" /></span><span className="imp-new-field-label">Campo nuevo: <ReplayValue>{automaticFieldName(active, grid, column.source)}</ReplayValue></span></> : <>{column.pending && <span className="imp-state-dot" />}<ReplayValue>{column.unused ? 'Descartada' : column.label}</ReplayValue></>}</b><ChevronDown size={14} aria-hidden="true" />
+                </button><small title={column.pending ? mapping.find(item => item.columnIndex === column.source)?.review?.join(' ') : column.header}><ReplayValue>{column.pending ? `${columnLetter(column.source)} · ${column.header}` : `Excel · ${columnLetter(column.source)}`}</ReplayValue></small></div>
 
               </div>
               <span className="imp-resize" role="separator" tabIndex={0} aria-orientation="vertical" aria-label={column.unused ? `Ancho de columna sin usar ${columnLetter(column.source!)}: ${column.label}` : `Ancho de ${column.label}`} aria-valuemin={100} aria-valuemax={480} aria-valuenow={widthFor(column.key)}
@@ -284,7 +290,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
               {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2}>
-                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
+                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>

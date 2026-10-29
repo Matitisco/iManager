@@ -68,12 +68,16 @@ it.each([1440, 1024, 390])('revisa y confirma sin panel lateral a %i px', async 
   expect(screen.getByRole('dialog', { name: 'Importar equipos' })).toHaveClass('sheet-frame', 'imp-review-sheet');
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   expect(table().getAllByRole('columnheader')).toHaveLength(6);
-  expect(screen.getByRole('button', { name: '3 sin asignar' })).toBeVisible();
+  expect(screen.getByTestId('import-new-fields')).toHaveTextContent('3 columnas se guardan como campos nuevos · Revisar');
+  expect(screen.queryByRole('button', { name: /sin asignar/ })).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Incluir hoja Stock')).not.toBeInTheDocument();
   const confirm = screen.getByTestId('import-confirm');
   expect(confirm.closest('.sheet-foot')).toBeInTheDocument();
   await userEvent.click(confirm);
   expect(onImport).toHaveBeenCalledOnce();
+  expect(onImport.mock.calls[0][0]).toHaveLength(2);
+  expect(onImport.mock.calls[0][0][0]).toMatchObject({ 'custom:cf_precio': '420', 'custom:cf_obs_interna': 'pantalla', 'custom:cf_vacia': '' });
+  expect(onImport.mock.calls[0][1]).toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Obs. interna', type: 'text' })]));
   expect(await screen.findByText('Importación completada')).toBeVisible();
 });
 
@@ -88,7 +92,7 @@ it('busca campos sin tildes, muestra su letra y mueve el destino usado', async (
   expect(within(picker()).getByRole('button', { name: 'Precio' })).toBeVisible();
   expect(within(picker()).queryByRole('button', { name: 'Modelo' })).not.toBeInTheDocument();
   await userEvent.click(within(picker()).getByRole('button', { name: 'Precio' }));
-  expect(trigger('Precio')).toHaveTextContent('Sin asignar');
+  expect(trigger('Precio')).toHaveTextContent('Campo nuevo:');
   expect(header('Precio')).toHaveClass('imp-unassigned');
   await waitFor(() => expect(table().getByText('pantalla')).toBeVisible());
   await userEvent.click(screen.getByTestId('import-confirm'));
@@ -100,7 +104,7 @@ it('descarta sin bloquear y permite reasignar una columna descartada', async () 
   await choose('Precio', 'Descartar');
   expect(header('Precio')).not.toHaveClass('imp-unassigned');
   expect(trigger('Precio')).toHaveTextContent('Descartada');
-  expect(screen.getByRole('button', { name: '2 sin asignar' })).toBeVisible();
+  expect(screen.getByTestId('import-new-fields')).toHaveTextContent('2 columnas se guardan como campos nuevos');
   await choose('Precio', 'Precio');
   await waitFor(() => expect(onApply).toHaveBeenCalled());
   await userEvent.click(trigger('Obs. interna'));
@@ -154,7 +158,7 @@ it.each([1440, 390])('Escape cierra selector y restaura foco sin cerrar importac
   expect(onClose).not.toHaveBeenCalled();
 });
 
-it('separa dudas amarillas y sin asignar rojas con recorridos independientes en orden visual', async () => {
+it('separa dudas amarillas y campos nuevos neutros con recorridos independientes en orden visual', async () => {
   const plan = sheetPlan();
   plan.mapping[0].review = ['Revisar modelo'];
   plan.mapping[4].review = ['Revisar calidad'];
@@ -172,9 +176,9 @@ it('separa dudas amarillas y sin asignar rojas con recorridos independientes en 
   grip.focus(); await userEvent.keyboard('{ArrowRight}');
   const preview = screen.getByTestId('import-preview'); preview.scrollTop = 44;
   for (const [chip, source] of [
-    ['2 por revisar', 'Modelo'], ['3 sin asignar', 'Obs. interna'],
-    ['2 por revisar', 'Calidad'], ['3 sin asignar', 'Precio'],
-    ['2 por revisar', 'Modelo'], ['3 sin asignar', 'Vacía'], ['3 sin asignar', 'Obs. interna'],
+    ['2 por revisar', 'Modelo'], ['Revisar', 'Obs. interna'],
+    ['2 por revisar', 'Calidad'], ['Revisar', 'Precio'],
+    ['2 por revisar', 'Modelo'], ['Revisar', 'Vacía'], ['Revisar', 'Obs. interna'],
   ]) {
     await userEvent.click(screen.getByRole('button', { name: chip }));
     expect(trigger(source)).toHaveFocus();
@@ -187,7 +191,8 @@ it('separa dudas amarillas y sin asignar rojas con recorridos independientes en 
   await choose('Calidad', 'Calidad · Texto');
   await waitFor(() => expect(screen.queryByRole('button', { name: /por revisar/ })).not.toBeInTheDocument());
   expect(header('Calidad')).not.toHaveClass('imp-pending');
-  expect(screen.getByRole('button', { name: '3 sin asignar' })).toBeVisible();
+  expect(screen.getByTestId('import-new-fields')).toHaveTextContent('3 columnas se guardan como campos nuevos · Revisar');
+  expect(screen.queryByRole('button', { name: /sin asignar/ })).not.toBeInTheDocument();
 });
 
 it('en 16 columnas cuenta y recorre solo G y L–P sin mostrar por revisar', async () => {
@@ -200,11 +205,11 @@ it('en 16 columnas cuenta y recorre solo G y L–P sin mostrar por revisar', asy
   }));
   const { onApply } = await setup({ plan: [plan], sheets: [{ name: 'Stock', rows: [headers, headers.map((_, i) => i === 0 ? 'iPhone 13' : `Dato ${i}`)] }] });
   expect(screen.queryByRole('button', { name: /por revisar/ })).not.toBeInTheDocument();
-  expect(screen.getByRole('button', { name: '6 sin asignar' })).toBeVisible();
+  expect(screen.getByTestId('import-new-fields')).toHaveTextContent('6 columnas se guardan como campos nuevos');
   expect(document.querySelectorAll('th.imp-pending')).toHaveLength(0);
   expect(document.querySelectorAll('th.imp-unassigned')).toHaveLength(6);
   for (const i of [...red, red[0]]) {
-    await userEvent.click(screen.getByRole('button', { name: '6 sin asignar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Revisar' }));
     expect(trigger(headers[i])).toHaveFocus();
   }
   expect(onApply).not.toHaveBeenCalled();
@@ -216,6 +221,7 @@ it('oculta ambos chips al descartar las últimas sin asignar y no cuenta dudas d
   for (const source of ['Precio', 'Obs. interna', 'Vacía']) await choose(source, 'Descartar');
   await waitFor(() => expect(screen.queryByRole('button', { name: /sin asignar|por revisar|Todo asignado/ })).not.toBeInTheDocument());
   expect(document.querySelectorAll('th.imp-pending, th.imp-unassigned')).toHaveLength(0);
+  expect(screen.queryByTestId('import-new-fields')).not.toBeInTheDocument();
 });
 
 it('Asignar abre Precio en primera libre y permite repetir el acceso', async () => {
@@ -243,13 +249,13 @@ it('teclado y pointer redimensionan/reordenan sin modificar el plan', async () =
   expect(table().getAllByRole('columnheader').slice(0, 3).map(node => node.dataset.columnIndex)).toEqual(['0', '2', '1']);
   const edge = table().getByRole('separator', { name: /Ancho de columna sin usar B/ });
   edge.focus(); await userEvent.keyboard('{ArrowRight}');
-  expect(edge).toHaveAttribute('aria-valuenow', '180');
+  expect(edge).toHaveAttribute('aria-valuenow', '280');
   vi.stubGlobal('PointerEvent', MouseEvent);
   try {
     fireEvent.pointerDown(edge, { clientX: 100, button: 0 });
     fireEvent.pointerMove(edge, { clientX: 140 });
     fireEvent.pointerUp(edge, { clientX: 140 });
-    expect(edge).toHaveAttribute('aria-valuenow', '220');
+    expect(edge).toHaveAttribute('aria-valuenow', '320');
     fireEvent.pointerDown(grip, { clientX: 500, button: 0 });
     fireEvent.pointerMove(grip, { clientX: 190 });
     fireEvent.pointerUp(grip, { clientX: 190 });
@@ -257,7 +263,7 @@ it('teclado y pointer redimensionan/reordenan sin modificar el plan', async () =
   } finally { vi.unstubAllGlobals(); }
   expect(onApply).not.toHaveBeenCalled();
   await userEvent.click(screen.getByTestId('import-confirm'));
-  expect(onImport.mock.calls[0][0]).toEqual(value.rows);
+  expect(onImport.mock.calls[0][0]).toEqual(value.rows.map((row, index) => ({ ...row, 'custom:cf_precio': stock[index + 1][1], 'custom:cf_obs_interna': stock[index + 1][2], 'custom:cf_vacia': stock[index + 1][3] })));
 });
 
 it('debounce agrupa cambios y descarta respuestas viejas', async () => {
@@ -306,9 +312,9 @@ it('conserva descartes, orden y ancho físicos entre hojas con encabezados dupli
   await userEvent.click(screen.getByTestId('import-column-1'));
   await userEvent.click(within(picker()).getByRole('button', { name: 'Descartar' }));
   expect(screen.getByTestId('import-column-1')).toHaveTextContent('Descartada');
-  expect(screen.getByTestId('import-column-2')).toHaveTextContent('Sin asignar');
+  expect(screen.getByTestId('import-column-2')).toHaveTextContent('Campo nuevo:');
   await userEvent.click(screen.getByRole('button', { name: 'Otra' }));
-  expect(screen.getByTestId('import-column-1')).toHaveTextContent('Sin asignar');
+  expect(screen.getByTestId('import-column-1')).toHaveTextContent('Campo nuevo:');
   await userEvent.click(screen.getByRole('button', { name: 'Stock' }));
   expect(screen.getByTestId('import-column-1')).toHaveTextContent('Descartada');
 });
@@ -419,4 +425,36 @@ it('arrastra desde trigger en escritorio, mantiene scroll táctil y permite abri
     expect(picker()).toBeVisible();
     expect(onApply).not.toHaveBeenCalled();
   } finally { vi.unstubAllGlobals(); }
+});
+
+it('Revisar desplaza horizontalmente, resalta todas las nuevas y conserva las filas visibles', async () => {
+  await setup();
+  const preview = screen.getByTestId('import-preview');
+  preview.scrollTop = 44;
+  Object.defineProperty(preview, 'clientWidth', { configurable: true, value: 380 });
+  Object.defineProperty(header('Precio'), 'offsetLeft', { configurable: true, value: 500 });
+  Object.defineProperty(header('Precio'), 'offsetWidth', { configurable: true, value: 260 });
+  expect(header('Precio')).not.toHaveClass('imp-new-field-review');
+  await userEvent.click(screen.getByRole('button', { name: 'Revisar' }));
+  expect(preview.scrollLeft).toBe(320);
+  expect(preview.scrollTop).toBe(44);
+  expect(trigger('Precio')).toHaveFocus();
+  expect(document.querySelectorAll('th.imp-new-field-review')).toHaveLength(3);
+  expect(document.querySelectorAll('td.imp-new-field-review')).toHaveLength(6);
+  expect(screen.queryByRole('textbox', { name: 'Buscar campo' })).not.toBeInTheDocument();
+  expect(screen.getByTestId('import-confirm')).toBeEnabled();
+});
+
+it('no guarda una columna descartada y conserva la revisión si falla el guardado', async () => {
+  const { onImport, onClose } = await setup();
+  await choose('Obs. interna', 'Descartar');
+  await waitFor(() => expect(screen.getByTestId('import-confirm')).toBeEnabled());
+  onImport.mockRejectedValueOnce(new Error('No se pudo guardar. Probá de nuevo.'));
+  await userEvent.click(screen.getByTestId('import-confirm'));
+  expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo guardar');
+  expect(screen.getByTestId('import-summary')).toBeVisible();
+  expect(onClose).not.toHaveBeenCalled();
+  expect(onImport.mock.calls[0][1]).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: 'Obs. interna' })]));
+  await userEvent.click(screen.getByTestId('import-confirm'));
+  expect(await screen.findByText('Importación completada')).toBeVisible();
 });
