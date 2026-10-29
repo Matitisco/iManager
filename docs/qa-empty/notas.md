@@ -21,6 +21,6 @@ Los cuatro PNG fueron inspeccionados visualmente. Chromium verificó geometría 
 
 ## Validación
 
-TypeScript frontend/backend y 29 tests relacionados (returns-screen, returns-patterns) aprobados con máximo dos workers. `verificar-clases.sh` y `git diff --check` aprobados. Sin build ni watchers; servidor QA con `watch: null` y HMR deshabilitado. Comandos limitados a 600 segundos.
+TypeScript frontend/backend y 38 tests relacionados (returns-screen, returns-patterns, archived-load-failures) aprobados con máximo dos workers. `verificar-clases.sh` y `git diff --check` aprobados. Sin build ni watchers; servidor QA con `watch: null` y HMR deshabilitado. Comandos limitados a 600 segundos.
 
 Entrega en PR abierto para revisión de Matias; sin merge.
