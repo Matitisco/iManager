@@ -213,7 +213,7 @@ export interface ClientDeposit {
   exchangeRate: number;
   usdAmount: number;
   method: string;
-  status: 'ACTIVE' | 'CREDIT' | 'APPLIED' | 'REFUNDED';
+  status: 'ACTIVE' | 'CREDIT' | 'APPLIED' | 'REFUNDED' | 'REVERSED';
   productId: string | null;
   productLabel: string | null;
   previousInventoryStatus: string | null;

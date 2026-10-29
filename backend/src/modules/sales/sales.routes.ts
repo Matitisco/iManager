@@ -6,7 +6,7 @@ import { requireSectionAccess, requireMember } from "../../middleware/section-ac
 import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
-import { cancelOperationFromSale, createOperation, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
+import { restoreSaleOperation, cancelOperationFromSale, createOperation, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
   createSale,
   deleteSale,
@@ -73,6 +73,14 @@ const salePatchSchema = z
   });
 
 export async function salesRoutes(app: FastifyInstance) {
+  app.post('/:id/restore', { preHandler: [authenticate, resolveAppUser, requireSectionAccess('sales')] }, async (request, reply) => {
+    requireMember(request);
+    const actor = await requireSensitiveActor(request.appUser, reply);
+    if (!actor) return;
+    const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+    return restoreSaleOperation(request.appUser.storeId, id, actor);
+  });
+
   // ── Import ──────────────────────────────────────────────────────────────── //
 
   app.post(

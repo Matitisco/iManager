@@ -133,7 +133,8 @@ export function SalesScreen() {
   const narrowed = statusOn ? rows.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : rows;
   const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
-  const shown = notices.prioritize(narrowed);
+  const prioritized = notices.prioritize(narrowed);
+  const shown = [...prioritized.filter(sale => !isVoidRow(sale)), ...prioritized.filter(isVoidRow)];
   const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);

@@ -117,6 +117,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
           return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
         })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
+        {canManageSensitive && cancelledSale ? <button type="button" onClick={() => open({ type: 'restore-sale', id: overlay.id, label: overlay.label })}><DeskIcon name="swap" size={18} />Revertir anulación</button> : null}
         {canManageSensitive && !cancelledSale ? <button className="danger" type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'return' || overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
       </div>
     </div>
@@ -194,6 +195,14 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     );
   }
 
+  if (overlay.type === 'restore-sale') return <Dialog
+    title="¿Revertir anulación?"
+    text={`La venta ${overlay.label} volverá a su estado previo. Se restablecerán el stock, los saldos y los movimientos asociados.`}
+    ok="Revertir anulación" busy={busy} error={error}
+    onClose={desk.close}
+    onOk={() => { if (!busy) void run(() => ctx.restoreSale(overlay.id), 'Anulación revertida'); }}
+  />;
+
   if (overlay.type === 'del' && overlay.kind === 'return') return <ReturnDelete id={overlay.id} />;
 
   if (overlay.type === 'del') {
@@ -208,7 +217,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     const voiding = overlay.kind === 'sale' || overlay.kind === 'cj';
     const title = overlay.kind === 'sale' ? `Anular venta ${overlay.label}` : overlay.kind === 'cj' ? 'Anular canje' : overlay.kind === 'ot' ? 'Archivar orden' : overlay.kind === 'cl' ? 'Archivar cliente' : 'Archivar equipo';
     const note = cancelling ? 'Se anula la operación asociada: se restauran stock y saldos, se revierten pagos y comisiones y el equipo recibido del canje queda archivado. Sigue visible en rojo.' : voiding
-      ? 'El equipo vuelve a Disponible y se anula la comisión. Sigue visible en rojo y no se puede deshacer.'
+      ? 'El equipo vuelve a Disponible y se anula la comisión. Sigue visible en rojo.'
       : returnsCredit
         ? 'La orden queda archivada. Si tenía una seña aplicada, vuelve como saldo a favor del cliente. Podés restaurarla.'
         : overlay.kind === 'ot'

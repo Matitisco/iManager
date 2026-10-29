@@ -363,3 +363,29 @@ describe('sales import feature flag', () => {
     expect(screen.getByRole('button', { name: 'Importar' })).toBeInTheDocument();
   });
 });
+
+
+describe.each([false, true])('annulled sales order (phone: %s)', phone => {
+  it('keeps annulled rows on the last page when they would otherwise displace active rows', async () => {
+    const media = window.matchMedia;
+    window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [sale(31, { status: 'CANCELADA' }), ...Array.from({ length: 9 }, (_, i) => sale(32 + i)), sale(41, { voidedAt: '2026-10-02' })];
+    const view = renderScreen();
+    const records = () => [...document.querySelectorAll(phone ? '.sale-node' : 'tbody tr')];
+    expect(records()).toHaveLength(8);
+    expect(records().every(row => !row.querySelector('.is-void') && !row.classList.contains('is-void'))).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(records().map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0040', 'V-0031', 'V-0041']);
+    view.unmount(); window.matchMedia = media;
+  });
+
+  it('partitions before pagination while preserving active and voided relative order', async () => {
+    const media = window.matchMedia;
+    window.matchMedia = vi.fn(query => ({ media: query, matches: phone && query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [sale(21, { status: 'CANCELADA' }), sale(22), sale(23, { voidedAt: '2026-10-02' }), sale(24), sale(25, { status: 'ANULADA' }), sale(26, { status: 'PENDIENTE' })];
+    const view = renderScreen();
+    const records = [...document.querySelectorAll(phone ? '.sale-node' : 'tbody tr')];
+    expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0022', 'V-0024', 'V-0026', 'V-0021', 'V-0023', 'V-0025']);
+    view.unmount(); window.matchMedia = media;
+  });
+});

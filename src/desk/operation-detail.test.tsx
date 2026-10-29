@@ -160,7 +160,7 @@ describe('operation detail', () => {
     ctx.deleteSale.mockRejectedValueOnce(new Error('No se pudo eliminar la venta'));
     renderOverlay({ type: 'del', kind: 'sale', id: 's1', label: 'V-0004 · Ana Pérez' });
     const dialog = screen.getByRole('dialog', { name: 'Anular venta V-0004 · Ana Pérez' });
-    expect(dialog).toHaveTextContent('no se puede deshacer');
+    expect(dialog).toHaveTextContent('Sigue visible en rojo');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     expect(await screen.findByText('No se pudo eliminar la venta')).toBeVisible();
     expect(close).not.toHaveBeenCalled();
@@ -198,7 +198,7 @@ describe('operation detail', () => {
     ctx.deleteTradeIn.mockRejectedValueOnce(new Error('No se pudo eliminar el canje'));
     renderOverlay({ type: 'del', kind: 'cj', id: 't1', label: 'C-0003 · Ana Pérez' });
     const dialog = screen.getByRole('dialog', { name: 'Anular canje' });
-    expect(dialog).toHaveTextContent('no se puede deshacer');
+    expect(dialog).toHaveTextContent('Sigue visible en rojo');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Anular' }));
     expect(await screen.findByText('No se pudo eliminar el canje')).toBeVisible();
     expect(close).not.toHaveBeenCalled();

@@ -305,6 +305,8 @@ model Sale {
   voidedAt        DateTime?
   voidedBy        String?        @db.VarChar(255)
   voidReason      String?        @db.VarChar(280)
+  // Private before/after effects of cancellation; never accepted from the client.
+  cancellationSnapshot Json?
   // Unpaid remainder after a price increase, partial tender or installment plan. Null keeps the legacy rule: a pending sale owes its full amount.
   openBalance     Decimal?       @db.Decimal(12, 2)
   customFields    Json?

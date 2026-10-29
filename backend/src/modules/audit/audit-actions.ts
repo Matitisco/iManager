@@ -75,6 +75,8 @@ const ACTIONS: Record<string, ActionMeta> = {
   "sale.seller.changed": { title: "Cambió el vendedor", group: "Edición", section: "sales", verb: "cambió el vendedor de" },
   "sale.cancelled": { title: "Canceló una venta", group: "Anulación/Archivo", section: "sales", verb: "canceló la venta" },
   "sale.voided": { title: "Anuló una venta", group: "Anulación/Archivo", section: "sales", verb: "anuló la venta" },
+  "sale.restored": { title: "Revirtió la anulación de una venta", group: "Anulación/Archivo", section: "sales", verb: "restauró la venta" },
+  "trade.restored": { title: "Revirtió la anulación de un canje", group: "Anulación/Archivo", section: "tradeins", verb: "restauró el canje" },
   "sale.deleted": { title: "Eliminó (antes del historial)", group: "Anulación/Archivo", section: "sales", verb: "eliminó" },
   "sale.payment": { title: "Registró un cobro", group: "Cobros", section: "sales", verb: "cobró" },
   "trade.created": { title: "Registró un canje", group: "Alta", section: "tradeins", verb: "registró el canje" },

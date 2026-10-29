@@ -1,3 +1,4 @@
+import { captureSaleCancellation } from '../operations/sale-restoration.js';
 import { addSaleReview, prepareSaleReviewRows, type SaleReviewRow } from '../import/sale-import-row.js';
 import { priceSaleReviewRows } from '../import/sale-import-rate.js';
 import { saleImportNotes } from '../import/sale-import-preview.js';
@@ -329,6 +330,9 @@ export async function updateSale(
     if (!existing) {
       return null;
     }
+    if (existing.voidedAt || ['CANCELADA', 'ANULADA'].includes(existing.status)) {
+      throw new SalesError('Revertí la anulación antes de editar esta venta', 409);
+    }
     if (existing.integratedOperation || existing.tradeInId) {
       throw new SalesError("Esta venta está vinculada a una operación. Editala desde Operaciones.", 409);
     }
@@ -379,6 +383,7 @@ export async function updateSale(
     const amountChanges = input.amount !== undefined && moneyChanged(existing.amount, input.amount);
     const nextCurrency = currencyOnWrite(input.amountCurrency, amountChanges, amountChanges ? await storeCurrency(storeId, tx) : "ARS");
     const cancelling = input.status === "CANCELADA" && existing.status !== "CANCELADA";
+    const saveCancellation = cancelling ? await captureSaleCancellation(tx, existing) : null;
 
     await assertSeller(tx, storeId, input.sellerMemberId);
     if (cancelling) await voidSaleCommission(tx, storeId, id, "CANCELLED");
@@ -467,6 +472,7 @@ export async function updateSale(
       }
     }
 
+    await saveCancellation?.();
     return serializeSale(updated as SaleRecord);
   });
 }
@@ -484,6 +490,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     if (!cancelled && (existing.integratedOperation || existing.tradeInId)) {
       throw new SalesError("Esta venta está vinculada a una operación. Gestioná la operación desde su origen.", 409);
     }
+    const saveCancellation = !cancelled ? await captureSaleCancellation(tx, existing) : null;
 
     // Cancellation already restored the operation. Its stock may have been sold again.
     if (!cancelled && existing.inventoryItemId) {
@@ -539,6 +546,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
       data: { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: reason, tradeInId: null },
     });
 
+    await saveCancellation?.();
     return true;
   });
 }

@@ -1,3 +1,4 @@
+import { captureSaleCancellation, restoreCancelledSale } from './sale-restoration.js';
 import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { coverSaleWithCredits } from '../returns/returns.service.js';
@@ -1544,6 +1545,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     if (!sale.integratedOperation) throw new OperationError("Esta venta no pertenece a una operación integrada", 409);
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
     if (sale.status === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
+    const saveCancellation = await captureSaleCancellation(tx, sale);
     const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
     await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
     const plan = await planSaleCancellation(tx, storeId, sale, operationCash(toNum(sale.amount), Number(sale.depositAppliedAmount)));
@@ -1586,6 +1588,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
       },
       { sales: sale.id, inventory: product?.id ?? sale.id, clients: client?.id ?? sale.id },
     ));
+    await saveCancellation();
     return { sale: serializeSale(cancelled), inventory: product ? [serializeProduct(product)] : [], clients: client ? [serializeClient(client)] : [], notifications, summary: `${voiding ? "Venta anulada" : "Venta cancelada"} · stock restaurado${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
   });
 }
@@ -1614,6 +1617,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     if (trade.confirmationStatus == null) throw new OperationError("Este canje histórico no pertenece a una operación integrada", 409);
     if (trade.confirmationStatus === "CANCELLED") return { tradeIn: serializeTrade(trade), inventory: [], clients: [], notifications: [], summary: "Canje ya cancelado" };
     const sale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
+    const saveCancellation = sale ? await captureSaleCancellation(tx, sale, trade) : null;
     const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
     if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
@@ -1683,6 +1687,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
         ]) } } : {}),
       },
     ));
+    await saveCancellation?.();
     return { ...(sale ? { sale: serializeSale({ ...sale, status: "CANCELADA", ...stamp }, output) } : {}), tradeIn: serializeTrade({ ...updated, saleId: sale?.id }), inventory: [archivedReceived, output].filter(present).map(serializeProduct), clients: client ? [serializeClient(client)] : [], notifications, summary: `${voiding ? "Operación anulada" : "Operación cancelada"} · equipo recibido archivado${output ? " · salida restaurada" : ""}${client ? " · saldo revertido" : ""}${refundSummary(refund, labelCurrency)}${creditSummary(credit, labelCurrency)}` };
   });
 }
@@ -1761,4 +1766,25 @@ export async function getTradeOperation(storeId: string, tradeId: string, source
     notifications: [],
     summary: trade.confirmationStatus === "PENDING" ? "Borrador de canje cargado" : "Operacion cargada",
   };
+}
+
+export async function restoreSaleOperation(storeId: string, saleId: string, actor: Actor) {
+  return withSerializableRetry(async tx => {
+    // Same lock order as trade cancellation, followed by the sale and inventory.
+    const linked = await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { tradeInId: true } });
+    if (linked?.tradeInId) await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${linked.tradeInId} AND "storeId" = ${storeId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
+    const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    if (!sale) throw new OperationError('Venta no encontrada', 404);
+    if (!sale.voidedAt && !['CANCELADA', 'ANULADA'].includes(sale.status)) return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: 'La venta ya está activa' };
+    const result = await restoreCancelledSale(tx, sale, actor);
+    const records = [
+      { section: 'sales', recordId: sale.id },
+      ...result.inventory.map(item => ({ section: 'inventory', recordId: item.id })),
+      ...(result.client ? [{ section: 'clients', recordId: result.client.id }] : []),
+      ...(result.trade ? [{ section: 'tradeins', recordId: result.trade.id }] : []),
+    ];
+    const notifications = await writeOperationNotifications(tx, storeId, records.map(record => ({ ...record, title: 'Anulación revertida', message: `${saleCode(sale.saleNumber)} · ${sale.deviceLabel || 'Venta'}`, kind: 'restored' })));
+    return { sale: serializeSale(result.sale), inventory: result.inventory.map(serializeProduct), clients: result.client ? [serializeClient(result.client)] : [], ...(result.trade ? { tradeIn: serializeTrade({ ...result.trade, saleId }) } : {}), notifications, summary: 'Anulación revertida' };
+  });
 }

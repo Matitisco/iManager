@@ -31,7 +31,7 @@ import { updateStoreApi, updateUserProfileApi, type StoreUpdateInput } from '../
 import type { AppSession, BackendConnectionStatus } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { getAuthAdapter } from '../services/auth-adapter';
-import { cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
+import { restoreSaleOperation, cancelSaleOperation, cancelTradeOperation, confirmTradeOperation, createOperation, fetchNotifications, fetchOperationDrafts, fetchOperationOptions, fetchSaleOperation, fetchTradeOperation, markAllNotificationsReadApi, markNotificationReadApi, updateSaleOperation, updateTradeOperation, type OperationInput, type OperationNotification, type OperationOptions, type OperationResult, type OperationSource } from '../services/operations-api';
 import { changeBackendRepairStatus, createBackendRepair, deleteBackendRepair, restoreBackendRepair, updateBackendRepair, type RepairOrderInput } from '../services/repairs-api';
 import { readLocalCustomColumns, useStoreRecords, visibleInventory, withoutStoredCost } from './store-records';
 import { creditTotal } from '../desk/client-balance';
@@ -80,6 +80,7 @@ interface AppState extends ReturnType<typeof useCustomFieldsState>, ReturnType<t
   fetchSaleOperation: (id: string) => Promise<OperationResult>;
   fetchTradeOperation: (source: OperationSource, id: string) => Promise<OperationResult>;
   updateSale: (sale: Sale, reason?: string) => Promise<OperationResult | void>;
+  restoreSale: (id: string) => Promise<OperationResult>;
   deleteSale: (id: string, reason?: string) => Promise<OperationResult | void>;
   addProduct: (product: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
@@ -636,6 +637,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (scopeRef.current !== currentScope) throw new Error('La tienda cambió. Volvé a abrir la venta.');
       return confirmTradeOperation(currentUser, source, id, { ...input, exchangeRate });
     }, true);
+  const restoreSale = (id: string) =>
+    runOperation('sales', (currentUser) => restoreSaleOperation(currentUser, id), true);
   const runCancelSaleOperation = (id: string, reason?: string) =>
     runOperation('sales', (currentUser) => cancelSaleOperation(currentUser, id, reason), true);
   const runCancelTradeOperation = (source: OperationSource, id: string, reason?: string) =>
@@ -1011,7 +1014,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       cancelTradeOperation: withListWrite(runCancelTradeOperation),
       fetchSaleOperation: runFetchSaleOperation,
       fetchTradeOperation: runFetchTradeOperation,
-      updateSale: withListWrite(updateSale), deleteSale: withListWrite(deleteSale),
+      updateSale: withListWrite(updateSale), restoreSale: withListWrite(restoreSale), deleteSale: withListWrite(deleteSale),
       addProduct: withListWrite(addProduct), updateProduct: withListWrite(updateProduct, product => `inventory:${product.id}`), deleteProduct: withListWrite(deleteProduct, id => `inventory:${id}`),
       addClient: withListWrite(addClient), updateClient: withListWrite(updateClient, client => `client:${client.id}`), registerClientPayment: withListWrite(registerClientPayment, id => `client:${id}`), deleteClient: withListWrite(deleteClient, id => `client:${id}`),
       clientDeposits, loadClientDeposits, addClientDeposit: withListWrite(addClientDeposit), cancelClientDeposit: withListWrite(runCancelClientDeposit), applyClientDepositToRepair: withListWrite(runApplyClientDepositToRepair),

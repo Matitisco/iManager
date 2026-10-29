@@ -7,7 +7,7 @@ import type { Overlay } from './types';
 import type { Sale } from '../types';
 import { rememberVoidedSales } from './archive-cache';
 
-const ctx = vi.hoisted(() => ({ sales: [{ id: 'sale', status: 'COMPLETADA', voidedAt: null as string | null }], returns: [] }));
+const ctx = vi.hoisted(() => ({ sales: [{ id: 'sale', status: 'COMPLETADA', voidedAt: null as string | null }], returns: [], restoreSale: vi.fn() }));
 const layout = vi.hoisted(() => ({ phone: false }));
 const flags = vi.hoisted(() => ({ IMPORT_SALES_ENABLED: false }));
 vi.mock('../config/featureFlags', () => flags);
@@ -52,7 +52,7 @@ describe('measured context menu placement', () => {
     measuredHeight = status === 'CANCELADA' ? 100 : 187;
     mount();
     expectPlacement();
-    expect(screen.queryAllByRole('button')).toHaveLength(status === 'CANCELADA' ? 0 : 3);
+    expect(screen.queryAllByRole('button')).toHaveLength(status === 'CANCELADA' ? 1 : 3);
     if (status === 'CANCELADA') expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
     else expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
     if (status === 'CANCELADA') {
@@ -70,7 +70,7 @@ describe('measured context menu placement', () => {
   it('uses the short menu for a sale annulled through voidedAt, as in the sales table', () => {
     ctx.sales[0].voidedAt = '2026-10-23T04:03:52.250Z'; measuredHeight = 100;
     mount(); expectPlacement();
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Revertir anulación' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
   });
 
@@ -78,7 +78,7 @@ describe('measured context menu placement', () => {
     rememberVoidedSales([{ ...ctx.sales[0], voidedAt: '2026-10-23T04:03:52.250Z' } as Sale]);
     ctx.sales = []; measuredHeight = 100;
     mount(); expectPlacement();
-    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Revertir anulación' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
   });
 
@@ -141,4 +141,39 @@ describe('sales import feature flag', () => {
     render(<DeskOverlays overlay={{ type: 'import', kind }} />);
     expect(screen.getByTestId(`import-${kind}`)).toBeInTheDocument();
   });
+});
+
+
+it('requires confirmation, preserves errors and only closes after persistence', async () => {
+  const { waitFor } = await import('@testing-library/react');
+  ctx.sales[0].status = 'CANCELADA';
+  const view = mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Revertir anulación' }));
+  expect(open).toHaveBeenLastCalledWith({ type: 'restore-sale', id: 'sale', label: 'V-0001' });
+  expect(ctx.restoreSale).not.toHaveBeenCalled();
+  view.unmount();
+  const show = () => render(<DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast: vi.fn(), isStaff: false }}><DeskOverlays overlay={{ type: 'restore-sale', id: 'sale', label: 'V-0001' }} /></DeskProvider>);
+  let dialog = show();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  expect(ctx.restoreSale).not.toHaveBeenCalled();
+  dialog.unmount(); close.mockClear();
+  ctx.restoreSale.mockRejectedValueOnce(new Error('El equipo ya se vendió'));
+  dialog = show();
+  fireEvent.click(screen.getByRole('button', { name: 'Revertir anulación' }));
+  await waitFor(() => expect(screen.getByText('El equipo ya se vendió')).toBeVisible());
+  expect(close).not.toHaveBeenCalled();
+  let resolve!: () => void;
+  ctx.restoreSale.mockImplementationOnce(() => new Promise<void>(done => { resolve = done; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Revertir anulación' }));
+  expect(screen.getByRole('button', { name: 'Revertir anulación' })).toBeDisabled();
+  expect(close).not.toHaveBeenCalled();
+  await act(async () => { resolve(); });
+  expect(close).toHaveBeenCalledOnce();
+  dialog.unmount();
+});
+
+it('hides the restore action without sensitive permission', () => {
+  ctx.sales[0].status = 'CANCELADA';
+  render(<DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast: vi.fn(), isStaff: true, canManageSensitive: false }}><DeskOverlays overlay={overlay} /></DeskProvider>);
+  expect(screen.queryByRole('button', { name: 'Revertir anulación' })).not.toBeInTheDocument();
 });

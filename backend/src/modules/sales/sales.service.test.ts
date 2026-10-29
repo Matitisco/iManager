@@ -5,6 +5,8 @@ vi.mock("../commissions/commission-ledger.js", () => ({
   assertSeller: vi.fn(), recordSaleCommission: vi.fn(), refreshSaleCommission: vi.fn(), voidSaleCommission: vi.fn(),
 }));
 
+vi.mock("../operations/sale-restoration.js", () => ({ captureSaleCancellation: vi.fn(async () => async () => undefined) }));
+
 const allocateDocumentNumber = vi.hoisted(() => vi.fn());
 
 const prismaMock = vi.hoisted(() => ({
