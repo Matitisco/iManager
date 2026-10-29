@@ -1,6 +1,8 @@
 # iManager - Project Status
 
 - Importación · batería decimal y calidad con barra (2026-10-28): acepta `0,87`/`0.87` como `87%` en preview y confirmación, incluso sin el flag del plan; conserva porcentajes explícitos. `A/A-` y `B/C` se mantienen como calidad y se muestran en equipos usados, también al reimportar. Regresión sintética CSV con separador `;`: 59/59 filas, sin dudas ni reprompts por estos formatos. Tests relacionados y TypeScript frontend/backend; sin build ni acceso a producción.
+- Importar equipos · selector en encabezados (2026-10-28): trigger visible con estados rojo/amarillo/neutro/gris, buscador y letras de uso, alta inline y descarte; bottom sheet móvil. Tabla sin panel lateral, Modelo fijo y layout por columna física, pendientes navegables y asignación rápida de Precio. Conserva análisis/reaplicación y confirmación. QA ficticia y validaciones en `docs/qa-import-header-picker/notas.md`; sin build local.
+
 
 - Importar equipos · alto de vista previa (2026-10-28): avisos de precio e IMEI compactos junto a descartes, acceso Asignar con foco al panel y scroll interno de tabla/panel sin desplazar la hoja completa. Conserva #634/#635. TypeScript frontend/backend y 92 pruebas relacionadas aprobados con dos workers; capturas ficticias 1440/390 revisadas en `/workspace/qa-import-tabla-alto/`. Sin build local.
 
