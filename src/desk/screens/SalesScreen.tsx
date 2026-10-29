@@ -227,7 +227,7 @@ export function SalesScreen() {
           doneLabel: 'anulados',
           explanation: 'Se anulan las ventas seleccionadas y sus operaciones asociadas, incluidos los canjes. Se restauran stock y saldos según las reglas de cada operación; el historial se conserva en rojo.',
           execute: (sale, reason) => deleteSale(sale.id, reason),
-          unavailable: (sale) => sale.voidedAt ? 'La selección incluye ventas ya anuladas.' : undefined,
+          unavailable: (sale) => isVoidRow(sale) ? 'La selección incluye ventas ya anuladas.' : undefined,
         }}
       >
         {manageCommissions ? <button type="button" className="dbtn s" disabled={selection.locked || selection.selected.length === 0} onClick={() => setAssignOpen(true)}>Asignar vendedor</button> : null}

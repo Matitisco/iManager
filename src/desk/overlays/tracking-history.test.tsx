@@ -7,6 +7,8 @@ import { EquipmentDetail, EquipmentForm } from './equipment';
 import { SaleDetail } from './operation';
 import { TradeDetail, TradeForm } from './trade';
 import { DeskProvider } from '../ui';
+import { DeskOverlays } from '../DeskOverlays';
+import { rememberVoidedSales } from '../archive-cache';
 import { fetchHistory } from '../../services/history-api';
 
 const ctx = vi.hoisted(() => ({
@@ -57,4 +59,32 @@ it.each(['equipment', 'trade'])('does not add a history control to %s editing', 
   mount(kind === 'equipment' ? <EquipmentForm id="eq" {...form} /> : <TradeForm id="trade" {...form} />);
   expect(screen.queryByRole('button', { name: 'Historial' })).not.toBeInTheDocument();
   expect(fetchHistory).not.toHaveBeenCalled();
+});
+
+it.each([false, true])('hides Anular in the context menu and detail for voided sales (phone=%s)', phone => {
+  const original = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: phone && query.includes('760'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+  try {
+    for (const state of ['date', 'status', 'cached'] as const) {
+      const sale: Sale = { ...ctx.sales[0], status: state === 'status' ? 'CANCELADA' : 'COMPLETADA', voidedAt: state === 'status' ? null : '2026-10-29T12:00:00Z' };
+      ctx.sales = state === 'cached' ? [] : [sale];
+      rememberVoidedSales(state === 'cached' ? [sale] : []);
+      const menu = mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'sale', id: 'sale', label: 'Venta', x: 20, y: 20 }} />);
+      expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+      menu.unmount();
+      const detail = mount(<SaleDetail id="sale" {...form} />);
+      expect(within(document.querySelector('.sheet-foot')!).getByRole('button', { name: 'Cerrar' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
+      detail.unmount();
+    }
+  } finally {
+    window.matchMedia = original;
+    rememberVoidedSales([]);
+  }
+});
+
+it('keeps Anular available for an active sale', async () => {
+  mount(<DeskOverlays overlay={{ type: 'ctx', kind: 'sale', id: 'sale', label: 'Venta', x: 20, y: 20 }} />);
+  expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
 });

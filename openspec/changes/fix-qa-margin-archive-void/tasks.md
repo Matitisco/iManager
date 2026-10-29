@@ -1,0 +1,3 @@
+- [x] Corregir margen y nota de ventas sin costo.
+- [x] Excluir archivados de Todos y bloquear nueva anulación.
+- [x] Validar TypeScript frontend/backend y regresiones relacionadas con máximo dos workers.

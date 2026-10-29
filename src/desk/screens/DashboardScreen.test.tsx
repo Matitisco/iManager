@@ -75,6 +75,19 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([false, true])('muestra la nota de ventas sin costo solo cuando hay exclusiones (móvil=%s)', async phone => {
+    if (phone) phoneMedia();
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, salesWithoutCost: 2 } });
+    const view = renderScreen();
+    const note = await screen.findByText('2 ventas sin costo no incluidas');
+    expect(note.closest('.dstat')).toHaveTextContent('Margen bruto');
+    expect(note.closest('.dstat')).toHaveTextContent('27%');
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, salesWithoutCost: 0 } });
+    context.sales = [makeSale('refresh', '2026-10-22', 'Nueva')];
+    view.rerender(dashboardView());
+    await waitFor(() => expect(screen.queryByText('2 ventas sin costo no incluidas')).not.toBeInTheDocument());
+  });
+
   it.each([new Error('500'), new TypeError('Failed to fetch')])('avisa si falla un cambio de período y reintenta las mismas fechas: %s', async cause => {
     const user = userEvent.setup();
     context.sales = [makeSale('old', '2026-10-02', 'Venta anterior')];

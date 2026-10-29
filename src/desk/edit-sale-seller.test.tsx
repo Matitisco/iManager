@@ -73,10 +73,11 @@ describe('sale seller editing', () => {
     if (status === 'CANCELADA') expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
     else expect(screen.getByRole('button', { name: 'Editar' })).toBeEnabled();
   });
-  it.each(['CANCELADA', 'COMPLETADA', 'PENDIENTE'] as const)('context menu edit visibility for %s, retaining delete', status => {
+  it.each(['CANCELADA', 'COMPLETADA', 'PENDIENTE'] as const)('context menu edit and cancel visibility for %s', status => {
     ctx.sales[0].status = status;
     mount({ type: 'ctx', kind: 'sale', id: 'sale', label: 'V-0001', x: 10, y: 10 });
-    expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
+    if (status === 'CANCELADA') expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
+    else expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
     if (status === 'CANCELADA') expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
     else expect(screen.getByRole('button', { name: 'Editar' })).toBeEnabled();
   });

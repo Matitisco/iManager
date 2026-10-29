@@ -66,11 +66,11 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
   beforeEach(() => {
     window.matchMedia = vi.fn(query => ({ media: query, matches: query.includes('max-width') && width === 390, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
   });
-  it('fetches archived inventory in Todos, hides it in Disponible and retains Archivados', async () => {
+  it('excludes archived inventory from Todos and Disponible and retains Archivados', async () => {
     api.inventory.mockResolvedValue([{ ...product, id: 'archived', model: 'Equipo archivado', archivedAt: '2026-10-21' }]);
     show(<InventoryScreen />);
-    const label = await screen.findByText('Equipo archivado · 128 GB');
-    expect(label.closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
+    await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 2'));
+    expect(screen.queryByText('Equipo archivado · 128 GB')).not.toBeInTheDocument();
     expect(api.inventory).toHaveBeenCalledWith(state.user);
     if (width === 390) {
       fireEvent.click(screen.getByRole('button', { name: 'Estado' }));
@@ -81,9 +81,10 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
     if (width === 390) {
       fireEvent.click(screen.getByRole('button', { name: 'Estado' }));
     }
+    expect(screen.queryByText('Equipo archivado · 128 GB')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Archivados' }));
     expect(screen.queryByText('Equipo activo · 128 GB')).not.toBeInTheDocument();
-    expect(screen.getByText('Equipo archivado · 128 GB')).toBeInTheDocument();
+    expect(screen.getByText('Equipo archivado · 128 GB').closest(width === 390 ? '.phone-row' : 'tr')).toHaveClass('is-void');
   });
   it('keeps an archived client visible in red and isolates Archivados', async () => {
     api.clients.mockResolvedValue([{ ...client, id: 'archived', name: 'Cliente archivado', archivedAt: '2026-10-21' }]);
@@ -166,5 +167,8 @@ it('refetches archive records when an active row is archived', async () => {
   api.inventory.mockResolvedValue([{ ...product, id: 'active', archivedAt: '2026-10-22' }]);
   state.inventory = [];
   view.rerender(<div className="desk-app"><DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><InventoryScreen /></DeskProvider></div>);
+  await waitFor(() => expect(api.inventory).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText('Equipo activo · 128 GB')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Archivados' }));
   await waitFor(() => expect(screen.getByText('Equipo activo · 128 GB').closest('tr')).toHaveClass('is-void'));
 });
