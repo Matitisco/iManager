@@ -2600,9 +2600,16 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 .returns-screen .gchip { height: 32px; font-size: 12px; background: transparent; border-color: transparent; }
 .returns-screen .gchip:not(.sm).on { background: var(--primary); }
 .returns-screen .ledger-list { box-shadow: none; }
+.ret-empty { display: flex; flex-direction: column; align-items: center; padding: 64px 20px; text-align: center; }
+.ret-empty > svg { flex: none; color: var(--secondary); margin-bottom: 16px; }
+.ret-empty h2 { margin: 0; color: var(--primary); font-size: 16px; font-weight: 800; line-height: 1.5; }
+.ret-empty p { max-width: 320px; margin: 8px 0 24px; color: var(--secondary); font-size: 14px; font-weight: 500; line-height: 1.5; }
+.ret-empty .btn2 { padding-inline: 24px; max-width: 100%; }
+.ret-empty .btn2:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .return-row .ico-row { color: var(--secondary); }
 @media (max-width: 760px) {
   .returns-screen { margin-inline: 2px; }
+  .ret-empty { padding: 40px 16px; }
   .returns-screen .return-row { padding-left: 16px; }
   .returns-screen .mdock { left: 0; right: 0; max-width: none; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); min-height: 62px; padding: 7px 16px; border: 0; border-top: 1px solid var(--border); border-radius: 0; box-shadow: none; }
   .returns-screen .mdock .dbtn { justify-content: flex-start; padding-inline: 18px; }

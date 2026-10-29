@@ -40,7 +40,7 @@ describe.each([
   { name: 'servicio', Component: ServiceScreen, filter: 'Archivados', empty: 'No encontré órdenes.' },
   { name: 'gastos', Component: ExpensesScreen, filter: 'Archivados', empty: 'No hay gastos archivados.' },
   { name: 'proveedores', Component: SuppliersScreen, filter: 'Archivados', empty: 'No hay proveedores archivados.' },
-  { name: 'reclamos', Component: ReturnsScreen, filter: 'Archivados', empty: 'No hay reclamos archivados.' },
+  { name: 'reclamos', Component: ReturnsScreen, filter: 'Archivados', empty: 'Sin reclamos archivados' },
   { name: 'ventas', Component: SalesScreen, filter: null, empty: 'No encontré ventas.' },
   { name: 'canjes', Component: TradeInsScreen, filter: null, empty: 'No encontré canjes.' },
 ])('$name', ({ Component, filter, name, empty }) => {

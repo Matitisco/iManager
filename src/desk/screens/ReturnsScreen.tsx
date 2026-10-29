@@ -1,3 +1,4 @@
+import { RotateCcw } from 'lucide-react';
 import { ReplayValue } from '../replay-privacy';
 import { ImanagerIcon } from '../icons';
 import { isNetworkErrorMessage } from '../../lib/user-message';
@@ -27,11 +28,12 @@ export function ReturnsScreen() {
   const activeRows = returns;
   const rows = archived ? (loading ? null : archivedRows) : activeRows == null ? null : filter === 'Activos' ? activeRows.filter(row => !isVoidRow(row)) : mergeRecordRows(activeRows, archivedRows);
   const error = archived ? '' : returnsError;
+  const empty = rows?.length === 0 && !error;
   const add = <button className="dbtn p" type="button" onClick={() => open({ type: 'new-return' })}><ImanagerIcon name="agregar" size={20} />Nuevo reclamo</button>;
 
   return (
     <div className="dscreen returns-screen" data-testid="returns-screen">
-      <ScreenTitle title="Devoluciones" back={back} tools={null} desktop={add} />
+      <ScreenTitle title="Devoluciones" back={back} tools={null} desktop={empty ? null : add} />
       <div className="gfilters">
         <div role="group" aria-label="Estado">
           {['Todos', 'Activos', 'Archivados'].map(value => <button key={value} className={`gchip${filter === value ? ' on' : ''}`} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{value}</button>)}
@@ -39,10 +41,14 @@ export function ReturnsScreen() {
       </div>
       {error && !isNetworkErrorMessage(error) ? <p className="ferr" role="alert">{error}</p> : null}
       {rows == null ? <ListSkeleton variant="cards" rows={4} testId="returns-loading" /> : null}
-      {rows && rows.length === 0 && !error ? (
-        <div className="card team-empty" data-testid="returns-empty">
-          <h2>{archived ? 'No hay reclamos archivados.' : 'Todavía no cargaste reclamos.'}</h2>
-          <p>Cuando un cliente devuelve un equipo, abrí el reclamo desde acá o desde la venta.</p>
+      {empty ? (
+        <div className="ret-empty" data-testid="returns-empty">
+          <RotateCcw size={24} strokeWidth={1.75} aria-hidden="true" />
+          <h2>{archived ? 'Sin reclamos archivados' : filter === 'Activos' ? 'Sin reclamos activos' : 'Sin reclamos'}</h2>
+          <p>{archived ? 'Los reclamos que archives van a aparecer acá.' : filter === 'Activos' ? 'Los reclamos en curso van a aparecer acá.' : 'Registrá una devolución o abrí el reclamo desde una venta.'}</p>
+          <button className="btn2 p" type="button" onClick={() => open({ type: 'new-return' })}>
+            <ImanagerIcon name="agregar" size={20} />Nuevo reclamo
+          </button>
         </div>
       ) : null}
       {rows && rows.length > 0 ? (
@@ -60,7 +66,7 @@ export function ReturnsScreen() {
           ))}
         </div>
       ) : null}
-      <MobileDock primary="Nuevo reclamo" onPrimary={() => open({ type: 'new-return' })} />
+      {!empty ? <MobileDock primary="Nuevo reclamo" onPrimary={() => open({ type: 'new-return' })} /> : null}
     </div>
   );
 }
