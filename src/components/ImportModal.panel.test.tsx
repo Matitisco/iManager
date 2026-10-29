@@ -34,11 +34,12 @@ function recalculate(plan: ImportSheetPlan[], sheets: ImportSheetPayload[]): Imp
     suggestedDefinitions: [{ entity: 'inventory', key: 'location', label: 'Ubicación', type: 'text', order: 1 }],
     summary: { rowCount: rows.length, sheetCount: sheets.length, sheets: plan.map(item => ({ name: item.name, included: item.include, rows: rows.filter(row => row._sourceSheet === item.name).length, condition: '' })) } };
 }
-async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; width?: number; fields?: typeof fields } = {}) {
+async function setup(options: { plan?: ImportSheetPlan[]; sheets?: ImportSheetPayload[]; width?: number; fields?: typeof fields; source?: ImportAnalysis['source'] } = {}) {
   if (options.width) vi.mocked(window.matchMedia).mockImplementation(query => ({ matches: query.includes('max-width') && options.width! < 700, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
   const sheets = options.sheets ?? [{ name: 'Stock', rows: stock }];
   vi.mocked(parseWorkbook).mockResolvedValue({ sheetNames: sheets.map(item => item.name), getSheet: name => sheets.find(item => item.name === name)!.rows });
   const value = recalculate(options.plan ?? [sheetPlan()], sheets);
+  value.source = options.source ?? value.source;
   const onApply = vi.fn(async (_sheets: ImportSheetPayload[], plan: ImportSheetPlan[], _refresh: boolean): Promise<ImportAnalysis> => recalculate(plan, sheets));
   const onImport = vi.fn(async (_rows: Record<string, string>[], _definitions?: unknown) => ({ imported: 2, updated: 0, errors: [] }));
   const onClose = vi.fn();
@@ -67,7 +68,7 @@ it.each([1440, 1024, 390])('revisa y confirma sin panel lateral a %i px', async 
   expect(screen.getByRole('dialog', { name: 'Importar equipos' })).toHaveClass('sheet-frame', 'imp-review-sheet');
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   expect(table().getAllByRole('columnheader')).toHaveLength(6);
-  expect(screen.getByRole('button', { name: '3 por revisar' })).toBeVisible();
+  expect(screen.getByRole('button', { name: '3 sin asignar' })).toBeVisible();
   expect(screen.queryByLabelText('Incluir hoja Stock')).not.toBeInTheDocument();
   const confirm = screen.getByTestId('import-confirm');
   expect(confirm.closest('.sheet-foot')).toBeInTheDocument();
@@ -99,7 +100,7 @@ it('descarta sin bloquear y permite reasignar una columna descartada', async () 
   await choose('Precio', 'Descartar');
   expect(header('Precio')).not.toHaveClass('imp-unassigned');
   expect(trigger('Precio')).toHaveTextContent('Descartada');
-  expect(screen.getByRole('button', { name: '2 por revisar' })).toBeVisible();
+  expect(screen.getByRole('button', { name: '2 sin asignar' })).toBeVisible();
   await choose('Precio', 'Precio');
   await waitFor(() => expect(onApply).toHaveBeenCalled());
   await userEvent.click(trigger('Obs. interna'));
@@ -153,20 +154,68 @@ it.each([1440, 390])('Escape cierra selector y restaura foco sin cerrar importac
   expect(onClose).not.toHaveBeenCalled();
 });
 
-it('recorre pendientes rojos y amarillos en orden visual, vuelve al inicio y preserva filas', async () => {
-  const plan = sheetPlan(); plan.mapping[0].review = ['Revisar modelo'];
-  await setup({ plan: [plan] });
-  expect(header('Modelo')).toHaveClass('imp-pending');
+it('separa dudas amarillas y sin asignar rojas con recorridos independientes en orden visual', async () => {
+  const plan = sheetPlan();
+  plan.mapping[0].review = ['Revisar modelo'];
+  plan.mapping[4].review = ['Revisar calidad'];
+  plan.mapping[1].review = ['Sin destino confiable'];
+  await setup({ plan: [plan], source: 'model' });
+  for (const source of ['Modelo', 'Calidad']) {
+    expect(header(source)).toHaveClass('imp-pending');
+    expect(header(source)).not.toHaveClass('imp-unassigned');
+    expect(trigger(source)).toHaveAccessibleDescription(/Por revisar/);
+  }
+  expect(header('Precio')).toHaveClass('imp-unassigned');
+  expect(header('Precio')).not.toHaveClass('imp-pending');
+  expect(trigger('Precio')).not.toHaveAccessibleDescription(/Por revisar/);
+  const grip = table().getByRole('button', { name: /Arrastrar para reordenar · Precio/ });
+  grip.focus(); await userEvent.keyboard('{ArrowRight}');
   const preview = screen.getByTestId('import-preview'); preview.scrollTop = 44;
-  for (const source of ['Modelo', 'Precio', 'Obs. interna', 'Vacía', 'Modelo']) {
-    await userEvent.click(screen.getByRole('button', { name: '4 por revisar' }));
+  for (const [chip, source] of [
+    ['2 por revisar', 'Modelo'], ['3 sin asignar', 'Obs. interna'],
+    ['2 por revisar', 'Calidad'], ['3 sin asignar', 'Precio'],
+    ['2 por revisar', 'Modelo'], ['3 sin asignar', 'Vacía'], ['3 sin asignar', 'Obs. interna'],
+  ]) {
+    await userEvent.click(screen.getByRole('button', { name: chip }));
     expect(trigger(source)).toHaveFocus();
     expect(preview.scrollTop).toBe(44);
     expect(header(source)).toHaveClass('imp-selected');
   }
   await choose('Modelo', 'Modelo');
   expect(header('Modelo')).not.toHaveClass('imp-pending');
-  expect(screen.getByRole('button', { name: '3 por revisar' })).toBeVisible();
+  expect(screen.getByRole('button', { name: '1 por revisar' })).toBeVisible();
+  await choose('Calidad', 'Calidad · Texto');
+  await waitFor(() => expect(screen.queryByRole('button', { name: /por revisar/ })).not.toBeInTheDocument());
+  expect(header('Calidad')).not.toHaveClass('imp-pending');
+  expect(screen.getByRole('button', { name: '3 sin asignar' })).toBeVisible();
+});
+
+it('en 16 columnas cuenta y recorre solo G y L–P sin mostrar por revisar', async () => {
+  const headers = Array.from({ length: 16 }, (_, i) => `Columna ${i + 1}`);
+  const red = [6, 11, 12, 13, 14, 15];
+  const plan = sheetPlan();
+  plan.mapping = headers.map((header, columnIndex) => ({ header, columnIndex,
+    field: red.includes(columnIndex) ? 'ignore' : columnIndex === 0 ? 'model' : `custom:campo_${columnIndex}`,
+    review: columnIndex === 6 ? ['No se pudo asignar'] : [],
+  }));
+  const { onApply } = await setup({ plan: [plan], sheets: [{ name: 'Stock', rows: [headers, headers.map((_, i) => i === 0 ? 'iPhone 13' : `Dato ${i}`)] }] });
+  expect(screen.queryByRole('button', { name: /por revisar/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '6 sin asignar' })).toBeVisible();
+  expect(document.querySelectorAll('th.imp-pending')).toHaveLength(0);
+  expect(document.querySelectorAll('th.imp-unassigned')).toHaveLength(6);
+  for (const i of [...red, red[0]]) {
+    await userEvent.click(screen.getByRole('button', { name: '6 sin asignar' }));
+    expect(trigger(headers[i])).toHaveFocus();
+  }
+  expect(onApply).not.toHaveBeenCalled();
+});
+
+it('oculta ambos chips al descartar las últimas sin asignar y no cuenta dudas descartadas', async () => {
+  const plan = sheetPlan(); plan.mapping[1].review = ['Revisar precio'];
+  await setup({ plan: [plan] });
+  for (const source of ['Precio', 'Obs. interna', 'Vacía']) await choose(source, 'Descartar');
+  await waitFor(() => expect(screen.queryByRole('button', { name: /sin asignar|por revisar|Todo asignado/ })).not.toBeInTheDocument());
+  expect(document.querySelectorAll('th.imp-pending, th.imp-unassigned')).toHaveLength(0);
 });
 
 it('Asignar abre Precio en primera libre y permite repetir el acceso', async () => {
