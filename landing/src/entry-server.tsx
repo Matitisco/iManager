@@ -1,6 +1,6 @@
 import { renderToString } from 'react-dom/server';
 import { App } from './App';
-import { SITE_URL } from './content';
+import { HOME_DESCRIPTION, HOME_TITLE, SITE_URL } from './content';
 import { normalizePath } from './paths';
 
 export interface PageMeta {
@@ -11,11 +11,9 @@ export interface PageMeta {
   noindex?: boolean;
 }
 
-const HOME_DESCRIPTION = 'Inventario por IMEI, ventas, canjes, servicio técnico y dólar blue en un solo lugar. Hecho para tiendas de iPhone en Argentina.';
-
 export const PAGES: Record<string, PageMeta> = {
   '/': {
-    title: 'iManager · Gestión para tiendas de celulares',
+    title: HOME_TITLE,
     description: HOME_DESCRIPTION,
     path: '/',
   },
