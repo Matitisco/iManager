@@ -40,10 +40,10 @@ img { height: auto; }
 .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--sect); }
 
 /* Barra simple, dentro del mismo fondo del hero aprobado. */
-.nav { height: 80px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.nav { height: 80px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; }
 .nav img { height: 38px; width: auto; display: block; }
 .nav .lk { display: flex; gap: 32px; font-weight: 600; font-size: 17px; color: var(--sec); }
-.nav .rt { display: flex; gap: 10px; align-items: center; }
+.nav .rt { display: flex; gap: 10px; align-items: center; justify-self: end; }
 .nav .en { font-weight: 700; font-size: 17px; padding: 0 12px; }
 .nav .btn.sm { height: 46px; padding: 0 20px; font-size: 16px; }
 
@@ -77,7 +77,7 @@ img { height: auto; }
 
 @media (max-width: 760px) {
   .wrap { padding: 0 20px; }
-  .nav { height: 64px; }
+  .nav { height: 64px; display: flex; justify-content: space-between; }
   .nav .lk, .nav .en { display: none; }
   .nav img { height: 32px; }
   .nav .btn.sm { height: 44px; font-size: 15px; }
@@ -602,7 +602,8 @@ img { height: auto; }
 }
 @media (min-width: 761px) and (max-width: 900px) {
   .wrap { padding: 0 28px; }
-  .nav .lk { gap: 14px; font-size: 15px; }
+  .nav { gap: 12px; }
+  .nav .lk { gap: 12px; font-size: 15px; }
   .nav img { height: 32px; }
   .nav .en { display: none; }
   .hero h1 { font-size: 60px; }
