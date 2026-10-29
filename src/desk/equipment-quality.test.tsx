@@ -48,8 +48,7 @@ describe('equipment quality', () => {
     ctx.updateProduct.mockResolvedValue(undefined);
   });
 
-  it('keeps the equipment status primary and sells an available item from the secondary disclosure', async () => {
-    const user = userEvent.setup();
+  it('keeps the equipment status primary with direct edit and archive buttons', () => {
     ctx.inventory = [product()];
     renderOverlay({ type: 'eq', id: 'eq-1' });
     const dialog = screen.getByRole('dialog', { name: 'iPhone 13 · 128GB' });
@@ -57,10 +56,10 @@ describe('equipment quality', () => {
     expect(within(dialog).queryByText(/Ocultar historial|Ver historial|Ver todo|Sin movimientos recientes/)).not.toBeInTheDocument();
     const footer = dialog.querySelector('.sheet-foot') as HTMLElement;
     expect(within(footer).getByRole('button', { name: 'Guardar estado' })).toHaveClass('sheet-primary');
-    const menu = footer.querySelector('.sheet-action-menu') as HTMLDetailsElement;
-    await user.click(menu.querySelector('summary') as HTMLElement);
-    expect(menu.open).toBe(true);
-    expect(within(menu).getByRole('button', { name: 'Vender' })).toBeInTheDocument();
+    expect(within(footer).getByRole('button', { name: 'Editar' })).toHaveClass('btn2', 's');
+    expect(within(footer).getByRole('button', { name: 'Archivar' })).toHaveClass('btn2', 's');
+    expect(footer.querySelector('.sheet-action-menu')).toBeNull();
+    expect(within(footer).queryByRole('button', { name: 'Vender' })).not.toBeInTheDocument();
   });
 
   it('offers quality only for used devices, explains each grade, and clears it for new ones', async () => {

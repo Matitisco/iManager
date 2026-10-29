@@ -1,4 +1,4 @@
 - [x] Reutilizar edición y confirmación de archivo desde el detalle.
 - [x] Mantener Vender en el menú contextual según disponibilidad.
 - [x] Conservar distribución y estilo del pie en escritorio y móvil.
-- [x] Agregar tests unitarios y verificar TypeScript frontend/backend (115 pruebas relacionadas aprobadas).
+- [x] Agregar tests unitarios y verificar TypeScript frontend/backend (119 pruebas relacionadas aprobadas).
