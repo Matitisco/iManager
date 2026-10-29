@@ -2,22 +2,60 @@ import type { CustomFieldInput } from '../../services/custom-fields-api';
 import { fetchBackendInventory, fetchArchivedInventory } from '../../services/inventory-api';
 import { useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
-import { parseImportNumber } from '../../lib/import-number';
 import { inventoryImportPayload } from '../../lib/inventory-import-payload';
 import { IMEI_OPTIONAL_LABEL } from '../../lib/imei';
-import { ImportModal } from '../../components/ImportModal';
+import { ImportModal, type GenericImportResult } from '../../components/ImportModal';
 import { analyzeInventoryText, analyzeImport, applyImportPlan, importBackendRows, type ImportSection } from '../../services/import-api';
-import { usePhoneLayout } from '../section-notices';
 import { signalDesk, useDesk } from '../ui';
 import { requestPriceToDefineFilter } from '../price-to-define-filter';
 
-export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string; onSaved?: () => void | Promise<void> }) {
-  const phone = usePhoneLayout();
+type ImportFlowProps = {
+  kind: 'inv' | 'sale' | 'cl';
+  supplierId?: string;
+  supplierName?: string;
+  onClose: () => void;
+  onResult: (result: GenericImportResult) => void | Promise<void>;
+  onImportError?: () => void;
+  onStageChange?: (stage: 'file' | 'mapping' | 'review' | 'analyze') => void;
+  onFilterPriceToDefine?: () => void;
+};
+
+// The onboarding and desktop adapters share every import decision and request here.
+export function ImportFlow({ kind, supplierId, supplierName, onClose, onResult, onImportError, onStageChange, onFilterPriceToDefine }: ImportFlowProps) {
   const [existingImeis, setExistingImeis] = useState<string[]>([]);
   const source = useRef<'excel' | 'text'>('excel');
-  const { user, reloadInventory, reloadSales, reloadClients, reloadLedger, customFieldDefinitions = [], customFieldDefinitionsError, reloadCustomFieldDefinitions } = useAppContext();
+  const { user, customFieldDefinitions = [], customFieldDefinitionsError } = useAppContext();
+  const config = useMemo(() => importConfig(kind, supplierId ? { id: supplierId, name: supplierName } : undefined), [kind, supplierId, supplierName]);
+  if (!user) return null;
+  const section = sectionFor(kind);
+  const withExistingImeis = async <T,>(analyze: () => Promise<T>): Promise<T> => {
+    if (kind !== 'inv') return analyze();
+    const [analysis, active, archived] = await Promise.all([analyze(), fetchBackendInventory(user), fetchArchivedInventory(user)]);
+    setExistingImeis([...active, ...archived].map(item => item.imei).filter(Boolean));
+    return analysis;
+  };
+  return <ImportModal customFieldDefinitions={kind === 'inv' ? customFieldDefinitions : undefined} customFieldDefinitionsError={kind === 'inv' ? customFieldDefinitionsError : undefined} onFilterPriceToDefine={onFilterPriceToDefine} existingImeis={existingImeis} title={config.title} fields={config.fields} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={onClose} onStageChange={onStageChange} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows, definitions) => {
+    let result: GenericImportResult;
+    try {
+      result = await config.onImport(user, rows, source.current, definitions);
+    } catch (cause) {
+      onImportError?.();
+      throw cause;
+    }
+    await onResult(result);
+    return result;
+  }} />;
+}
+
+export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string; onSaved?: () => void | Promise<void> }) {
+  const { reloadInventory, reloadSales, reloadClients, reloadLedger, reloadCustomFieldDefinitions } = useAppContext();
   const { close, toast, go } = useDesk();
-  const config = useMemo(() => importConfig(kind, async () => {
+  const noun: Record<typeof kind, [string, string]> = {
+    inv: ['equipo importado', 'equipos importados'],
+    sale: ['venta importada', 'ventas importadas'],
+    cl: ['cliente importado', 'clientes importados'],
+  };
+  return <ImportFlow kind={kind} supplierId={supplierId} supplierName={supplierName} onClose={close} onFilterPriceToDefine={kind === 'inv' ? () => { go('inventory'); close(); requestPriceToDefineFilter(); } : undefined} onResult={async result => {
     if (kind === 'inv') { await reloadInventory(); await reloadCustomFieldDefinitions?.(); }
     if (kind === 'sale') {
       await reloadSales();
@@ -26,28 +64,13 @@ export function ImportHost({ kind, supplierId, supplierName, onSaved }: { kind: 
     }
     if (kind === 'cl') await reloadClients();
     if (kind === 'inv' && supplierId) await reloadLedger();
-  }, supplierId ? { id: supplierId, name: supplierName } : undefined), [kind, reloadInventory, reloadSales, reloadClients, reloadLedger, reloadCustomFieldDefinitions, supplierId, supplierName]);
-  if (!user) return null;
-  const noun: Record<typeof kind, [string, string]> = {
-    inv: ['equipo importado', 'equipos importados'],
-    sale: ['venta importada', 'ventas importadas'],
-    cl: ['cliente importado', 'clientes importados'],
-  };
-  const section = sectionFor(kind);
-  const withExistingImeis = async <T,>(analyze: () => Promise<T>): Promise<T> => {
-    if (kind !== 'inv') return analyze();
-    const [analysis, active, archived] = await Promise.all([analyze(), fetchBackendInventory(user), fetchArchivedInventory(user)]);
-    setExistingImeis([...active, ...archived].map(item => item.imei).filter(Boolean));
-    return analysis;
-  };
-  return <ImportModal customFieldDefinitions={kind === 'inv' ? customFieldDefinitions : undefined} customFieldDefinitionsError={kind === 'inv' ? customFieldDefinitionsError : undefined} onFilterPriceToDefine={kind === 'inv' ? () => { go('inventory'); close(); requestPriceToDefineFilter(); } : undefined} existingImeis={existingImeis} title={config.title} fields={config.fields} sheet={phone} nouns={config.nouns} unrelatedNotice={config.unrelatedNotice} onClose={close} onAnalyzeText={kind === 'inv' ? (text) => { source.current = 'text'; return withExistingImeis(() => analyzeInventoryText(user, text)); } : undefined} onAnalyze={(sheets) => { source.current = 'excel'; return withExistingImeis(() => analyzeImport(user, section, sheets)); }} onApply={(sheets, plan, refreshMapping) => withExistingImeis(() => applyImportPlan(user, section, sheets, plan, refreshMapping))} onImport={async (rows, definitions) => {
-    const result = await config.onImport(user, rows, source.current, definitions);
-    if ((result.imported ?? 0) + (result.updated ?? 0) > 0) await onSaved?.();
-    const count = (result.imported ?? 0) + (result.updated ?? 0);
-    if (count > 0) toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
+    const count = result.imported + result.updated;
+    if (count > 0) {
+      await onSaved?.();
+      toast(`${count} ${count === 1 ? noun[kind][0] : noun[kind][1]}`);
+    }
     if (kind === 'inv') signalDesk('desk-check', 'inv');
     if (kind === 'sale') signalDesk('desk-check', 'ven');
-    return result;
   }} />;
 }
 
@@ -57,7 +80,7 @@ function sectionFor(kind: 'inv' | 'sale' | 'cl'): ImportSection {
   return 'clients';
 }
 
-function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, supplier?: { id: string; name?: string }) {
+function importConfig(kind: 'inv' | 'sale' | 'cl', supplier?: { id: string; name?: string }) {
   if (kind === 'inv') {
     return {
       title: supplier?.name ? `Subir stock de ${supplier.name}` : 'Importar equipos',
@@ -85,7 +108,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         const result = definitions?.length
           ? await importBackendRows(user, 'inventory', payload, supplier?.id, source, definitions)
           : await importBackendRows(user, 'inventory', payload, supplier?.id, source);
-        await after();
         return result;
       },
     };
@@ -112,7 +134,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
         const result = await importBackendRows(user, 'sales', rows, undefined, source);
-        await after();
         return result;
       },
     };
@@ -132,7 +153,6 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
     ],
     onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
       const result = await importBackendRows(user, 'clients', rows, undefined, source);
-      await after();
       return result;
     },
   };

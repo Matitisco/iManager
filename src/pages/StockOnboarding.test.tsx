@@ -26,6 +26,9 @@ vi.mock('../lib/posthog-analytics', () => posthog);
 vi.mock('../lib/analytics', () => analytics);
 vi.mock('../services/getting-started-api', () => samples);
 const api = vi.hoisted(() => ({
+  analyzeImport: vi.fn(),
+  applyImportPlan: vi.fn(),
+  analyzeInventoryText: vi.fn(),
   analyzeInventoryTextProgress: vi.fn(),
   importBackendRows: vi.fn(),
 }));
