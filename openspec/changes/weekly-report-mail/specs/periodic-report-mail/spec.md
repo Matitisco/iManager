@@ -22,7 +22,21 @@ El mail SHALL incluir en HTML y texto la cantidad actual de equipos sin archivar
 El sistema SHALL ofrecer la pestaña Envío por mail y restringir configuración y pruebas al dueño.
 #### Scenario: Prueba
 - **WHEN** un dueño solicita una prueba válida
-- **THEN** recibe HTML/texto con asunto Prueba sin avanzar el envío periódico, sujeto a límite persistente.
+- **THEN** recibe HTML/texto con asunto Prueba sin guardar frecuencia, horario, activación ni destinatarios del borrador y sin avanzar el envío periódico, sujeto a límite persistente.
+#### Scenario: Recuperación de carga
+- **WHEN** falla o vence la carga de configuración al reabrir la pantalla
+- **THEN** muestra el error y permite reintentar; al cargar correctamente habilita el formulario. Las respuestas de una pantalla cerrada no actualizan la nueva instancia.
 #### Scenario: Empleado
 - **WHEN** un empleado solicita configuración o prueba
 - **THEN** recibe 403 sin enviar correo.
+### Requirement: Transporte Resend HTTP
+El sistema SHALL priorizar la API HTTP de Resend cuando exista RESEND_API_KEY, usando SMTP_FROM o MAIL_FROM como remitente, Bearer e Idempotency-Key, y guardar el id devuelto como providerId en entregas periódicas.
+#### Scenario: Resend configurado
+- **WHEN** se solicita un envío con clave y remitente configurados
+- **THEN** envía por POST HTTPS con un timeout de 15 segundos sin abrir conexiones SMTP.
+#### Scenario: Error del proveedor
+- **WHEN** Resend rechaza, falla, vence el timeout o no devuelve un id válido durante una prueba
+- **THEN** responde 502 con el error de dominio «No se pudo enviar el mail de prueba.» sin guardar el borrador.
+#### Scenario: Compatibilidad SMTP
+- **WHEN** no existe RESEND_API_KEY
+- **THEN** conserva el transporte nodemailer SMTP existente.

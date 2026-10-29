@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Mail } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchPeriodicReport, savePeriodicReport, sendPeriodicReportTest, type PeriodicReportInput } from '../../services/periodic-report-api';
@@ -32,37 +32,47 @@ export function ReportMailSettings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const actionController = useRef<AbortController | null>(null);
   const owner = appSession?.membership?.role === 'OWNER';
   const storeId = appSession?.store?.id;
   const ready = owner && !!storeId && !!user && backendStatus === 'ready' && !appSession?.onboardingRequired;
   useEffect(() => {
-    setLoaded(false); setError(''); setNote('');
+    setLoaded(false); setBusy(false); setError(''); setNote('');
     if (!ready || !user) return;
     let active = true;
-    void fetchPeriodicReport(user).then(settings => {
+    const controller = new AbortController();
+    void fetchPeriodicReport(user, controller.signal).then(settings => {
       if (!active) return;
       setDraft({ enabled: settings.enabled, frequency: settings.frequency, sendDay: settings.sendDay ?? 1, sendTime: settings.sendTime ?? '09:00', recipients: settings.recipients });
       setTimezone(settings.timezone ?? 'America/Argentina/Buenos_Aires');
       setNote(settings.lastError ?? ''); setLoaded(true);
     }).catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudo cargar el reporte automático')); });
-    return () => { active = false; };
-  }, [ready, user, storeId]);
+    return () => { active = false; controller.abort(); actionController.current?.abort(); actionController.current = null; };
+  }, [ready, user, storeId, loadAttempt]);
   const update = (change: Partial<PeriodicReportInput>) => { setDraft(value => ({ ...value, ...change })); setNote(''); setError(''); };
-  const act = async (test = false) => {
+  const act = async (action: 'test' | 'save', form: HTMLFormElement | null) => {
     if (!ready || !user || !loaded || busy) return;
+    if (!form?.reportValidity() || actionController.current) return;
+    const controller = new AbortController();
+    actionController.current = controller;
     setBusy(true); setError(''); setNote('');
     try {
-      if (test) { const result = await sendPeriodicReportTest(user, draft); if (result.sent) setNote(result.message); else setError(result.message); }
-      else { await savePeriodicReport(user, draft); setNote('Configuración guardada'); }
-    } catch (cause) { setError(toUserMessage(cause, test ? 'No se pudo enviar el mail de prueba' : 'No se pudo guardar el reporte automático')); }
-    finally { setBusy(false); }
+      if (action === 'test') {
+        const result = await sendPeriodicReportTest(user, draft, controller.signal);
+        if (!controller.signal.aborted) { if (result.sent) setNote(result.message); else setError(result.message); }
+      } else {
+        await savePeriodicReport(user, draft, controller.signal);
+        if (!controller.signal.aborted) setNote('Configuración guardada');
+      }
+    } catch (cause) { if (!controller.signal.aborted) setError(toUserMessage(cause, action === 'test' ? 'No se pudo enviar el mail de prueba' : 'No se pudo guardar el reporte automático')); }
+    finally { if (actionController.current === controller) { actionController.current = null; setBusy(false); } }
   };
-  const submit = (event: FormEvent) => { event.preventDefault(); void act(); };
   const maxDay = draft.frequency === 'WEEKLY' ? 7 : draft.frequency === 'BIWEEKLY' ? 15 : 28;
   if (!owner) return null;
   return <section className="dcard report-mail-card" aria-label="Reporte por mail">
     <div className="dch"><h3>Reporte por mail</h3></div>
-    <form id={id} onSubmit={submit}>
+    <form id={id} onSubmit={event => event.preventDefault()}>
       <div className="report-mail-toggle"><b>Activar reporte por mail</b><button type="button" className="report-mail-switch" role="switch" aria-label="Activar reporte por mail" aria-checked={draft.enabled} disabled={!loaded || busy} onClick={() => update({ enabled: !draft.enabled })}><span className={`sw${draft.enabled ? ' on' : ''}`}><i /></span></button></div>
       {!loaded && !error ? <ListSkeleton variant="rows" rows={3} /> : null}
       <fieldset className="report-mail-controls" disabled={!loaded || busy}>
@@ -72,10 +82,11 @@ export function ReportMailSettings() {
         <label className="fl"><span>Mail destinatario</span><input aria-label="Mail destinatario" type="email" multiple autoComplete="email" required={draft.enabled} value={draft.recipients.join(', ')} onChange={e => update({ recipients: e.target.value.split(',').map(s => s.trim()) })} /></label>
       </fieldset>
       <div className="report-mail-next"><span>Próximo envío</span><b title={timezone}>{nextSend(draft, timezone)}</b></div>
-      <div className="report-mail-actions"><button className="btn2 s report-mail-test" type="button" disabled={!loaded || busy} onClick={() => { const form = document.getElementById(id) as HTMLFormElement; if (form.reportValidity()) void act(true); }}><Mail size={18} />Enviar mail de prueba</button><button className="btn2 p report-mail-save" type="submit" disabled={!loaded || busy}>Guardar</button></div>
+      <div className="report-mail-actions"><button className="btn2 s report-mail-test" type="button" disabled={!loaded || busy} onClick={event => void act('test', event.currentTarget.form)}><Mail size={18} />Enviar mail de prueba</button><button className="btn2 p report-mail-save" type="button" disabled={!loaded || busy} onClick={event => void act('save', event.currentTarget.form)}>Guardar</button></div>
       {error ? <p className="ferr" role="alert">{error}</p> : null}
+      {!loaded && error ? <button className="btn2 s" type="button" disabled={!ready} onClick={() => setLoadAttempt(value => value + 1)}>Reintentar</button> : null}
       {note ? <p className="report-mail-feedback" role="status">{note}</p> : null}
     </form>
-    <div className="mdock report-mail-dock"><button className="dbtn p" form={id} type="submit" disabled={!loaded || busy}>Guardar</button></div>
+    <div className="mdock report-mail-dock"><button className="dbtn p" form={id} type="button" disabled={!loaded || busy} onClick={event => void act('save', event.currentTarget.form)}>Guardar</button></div>
   </section>;
 }
