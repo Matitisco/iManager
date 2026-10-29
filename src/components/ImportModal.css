@@ -135,7 +135,10 @@
 .imp-letter { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 8px; background: var(--row); font-size: 11px; font-weight: 800; }
 .imp-review-summary { position: relative; gap: 4px 12px; }
 .imp-review-notices { justify-content: flex-start; flex: 1; }
-.desk-app button.imp-pending-chip { display: flex; align-items: center; gap: 7px; white-space: nowrap; margin-left: auto; }
+.imp-review-chips { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-left: auto; }
+.desk-app button.imp-pending-chip { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.desk-app button.imp-unassigned-chip { background: var(--err-soft); border-color: var(--err); color: var(--err); }
+.imp-unassigned-chip .imp-state-dot { background: var(--err); }
 .imp-table-title h4 > span { font-weight: 500; margin-left: 8px; }
 .imp-preview-table th.imp-pending, .imp-preview-table.dtable.compact td.imp-pending { background: var(--lime-soft); }
 .imp-preview-table th.imp-pending { border-top: 3px solid var(--lime); }
@@ -162,7 +165,7 @@
   .imp-review-summary { margin-bottom: 8px; }
   .imp-review-notices > span::before { display: none; }
   .imp-review-notices { width: 100%; flex: auto; font-size: 12px; }
-  .imp-pending-chip { order: -1; }
+  .imp-review-chips { order: -1; }
   .imp-table-title { flex-wrap: wrap; gap: 4px; position: relative; }
   .imp-header-settings { position: static; }
   .imp-table-title h4 > span { font-size: 12px; }

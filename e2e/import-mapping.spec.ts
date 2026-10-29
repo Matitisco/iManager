@@ -2,6 +2,7 @@ import { openDeskSection } from './navigation';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { buildTestEmail, loginViaUi } from './utils';
+import type { ImportAnalysis } from '../src/services/import-api';
 
 const OUT = 'test-results/import-auto';
 const WORKBOOK = path.resolve('e2e/fixtures/ejemplo-stock.xlsx');
@@ -63,6 +64,16 @@ for (const viewport of viewports) {
 
       const dialog = page.getByRole('dialog', { name: 'Importar equipos' });
       await expect(dialog).toBeVisible();
+      await page.route('**/api/import/analyze', async route => {
+        const response = await route.fetch();
+        const analysis: ImportAnalysis = await response.json();
+        analysis.source = 'model';
+        for (const sheet of analysis.plan) {
+          const model = sheet.mapping.find(column => column.field === 'model');
+          if (model) model.review = ['Verificar modelo sugerido'];
+        }
+        await route.fulfill({ response, json: analysis });
+      });
       await dialog.locator('input[type="file"]').setInputFiles(WORKBOOK);
 
       await expect(dialog.getByTestId('import-sheet-summary')).toHaveCount(3);
@@ -93,8 +104,18 @@ for (const viewport of viewports) {
       await expect(dialog.getByRole('button', { name: 'Importar Modelo como' })).toContainText('Modelo');
       await expect(dialog.getByRole('button', { name: 'Importar PRECIO ARS como' })).toContainText('Precio');
       await expect(dialog.getByRole('button', { name: 'Importar Batería como' })).toContainText('Batería');
-      const pending = dialog.getByRole('button', { name: /\d+ por revisar/ });
+      const modelHeader = dialog.locator('th[data-preview-key="model"]');
+      await expect(modelHeader).toHaveClass(/imp-pending/);
+      await expect(modelHeader).toHaveCSS('background-color', 'rgb(255, 244, 194)');
+      await expect(modelHeader).toHaveCSS('border-top-color', 'rgb(255, 208, 0)');
+      const review = dialog.getByRole('button', { name: /\d+ por revisar/ });
+      await expect(review).toHaveText(`${await dialog.locator('th.imp-pending').count()} por revisar`);
+      await review.click();
+      await expect(modelHeader.locator('.imp-heading-label')).toBeFocused();
+      const pending = dialog.getByRole('button', { name: /\d+ sin asignar/ });
       if (await pending.count()) {
+        await expect(pending).toHaveCSS('color', 'rgb(220, 76, 76)');
+        await expect(pending).toHaveText(`${await dialog.locator('th.imp-unassigned').count()} sin asignar`);
         const before = await preview.evaluate(element => element.scrollTop);
         await pending.click();
         await expect(dialog.locator('th.imp-unassigned .imp-heading-label').first()).toBeFocused();

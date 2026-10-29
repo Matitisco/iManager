@@ -95,19 +95,17 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [scrollTop, setScrollTop] = useState(0);
   const table = useRef<HTMLDivElement>(null);
-  const pendingCursor = useRef<number | null>(null);
+  const cursors = useRef<{ pending: number | null; unassigned: number | null }>({ pending: null, unassigned: null });
   const gesture = useRef<{ key: string; kind: 'resize' | 'reorder'; x: number; width: number; target: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [gestureKey, setGestureKey] = useState<string | null>(null);
   const scope = `${active.name}:${active.headerRow}`;
   const [discardedColumns, setDiscardedColumns] = useState<Record<string, number[]>>({});
   const unassigned = new Set(mapping.filter(column => column.field === 'ignore' && !discardedColumns[scope]?.includes(column.columnIndex)).map(column => column.columnIndex));
-  const pending = mapping.filter(column => column.review?.length || unassigned.has(column.columnIndex));
-  const pendingLabel = pending.length ? `${pending.length} por revisar` : 'Todo asignado';
   const destinations: PreviewColumn[] = mapping.map(column => ({
     key: column.field === 'ignore' ? `unused:${column.columnIndex}` : column.field,
     label: catalog.find(field => field.key === column.field)?.label ?? all.find(field => `custom:${field.key}` === column.field)?.label ?? column.header,
-    source: column.columnIndex, unused: column.field === 'ignore', pending: Boolean(column.review?.length), header: column.header,
+    source: column.columnIndex, unused: column.field === 'ignore', pending: column.field !== 'ignore' && Boolean(column.review?.length), header: column.header,
   }));
   const visual = orders[scope] ?? [];
   const columns = [...destinations].sort((a, b) => {
@@ -116,6 +114,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     const rank = (column: PreviewColumn) => visual.includes(String(column.source)) ? visual.indexOf(String(column.source)) : visual.length + column.source;
     return rank(a) - rank(b);
   });
+  const pending = columns.filter(column => column.pending);
   const order = columns.map(column => column.key);
   const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : 160);
   const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
@@ -124,7 +123,6 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const reveal = (source: number, open: boolean, search = '') => {
     if (disabled) return;
     setHighlightSource(source);
-    pendingCursor.current = source;
     const header = table.current?.querySelector<HTMLElement>(`th[data-column-index="${source}"]`);
     const scroller = table.current;
     if (!header || !scroller) return;
@@ -137,13 +135,21 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     anchor.focus({ preventScroll: true });
     if (open) { setCreating(null); setPicker({ source, anchor, search }); }
   };
-  useEffect(() => { setPicker(null); setCreating(null); setHighlightSource(null); pendingCursor.current = null; setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
+  useEffect(() => { setPicker(null); setCreating(null); setHighlightSource(null); cursors.current = { pending: null, unassigned: null }; setScrollTop(0); if (table.current) table.current.scrollTop = 0; }, [scope]);
   useEffect(() => {
     if (!focusedField) return;
     const source = mapping.find(column => unassigned.has(column.columnIndex))?.columnIndex ?? mapping[0]?.columnIndex;
     if (source !== undefined) reveal(source, true, catalog.find(field => field.key === focusedField.key)?.label ?? '');
   }, [focusedField]);
   useEffect(() => { if (disabled) setPicker(null); }, [disabled]);
+  const revealNext = (kind: 'pending' | 'unassigned') => {
+    const indexes = columns.filter(column => kind === 'pending' ? column.pending : unassigned.has(column.source)).map(column => column.source);
+    const current = indexes.indexOf(cursors.current[kind] ?? -1);
+    if (!indexes.length) return;
+    const source = indexes[(current + 1) % indexes.length];
+    cursors.current[kind] = source;
+    reveal(source, false);
+  };
   const closePicker = () => { setPicker(null); setCreating(null); };
   const assign = (index: number, field: string) => {
     setDiscardedColumns(current => ({ ...current, [scope]: field === 'ignore'
@@ -229,11 +235,14 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   return <div className="imp-review" data-testid="import-summary">
     <div className="imp-review-summary">
       <div className="imp-review-notices">{discardNotice}</div>
-      <button type="button" className={`dsel imp-pending-chip${pending.length ? ' on' : ''}`} disabled={disabled || !pending.length} onClick={() => {
-        const indexes = columns.filter(column => unassigned.has(column.source) || column.pending).map(column => column.source);
-        const current = indexes.indexOf(pendingCursor.current ?? -1);
-        if (indexes.length) reveal(indexes[(current + 1) % indexes.length], false);
-      }}>{pending.length > 0 && <span className="imp-state-dot" />}{pendingLabel}{pending.length > 0 && <ChevronRight size={16} aria-hidden="true" />}</button>
+      <div className="imp-review-chips">
+        {pending.length > 0 && <button type="button" className="dsel imp-pending-chip on" disabled={disabled} onClick={() => revealNext('pending')}>
+          <span className="imp-state-dot" />{pending.length} por revisar<ChevronRight size={16} aria-hidden="true" />
+        </button>}
+        {unassigned.size > 0 && <button type="button" className="dsel imp-pending-chip imp-unassigned-chip" disabled={disabled} onClick={() => revealNext('unassigned')}>
+          <span className="imp-state-dot" />{unassigned.size} sin asignar<ChevronRight size={16} aria-hidden="true" />
+        </button>}
+      </div>
     </div>
     {sheets.length > 1 && <div className="imp-sources" role="group" aria-label="Hojas a importar">
       {plan.map(sheet => {
@@ -258,7 +267,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <thead><tr>{columns.map(column => <th key={column.source} data-column-index={column.source} data-preview-key={column.key} scope="col"
               onPointerDown={event => { if (event.pointerType === 'touch') suppressClick.current = false; else begin(event, column.key, 'reorder'); }}
               onPointerMove={move} onPointerUp={finish} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
-              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } reveal(column.source, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending && !unassigned.has(column.source) ? 'imp-pending ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
+              onClick={() => { if (suppressClick.current) { suppressClick.current = false; return; } reveal(column.source, true); }} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending ' : ''}${gestureKey === column.key ? 'imp-dragging' : ''}`}>
               <div className="imp-column-heading">
                 <button type="button" className="imp-grip" title="Arrastrar para reordenar" aria-label={`Arrastrar para reordenar · ${column.label}${column.unused ? ` · Excel ${columnLetter(column.source!)}` : ''}`}  aria-disabled={column.key === 'model' || undefined}
                   onPointerDown={event => { begin(event, column.key, 'reorder'); }} onPointerMove={move} onPointerUp={finish} onClick={event => event.stopPropagation()} onPointerCancel={() => { gesture.current = null; setGestureKey(null); }}
@@ -275,7 +284,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
               {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2}>
-                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending && !unassigned.has(column.source) ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
+                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? 'imp-unassigned ' : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>
