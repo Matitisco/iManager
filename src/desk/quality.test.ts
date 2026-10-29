@@ -29,3 +29,9 @@ describe('device quality', () => {
     expect(compareQuality('', '', 'best')).toBe(0);
   });
 });
+
+it.each(['A/A-', 'B/C'])('keeps imported slash quality %s visible', grade => {
+  expect(displayQuality('USADO', grade)).toBe(grade);
+  expect(qualityPhrase('USADO', grade)).toBe(`Calidad ${grade}`);
+  expect(displayQuality('NUEVO', grade)).toBe('');
+});

@@ -1,3 +1,4 @@
+import { parseQuality } from "../inventory/quality.js";
 import { imeiPassesLuhn } from "../../lib/imei.js";
 import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
@@ -90,14 +91,14 @@ export function moneyString(amount: number): string {
 export function normalizeBattery(raw: string): string {
   const value = raw.trim().replace(/\s+/g, " ");
   if (!value) return "";
-  const range = value.match(/(\d+(?:[.,]\d+)?)\s*%?\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*%?/);
+  const range = value.match(/^(\d+(?:[.,]\d+)?)\s*%?\s*[-–]\s*(\d+(?:[.,]\d+)?)\s*%?$/);
   if (range) return `${roundPart(range[1])}-${roundPart(range[2])}%`;
-  const spaced = value.match(/(\d+(?:[.,]\d+)?)\s*%\s+(\d+(?:[.,]\d+)?)\s*%?/);
+  const spaced = value.match(/^(\d+(?:[.,]\d+)?)\s*%\s+(\d+(?:[.,]\d+)?)\s*%?$/);
   if (spaced) return `${roundPart(spaced[1])}-${roundPart(spaced[2])}%`;
   const amount = Number(value.replace("%", "").replace(",", ".").trim());
-  if (Number.isFinite(amount) && amount >= 0 && amount <= 1) return `${Math.round(amount * 100)}%`;
+  if (!value.includes("%") && Number.isFinite(amount) && amount >= 0 && amount <= 1) return `${Math.round(amount * 100)}%`;
   if (Number.isFinite(amount) && amount > 1 && amount <= 100) return `${Math.round(amount)}%`;
-  const percent = value.match(/(\d+(?:[.,]\d+)?)\s*%/);
+  const percent = value.match(/^(\d+(?:[.,]\d+)?)\s*%$/);
   if (percent) return `${roundPart(percent[1])}%`;
   return value;
 }
@@ -209,7 +210,7 @@ export function contentMapping(rows: string[][], existing?: ColumnMapping[]): Co
   claim("color", value => COLOR_VALUE.test(value));
   claim("status", value => STATUS_VALUE.test(value));
   claim("entryDate", value => DATE_VALUE.test(value));
-  claim("grade", value => /^(?:A\+?|B|C)$/i.test(value));
+  claim("grade", value => { const quality = parseQuality(value); return quality.ok && !!quality.grade; });
   claim("batteryNote", value => /bater[ií]a|reparaci[oó]n|cambio|pantalla|pin de carga/i.test(value));
   // Date serials without Excel formatting are accepted only in the leading date column.
   if (!mapping.some(column => column.field === "entryDate") && !mapping[0]?.field && columns[0]?.length

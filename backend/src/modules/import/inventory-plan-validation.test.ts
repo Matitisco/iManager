@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { analyzeImport, applyImportPlan } from './analyze-import.service.js';
 import { buildDecisionContext, postDecisions, type DecisionRequest } from './decisions-plan.js';
-import { heuristicPlan, type SheetPlan } from './sheet-plan.js';
+import { heuristicPlan, normalizeBattery, type SheetPlan } from './sheet-plan.js';
 import { repairInventoryQuality, validateInventoryPlan } from './inventory-plan-validation.js';
 import { DECISIONS_URL } from './responses-client.js';
 const input = { section: 'inventory' as const, currency: 'USD' as const, sheets: [{ name: 'Stock', rows: [
@@ -123,4 +123,47 @@ it('shares one deadline across all three attempts', async () => {
   await vi.advanceTimersByTimeAsync(18_000);
   expect((await pending).notice).toContain('por revisar');
   expect(fetchImpl).toHaveBeenCalledTimes(3); expect(Date.now() - started).toBeLessThan(20_000);
+});
+
+it.each(['grade', 'condition'])('accepts decimal batteries and slash qualities mapped to %s without correction', async field => {
+  vi.stubEnv('OPENAI_API_KEY', 'test');
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Batería', 'Calidad'],
+    ['iPhone 13', '0,87', 'A/A-'], ['iPhone 14', '0.87', 'B/C'], ['iPhone 15', '1', 'A+/A'],
+  ] }];
+  const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => response(JSON.parse(String(init?.body)), { 0: 'model', 1: 'batteryHealth', 2: field }));
+  const result = await analyzeImport({ ...input, sheets }, { fetchImpl });
+  expect(fetchImpl).toHaveBeenCalledOnce();
+  expect(result.notice).toBeNull();
+  expect(result.suggestedDefinitions ?? []).toEqual([]);
+  expect(result.plan[0].mapping.map(c => c.field)).toEqual(['model', 'batteryHealth', 'grade']);
+  expect(result.plan[0].mapping.some(c => c.review?.length)).toBe(false);
+  expect(result.rows.map(row => [row.batteryHealth, row.grade])).toEqual([['87%', 'A/A-'], ['87%', 'B/C'], ['100%', 'A+/A']]);
+  expect(validateInventoryPlan(sheets, result.plan, 'USD').issues).toEqual([]);
+  expect(applyImportPlan({ ...input, sheets, plan: result.plan.map(p => ({ ...p, batteryAsPercent: false })) }).rows).toEqual(result.rows);
+});
+it.each([['0,87', '87%'], ['0.87', '87%'], ['1', '100%'], ['0', '0%'], ['1%', '1%'], ['0.87%', '1%'], ['87%', '87%'], ['83-85%', '83-85%']])('normalizes battery %s to %s', (raw, expected) => {
+  expect(normalizeBattery(raw)).toBe(expected);
+});
+it.each(['-1%', '101%', 'battery 87%', '8*%', '85-83%'])('still reports invalid battery %s', raw => {
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Batería'], ['iPhone 13', raw]] }];
+  const plan = heuristicPlan(sheets, 'inventory', 'USD');
+  expect(validateInventoryPlan(sheets, plan, 'USD').issues).toContainEqual(expect.objectContaining({ column: 1, message: expect.stringContaining('valores inválidos') }));
+});
+
+it('keeps valid decimal battery and slash quality mappings after an unrelated correction', async () => {
+  vi.stubEnv('OPENAI_API_KEY', 'test');
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Batería', 'Calidad', 'Precio'], ['iPhone 13', '0,87', 'A/A-', '450']] }];
+  let attempt = 0;
+  const fetchImpl = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body));
+    if (attempt++) {
+      expect(body.input).not.toContain('→ batteryHealth:');
+      expect(body.input).not.toContain('→ grade:');
+    }
+    return response(body, { 0: 'model', 1: 'batteryHealth', 2: 'grade', 3: attempt === 1 ? 'status' : 'price' });
+  });
+  const result = await analyzeImport({ ...input, sheets }, { fetchImpl });
+  expect(fetchImpl).toHaveBeenCalledTimes(2);
+  expect(result.notice).toBeNull();
+  expect(result.rows[0]).toMatchObject({ batteryHealth: '87%', grade: 'A/A-', price: '450' });
 });

@@ -58,7 +58,7 @@ function normalizeBattery(value: string | undefined): string {
   const spacedRange = text.match(/^(\d+(?:[.,]\d+)?)\s*%\s+(\d+(?:[.,]\d+)?)\s*%?$/);
   if (spacedRange) return `${spacedRange[1]}-${spacedRange[2]}%`;
   const number = Number(text.replace(',', '.'));
-  if (text && Number.isFinite(number) && number >= 0 && number <= 1) return String(Math.round(number * 100));
+  if (text && Number.isFinite(number) && number >= 0 && number <= 1) return `${Math.round(number * 100)}%`;
   return text;
 }
 
