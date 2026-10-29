@@ -1,0 +1,2 @@
+# Diseño
+Detectar etiquetas total/subtotal/suma en celdas originales sin IMEI y sumas de columnas sin modelo ni IMEI. Excluir agregados anteriores del cálculo y aceptar coincidencias con subtotales o acumulados de al menos dos valores positivos. Conservar la fila, agregar «Parece una fila de total» a sus notas y usar EN_REVISION. Resaltar el motivo en la vista previa sin modificar el conteo ni bloquear la confirmación. Verificar F07 y Natan anonimizado sin incorporar archivos externos.

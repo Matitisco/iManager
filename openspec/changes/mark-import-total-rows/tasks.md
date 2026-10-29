@@ -1,0 +1,3 @@
+- [x] Detectar posibles totales sin descartar filas y conservar nota/estado
+- [x] Resaltar posibles totales en preview
+- [x] Verificar fixtures externos, persistencia, tests relacionados y TypeScript

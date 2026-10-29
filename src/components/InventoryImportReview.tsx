@@ -38,6 +38,8 @@ interface Props {
 type PreviewColumn = { key: string; label: string; source: number; unused: boolean; pending: boolean; header: string };
 const ROW_HEIGHT = 44;
 const HEADER_HEIGHT = 76;
+const POSSIBLE_TOTAL_NOTE = 'Parece una fila de total';
+const isPossibleTotal = (row: Record<string, string>) => row.batteryNote?.split('\n').includes(POSSIBLE_TOTAL_NOTE);
 
 function HeaderSettings({ active, rowCount, disabled, onChange }: {
   active: ImportSheetPlan;
@@ -122,6 +124,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const order = columns.map(column => column.key);
   const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : unassigned.has(columns.find(column => column.key === key)?.source ?? -1) ? 260 : 160);
   const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
+  const possibleTotals = rows.filter(isPossibleTotal).length;
   const start = Math.min(Math.max(0, sheetRows.length - 1), Math.max(0, Math.floor((scrollTop - HEADER_HEIGHT) / ROW_HEIGHT) - 5));
   const end = Math.min(sheetRows.length, start + 24);
   const reveal = (source: number, open: boolean, search = '') => {
@@ -245,6 +248,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     <div className="imp-review-summary">
       <div className="imp-review-notices">{discardNotice}</div>
       <div className="imp-review-chips">
+        {possibleTotals > 0 && <span className="imp-total-count" role="status">{possibleTotals} {possibleTotals === 1 ? 'equipo por revisar' : 'equipos por revisar'}</span>}
         {pending.length > 0 && <button type="button" className="dsel imp-pending-chip on" disabled={disabled} onClick={() => revealNext('pending')}>
           <span className="imp-state-dot" />{pending.length} por revisar<ChevronRight size={16} aria-hidden="true" />
         </button>}
@@ -289,8 +293,8 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             </th>)}</tr></thead>
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
-              {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2}>
-                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue></td>)}
+              {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2} className={isPossibleTotal(row) ? 'imp-total-row' : undefined}>
+                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue>{column.key === 'model' && isPossibleTotal(row) && <small className="imp-total-note" title={POSSIBLE_TOTAL_NOTE}>Por revisar · {POSSIBLE_TOTAL_NOTE}</small>}</td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>
