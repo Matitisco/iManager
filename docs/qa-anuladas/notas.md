@@ -6,7 +6,7 @@ Clases reutilizadas: dtable, phone-row, is-void, ctx/ctxov, dialog, row, cancel,
 
 Capturas: 1440×900 @1x y 390×844 @2x. Cuatro estados por tamaño: orden, menu, confirmacion y revertida. Todas inspeccionadas; controles y diálogo dentro del viewport. Datos ficticios (Ana Pérez, cuatro iPhones y operaciones de ejemplo), sobre PostgreSQL local aislado. No se accedió a producción.
 
-Validación final: TypeScript frontend/backend, 121 pruebas frontend, 47 unitarias backend, 47 integraciones backend y 4 escenarios E2E aprobados; verificar-clases TODO OK. Sin build ni watchers.
+Validación final: TypeScript frontend/backend, 131 pruebas frontend, 47 unitarias backend, 47 integraciones backend y 4 escenarios E2E aprobados; verificar-clases TODO OK. Sin build ni watchers.
 
 Pruebas: permisos de sección y acceso sensible, cancelación del diálogo, error visible, persistencia tras recargar, paginación, idempotencia/concurrencia, ventas completas/pendientes/parciales, cuotas, canjes, señas, crédito usado, reventa, comisión y caja. Se limita el pool local a 3 conexiones para no competir con otros procesos.
 
