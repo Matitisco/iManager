@@ -8,7 +8,6 @@ function BrowserBar() {
 export function Hero() {
   return (
     <div className="wrap">
-      <span className="chip"><i aria-hidden="true" />Beta · Gratis</span>
       <h1>Tu tienda de iPhone, <br className="desktop-break" /><span className="mk">ordenada</span> pieza por pieza.</h1>
       <p className="lead">Stock por IMEI, ventas, canjes, clientes y dólar blue en un solo lugar.</p>
       <div className="cta">

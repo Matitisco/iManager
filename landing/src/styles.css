@@ -47,7 +47,7 @@ img { height: auto; }
 .nav .en { font-weight: 700; font-size: 15px; padding: 0 12px; }
 
 /* Hero: capturas reales con recorte de escritorio y teléfono superpuesto. */
-.hero { position: relative; text-align: center; padding: 44px 0 0; overflow: hidden; }
+.hero { position: relative; text-align: center; padding: 0; overflow: hidden; }
 .hero::before, .hero::after {
   content: ''; position: absolute; width: 720px; height: 520px; border-radius: 50%;
   filter: blur(90px); z-index: 0; pointer-events: none;
@@ -55,12 +55,7 @@ img { height: auto; }
 .hero::before { left: -200px; top: 380px; background: var(--lime); opacity: .28; }
 .hero::after { right: -220px; top: 300px; background: var(--ls); }
 .hero .wrap { position: relative; z-index: 1; }
-.chip {
-  display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
-  border: 1px solid var(--bd); background: #fff; border-radius: 999px; font-weight: 700; font-size: 13px;
-}
-.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--lime); display: block; }
-.hero h1 { font-size: 72px; line-height: 1.02; letter-spacing: -.035em; font-weight: 800; margin: 22px auto 0; max-width: 1000px; }
+.hero h1 { font-size: 72px; line-height: 1.02; letter-spacing: -.035em; font-weight: 800; margin: 64px auto 0; max-width: 1000px; }
 .hero p.lead { font-size: 20px; line-height: 1.45; color: var(--sec); font-weight: 500; max-width: 720px; margin: 22px auto 0; }
 .cta { display: flex; gap: 12px; justify-content: center; }
 .hero .cta { margin-top: 30px; }
@@ -84,8 +79,7 @@ img { height: auto; }
   .nav { height: 60px; }
   .nav .lk, .nav .en { display: none; }
   .nav img { height: 28px; }
-  .hero { padding-top: 28px; }
-  .hero h1 { font-size: 42px; }
+  .hero h1 { font-size: 42px; margin-top: 40px; }
   .hero p.lead { font-size: 17px; }
   .hero .cta { flex-direction: column; padding: 0 4px; }
   .hero .cta .btn { width: 100%; }
