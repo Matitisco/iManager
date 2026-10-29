@@ -35,7 +35,7 @@ describe("import fixtures offline", () => {
     else process.env.OPENAI_API_KEY = previousKey;
   });
 
-  it.each(fixtureNames(false))("%s imports every expected row and nothing else", async (name) => {
+  it.each(fixtureNames(false))("%s preserves every expected device and every other nonempty row", async (name) => {
     process.env.OPENAI_API_KEY = "sk-test";
     const sheets = JSON.parse(readFileSync(path.join(FIXTURES, `${name}.grid.json`), "utf8")) as ImportSheet[];
     const expected = JSON.parse(readFileSync(path.join(FIXTURES, `${name}.expected.json`), "utf8")) as ExpectedFile;
@@ -68,8 +68,9 @@ describe("import fixtures offline", () => {
     const accepted = expected.rows;
     const score = scoreImportRows(accepted, result.rows);
     expect(score.missing, JSON.stringify(score)).toBe(0);
-    expect(score.extra, JSON.stringify(score)).toBe(0);
-    expect(score.imported).toBe(accepted.length);
+    const physicalCount = result.plan.filter(plan => plan.include).reduce((sum, plan) => sum + sheets.find(sheet => sheet.name === plan.name)!.rows.slice(plan.dataStartRow - 1, plan.dataEndRow).filter(row => row.some(cell => cell.trim())).length, 0);
+    expect(score.imported).toBe(physicalCount);
+    expect(result.diagnostics?.discardedByReason).not.toHaveProperty('footer');
     fetchSpy.mockRestore();
   });
 

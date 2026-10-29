@@ -35,15 +35,15 @@ describe('stock sin encabezado', () => {
     expect(result.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1, dataEndRow: 60, batteryAsPercent: true });
     expect(result.plan[0].mapping.find(column => column.field === 'batteryHealth')).toMatchObject({ header: 'E', columnIndex: 4, field: 'batteryHealth' });
     expect(result.plan[0].mapping[9].field).toBe('batteryNote');
-    expect(result.rows).toHaveLength(59);
+    expect(result.rows).toHaveLength(60);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%' });
-    expect(result.diagnostics?.rejected).toContainEqual({ row: 10, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') });
+    expect(result.rows[9].batteryNote).toContain('cost (origen):');
     expect(result.rows[0].entryDate).toBe(input[0].rows[0][0]);
     expect(result.rows[1].entryDate).toBe(input[0].rows[1][0]);
-    expect(result.rows[1].batteryNote).toBe('BATERIA');
+    expect(result.rows[1].batteryNote).toContain('BATERIA');
     expect(result.rows.every(row => row.purchasedAt === undefined)).toBe(true);
     expect(result.rows.every(row => !row.price && row.batteryHealth !== 'BATERIA')).toBe(true);
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' }).rows).toEqual(result.rows);
   });
 
@@ -69,8 +69,8 @@ describe('stock sin encabezado', () => {
     ];
     const accepted = acceptModelPlan(input, { sheets: [plan] }, 'inventory', 'USD')!;
     const result = applyPlans(input, accepted, 'inventory', 'USD');
-    expect(result.rows).toHaveLength(59);
-    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: expect.stringContaining('BATERIA') });
     expect(result.rows[1]).not.toHaveProperty('purchasedAt');
   });
 
@@ -88,8 +88,8 @@ describe('stock sin encabezado', () => {
     const result = await analyzeImport({ sheets: input, section: 'inventory', currency: 'USD' }, { fetchImpl });
     expect(fetchImpl).toHaveBeenCalledTimes(3);
     expect(result.source).toBe('model');
-    expect(result.rows).toHaveLength(59);
-    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: 'BATERIA' });
+    expect(result.rows).toHaveLength(60);
+    expect(result.rows[1]).toMatchObject({ entryDate: '2026-10-02', supplierName: 'CANJE/xx', batteryHealth: '81%', batteryNote: expect.stringContaining('BATERIA') });
   });
 
   it('normaliza seriales de Excel en fecha de ingreso y conserva fechas ISO e incompletas', () => {
@@ -100,8 +100,8 @@ describe('stock sin encabezado', () => {
       ['15/10', 'iPhone 15', 'Reparada'],
     ] }];
     const result = apply(input);
-    expect(result.rows.map(row => row.entryDate)).toEqual(['2026-10-15', '2026-10-15']);
-    expect(result.diagnostics.rejected).toEqual([{ row: 4, reason: 'invalid_row', message: 'Fecha de ingreso inválida (dd/mm/aaaa)' }]);
+    expect(result.rows.map(row => row.entryDate)).toEqual(['2026-10-15', '2026-10-15', '']);
+    expect(result.rows[2].batteryNote).toContain('entryDate (origen): 15/10');
     expect(result.rows.every(row => !row.batteryHealth)).toBe(true);
   });
 
@@ -141,7 +141,7 @@ describe('stock sin encabezado', () => {
     input[0].rows.push(['', '', 'Samsung'], ['', '', 'MacBook']);
     const result = apply(input);
     expect(result.rows.slice(-2).map(row => row.model)).toEqual(['Samsung', 'MacBook']);
-    expect(result.diagnostics.discardedByReason).toEqual({ invalid_price: 1 });
+    expect(result.diagnostics.discardedByReason).toEqual({});
   });
 
   it('infiere A-P por contenido y conserva la fila 1 y todos los iPhone 13, sin OpenAI', async () => {
@@ -163,17 +163,17 @@ describe('stock sin encabezado', () => {
       { header: 'I', columnIndex: 8, field: 'cost' },
       { header: 'K', columnIndex: 10, field: 'status' },
     ]));
-    expect(result.rows).toHaveLength(59);
+    expect(result.rows).toHaveLength(60);
     expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', capacity: '128GB', batteryHealth: '80%', imei: '990000000000000', cost: '300', status: 'DISPONIBLE' });
-    expect(result.rows.filter(row => row.model === 'iPhone 13')).toHaveLength(19);
+    expect(result.rows.filter(row => row.model === 'iPhone 13')).toHaveLength(20);
     for (const row of result.rows) {
       const i = Number(row.imei) - 990000000000000;
-      expect(row.cost).toBe(String(300 + i * 10));
+      expect(row.cost).toBe(i === 9 ? '' : String(300 + i * 10));
       expect(row.batteryHealth).toBe(i === 7 ? '' : `${80 + i % 20}%`);
-      expect(row.status).toBe(['DISPONIBLE', 'VENDIDO', 'EN_REVISION', 'EN_REVISION'][i % 4]);
+      expect(row.status).toBe([7, 9].includes(i) ? 'EN_REVISION' : ['DISPONIBLE', 'VENDIDO', 'EN_REVISION', 'EN_REVISION'][i % 4]);
       expect(row.price).toBeUndefined();
     }
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
     expect(result.plan[0].mapping[9].field).toBe('batteryNote'); // BATERIA is a repair note, never health.
     expect(headerCandidates(input[0].rows)).toEqual([0]);
     const reapplied = applyImportPlan({ sheets: input, plan: result.plan, section: 'inventory', currency: 'USD' });
@@ -199,9 +199,10 @@ describe('stock sin encabezado', () => {
     expect(result.rows[0].model).toBe('iPhone 13');
   });
 
-  it('solo descarta encabezados repetidos con un nombre real para modelo', () => {
+  it('conserva encabezados repetidos como filas con datos', () => {
     const input = [{ name: 'Stock', rows: [['Modelo', 'Costo'], ['iPhone 13', '300'], ['Modelo', 'Costo'], ['iPhone 13', '310']] }];
-    expect(apply(input).diagnostics.discardedByReason).toEqual({ section_header: 1 });
+    expect(apply(input).diagnostics.discardedByReason).toEqual({});
+    expect(apply(input).rows).toHaveLength(3);
     const plan = heuristicPlan(input, 'inventory', 'USD');
     plan[0].mapping[0].header = 'iPhone 13';
     expect(applyPlans(input, plan, 'inventory', 'USD').rows.filter(row => row.model === 'iPhone 13')).toHaveLength(2);
@@ -230,10 +231,11 @@ describe('stock sin encabezado', () => {
     expect(acceptModelPlan(input, { sheets: plan }, 'inventory', 'USD')).toEqual(plan);
   });
 
-  it.each(['abc', '123abc', '=I1', '-10'])('rechaza costo no válido %s con motivo claro', cost => {
+  it.each(['abc', '123abc', '=I1', '-10'])('conserva costo no válido %s en notas', cost => {
     const result = apply([{ name: 'Stock', rows: [['Modelo', 'Costo'], ['iPhone 13', cost]] }]);
-    expect(result.rows).toEqual([]);
-    expect(result.diagnostics.rejected).toEqual([{ row: 2, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') }]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0].batteryNote).toContain(`cost (origen): ${cost}`);
+    expect(result.diagnostics.discardedRows).toBe(0);
   });
 
   it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC'])('normaliza %s al estado existente EN_REVISION', status => {
@@ -265,13 +267,13 @@ describe('calidad libre y rechazos compartidos', () => {
     const offset = route === 'heuristic' ? 1 : 0;
     expect(result.source).toBe(route === 'heuristic' ? 'heuristic' : 'model');
     expect(result.suggestedDefinitions).toEqual([{ entity: 'inventory', key: 'calidad_origen', label: 'Calidad (origen)', type: 'text', order: 0 }]);
-    expect(result.rows).toHaveLength(58);
+    expect(result.rows).toHaveLength(60);
     expect(result.rows[0]).toMatchObject({ 'custom:calidad_origen': 'A/A-', _sourceRow: String(1 + offset) });
     expect(result.rows.every(row => !row.grade)).toBe(true);
-    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 58, discardedByReason: { invalid_price: 1, duplicate: 1 },
-      rejected: [{ row: 10 + offset, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') }, { row: 59 + offset, reason: 'duplicate', message: `IMEI repetido en el archivo (igual a la fila ${38 + offset})` }],
+    expect(result.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {},
       warnings: expect.arrayContaining([{ row: 59 + offset, message: expect.stringContaining('sin batería') }]),
     });
+    expect(result.rows[58]).toMatchObject({ imei: '', status: 'EN_REVISION', batteryNote: expect.stringContaining('IMEI duplicado en el archivo:') });
     const manual = applyImportPlan({ section: 'inventory', sheets: input, currency: 'USD', plan: result.plan });
     expect(manual.rows).toEqual(result.rows);
     const gradePlan = result.plan.map(plan => ({ ...plan, mapping: plan.mapping.map(column => column.field === 'custom:calidad_origen' ? { ...column, field: 'grade' } : column) }));

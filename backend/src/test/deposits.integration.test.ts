@@ -52,7 +52,7 @@ describe('client deposits', () => {
     expect((await getApp().inject({ method: 'PATCH', url: `/api/inventory/${f.inventoryItem.id}`, headers: f.headers, payload: { status: 'DISPONIBLE' } })).statusCode).toBe(409);
     expect((await getApp().inject({ method: 'DELETE', url: `/api/inventory/${f.inventoryItem.id}`, headers: f.headers })).statusCode).toBe(409);
     const imported = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers: f.headers, payload: { rows: [{ imei: f.inventoryItem.imei, model: 'iPhone 14', price: 1200, status: 'DISPONIBLE' }] } });
-    expect(imported.statusCode, imported.body).toBe(200); expect(imported.json().updated).toBe(0);
+    expect(imported.statusCode, imported.body).toBe(409); expect(imported.json().error).toContain('No se importó ningún equipo');
     expect((await sale(f, { productId: null, deviceLabel: 'Otro equipo', depositIds: [row.id] })).statusCode).toBe(409);
     expect(await prisma.sale.count()).toBe(0);
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } })).status).toBe('RESERVADO');

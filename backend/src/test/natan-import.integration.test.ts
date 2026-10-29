@@ -102,27 +102,27 @@ it.each(natanCases)('$file: analyze → apply → persistencia y reimportación'
   }
 }, 30_000);
 
-it('00: confirmación directa conserva 59 equipos, rechaza duplicado con motivo y no deja filas parciales', async () => {
+it('00: confirmación directa conserva 60 equipos incluido el duplicado sin IMEI', async () => {
   const { store } = await seedStoreContext();
   const [sheet]: ImportSheet[] = JSON.parse(readFileSync(new URL('../../test/fixtures/import/natan/00_natan_anon.grid.json', import.meta.url), 'utf8'));
   const rows = sheet.rows.map((row, index) => ({ sourceRow: index + 1, entryDate: row[0], model: row[2], capacity: row[3], batteryHealth: row[4], imei: row[5], color: row[7], cost: row[8], batteryNote: row[9], status: row[10] }));
   for (let run = 0; run < 2; run++) {
     const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows } });
     expect(response.statusCode, response.body).toBe(200);
-    expect(response.json()).toMatchObject({ imported: run ? 0 : 59, updated: run ? 59 : 0,
-      errors: [{ row: 59, message: 'IMEI repetido en el archivo (igual a la fila 38)' }], diagnostics: { discardedByReason: { duplicate: 1 } } });
-    expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(59);
+    expect(response.json()).toMatchObject({ imported: run ? 1 : 60, updated: run ? 59 : 0,
+      errors: [], diagnostics: { discardedByReason: {} } });
+    expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(60 + run);
   }
 });
-it('importes y modelos inválidos se rechazan por fila; precio ausente se guarda a definir', async () => {
+it('importes y modelos inválidos se conservan en notas; precio ausente se guarda a definir', async () => {
   const { store } = await seedStoreContext();
   const rows = [...['texto', '-1', '=A1', '#N/A', '-', 'sin dato'].flatMap(value => [
     { model: 'iPhone 13', imei: '', cost: value }, { model: 'iPhone 13', imei: '', price: value },
   ]), ...['=A1', '#REF!', '#N/A', '#VALUE!'].map(model => ({ model, imei: '' })), { model: 'iPhone 13', imei: '' }];
   const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows } });
   expect(response.statusCode, response.body).toBe(200);
-  expect(response.json()).toMatchObject({ imported: 1, priceToDefine: 1, diagnostics: { discardedByReason: { invalid_price: 12, missing_model: 4 } } });
+  expect(response.json()).toMatchObject({ imported: rows.length, priceToDefine: rows.length, errors: [], diagnostics: { discardedByReason: {} } });
   expect(response.json().errors.every((error: { message: string }) => /inválido|error de Excel/.test(error.message))).toBe(true);
-  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(1);
+  expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(rows.length);
   expect((await prisma.inventoryItem.findFirstOrThrow({ where: { storeId: store!.id } })).price).toBeNull();
 });

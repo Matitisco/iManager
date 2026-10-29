@@ -63,14 +63,14 @@ describe('import-api', () => {
   });
 
   it('emits actual creates, updates and failures from persistence without forwarding errors or rows', async () => {
-    const result = { imported: 1, updated: 1, errors: [{ row: 3, imei: 'private-imei', message: 'private name' }],
-      diagnostics: { detectedRows: 3, acceptedRows: 2, discardedRows: 1, discardedByReason: { invalid_imei: 1 }, missingRequiredFields: [], missingRecommendedFields: [] } };
+    const result = { imported: 1, updated: 2, errors: [],
+      diagnostics: { detectedRows: 3, acceptedRows: 3, discardedRows: 0, discardedByReason: {}, missingRequiredFields: [], missingRecommendedFields: [] } };
     vi.mocked(fetchWithTimeout).mockResolvedValue(json(result));
     await importBackendRows(mockUser, 'inventory', Array.from({ length: 3 }, () => ({ model: 'private model', imei: 'private-imei', price: 500 })));
     expect(capture).toHaveBeenCalledWith('import_result', {
       import_type: 'inventory', source: 'excel', phase: 'commit',
-      rows_detected: 3, rows_prepared: 3, rows_imported: 1, rows_updated: 1, rows_discarded: 1,
-      discarded_by_reason: { invalid_imei: 1 }, missing_required_fields: [], missing_recommended_fields: [],
+      rows_detected: 3, rows_prepared: 3, rows_imported: 1, rows_updated: 2, rows_discarded: 0,
+      discarded_by_reason: {}, missing_required_fields: [], missing_recommended_fields: [],
     });
     expect(JSON.stringify(vi.mocked(capture).mock.calls)).not.toContain('private');
   });
@@ -210,60 +210,45 @@ describe('análisis progresivo', () => {
   });
 });
 
-it('no convierte un precio inválido en null al serializar el pedido', async () => {
-  const { importBackendRows } = await import('./import-api');
-  vi.mocked(fetchWithTimeout).mockClear();
-  await expect(importBackendRows(mockUser, 'inventory', [{ imei: '', model: 'iPhone 13', price: NaN }])).rejects.toThrow('Revisá los precios inválidos');
-  expect(fetchWithTimeout).not.toHaveBeenCalled();
-});
-
-describe('confirmación por lotes', () => {
+describe('confirmación atómica de inventario', () => {
   beforeEach(() => {
     vi.mocked(fetchWithTimeout).mockReset();
     setApiBaseUrl('https://api.imanager.test');
   });
   const rows = () => Array.from({ length: 1200 }, (_, i) => ({ imei: String(990000000000000 + i), model: 'iPhone 13', price: null, sourceRow: i + 10 }));
-  it('envía 1200 en tres lotes secuenciales de 400, timeout de 120 s, resultados y progreso acumulados', async () => {
-    let active = false;
-    let batch = 0;
-    vi.mocked(fetchWithTimeout).mockImplementation(async (_, init, timeout) => {
-      expect(active).toBe(false);
-      active = true;
-      expect(timeout).toBe(120_000);
-      const submitted = JSON.parse(String(init?.body)).rows;
-      expect(submitted).toHaveLength(400);
-      expect(submitted[0].sourceRow).toBe(10 + batch * 400);
-      const current = batch++;
-      await Promise.resolve();
-      active = false;
-      return json({ imported: 390, updated: 9, skipped: 1, priceToDefine: 399,
-        errors: [{ row: 11 + current * 400, message: 'IMEI inválido' }], warnings: [{ row: 12 + current * 400, message: 'Sin batería' }],
-        diagnostics: { detectedRows: 400, acceptedRows: 399, discardedRows: 1, discardedByReason: { invalid_imei: 1 }, missingRequiredFields: [], missingRecommendedFields: [] } });
-    });
-    const progress = vi.fn();
-    const result = await importBackendRows(mockUser, 'inventory', rows(), undefined, 'excel', undefined, progress);
-    expect(result).toMatchObject({ imported: 1170, updated: 27, skipped: 3, priceToDefine: 1197,
-      diagnostics: { detectedRows: 1200, acceptedRows: 1197, discardedRows: 3, discardedByReason: { invalid_imei: 3 } } });
-    expect(result.errors.map(error => error.row)).toEqual([11, 411, 811]);
-    expect(result.warnings?.map(warning => warning.row)).toEqual([12, 412, 812]);
-    expect(progress.mock.calls).toEqual([[400, 1200], [800, 1200], [1200, 1200]]);
-  });
-  it('devuelve lo guardado y mensaje recuperable si falla la conexión en el segundo lote', async () => {
-    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 400, updated: 0, priceToDefine: 400, errors: [] }))
-      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
-    const result = await importBackendRows(mockUser, 'inventory', rows());
-    expect(result).toMatchObject({ imported: 400, updated: 0, partial: true, priceToDefine: 400,
-      message: 'Se importaron 400 equipos y falló la conexión en la fila 410. Volvé a importar el mismo archivo: los que ya entraron se actualizan, no se duplican.' });
-    expect(result.errors[0].row).toBe(410);
-    expect(fetchWithTimeout).toHaveBeenCalledTimes(2);
-  });
-  it('rechaza IMEI repetido entre lotes conservando la fila física', async () => {
+  it('envía todas las filas en un request con su fila física, timeout y progreso', async () => {
     const input = rows();
     input[400].imei = input[0].imei;
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json({ imported: 1190, updated: 10, errors: [] }));
+    const progress = vi.fn();
+    const result = await importBackendRows(mockUser, 'inventory', input, undefined, 'excel', undefined, progress);
+    expect(result).toEqual({ imported: 1190, updated: 10, errors: [] });
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(fetchWithTimeout).mock.calls[0];
+    expect(JSON.parse(String(call[1]?.body)).rows).toEqual(input);
+    expect(call[2]).toBe(120_000);
+    expect(progress.mock.calls).toEqual([[1200, 1200]]);
+  });
+  it.each([
+    { imported: 1199, updated: 0, errors: [] },
+    { imported: 1200, updated: 0, errors: [{ row: 10, message: 'falló' }] },
+    { imported: 1200, updated: 0, errors: [], partial: true },
+  ])('rechaza una confirmación incompleta o incoherente', async result => {
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json(result));
+    await expect(importBackendRows(mockUser, 'inventory', rows())).rejects.toThrow('el conteo guardado no coincide con la vista previa');
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+  it('propaga un fallo de persistencia sin devolver éxito parcial', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json({ error: 'No se importó ningún equipo. Fila 410: equipo reservado' }, 409));
+    await expect(importBackendRows(mockUser, 'inventory', rows())).rejects.toThrow('No se importó ningún equipo');
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
+  });
+  it('conserva lotes y progreso para otros módulos', async () => {
     vi.mocked(fetchWithTimeout).mockImplementation(async (_, init) => json({ imported: JSON.parse(String(init?.body)).rows.length, updated: 0, errors: [] }));
-    const result = await importBackendRows(mockUser, 'inventory', input);
-    expect(result.imported).toBe(1199);
-    expect(result.errors).toEqual([{ row: 410, imei: input[0].imei, message: 'IMEI repetido en el archivo (igual a la fila 10)' }]);
+    const progress = vi.fn();
+    expect(await importBackendRows(mockUser, 'clients', rows(), undefined, 'excel', undefined, progress)).toMatchObject({ imported: 1200 });
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(3);
+    expect(progress.mock.calls).toEqual([[400, 1200], [800, 1200], [1200, 1200]]);
   });
   it.each([400, 413, 500])('traduce HTTP %s de analyze e import sin exponer JSON técnico', async status => {
     vi.mocked(fetchWithTimeout).mockImplementation(async () => json({ error: '{"issues":["too_big"]}' }, status));

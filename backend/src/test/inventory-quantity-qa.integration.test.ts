@@ -6,7 +6,7 @@ import { useIntegrationApp } from './integration-helpers.js';
 
 const { getApp } = useIntegrationApp();
 
-it('persiste las cinco unidades sin IMEI de QA 02 con valor total USD 2200', async () => {
+it('persiste un equipo por fila sin expandir cantidades de QA 02', async () => {
   const context = await seedStoreContext();
   const sheets = [{ name: 'Stock', rows: [
     ['Modelo', 'Cantidad', 'Precio USD', 'Batería'],
@@ -24,11 +24,11 @@ it('persiste las cinco unidades sin IMEI de QA 02 con valor total USD 2200', asy
     payload: { rows: rows.map(row => ({ imei: '', model: row.model, price: Number(row.price), currency: row.currency, batteryHealth: row.batteryHealth })) },
   });
   expect(response.statusCode, response.body).toBe(200);
-  expect(response.json()).toMatchObject({ imported: 5, updated: 0, errors: [] });
+  expect(response.json()).toMatchObject({ imported: 2, updated: 0, errors: [] });
   const stored = await prisma.inventoryItem.findMany({ where: { storeId: context.store!.id } });
-  expect(stored).toHaveLength(5);
-  expect(stored.filter(item => item.model === 'iPhone 13')).toHaveLength(3);
-  expect(stored.filter(item => item.model === 'iPhone 14')).toHaveLength(2);
+  expect(stored).toHaveLength(2);
+  expect(stored.filter(item => item.model === 'iPhone 13')).toHaveLength(1);
+  expect(stored.filter(item => item.model === 'iPhone 14')).toHaveLength(1);
   expect(stored.every(item => item.currency === 'USD' && item.quantity === 1 && !item.imei)).toBe(true);
-  expect(stored.reduce((total, item) => total + Number(item.price), 0)).toBe(2200);
+  expect(stored.reduce((total, item) => total + Number(item.price), 0)).toBe(900);
 });

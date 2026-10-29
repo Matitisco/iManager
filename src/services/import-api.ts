@@ -71,6 +71,7 @@ const ANALYZE_TIMEOUT_MS = 45_000;
 export function importErrorMessage(error: unknown, phase: 'analyze' | 'import'): string {
   if (error instanceof ApiError) {
     if (error.status === 413) return 'El archivo es demasiado grande. Dividilo en partes e intentá de nuevo.';
+    if (error.status === 400 && error.message.startsWith('No se importó ningún equipo.')) return error.message;
     if (error.status === 400) return phase === 'analyze'
       ? 'No se pudo leer la planilla. Revisá las hojas y columnas o dividí el archivo en partes.'
       : 'No se pudieron importar las filas. Revisá los datos del archivo e intentá de nuevo.';
@@ -80,7 +81,7 @@ export function importErrorMessage(error: unknown, phase: 'analyze' | 'import'):
   if (error instanceof Error && /timeout|abort|tiempo/i.test(error.name + error.message)) {
     return 'La importación tardó demasiado. Volvé a intentarlo o dividí el archivo en partes.';
   }
-  if (error instanceof Error && /backend no configurado|precios inválidos/i.test(error.message)) return error.message;
+  if (error instanceof Error && /backend no configurado|precios inválidos|No se pudo confirmar la importación completa/i.test(error.message)) return error.message;
   return 'Se perdió la conexión durante la importación. Revisá tu conexión y volvé a intentarlo.';
 }
 
@@ -137,8 +138,8 @@ export interface InventoryImportRow {
   condition?: string;
   grade?: string;
   batteryHealth?: string;
-  cost?: number;
-  price: number | null;
+  cost?: number | string;
+  price: number | string | null;
   currency?: 'ARS' | 'USD';
   status?: string;
   customFields?: Record<string, unknown>;
@@ -167,24 +168,14 @@ export async function importBackendRows(
   onProgress?: (completed: number, total: number) => void,
 ): Promise<ImportResult> {
   try {
-    if (section === 'inventory' && rows.some(row => row.price != null && typeof row.price === 'number' && !Number.isFinite(row.price))) {
-      throw new Error('Revisá los precios inválidos del archivo o dejalos vacíos para definirlos después.');
-    }
     let result: ImportResult | undefined;
-    const seenImeis = new Map<string, number>();
+    const batchSize = section === 'inventory' ? Math.max(rows.length, 1) : 400;
     // Preserve the existing empty-request behavior (including configuration errors).
-    for (let offset = 0; offset < Math.max(rows.length, 1); offset += 400) {
-      const batch = rows.slice(offset, offset + 400);
-      const localErrors: ImportResult['errors'] = [];
-      const submitted = batch.flatMap((row, index) => {
+    for (let offset = 0; offset < Math.max(rows.length, 1); offset += batchSize) {
+      const batch = rows.slice(offset, offset + batchSize);
+      const submitted = batch.map((row, index) => {
         const sourceRow = Number(row.sourceRow ?? ('_sourceRow' in row ? row._sourceRow : undefined)) || offset + index + 1;
-        const imei = String(row.imei ?? '').trim().replace(/^(\d{15})\.0+$/, '$1');
-        const first = section === 'inventory' && /^\d{15}$/.test(imei) ? seenImeis.get(imei) : undefined;
-        if (first !== undefined) {
-          localErrors.push({ row: sourceRow, imei, message: `IMEI repetido en el archivo (igual a la fila ${first})` });
-          return [];
-        }
-        return [rows.length > 400 || '_sourceRow' in row ? { ...row, sourceRow } : row];
+        return rows.length > 400 || '_sourceRow' in row ? { ...row, sourceRow } : row;
       });
       let next: ImportResult;
       try {
@@ -219,21 +210,8 @@ export async function importBackendRows(
         if (next.diagnostics?.warnings) next.diagnostics.warnings = next.diagnostics.warnings.map(warning => ({ ...warning, row: physicalRow(warning.row) }));
         if (next.diagnostics?.rejected) next.diagnostics.rejected = next.diagnostics.rejected.map(error => ({ ...error, row: physicalRow(error.row) }));
       }
-      // Only rows successfully persisted in earlier batches reserve an IMEI.
-      if (section === 'inventory') for (const [index, row] of submitted.entries()) {
-        const sourceRow = Number(row.sourceRow) || offset + index + 1;
-        if (next.errors.some(error => error.row === sourceRow)) continue;
-        const imei = String(row.imei ?? '').trim().replace(/^(\d{15})\.0+$/, '$1');
-        if (/^\d{15}$/.test(imei)) seenImeis.set(imei, sourceRow);
-      }
-      if (localErrors.length) {
-        next.errors.push(...localErrors);
-        if (next.diagnostics) {
-          next.diagnostics.detectedRows += localErrors.length;
-          next.diagnostics.discardedRows += localErrors.length;
-          next.diagnostics.discardedByReason.duplicate = (next.diagnostics.discardedByReason.duplicate ?? 0) + localErrors.length;
-          (next.diagnostics.rejected ??= []).push(...localErrors.map(error => ({ ...error, reason: 'duplicate' as const })));
-        }
+      if (section === 'inventory' && (next.partial || next.errors.length || next.imported + next.updated !== rows.length)) {
+        throw new Error('No se pudo confirmar la importación completa: el conteo guardado no coincide con la vista previa. Revisá el inventario antes de reintentar.');
       }
       result = result ? mergeImportResults(result, next) : next;
       onProgress?.(Math.min(offset + batch.length, rows.length), rows.length);

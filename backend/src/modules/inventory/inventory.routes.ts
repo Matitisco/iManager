@@ -222,6 +222,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
   app.post(
     "/import",
     {
+      bodyLimit: 16 * 1024 * 1024,
       preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")],
     },
     async (request, reply) => {
@@ -233,11 +234,11 @@ export async function inventoryRoutes(app: FastifyInstance) {
           .array(
             z.object({
               sourceRow: z.number().int().positive().optional(),
-              entryDate: z.string().max(50).nullable().optional(),
-              batteryNote: z.string().max(2000).nullable().optional(),
-              supplierName: z.string().trim().max(120).optional(),
-              imei: z.string(),
-              model: z.string(),
+              entryDate: z.string().nullable().optional(),
+              batteryNote: z.string().nullable().optional(),
+              supplierName: z.string().optional(),
+              imei: z.string().default(''),
+              model: z.string().default(''),
               capacity: z.string().optional(),
               color: z.string().optional(),
               condition: z.string().optional(),
@@ -245,14 +246,14 @@ export async function inventoryRoutes(app: FastifyInstance) {
               batteryHealth: z.coerce.string().optional(),
               cost: z.union([z.number(), z.string()]).optional(),
               price: z.union([z.number(), z.string()]).nullable().optional(),
-              currency: z.enum(["ARS", "USD"]).optional(),
+              currency: z.string().optional(),
               status: z.string().optional(),
               purchasedAt: z.string().trim().optional(),
-              purchaseName: z.string().trim().max(120).optional(),
+              purchaseName: z.string().optional(),
               customFields: z.record(z.unknown()).optional(),
             })
           )
-          .max(2000),
+          .max(60_000),
         definitions: z.array(definitionSchema).max(40).optional(),
         supplierId: z.string().trim().min(1).optional(),
       });

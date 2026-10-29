@@ -19,12 +19,9 @@ export function excelRegressionFixtures() {
   const scientific = base();
   scientific.forEach((r, i) => { if (i < 4) r[3] = '3.56789E+14'; else if (i % 2) r[3] = Number(imeiOf(i)); });
   return [
-    { name: '09_repeated_imei', rows: [header, ...duplicate], merges: [], accepted: 8,
-      rejected: [{ row: 8, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 4)' }, { row: 11, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 7)' }] },
+    { name: '09_repeated_imei', rows: [header, ...duplicate], merges: [], accepted: 10, rejected: [] },
     { name: '10_merged_cells', rows: [header, ...merged], merges: ['A2:A4', 'A5:A8', 'A9:A10'], accepted: 9, rejected: [] },
-    { name: '11_totals_footer', rows: [header, ...base(), [], ['TOTAL', '', '', '', '', Array.from({ length: 10 }, (_, i) => cost(i)).reduce((a, b) => a + b, 0)], ['Stock total:', 10], ['Nota: los equipos A-/B se revisan el viernes']], merges: [], accepted: 10,
-      rejected: [13, 14, 15].map(row => ({ row, reason: 'footer', message: 'Total o nota al pie sin equipo' })) },
-    { name: '13_sci_imei', rows: [header, ...scientific], merges: [], accepted: 6,
-      rejected: [2, 3, 4, 5].map(row => ({ row, reason: 'invalid_imei', message: 'IMEI ilegible: el Excel guardó el número en notación científica y se perdieron dígitos; formateá la columna como texto' })) },
+    { name: '11_totals_footer', rows: [header, ...base(), [], ['TOTAL', '', '', '', '', Array.from({ length: 10 }, (_, i) => cost(i)).reduce((a, b) => a + b, 0)], ['Stock total:', 10], ['Nota: los equipos A-/B se revisan el viernes']], merges: [], accepted: 13, rejected: [] },
+    { name: '13_sci_imei', rows: [header, ...scientific], merges: [], accepted: 10, rejected: [] },
   ];
 }

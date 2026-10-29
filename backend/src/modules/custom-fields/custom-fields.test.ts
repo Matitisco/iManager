@@ -27,7 +27,7 @@ describe('typed equipment columns', () => {
     plans[0].mapping[12].field = 'custom:accesorios';
     const result = applyPlans(sheets, plans, 'inventory', 'USD');
     expect(result.rows).toHaveLength(2);
-    expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', batteryNote: 'Original', entryDate: '14/10/2026', 'custom:accesorios': 'Caja', _sourceRow: '1' });
+    expect(result.rows[0]).toMatchObject({ model: 'iPhone 13', batteryNote: 'Original\nB (origen): Proveedor ficticio\nN (origen): Persona ficticia\nO (origen): 90000000\nP (origen): 2615550100', entryDate: '14/10/2026', 'custom:accesorios': 'Caja', _sourceRow: '1' });
     expect(result.rows[0].price).toBeUndefined();
   });
   it('uses indices for duplicate/empty headers and discards only the selected column', () => {

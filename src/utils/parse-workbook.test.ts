@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzeImport } from '../../backend/src/modules/import/analyze-import.service';
 import { DECISIONS_URL } from '../../backend/src/modules/import/responses-client';
 import { cellText, parseWorkbook } from './parse-workbook';
@@ -10,6 +10,7 @@ import { excelRegressionFixtures, regressionFields } from '../../backend/test/fi
 import { importInventoryItems } from '../../backend/src/modules/inventory/inventory.service';
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   store: { findUnique: vi.fn(async () => ({ currency: 'USD' })) },
   inventoryItem: {
     findFirst: vi.fn(async () => null),
@@ -18,6 +19,7 @@ const prismaMock = vi.hoisted(() => ({
   },
 }));
 vi.mock('../../backend/src/plugins/prisma', () => ({ prisma: prismaMock }));
+beforeEach(() => { prismaMock.$transaction.mockImplementation(async work => work(prismaMock)); });
 
 describe('cellText', () => {
   it('reads rich text, formula results and numbers without turning them into objects', () => {
@@ -94,11 +96,11 @@ describe('ejemplo-stock.xlsx', () => {
       const sheets = workbook.sheetNames.map((name) => ({ name, rows: workbook.getSheet(name) }));
       const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets });
       expect(result.summary.sheets.map((sheet) => [sheet.name, sheet.rows, sheet.condition])).toEqual([
-        ['iPhones Usados', 20, 'USADO'],
-        ['iPhones Nuevos', 10, 'NUEVO'],
-        ['OUTLET', 7, 'USADO'],
+        ['iPhones Usados', 21, 'USADO'],
+        ['iPhones Nuevos', 13, 'NUEVO'],
+        ['OUTLET', 8, 'USADO'],
       ]);
-      expect(result.rows).toHaveLength(37);
+      expect(result.rows).toHaveLength(42);
       expect(JSON.stringify(result.rows)).not.toContain('[object Object]');
       expect(result.rows[0]).toMatchObject({ model: '12', capacity: '64 GB', batteryHealth: '100%', price: '431200' });
       expect(result.rows.find((row) => row.model === 'AirPods Pro 3')).toMatchObject({ condition: 'NUEVO', price: '446600' });
@@ -144,16 +146,16 @@ it.each(['heuristic', 'model'] as const)('imports 60 synthetic headerless XLSX r
     expect(analysis.source).toBe(source);
     expect(analysis.plan[0]).toMatchObject({ include: true, headerRow: 0, dataStartRow: 1 });
     expect(analysis.plan[0].mapping).toHaveLength(16);
-    expect(analysis.rows).toHaveLength(59);
+    expect(analysis.rows).toHaveLength(60);
     expect(analysis.rows[0]).toMatchObject({ model: 'iPhone 13', imei: '990000000000000', cost: '300', batteryHealth: '80%', status: 'DISPONIBLE' });
     expect(analysis.rows[2]).toMatchObject({ status: 'EN_REVISION', originalStatus: 'SIN SERVICIO' });
     expect(analysis.rows[7].batteryHealth).toBe('');
     expect(analysis.diagnostics?.warnings).toEqual([{ row: 8, message: expect.stringContaining('sin batería') }]);
     expect(analysis.rows.every(row => !row.price)).toBe(true);
-    expect(analysis.diagnostics?.rejected).toContainEqual({ row: 10, reason: 'invalid_price', message: expect.stringContaining('Costo inválido') });
-    expect(analysis.rows[1]).toMatchObject({ entryDate: grid[1][0], batteryNote: 'BATERIA' });
+    expect(analysis.rows[9].batteryNote).toContain('cost (origen):');
+    expect(analysis.rows[1]).toMatchObject({ entryDate: grid[1][0], batteryNote: expect.stringContaining('BATERIA') });
     expect(analysis.rows[1]).not.toHaveProperty('purchasedAt');
-    expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 59, discardedRows: 1, discardedByReason: { invalid_price: 1 }, missingRecommendedFields: ['price'] });
+    expect(analysis.diagnostics).toMatchObject({ detectedRows: 60, acceptedRows: 60, discardedRows: 0, discardedByReason: {}, missingRecommendedFields: ['price'] });
     expect(applyImportPlan({ ...input, plan: analysis.plan }).rows).toEqual(analysis.rows);
   } finally {
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
@@ -207,14 +209,14 @@ describe('regresiones sintéticas de la evaluación offline', () => {
       expect(analysis.source).toBe(fixture.via === 'decisions' ? 'model' : 'heuristic');
       expect(analysis.rows).toHaveLength(fixture.accepted);
       expect(analysis.diagnostics?.rejected ?? []).toEqual(fixture.rejected);
-      expect(analysis.diagnostics?.discardedRows).toBe(fixture.rejected.length + (fixture.name === '11_totals_footer' ? 1 : 0));
+      expect(analysis.diagnostics?.discardedRows).toBe(fixture.name === '11_totals_footer' ? 1 : 0);
       const confirmed = await importInventoryItems('synthetic-store', analysis.rows.map(row => ({
         ...row, model: row.model, imei: row.imei ?? '', sourceRow: Number(row._sourceRow), cost: row.cost ? Number(row.cost) : undefined,
       })));
       expect(confirmed.imported + confirmed.updated).toBe(analysis.rows.length);
       expect(confirmed.updated).toBe(0);
       expect(confirmed.errors).toEqual([]);
-      // Bypassing preview must still reject duplicates, scientific IMEIs and footers.
+      // Direct confirmation must preserve duplicates, scientific IMEIs and nonempty footer rows too.
       const raw = await importInventoryItems('synthetic-store', grid.slice(1).flatMap((values, index) => !values.some(Boolean) ? [] : [{
         sourceRow: index + 2, model: values[0] ?? '', capacity: values[1], batteryHealth: values[2], imei: values[3] ?? '', color: values[4], cost: values[5] ? Number(values[5]) : undefined,
       }]));

@@ -38,7 +38,7 @@ describe('spreadsheet diagnostics', () => {
     expect(result.diagnostics.missingRequiredFields).toEqual([]);
   });
 
-  it('assigns exactly one reason per physical row and keeps quantity-expanded rowCount separate', () => {
+  it('keeps every nonempty physical row exactly once and preserves invalid values', () => {
     const result = apply([{ name: 'Stock', rows: [
       ['Modelo', 'Precio', 'Color', 'Cantidad'],
       ['iPhone 13', '500', 'Negro', '3'],
@@ -49,11 +49,12 @@ describe('spreadsheet diagnostics', () => {
       ['iPhone 14', '', 'Negro', ''],
       ['iPhone 15', 'a consultar', 'Negro', ''],
     ] }]);
-    expect(result.summary.rowCount).toBe(4);
-    expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 2, discardedRows: 5,
-      discardedByReason: { empty: 1, footer: 1, section_header: 1, missing_model: 1, invalid_price: 1 },
-      missingRequiredFields: [], missingRecommendedFields: ['imei'],
-      rejected: [{ row: 4, reason: 'footer', message: 'Total o nota al pie sin equipo' }, { row: 6, reason: 'missing_model', message: 'Modelo vacío' }, { row: 8, reason: 'invalid_price', message: 'Precio inválido. Corregilo o dejá la celda vacía para definirlo después.' }] });
+    expect(result.summary.rowCount).toBe(6);
+    expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 6, discardedRows: 1,
+      discardedByReason: { empty: 1 }, missingRequiredFields: [], missingRecommendedFields: ['imei'] });
+    expect(result.rows[0].batteryNote).toContain('Cantidad (origen): 3');
+    expect(result.rows[3]).toMatchObject({ model: 'Equipo sin modelo', status: 'EN_REVISION' });
+    expect(result.rows[5].batteryNote).toContain('a consultar');
   });
 
   it('keeps excluded sheets separate and unions missing fields across included sheets', () => {
@@ -64,7 +65,7 @@ describe('spreadsheet diagnostics', () => {
     expect(result.diagnostics.missingRecommendedFields).toEqual(['price', 'imei']);
     plans[0].include = false;
     const next = applyPlans(sheets, plans, 'inventory', 'USD');
-    expect(next.diagnostics).toMatchObject({ detectedRows: 3, acceptedRows: 1, discardedRows: 2,
-      discardedByReason: { excluded_sheet: 2 }, missingRequiredFields: [] });
+    expect(next.diagnostics).toMatchObject({ detectedRows: 1, acceptedRows: 1, discardedRows: 0,
+      discardedByReason: {}, missingRequiredFields: [] });
   });
 });

@@ -37,14 +37,14 @@ describe('successful PostHog business events', () => {
     expect(deviceAdded).toHaveBeenCalledTimes(2);
     expect(capture).not.toHaveBeenCalled();
   });
-  it('reports aggregate and legacy counts on a partial import without private data', async () => {
-    vi.mocked(apiRequest).mockResolvedValue({ imported: 2, updated: 1, errors: [{ row: 4, message: 'private customer' }] });
+  it('reports aggregate and legacy counts on a complete import without private data', async () => {
+    vi.mocked(apiRequest).mockResolvedValue({ imported: 2, updated: 2, errors: [] });
     await importBackendRows(user, 'inventory', Array.from({ length: 4 }, () => ({ model: 'Private Model', imei: 'private-imei', price: 1234 })));
     expect(vi.mocked(capture).mock.calls).toEqual([
       ['import_result', { import_type: 'inventory', source: 'excel', phase: 'commit',
-        rows_detected: 4, rows_prepared: 4, rows_imported: 2, rows_updated: 1, rows_discarded: 1,
+        rows_detected: 4, rows_prepared: 4, rows_imported: 2, rows_updated: 2, rows_discarded: 0,
         discarded_by_reason: {}, missing_required_fields: [], missing_recommended_fields: [] }],
-      ['excel_import_succeeded', { rows: 3 }], ['excel_import_failed', { rows: 1 }],
+      ['excel_import_succeeded', { rows: 4 }],
     ]);
     expect(JSON.stringify(vi.mocked(capture).mock.calls).toLowerCase()).not.toContain('private');
     expect(deviceAdded).toHaveBeenCalledOnce();
