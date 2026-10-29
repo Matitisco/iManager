@@ -5,7 +5,7 @@ import { toActionMessage } from "../lib/user-message";
 import { onboardingTotals } from "../lib/onboarding-stock";
 import { deleteSampleStock } from "../services/getting-started-api";
 import { canViewTeam } from "./sections";
-import { isInStock } from "./format";
+import { isInStock, statusLabel } from "./format";
 import { useMoney } from "./exchange";
 import { Dialog, useDesk } from "./ui";
 import "./getting-started.css";
@@ -74,6 +74,21 @@ export function OnboardingInventorySummary() {
   const { appSession, inventory } = useAppContext();
   const money = useMoney();
   if (!appSession?.store?.onboardingStartedAt) return null;
+  const equipment = inventory.filter((item) => !item.archivedAt);
+  const counts = new Map<string, number>([
+    ['DISPONIBLE', 0], ['EN_REVISION', 0], ['RESERVADO', 0], ['VENDIDO', 0],
+  ]);
+  for (const item of equipment) {
+    const status = item.status || 'DISPONIBLE';
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  const breakdown = [...counts].filter(([, count]) => count > 0).map(([status, count]) => {
+    const label = status === 'DISPONIBLE' ? (count === 1 ? 'disponible' : 'disponibles')
+      : status === 'RESERVADO' ? (count === 1 ? 'reservado' : 'reservados')
+      : status === 'VENDIDO' ? (count === 1 ? 'vendido' : 'vendidos')
+      : statusLabel(status).toLocaleLowerCase('es-AR');
+    return `${count} ${label}`;
+  }).join(' · ');
   const stock = inventory.filter((item) => isInStock(item.status));
   const totals = onboardingTotals(
     stock.map((item) => ({
@@ -97,8 +112,9 @@ export function OnboardingInventorySummary() {
       data-testid="onboarding-inventory-summary"
     >
       <span>
-        <small>Equipos en stock</small>
-        <b>{stock.length}</b>
+        <small>Equipos</small>
+        <b>{equipment.length}</b>
+        {breakdown ? <small className="first-stock-breakdown">{breakdown}</small> : null}
       </span>
       <span>
         <small>{withoutPrice ? "Valor con precio" : "Valor del stock"}</small>
