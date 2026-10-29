@@ -2,7 +2,6 @@ import { ReplayValue } from '../desk/replay-privacy';
 import { capture } from '../lib/posthog-analytics';
 import { track, rowBucket } from '../lib/analytics';
 import { parseImportNumber } from "../lib/import-number";
-import { inventoryImportPayload } from '../lib/inventory-import-payload';
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -14,7 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { BrandLockup } from "../components/brand-mark";
-import { ImportModal } from "../components/ImportModal";
+import { ImportFlow } from "../desk/overlays/import";
 import { useAppContext } from "../context/AppContext";
 import {
   ExchangeProvider,
@@ -25,9 +24,7 @@ import { DeskOverlays } from "../desk/DeskOverlays";
 import { CatalogProvider } from "../desk/catalog";
 import { DeskProvider } from "../desk/ui";
 import {
-  analyzeImport,
   analyzeInventoryTextProgress,
-  applyImportPlan,
   importBackendRows,
   type TextProgressRow,
 } from "../services/import-api";
@@ -674,45 +671,20 @@ function StockFlow({
         }}
       />
       {alternative === "excel" && user && (
-        <ImportModal
-          title="Importar equipos"
-          fields={[
-            { key: "model", label: "Modelo", required: true },
-            { key: "price", label: "Precio", required: false },
-            { key: "imei", label: "IMEI", required: false },
-            { key: "capacity", label: "Capacidad", required: false },
-            { key: "color", label: "Color", required: false },
-            { key: "batteryHealth", label: "Batería", required: false },
-            { key: "condition", label: "Condición", required: false },
-            { key: "cost", label: "Costo", required: false },
-          ]}
-          onClose={closeAlternative}
-          onStageChange={(at) => { importStage.current = at; }}
-          onAnalyze={(sheets) => analyzeImport(user, "inventory", sheets)}
-          onApply={(sheets, plan, refresh) =>
-            applyImportPlan(user, "inventory", sheets, plan, refresh)
-          }
-          onImport={async (imported, definitions) => {
-            let result: Awaited<ReturnType<typeof importBackendRows>>;
-            try {
-              result = await importBackendRows(
-                user,
-                "inventory",
-                inventoryImportPayload(imported),
-                undefined,
-                'excel',
-                definitions,
-              );
-            } catch (cause) {
-              importFinished('excel', 0, 1);
-              throw cause;
-            }
-            importFinished('excel', result.imported + result.updated, result.errors.length);
-            if (!result.errors.length) await finish("inventory");
-            else await reloadInventory();
-            return result;
-          }}
-        />
+        <div className="desk-app onb-desk-overlays">
+          <ImportFlow
+            kind="inv"
+            onClose={closeAlternative}
+            onStageChange={(at) => { importStage.current = at; }}
+            onImportError={() => importFinished('excel', 0, 1)}
+            onResult={async (result) => {
+              const count = result.imported + result.updated;
+              importFinished('excel', count, result.errors.length);
+              if (!result.errors.length && count > 0) await finish("inventory");
+              else await reloadInventory();
+            }}
+          />
+        </div>
       )}
       {alternative === "manual" && (
         <div className="desk-app onb-desk-overlays">
