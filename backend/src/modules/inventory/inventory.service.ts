@@ -2,7 +2,7 @@ import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, validateFields, type DefinitionInput } from '../custom-fields/custom-fields.service.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
-import { validateInventoryImportRow } from "./import-validation.js";
+import { validateInventoryImportRow, prepareInventoryImportRow } from "./import-validation.js";
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -982,7 +982,7 @@ export interface ImportRow {
   batteryHealth?: string;
   cost?: number | string;
   price?: number | string | null;
-  currency?: "ARS" | "USD";
+  currency?: string;
   status?: string;
   customFields?: Record<string, unknown>;
 }
@@ -1003,19 +1003,19 @@ export async function importInventoryItems(
   options?: { actor?: Actor | null; lockPrice?: boolean; supplierId?: string | null; purchaseName?: string | null; name?: string | null; definitions?: DefinitionInput[] },
   transaction?: Prisma.TransactionClient,
 ): Promise<ImportResult> {
-  if ((options?.definitions?.length || rows.some(row => row.supplierName?.trim())) && !transaction) {
+  if (!transaction) {
     return prisma.$transaction(async tx => {
       await ensureDefinitions(storeId, options?.definitions ?? [], tx);
       return importInventoryItems(storeId, rows, options, tx);
     }, { timeout: 120_000 });
   }
-  const db = transaction ?? prisma;
+  const db = transaction;
   const definitions = rows.some(row => row.customFields && Object.keys(row.customFields).length) ? await listDefinitions(storeId, db) : [];
   const purchaseName = readPurchaseName(options ?? {});
   const result: ImportResult = { imported: 0, updated: 0, errors: [], priceToDefine: 0 };
   const collector = importErrorCollector(result.errors);
   const seenImeis = new Map<string, number>();
-  const importedCurrency = await storeCurrency(storeId, inventoryPrisma);
+  const importedCurrency = await storeCurrency(storeId, db);
   const defaultPurchasedAt = new Date();
   const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
   if (options?.supplierId) {
@@ -1027,33 +1027,41 @@ export async function importInventoryItems(
   }
 
   for (let i = 0; i < rows.length; i++) {
-    const raw = { ...rows[i] };
+    const source = rows[i];
+    if (!Object.entries(source).some(([key, value]) => key !== 'sourceRow' && (key === 'customFields'
+      ? Object.values(value ?? {}).some(cell => cell != null && String(cell).trim())
+      : value != null && String(value).trim()))) { collector.reject({ row: source.sourceRow ?? i + 1, imei: '', message: 'Fila vacía' }, 'empty'); continue; }
+    const prepared = prepareInventoryImportRow(Object.fromEntries(Object.entries(source)
+      .filter(([key, value]) => !['customFields', 'sourceRow'].includes(key) && value != null).map(([key, value]) => [key, String(value)])), source.sourceRow ?? i + 1, seenImeis);
+    const raw: ImportRow = { ...source, ...prepared, currency: prepared.currency || undefined };
+
     if (typeof raw.price === 'string' && !raw.price.trim()) raw.price = null;
     const rowNum = raw.sourceRow ?? i + 1;
     let rowCurrency: string = raw.currency ?? importedCurrency;
-    const validated = validateInventoryImportRow(raw, rowNum, seenImeis);
+    const validated = validateInventoryImportRow({ ...raw, batteryNote: undefined }, rowNum, new Map());
+    if (source.batteryHealth && !prepared.batteryHealth) (result.warnings ??= []).push({ row: rowNum, message: 'Batería no se pudo leer: se importó sin batería' });
     if (validated.warnings.length) (result.warnings ??= []).push(...validated.warnings);
     if (!validated.ok) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: validated.message }, validated.reason);
-      continue;
+      throw new InventoryError(`No se importó ningún equipo. Fila ${rowNum}: ${validated.message}`, 400);
     }
     const { condition, grade, imei, color, entryDate, batteryHealth } = validated.value;
-    if (imei) seenImeis.set(imei, rowNum);
     const purchasedAt = raw.purchasedAt?.trim() ? parseArDate(raw.purchasedAt)! : defaultPurchasedAt;
     const rowPurchaseName = raw.purchaseName === undefined ? purchaseName : readPurchaseName(raw);
     const purchaseKey = JSON.stringify([purchasedAt.toISOString().slice(0, 10), rowPurchaseName]);
     const normalizedStatus = normalizeInventoryImportStatus(raw.status);
-    const status = normalizedStatus.status;
+    if (prepared.originalStatus) raw.customFields = { ...raw.customFields, originalStatus: prepared.originalStatus };
     if (normalizedStatus.originalStatus) raw.customFields = { ...raw.customFields, originalStatus: normalizedStatus.originalStatus };
 
     const providedCost = raw.cost == null || !String(raw.cost).trim() || !Number.isFinite(Number(raw.cost)) ? undefined : Number(raw.cost);
-    let customFields: Record<string, unknown>;
-    try {
-      // Store-specific custom definitions and DB constraints can only be checked at confirmation.
-      customFields = convertFields(raw.customFields ?? {}, definitions);
-    } catch (error) {
-      collector.reject({ row: rowNum, imei: raw.imei, message: error instanceof Error ? error.message : 'Campos inválidos' }, 'invalid_row');
-      continue;
+    const customFields: Record<string, unknown> = { ...raw.customFields };
+    for (const [key, value] of Object.entries(customFields)) {
+      try { Object.assign(customFields, convertFields({ [key]: value }, definitions)); }
+      catch {
+        raw.batteryNote = [raw.batteryNote, `${key} (origen): ${typeof value === 'string' ? value : JSON.stringify(value)}`].filter(Boolean).join('\n');
+        delete customFields[key];
+        normalizedStatus.status = 'EN_REVISION';
+        raw.status = 'EN_REVISION';
+      }
     }
     const input = {
       imei,
@@ -1065,11 +1073,10 @@ export async function importInventoryItems(
       batteryHealth,
       cost: providedCost ?? 0,
       price: raw.price == null ? null : Number(raw.price),
-      status,
+      status: normalizedStatus.status,
     };
 
     try {
-      if (transaction) await transaction.$executeRawUnsafe('SAVEPOINT import_row');
       let rowSupplierId = options?.supplierId;
       if (!rowSupplierId && raw.supplierName?.trim()) {
         const name = raw.supplierName.trim();
@@ -1171,14 +1178,9 @@ export async function importInventoryItems(
         if (input.price == null) result.priceToDefine++;
         result.imported++;
       }
-      if (transaction) await transaction.$executeRawUnsafe('RELEASE SAVEPOINT import_row');
       if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + 1;
     } catch (error) {
-      if (transaction) {
-        await transaction.$executeRawUnsafe('ROLLBACK TO SAVEPOINT import_row');
-        await transaction.$executeRawUnsafe('RELEASE SAVEPOINT import_row');
-      }
-      collector.reject({ row: rowNum, imei: raw.imei, message: error instanceof DomainError ? error.message : 'Error al guardar' }, error instanceof DomainError ? 'invalid_row' : 'save_error');
+      throw new InventoryError(`No se importó ningún equipo. Fila ${rowNum}: ${error instanceof DomainError ? error.message : 'No se pudo guardar el archivo completo. Volvé a intentarlo.'}`, error instanceof DomainError ? error.statusCode : 409);
     }
   }
 

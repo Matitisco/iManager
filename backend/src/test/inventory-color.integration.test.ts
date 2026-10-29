@@ -74,7 +74,7 @@ describe("inventory color", () => {
     expect(updated.json().inventoryItem.color).toBe("Negro");
   });
 
-  it("imports the color column and rejects a value longer than 50 characters", async () => {
+  it("imports the color column and preserves long values in notes", async () => {
     const app = getApp();
     const context = await seedStoreContext();
     const headers = headersFor(context);
@@ -93,8 +93,8 @@ describe("inventory color", () => {
     });
     expect(imported.statusCode).toBe(200);
     expect(imported.json()).toMatchObject({
-      imported: 2,
-      errors: [{ row: 3, message: "El color puede tener hasta 50 caracteres" }],
+      imported: 3,
+      errors: [],
     });
 
     const rows = await prisma.inventoryItem.findMany({
@@ -102,6 +102,6 @@ describe("inventory color", () => {
     });
     expect(rows.find((row) => row.model === "Con color")?.color).toBe("Medianoche");
     expect(rows.find((row) => row.model === "Sin color")?.color).toBe("");
-    expect(rows.find((row) => row.model === "Color largo")).toBeUndefined();
+    expect(rows.find((row) => row.model === "Color largo")).toMatchObject({ color: "", status: "EN_REVISION", batteryNote: `color (origen): ${"a".repeat(51)}` });
   });
 });

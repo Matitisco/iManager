@@ -76,8 +76,8 @@ describe("device quality", () => {
     });
     expect(imported.statusCode).toBe(200);
     expect(imported.json()).toMatchObject({
-      imported: 2,
-      errors: [{ row: 3, message: "La calidad tiene que ser A+, A, B o C, o una combinación como A/A- o B/C" }],
+      imported: 3,
+      errors: [],
     });
     const rows = await prisma.inventoryItem.findMany({ where: { storeId: context.store!.id, model: { startsWith: "Importado" } } });
     expect(rows.find((row) => row.model === "Importado usado")).toMatchObject({ condition: "USADO", grade: "B" });

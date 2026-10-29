@@ -2,6 +2,7 @@ import { parseArDate } from '../../lib/ar-date.js';
 import { validBatteryHealth } from '../../lib/battery-health.js';
 import { parseOptionalImei } from '../../lib/imei.js';
 import type { DiscardReason, ImportWarning } from '../import/import-diagnostics.js';
+import { normalizeInventoryImportStatus } from '../import/inventory-status.js';
 import { inventoryGrade } from './quality.js';
 
 const CONDITIONS: Record<string, string> = {
@@ -72,7 +73,6 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
     warnings.push({ row, message: 'Batería no se pudo leer: se importó sin batería' });
   }
   const reject = (reason: DiscardReason, message: string) => ({ ok: false as const, reason, message, warnings });
-  if (isInventoryFooter(raw)) return reject('footer', 'Total o nota al pie sin equipo');
   if (!raw.model?.trim()) return reject('missing_model', 'Modelo vacío');
   if (/^=|^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/i.test(raw.model.trim())) {
     return reject('missing_model', 'El modelo contiene una fórmula o un error de Excel. Escribí el nombre del equipo.');
@@ -99,4 +99,50 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
   return { ok: true as const, warnings, value: {
     model: raw.model.trim(), imei: parsedImei.imei, condition, grade: parsedGrade.grade, color, entryDate, batteryHealth,
   } };
+}
+
+/** Lossless file preparation. One nonempty source row always remains one device. */
+export function prepareInventoryImportRow(raw: Record<string, string>, row: number, seenImeis: Map<string, number>) {
+  const next = { ...raw };
+  const notes: string[] = [];
+  let needsReview = false;
+  const preserve = (field: string, fallback = '') => {
+    needsReview = true;
+    if (next[field]?.trim()) notes.push(`${field} (origen): ${next[field]}`);
+    next[field] = fallback;
+  };
+  if (!next.model?.trim() || next.model.length > 100 || /^=|^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/i.test(next.model.trim())) preserve('model', 'Equipo sin modelo');
+  for (const field of ['price', 'cost']) {
+    const value = next[field];
+    if (value?.trim() && (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 9999999999.99)) preserve(field);
+  }
+  const condition = next.condition?.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (condition && !CONDITIONS[condition]) preserve('condition', 'USADO');
+  const grade = inventoryGrade(next.condition || 'USADO', next.grade);
+  if (!grade.ok || (next.grade?.trim() && !grade.grade)) preserve('grade');
+  const parsed = parseImportImei(next.imei);
+  if (!parsed.ok) preserve('imei');
+  else {
+    next.imei = parsed.imei ?? '';
+    if (parsed.imei && seenImeis.has(parsed.imei)) {
+      notes.push(`IMEI duplicado en el archivo: ${parsed.imei}`);
+      next.imei = '';
+    } else if (parsed.imei) seenImeis.set(parsed.imei, row);
+  }
+  for (const field of ['capacity', 'color']) if ((next[field]?.length ?? 0) > 50) preserve(field);
+  if (next.capacity?.trim() && !/^(?:\d+(?:[.,]\d+)?\s*(?:gb|tb|mb|g)|8|16|32|64|128|256|512|1024|2048)$/i.test(next.capacity)) preserve('capacity');
+  const battery = normalizeBattery(next.batteryHealth);
+  if (!validBatteryHealth(battery)) preserve('batteryHealth');
+  else if (next.batteryHealth !== undefined) next.batteryHealth = battery;
+  for (const field of ['entryDate', 'purchasedAt']) {
+    if (next[field] !== undefined) next[field] = next[field].trim();
+    if (next[field] && !parseArDate(next[field])) preserve(field);
+  }
+  if (next.currency?.trim() && !['ARS', 'USD'].includes(next.currency)) preserve('currency');
+  if ((next.supplierName?.length ?? 0) > 120) preserve('supplierName');
+  if ((next.purchaseName?.length ?? 0) > 120) preserve('purchaseName');
+  if (next.status?.trim()) Object.assign(next, normalizeInventoryImportStatus(next.status));
+  if (notes.length) next.batteryNote = [next.batteryNote, ...notes].filter(Boolean).join('\n');
+  if (notes.length || needsReview) next.status = 'EN_REVISION';
+  return next;
 }

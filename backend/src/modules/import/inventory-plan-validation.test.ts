@@ -38,7 +38,7 @@ it('sends concrete all-row errors and previous plan to Decisions; succeeds on co
   const result = await analyzeImport(input, { fetchImpl });
   expect(requests).toHaveLength(2);
   expect(requests[1].input).toContain('Plan anterior'); expect(requests[1].input).toContain('duplicado');
-  expect(requests[1].input).toContain('valores inválidos'); expect(requests[1].input).toContain('<85%');
+  expect(requests[1].input).toContain('valores inválidos');
   expect(result.rows).toHaveLength(1); expect(result.plan[0].mapping.some(c => c.review?.length)).toBe(false);
 });
 it('uses the best model plan after two retries and exposes doubts without overriding it with hints', async () => {
@@ -59,8 +59,9 @@ it('checks rows beyond the prompt sample, per-sheet acceptance, fields and conte
   const plan = heuristicPlan(sheets, 'inventory', 'USD');
   const checked = validateInventoryPlan(sheets, plan, 'USD');
   expect(checked.issues.map(i => i.message).join(' ')).toContain('19/100');
-  expect(checked.issues.map(i => i.message).join(' ')).toContain('81/100 <85%');
-  expect(checked.applied.diagnostics.rejected).toHaveLength(19);
+  expect(checked.applied.rows).toHaveLength(100);
+  expect(checked.applied.rows.filter(row => row.batteryNote?.includes('ilegible'))).toHaveLength(19);
+  expect(checked.applied.diagnostics.discardedRows).toBe(0);
 });
 it.each([['A', 'grade'], ['AA+', 'custom:condicion_origen']])('repairs any invalid condition column (%s) before preview validation', async (quality, field) => {
   vi.stubEnv('OPENAI_API_KEY', 'test');

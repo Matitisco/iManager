@@ -149,7 +149,7 @@
    {
     "name": "Stock octubre",
     "headerRow": 6,
-    "rows": 24,
+    "rows": 25,
     "mapping": {
      "0": "model",
      "1": "capacity",
@@ -316,7 +316,7 @@
    {
     "name": "lista",
     "headerRow": 1,
-    "rows": 24,
+    "rows": 25,
     "mapping": {
      "1": "model",
      "2": "capacity",

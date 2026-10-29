@@ -90,11 +90,11 @@ describe("optional IMEI", () => {
 
     expect(imported.statusCode).toBe(200);
     expect(imported.json()).toMatchObject({
-      imported: 3,
-      errors: [{ row: 3, message: "El IMEI tiene 15 dígitos" }],
+      imported: 4,
+      errors: [],
     });
     const stored = await prisma.inventoryItem.findMany({ where: { storeId: context.store!.id } });
-    expect(stored.filter((item) => item.imei === null)).toHaveLength(2);
+    expect(stored.filter((item) => item.imei === null)).toHaveLength(3);
     expect(stored.some((item) => item.imei === "350000000000096")).toBe(true);
   });
 

@@ -101,7 +101,8 @@ it('prevents staff from changing shared currency through a cost update', async (
   const payload = { rows: [{ imei: '350000000000100', model: 'iPhone 13', price: 420, currency: 'USD' }] };
   expect((await app.inject({ method: 'POST', url: '/api/inventory/import', headers: headers(context), payload })).json().imported).toBe(1);
   const response = await app.inject({ method: 'POST', url: '/api/inventory/import', headers: headers(staff), payload: { rows: [{ ...payload.rows[0], currency: 'ARS', cost: 200 }] } });
-  expect(response.json()).toMatchObject({ imported: 0, updated: 0, errors: [{ message: 'No tenés permiso para cambiar la moneda de este equipo' }] });
+  expect(response.statusCode).toBe(403);
+  expect(response.json().error).toContain('No tenés permiso para cambiar la moneda');
   const item = await prisma.inventoryItem.findFirstOrThrow({ where: { storeId: context.store!.id } });
   expect(item.currency).toBe('USD');
   expect(Number(item.cost)).toBe(0);

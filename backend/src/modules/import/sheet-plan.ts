@@ -1,11 +1,10 @@
 import { parseQuality } from "../inventory/quality.js";
 import { imeiPassesLuhn } from "../../lib/imei.js";
-import { z } from "zod";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, isPurchaseHeader, normalizeHeader, isIgnoredInventoryHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
-import { isInventoryFooter, validateInventoryImportRow } from "../inventory/import-validation.js";
+import { isInventoryFooter, prepareInventoryImportRow } from "../inventory/import-validation.js";
 import { recordRejection, countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
@@ -51,7 +50,6 @@ export type ImportSummary = {
   sheets: SheetSummary[];
 };
 
-const inventoryQuantitySchema = z.coerce.number().int().min(1).max(2000);
 const QUANTITY_HEADERS = new Set(["cantidad", "unidades", "qty", "quantity"]);
 const MONEY_FIELDS = new Set(["price", "cost", "amount", "takeValue", "differencePaid"]);
 const CAPACITY_RE = /^(.*\S)\s+(\d+(?:[.,]\d+)?)\s*(GB|TB|MB)\s*$/i;
@@ -597,10 +595,6 @@ export function applyPlans(
     const grid = byName.get(plan.name);
     if (!grid) continue;
     const headers = sheetHeaders(grid, plan.headerRow);
-    // Quantity is file metadata; keep the visible field catalog and mappings intact.
-    const quantityIndex = section === "inventory" && plan.headerRow > 0
-      ? headers.findIndex((header) => QUANTITY_HEADERS.has(normalizeHeader(header)))
-      : -1;
     const usable = plan.mapping.filter((column) => column.field && (known.has(column.field) || (section === "inventory" && /^custom:[a-z][a-z0-9_]{0,59}$/.test(column.field))) && mappingColumnIndex(headers, column) >= 0);
     const seen = new Set<string>();
     const mapping = usable.filter((column) => {
@@ -608,8 +602,6 @@ export function applyPlans(
       seen.add(column.field);
       return true;
     });
-    const realModelHeader = plan.headerRow > 0 && mapping.some(column => column.field === "model"
-      && autoMap([headers[mappingColumnIndex(headers, column)]], fieldLabels(catalog), catalog.hints).model);
     const diagnostics = { ...emptyDiagnostics(), ...missingFields(section, mapping.map((column) => column.field)) };
     const rate = findRate(grid);
     const usdHeader = headers.find((header) => priceKind(header) === "usd") ?? "";
@@ -618,8 +610,8 @@ export function applyPlans(
     const start = Math.max(plan.headerRow + 1, plan.dataStartRow);
     const end = Math.min(grid.length, Math.max(start - 1, plan.dataEndRow));
 
-    diagnostics.detectedRows = Math.max(0, end - start + 1);
-    if (!plan.include) {
+    diagnostics.detectedRows = section === "inventory" && !plan.include ? 0 : Math.max(0, end - start + 1);
+    if (!plan.include && section !== "inventory") {
       for (let index = start; index <= end; index += 1) countDiscard(diagnostics, "excluded_sheet");
     }
     if (plan.include) {
@@ -637,11 +629,6 @@ export function applyPlans(
         if (section !== "inventory" && isFooter(line)) { countDiscard(diagnostics, "footer"); continue; }
         const filledCells = line.filter((cell) => cell.trim());
         if ((section === "sales" || section === "clients") && filledCells.length === 1 && !parseMoney(filledCells[0])) { countDiscard(diagnostics, "section_header"); continue; }
-        if (section === "inventory" && realModelHeader && filledCells.length === 1 && filledCells[0].length <= 40 && !parseMoney(filledCells[0])) {
-          const headingCondition = conditionFromName(filledCells[0]);
-          if (headingCondition) { sectionCondition = headingCondition; countDiscard(diagnostics, "section_header"); continue; }
-          if (/^(samsung|macbook|applewatch|airpodspro|ipads?|otrosaccesorios.*|accesorios)$/.test(normalizeHeader(filledCells[0].replace(/!+$/, "")))) { countDiscard(diagnostics, "section_header"); continue; }
-        }
         const record: Record<string, string> = {};
         for (const column of mapping) {
           const index = mappingColumnIndex(headers, column);
@@ -649,21 +636,23 @@ export function applyPlans(
           record[column.field] = column.field === "batteryNote" && record.batteryNote
             ? (value ? `${record.batteryNote}; ${value}` : record.batteryNote) : value;
         }
-        if (section === "inventory" && isInventoryFooter(record, line)) {
-          countDiscard(diagnostics, "footer");
-          recordRejection(diagnostics, { row: rowIndex, reason: "footer", message: "Total o nota al pie sin equipo" });
-          continue;
-        }
-        // A repeated table header is metadata, even when price is optional.
-        if (section === "inventory" && realModelHeader && record.model && mapping.some(column => column.field === "model" && normalizeHeader(headers[mappingColumnIndex(headers, column)]) === normalizeHeader(record.model))) {
-          countDiscard(diagnostics, "section_header");
-          continue;
+        // Unmapped columns still belong to this physical device. Keep their raw cells in notes.
+        if (section === "inventory") {
+          const mappedIndexes = new Set(mapping.map(column => mappingColumnIndex(headers, column)));
+          const extras = line.flatMap((value, index) => value.trim() && !mappedIndexes.has(index)
+            ? [`${headers[index] || `Columna ${index + 1}`} (origen): ${value}`] : []);
+          if (extras.length) record.batteryNote = [record.batteryNote, ...extras].filter(Boolean).join('\n');
         }
         if (sectionCondition && !record.condition) record.condition = sectionCondition;
         if (plan.splitModelCapacity && record.model) {
           const split = splitModelCapacity(record.model);
           record.model = split.model;
           if (split.capacity && !record.capacity) record.capacity = split.capacity;
+        }
+        if (section === "inventory" && record.currency?.trim() && !normalizeCurrencyToken(record.currency)) {
+          record.batteryNote = [record.batteryNote, `currency (origen): ${record.currency}`].filter(Boolean).join('\n');
+          record.currency = storeCurrency;
+          record.status = 'EN_REVISION';
         }
         if (section === "inventory" && record.cost?.trim()) {
           const costHeader = mapping.find(column => column.field === "cost")?.header ?? "";
@@ -689,7 +678,7 @@ export function applyPlans(
           const amount = parseMoney(record[field]);
           if (amount != null) record[field] = moneyString(amount);
         }
-        const normalized = normalizeSectionRow(section, record, plan.priceCurrency, rawAmount, storeCurrency);
+        let normalized = normalizeSectionRow(section, record, plan.priceCurrency, rawAmount, storeCurrency);
         if (!normalized) {
           const missingName = section === "clients" && !record.name?.trim();
           const missingIdentity = section === "sales" && !record.clientName?.trim() && !record.device?.trim() && !record.productImei?.trim();
@@ -697,33 +686,18 @@ export function applyPlans(
           continue;
         }
         if (section === "inventory") {
-          const validated = validateInventoryImportRow({
-            ...normalized,
-            price: normalized.price?.trim() ? parseMoney(normalized.price) ?? Number.NaN : null,
-          }, rowIndex, seenImeis);
-          if (validated.warnings.length) (diagnostics.warnings ??= []).push(...validated.warnings);
-          if (!validated.ok) {
-            countDiscard(diagnostics, validated.reason);
-            recordRejection(diagnostics, { row: rowIndex, reason: validated.reason, message: validated.message });
-            continue;
-          }
-          if (validated.value.imei) seenImeis.set(validated.value.imei, rowIndex);
-          if (normalized.imei !== undefined) normalized.imei = validated.value.imei ?? "";
-          if (normalized.batteryHealth !== undefined) normalized.batteryHealth = plan.batteryAsPercent
-            ? normalizeBattery(validated.value.batteryHealth) : validated.value.batteryHealth;
-          // Custom-field types depend on the store definitions; DB checks remain at confirmation.
+          const originalBattery = normalized.batteryHealth;
+          normalized = prepareInventoryImportRow(normalized, rowIndex, seenImeis);
+          if (originalBattery && !normalized.batteryHealth) (diagnostics.warnings ??= []).push({ row: rowIndex, message: 'Batería no se pudo leer: se importó sin batería' });
+          if (plan.batteryAsPercent && normalized.batteryHealth !== undefined) normalized.batteryHealth = normalizeBattery(normalized.batteryHealth);
         }
         if (section === "trade-ins" && !normalized.clientName?.trim()) { countDiscard(diagnostics, "missing_client"); continue; }
         if (section === "trade-ins" && !normalized.deviceReceived?.trim()) { countDiscard(diagnostics, "missing_device"); continue; }
         const filled = Object.values(normalized).some((value) => value.trim());
         if (!filled) { countDiscard(diagnostics, "empty"); continue; }
-        const quantity = section === "inventory" && !normalized.imei?.trim()
-          ? inventoryQuantitySchema.parse(line[quantityIndex]?.trim() || 1)
-          : 1;
-        if (quantityIndex >= 0) inventoryQuantitySchema.parse(rows.length + quantity);
         diagnostics.acceptedRows += 1;
-        count += quantity;
-        for (let unit = 0; unit < quantity; unit += 1) rows.push({ ...normalized, ...(section === "inventory" ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
+        count += 1;
+        rows.push({ ...normalized, ...(section === "inventory" ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
 

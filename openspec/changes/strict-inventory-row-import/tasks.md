@@ -1,0 +1,4 @@
+- [x] Preparación compartida sin descartes de filas con datos
+- [x] Confirmación atómica y duplicados internos sin IMEI
+- [x] Regresiones Natan y F07 y lint
+- [ ] CI verde y merge

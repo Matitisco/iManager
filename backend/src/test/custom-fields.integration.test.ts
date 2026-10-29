@@ -26,7 +26,7 @@ describe('custom equipment fields and import', () => {
       } });
     expect(item.entryDate!.toISOString().slice(0, 10)).toBe('2026-10-15');
   });
-  it('commits definitions and valid typed rows; errors identify original Excel rows', async () => {
+  it('commits every row and preserves invalid typed values in notes', async () => {
     const { headers, store } = await context();
     const result = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { definitions, rows: [
       { ...row, sourceRow: 1, entryDate: '14/10/2026', batteryNote: 'Batería cambiada', supplierName: 'Proveedor ficticio', customFields: { reparaciones: '1.250,5', garantia: '31/12/2026' } },
@@ -34,10 +34,13 @@ describe('custom equipment fields and import', () => {
       { ...row, sourceRow: 9, entryDate: '31/02/2026' },
     ] } });
     expect(result.statusCode).toBe(200);
-    expect(result.json()).toMatchObject({ imported: 1, errors: [{ row: 7, message: expect.stringContaining('número inválido') }, { row: 9, message: expect.stringContaining('Fecha de ingreso inválida') }] });
+    expect(result.json()).toMatchObject({ imported: 3, errors: [] });
+    const saved = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
+    expect(saved.some(item => item.batteryNote?.includes('reparaciones (origen): texto'))).toBe(true);
+    expect(saved.some(item => item.batteryNote?.includes('entryDate (origen): 31/02/2026'))).toBe(true);
     expect(await prisma.customFieldDefinition.count({ where: { storeId: store!.id } })).toBe(2);
     const list = await getApp().inject({ method: 'GET', url: '/api/inventory?skip=0&take=30', headers });
-    expect(list.json().items[0]).toMatchObject({ entryDate: expect.stringContaining('2026-10-14'), batteryNote: 'Batería cambiada', supplierName: 'Proveedor ficticio', customFields: { reparaciones: 1250.5, garantia: '2026-12-31' } });
+    expect(list.json().items.find((item: { supplierName?: string }) => item.supplierName === 'Proveedor ficticio')).toMatchObject({ entryDate: expect.stringContaining('2026-10-14'), batteryNote: 'Batería cambiada', supplierName: 'Proveedor ficticio', customFields: { reparaciones: 1250.5, garantia: '2026-12-31' } });
   });
   it('scopes CRUD to the store, keeps types immutable, archives without deleting values', async () => {
     const { headers, store } = await context();
@@ -86,16 +89,18 @@ describe('custom equipment fields and import', () => {
     const item = await prisma.inventoryItem.findFirst({ where: { storeId: store!.id } });
     expect(item).toMatchObject({ supplierId: supplier.id, stockPurchaseId: expect.any(String), customFields: { reparaciones: 0 } });
   });
-  it('rolls back a failed row and continues saving other rows with the new definitions', async () => {
+  it('rolls back all rows and definitions when any row cannot be persisted', async () => {
     const { headers, store } = await context();
     await prisma.inventoryItem.create({ data: { storeId: store!.id, imei: '350000000000014', model: 'Reservado', capacity: '', color: '', condition: 'USADO', grade: '', batteryHealth: '90%', cost: 0, price: null, status: 'RESERVADO', reservedDepositId: 'deposito-ficticio' } });
     const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { definitions, rows: [
       { ...row, sourceRow: 3, imei: '350000000000014', supplierName: 'Origen fallido', customFields: { reparaciones: '1' } },
       { ...row, sourceRow: 4, customFields: { reparaciones: '2' } },
     ] } });
-    expect(response.json()).toMatchObject({ imported: 1, updated: 0, errors: [{ row: 3, message: 'Error al guardar' }] });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain('No se importó ningún equipo');
+    expect(await prisma.customFieldDefinition.count({ where: { storeId: store!.id } })).toBe(0);
     expect(await prisma.supplier.count({ where: { storeId: store!.id } })).toBe(0);
-    expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(2);
+    expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(1);
   });
 
 });
@@ -129,13 +134,13 @@ it('creates the suggested origin quality definition and persists every preview r
       payload: { rows, definitions: analysis.suggestedDefinitions } });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ imported: analysis.rows.length, updated: 0, errors: [] });
-    expect(analysis.rows).toHaveLength(58);
-    expect(analysis.diagnostics?.discardedByReason).toEqual({ invalid_price: 1, duplicate: 1 });
+    expect(analysis.rows).toHaveLength(60);
+    expect(analysis.diagnostics?.discardedByReason).toEqual({});
     expect(await prisma.customFieldDefinition.findMany({ where: { storeId: store!.id } })).toEqual([
       expect.objectContaining({ key: 'calidad_origen', label: 'Calidad (origen)', type: 'text' }),
     ]);
     const saved = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
-    for (const row of rows) expect(saved.find(item => item.imei === row.imei)).toMatchObject({ grade: '', customFields: row.customFields });
+    for (const row of rows) expect(saved.find(item => item.imei === (row.imei || null))).toMatchObject({ grade: '', customFields: row.customFields });
     expect(saved.find(item => item.imei === rows[7].imei)?.batteryHealth).toBe('');
   } finally { vi.unstubAllEnvs(); }
 });

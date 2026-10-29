@@ -1,35 +1,37 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   store: { findUnique: vi.fn() },
   customFieldDefinition: { findMany: vi.fn() },
   inventoryItem: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
 vi.mock('../../plugins/prisma.js', () => ({ prisma: prismaMock }));
 import { importInventoryItems } from './inventory.service.js';
-import { ILLEGIBLE_IMEI_MESSAGE, validateInventoryImportRow } from './import-validation.js';
+import { validateInventoryImportRow } from './import-validation.js';
 
 beforeEach(() => {
   vi.resetAllMocks();
+  prismaMock.$transaction.mockImplementation(async work => work(prismaMock));
   prismaMock.store.findUnique.mockResolvedValue({ currency: 'USD' });
   prismaMock.customFieldDefinition.findMany.mockResolvedValue([]);
   prismaMock.inventoryItem.findFirst.mockResolvedValue(null);
   prismaMock.inventoryItem.create.mockResolvedValue({ id: 'new-item' });
 });
 
-it('counts amount-only footers, bad price and invalid IMEI without saving rejected rows', async () => {
+it('keeps amount-only rows, bad prices and invalid IMEIs as devices with preserved notes', async () => {
   const result = await importInventoryItems('store-test', [
     { imei: '', model: 'iPhone 13', price: 500 },
     { imei: '', model: '', price: 500 },
     { imei: '', model: 'iPhone 13', price: NaN },
     { imei: '1234', model: 'iPhone 13', price: 500 },
   ]);
-  expect(result).toMatchObject({ imported: 1, updated: 0, diagnostics: {
-    detectedRows: 4, acceptedRows: 1, discardedRows: 3,
-    discardedByReason: { footer: 1, invalid_price: 1, invalid_imei: 1 },
+  expect(result).toMatchObject({ imported: 4, updated: 0, diagnostics: {
+    detectedRows: 4, acceptedRows: 4, discardedRows: 0,
+    discardedByReason: {},
     missingRequiredFields: [], missingRecommendedFields: [],
   } });
-  expect(prismaMock.inventoryItem.create).toHaveBeenCalledOnce();
+  expect(prismaMock.inventoryItem.create).toHaveBeenCalledTimes(4);
 });
 
 it('counts an existing IMEI as an accepted update, preserving upsert behavior', async () => {
@@ -42,15 +44,15 @@ it('counts an existing IMEI as an accepted update, preserving upsert behavior', 
   expect(prismaMock.inventoryItem.update).toHaveBeenCalledOnce();
 });
 
-it('accepts null prices while retaining discard reasons for other rows', async () => {
+it('accepts null prices and omits only entirely empty rows', async () => {
   const result = await importInventoryItems('store-test', [
     { imei: '', model: 'iPhone 13', price: null, cost: 420 },
     { imei: '', model: '', price: null },
     { imei: '', model: 'iPhone 14', price: NaN },
   ]);
-  expect(result).toMatchObject({ imported: 1, priceToDefine: 1, diagnostics: {
-    detectedRows: 3, acceptedRows: 1, discardedRows: 2,
-    discardedByReason: { missing_model: 1, invalid_price: 1 },
+  expect(result).toMatchObject({ imported: 2, priceToDefine: 2, diagnostics: {
+    detectedRows: 3, acceptedRows: 2, discardedRows: 1,
+    discardedByReason: { empty: 1 },
   } });
   expect(result.diagnostics?.discardedByReason).not.toHaveProperty('missing_price');
   expect(prismaMock.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({ price: null }) });
@@ -66,23 +68,24 @@ it.each(['SIN SERVICIO', 'SERVICIO TECNICO', 'SERVICIO TÉCNICO', 'SERVICIO TEC'
 });
 
 
-it('clears unreadable batteries, rejects the second file IMEI and preserves Excel rows', async () => {
+it('preserves unreadable batteries and imports the second file IMEI without an identifier', async () => {
   const result = await importInventoryItems('store-test', [
     { sourceRow: 38, imei: '990000000000038', model: 'iPhone 13', batteryHealth: '8*%' },
     { sourceRow: 59, imei: '990000000000038', model: 'iPhone 14', batteryHealth: '8*%' },
     { sourceRow: 60, imei: '', model: 'iPhone 15' },
     { sourceRow: 61, imei: '', model: 'iPhone 15' },
   ]);
-  expect(result).toMatchObject({ imported: 3, updated: 0,
-    errors: [{ row: 59, message: 'IMEI repetido en el archivo (igual a la fila 38)' }],
+  expect(result).toMatchObject({ imported: 4, updated: 0,
+    errors: [],
     warnings: [{ row: 38, message: expect.stringContaining('sin batería') }, { row: 59, message: expect.stringContaining('sin batería') }],
-    diagnostics: { discardedByReason: { duplicate: 1 }, rejected: [{ row: 59, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 38)' }] },
+    diagnostics: { discardedRows: 0, discardedByReason: {} },
   });
   expect(prismaMock.inventoryItem.create.mock.calls[0][0].data.batteryHealth).toBe('');
+  expect(prismaMock.inventoryItem.create.mock.calls[1][0].data).toMatchObject({ imei: null, status: 'EN_REVISION', batteryNote: expect.stringContaining('IMEI duplicado en el archivo: 990000000000038') });
 });
 
 
-it('preview and confirmation reject the same file-only errors and accept the same count', async () => {
+it('preview and confirmation preserve the same nonempty rows', async () => {
   const { applyImportPlan } = await import('../import/analyze-import.service.js');
   const header = ['model', 'price', 'condition', 'imei', 'grade', 'color', 'entryDate', 'batteryNote', 'batteryHealth'];
   const valid = ['iPhone 13', '500', 'USADO', '', 'A', 'Black', '2026-10-15', 'Original', '85%'];
@@ -100,12 +103,12 @@ it('preview and confirmation reject the same file-only errors and accept the sam
   const rawRows = records.map((values, index) => ({ ...Object.fromEntries(header.map((field, column) => [field, values[column]])),
     imei: values[3], model: values[0], price: Number(values[1]), sourceRow: index + 2 }));
   const confirmedRaw = await importInventoryItems('store-test', rawRows);
-  expect(analysis.rows.length).toBe(3);
+  expect(analysis.rows.length).toBe(records.length);
   expect(analysis.rows.length).toBe(confirmedRaw.imported + confirmedRaw.updated);
   expect(analysis.diagnostics?.rejected).toEqual(confirmedRaw.diagnostics?.rejected);
   expect(analysis.diagnostics?.warnings).toEqual(confirmedRaw.warnings);
   const confirmedPreview = await importInventoryItems('store-test', analysis.rows.map(row => ({
-    ...row, imei: row.imei, model: row.model, sourceRow: Number(row._sourceRow), price: Number(row.price),
+    ...row, imei: row.imei, model: row.model, sourceRow: Number(row._sourceRow), price: row.price?.trim() ? Number(row.price) : null,
   })));
   expect(confirmedPreview.errors).toEqual([]);
   expect(confirmedPreview.imported + confirmedPreview.updated).toBe(analysis.rows.length);
@@ -121,15 +124,13 @@ it('only accepts scientific IMEIs with every digit, without float conversion or 
     mapping: [{ header: 'Modelo', field: 'model' }, { header: 'IMEI', field: 'imei' }],
   }] });
   const confirmed = await importInventoryItems('synthetic-store', identifiers.map((imei, i) => ({ model: 'iPhone 13', imei, sourceRow: i + 2 })));
-  expect(analysis.rows.map(row => row.imei)).toEqual(['356789012340005', '356789012340007', '356789012340009']);
+  expect(analysis.rows.map(row => row.imei)).toEqual(['', '', '356789012340005', '356789012340007', '', '356789012340009']);
   expect(analysis.rows.length).toBe(confirmed.imported + confirmed.updated);
   expect(confirmed.updated).toBe(0);
   expect(analysis.diagnostics?.rejected).toEqual(confirmed.diagnostics?.rejected);
-  expect(confirmed.diagnostics?.rejected).toEqual([
-    { row: 2, reason: 'invalid_imei', message: ILLEGIBLE_IMEI_MESSAGE },
-    { row: 3, reason: 'invalid_imei', message: ILLEGIBLE_IMEI_MESSAGE },
-    { row: 6, reason: 'duplicate', message: 'IMEI repetido en el archivo (igual a la fila 4)' },
-  ]);
+  expect(confirmed.diagnostics?.discardedRows).toBe(0);
+  expect(prismaMock.inventoryItem.create.mock.calls[0][0].data.batteryNote).toContain('3.5E+14');
+  expect(prismaMock.inventoryItem.create.mock.calls[4][0].data.batteryNote).toContain('IMEI duplicado en el archivo: 356789012340005');
 });
 
 it.each(['Total', 'Subtotal', 'Suma', 'Totales', 'Nota', 'Notas', 'Observación', 'Observaciones'])('preserves real equipment called %s when it has identity', model => {
@@ -150,10 +151,10 @@ it('reports generic notes and amount-only footers equally in preview and direct 
   const confirmed = await importInventoryItems('synthetic-store', records.map((r, i) => ({ sourceRow: i + 2,
     model: r[0], capacity: r[1], imei: r[2], price: r[3] ? Number(r[3]) : null,
   })));
-  expect(analysis.rows).toHaveLength(2);
+  expect(analysis.rows).toHaveLength(records.length);
   expect(analysis.rows.length).toBe(confirmed.imported + confirmed.updated);
   expect(analysis.diagnostics?.rejected).toEqual(confirmed.diagnostics?.rejected);
-  expect(confirmed.diagnostics?.rejected?.map(({ row, reason }) => ({ row, reason }))).toEqual([3, 4, 5, 6].map(row => ({ row, reason: 'footer' })));
+  expect(confirmed.diagnostics?.discardedRows).toBe(0);
 });
 
 it.each(['0,87', '0.87'])('persists decimal battery %s and slash qualities on create and reimport', async batteryHealth => {

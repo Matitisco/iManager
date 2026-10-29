@@ -13,15 +13,16 @@ describe("Gestión 05: compras históricas importadas", () => {
     expect(response.json().rows[0]).toMatchObject({ purchasedAt: "2026-09-15", purchaseName: "Reposición septiembre" });
   });
 
-  it("rechaza la fecha inválida sin crear equipo ni compra", async () => {
+  it("conserva fecha inválida en notas y crea el equipo y compra", async () => {
     const owner = await seedStoreContext();
     const storeId = owner.store!.id;
     const supplier = await prisma.supplier.create({ data: { storeId, name: "Proveedor ficticio" } });
     const response = await getApp().inject({ method: "POST", url: "/api/inventory/import", headers: buildAuthHeaders(), payload: { supplierId: supplier.id, rows: [{ imei: "", model: "iPhone 13", price: 600, purchasedAt: "31/02/2026" }] } });
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({ imported: 0, errors: [{ row: 1, message: "Fecha de compra inválida" }] });
-    expect(await prisma.inventoryItem.count({ where: { storeId } })).toBe(0);
-    expect(await prisma.stockPurchase.count({ where: { storeId } })).toBe(0);
+    expect(response.json()).toMatchObject({ imported: 1, errors: [] });
+    expect(await prisma.inventoryItem.count({ where: { storeId } })).toBe(1);
+    expect(await prisma.stockPurchase.count({ where: { storeId } })).toBe(1);
+    expect((await prisma.inventoryItem.findFirstOrThrow({ where: { storeId } })).batteryNote).toContain("purchasedAt (origen): 31/02/2026");
   });
 
   it("persiste cada compra con su fecha y nombre y no la duplica al repetir", async () => {

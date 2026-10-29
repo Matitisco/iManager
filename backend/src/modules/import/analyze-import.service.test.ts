@@ -148,13 +148,13 @@ describe("ejemplo stock heuristic", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(result.source).toBe("heuristic");
     expect(result.summary.sheetCount).toBe(3);
-    expect(result.summary.rowCount).toBe(37);
+    expect(result.summary.rowCount).toBe(42);
     expect(result.summary.sheets.map((sheet) => [sheet.name, sheet.rows, sheet.condition])).toEqual([
-      ["iPhones Usados", 20, "USADO"],
-      ["iPhones Nuevos", 10, "NUEVO"],
-      ["OUTLET", 7, "USADO"],
+      ["iPhones Usados", 21, "USADO"],
+      ["iPhones Nuevos", 13, "NUEVO"],
+      ["OUTLET", 8, "USADO"],
     ]);
-    expect(result.rows).toHaveLength(37);
+    expect(result.rows).toHaveLength(42);
     expect(result.rows.some((row) => JSON.stringify(row).includes("[object Object]"))).toBe(false);
     expect(result.rows.every((row) => !row.model?.includes("GB"))).toBe(true);
 
@@ -183,7 +183,7 @@ describe("ejemplo stock heuristic", () => {
     });
 
     const nuevosRows = result.rows.filter((row) => row.condition === "NUEVO");
-    expect(nuevosRows).toHaveLength(10);
+    expect(nuevosRows).toHaveLength(13);
     expect(nuevosRows[0]).toMatchObject({ model: "15", capacity: "128 GB", color: "Black - Blue", price: String(790 * RATE) });
     expect(nuevosRows.find((row) => row.model === "iPad A16")).toMatchObject({ capacity: "256 GB", color: "Silver" });
     expect(nuevosRows.find((row) => row.model === "AirPods Pro 3")).toMatchObject({ price: String(290 * RATE) });

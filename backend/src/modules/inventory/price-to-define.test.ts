@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { Decimal } from '@prisma/client/runtime/library';
 
 const db = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   store: { findUnique: vi.fn() },
   inventoryItem: { findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
@@ -11,6 +12,7 @@ import { moneyChanged } from '../audit/audit.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.$transaction.mockImplementation(async work => work(db));
   db.store.findUnique.mockResolvedValue({ currency: 'USD' });
   db.inventoryItem.findFirst.mockResolvedValue(null);
   db.inventoryItem.create.mockResolvedValue({ id: 'new' });
@@ -33,10 +35,11 @@ it('reimportar sin precio cuenta un null existente y permite definirlo después'
   expect(await importInventoryItems('store', [{ model: 'iPhone 13', imei: '356789012345671', price: 500 }])).toMatchObject({ updated: 1, priceToDefine: 0 });
   expect(db.inventoryItem.update.mock.calls[1][0].data.price.toNumber()).toBe(500);
 });
-it('rechaza valores inválidos y no los convierte a precio a definir', async () => {
+it('conserva precios inválidos en notas y guarda precio a definir', async () => {
   const result = await importInventoryItems('store', [-1, NaN, Infinity].map(price => ({ model: 'iPhone', imei: '', price })));
-  expect(result.imported).toBe(0);
-  expect(result.errors).toHaveLength(3);
+  expect(result.imported).toBe(3);
+  expect(result.errors).toHaveLength(0);
+  expect(db.inventoryItem.create).toHaveBeenCalledWith({ data: expect.objectContaining({ price: null, status: 'EN_REVISION', batteryNote: expect.stringContaining('price (origen):') }) });
 });
 it('serializa null sin convertirlo en cero', () => {
   const record = { id: 'item', model: 'iPhone', price: null, cost: new Decimal(300), createdAt: new Date(), updatedAt: new Date() } as unknown as Parameters<typeof serializeInventoryItem>[0];

@@ -48,20 +48,21 @@ it('preserva varias notas y la moneda explícita del costo, y respeta elección 
   result.plan[0].priceCurrency = 'ARS';
   expect(applyImportPlan({ ...input, plan: result.plan }).rows[0].currency).toBe('ARS');
 });
-it.each(['texto', '-1', '=A1', '#N/A', '-', 'sin dato'])('rechaza costo/precio inválido %s sin inventar cero; vacío permite precio a definir', async amount => {
+it.each(['texto', '-1', '=A1', '#N/A', '-', 'sin dato'])('conserva costo/precio inválido %s en notas; vacío permite precio a definir', async amount => {
   vi.stubEnv('OPENAI_API_KEY', '');
   for (const field of ['Costo', 'Precio']) {
     const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Stock', rows: [['Modelo', field], ['iPhone 13', amount], ['iPhone 14', '']] }] });
-    expect(result.rows).toHaveLength(1);
-    expect(result.rows[0].model).toBe('iPhone 14');
-    expect(result.diagnostics?.rejected).toContainEqual({ row: 2, reason: 'invalid_price', message: expect.stringMatching(/Costo|Precio/) });
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[1].model).toBe('iPhone 14');
+    expect(result.rows[0].batteryNote).toContain(amount);
+    expect(result.diagnostics?.discardedRows).toBe(0);
   }
 });
-it.each(['=A1', '#REF!', '#N/A', '#VALUE!'])('rechaza el modelo %s como error de Excel', async model => {
+it.each(['=A1', '#REF!', '#N/A', '#VALUE!'])('conserva el modelo %s en notas ante un error de Excel', async model => {
   vi.stubEnv('OPENAI_API_KEY', '');
   const result = await analyzeImport({ section: 'inventory', currency: 'ARS', sheets: [{ name: 'Stock', rows: [['Modelo', 'Costo'], [model, '450']] }] });
-  expect(result.rows).toEqual([]);
-  expect(result.diagnostics?.rejected?.[0]).toMatchObject({ reason: 'missing_model', message: expect.stringContaining('error de Excel') });
+  expect(result.rows[0]).toMatchObject({ model: 'Equipo sin modelo', batteryNote: expect.stringContaining(model) });
+  expect(result.diagnostics?.discardedRows).toBe(0);
 });
 it('consulta Decisions aun con heurística confiable y conserva una decisión válida distinta', async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-only');
