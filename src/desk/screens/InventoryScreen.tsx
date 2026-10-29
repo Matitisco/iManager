@@ -156,6 +156,19 @@ export function InventoryScreen() {
     return () => window.removeEventListener(PRICE_TO_DEFINE_EVENT, show);
   }, [setColumns, setQuery, setArchivedMode]);
 
+  useEffect(() => {
+    const showReview = () => {
+      const [path, query] = window.location.hash.split('?');
+      if (path !== '#/stock/equipos' || new URLSearchParams(query).get('status') !== 'EN_REVISION') return;
+      setQuery('');
+      setArchivedMode(false);
+      setColumns({ ...EMPTY_COLUMN_FILTERS, statuses: ['EN_REVISION'] });
+    };
+    window.addEventListener('hashchange', showReview);
+    showReview();
+    return () => window.removeEventListener('hashchange', showReview);
+  }, [setColumns, setQuery, setArchivedMode]);
+
   const source = archivedMode ? archived : mergeRecordRows(inventory, archived);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

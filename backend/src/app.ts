@@ -17,6 +17,7 @@ import { onboardingRoutes, gettingStartedRoutes } from "./modules/onboarding/onb
 import { clientsRoutes } from "./modules/clients/clients.routes.js";
 import { inventoryRoutes } from "./modules/inventory/inventory.routes.js";
 import { periodicReportRoutes } from "./modules/periodic-reports/routes.js";
+import { registerPeriodicReportTimer } from "./modules/periodic-reports/timer.js";
 import { expenseRoutes } from "./modules/expenses/expenses.routes.js";
 import { returnRoutes } from "./modules/returns/returns.routes.js";
 import { reportsRoutes } from "./modules/reports/reports.routes.js";
@@ -110,6 +111,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(historyRoutes, { prefix: "/api/history" });
   app.register(adminRoutes, { prefix: "/admin" });
   registerApiErrorHandler(app);
+  registerPeriodicReportTimer(app);
 
   return app;
 }
