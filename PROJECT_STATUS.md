@@ -1,6 +1,6 @@
 # iManager - Project Status
 
-- Importación en tienda vacía (2026-10-29): aplicar planes manuales conserva calidad/condición libre mediante la reparación existente y devuelve sus definiciones; el onboarding comparte el payload de ImportHost y envía customFields y definitions. Regresiones sobre f2c53cd reproducen 32/3 filas frente a 59; con el fix se guardan 59 sin errores y se crea la definición correspondiente. Campos nativos reconocidos conservados; 68 tests relacionados y TypeScript frontend/backend aprobados, máximo dos workers, PostgreSQL local exclusivo de test, sin build ni datos reales.
+- Importación en tienda vacía (2026-10-29): aplicar planes manuales conserva calidad/condición libre mediante la reparación existente y devuelve sus definiciones; el onboarding comparte el payload de ImportHost y envía customFields y definitions. Regresiones sobre f2c53cd reproducen 32/3 filas frente a 59; con el fix se guardan 59 sin errores y se crea la definición correspondiente. Campos nativos reconocidos conservados; 152 tests relacionados y TypeScript frontend/backend aprobados, máximo dos workers, PostgreSQL local exclusivo de test, sin build ni datos reales.
 
 - Importar equipos · contadores separados (2026-10-29): «por revisar» cuenta y recorre solo columnas asignadas con dudas amarillas; «sin asignar» muestra y recorre las rojas por separado. Chips ocultos en cero y navegación circular independiente en orden visual. Regresión de 16 columnas con G y L–P sin asignar; E2E verifica colores de headers y chip rojo.
 

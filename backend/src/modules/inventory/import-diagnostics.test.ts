@@ -87,8 +87,9 @@ it('preview and confirmation reject the same file-only errors and accept the sam
   const header = ['model', 'price', 'condition', 'imei', 'grade', 'color', 'entryDate', 'batteryNote', 'batteryHealth'];
   const valid = ['iPhone 13', '500', 'USADO', '', 'A', 'Black', '2026-10-15', 'Original', '85%'];
   const bad = (index: number, value: string) => valid.map((cell, column) => index === column ? value : cell);
-  const records = [valid, bad(0, ''), bad(1, '-1'), bad(2, 'inexistente'), bad(3, '1234'),
-    bad(4, 'AA'), bad(5, 'x'.repeat(51)), bad(6, '31/02/2026'), bad(7, 'x'.repeat(2001)),
+  // Free-text condition/quality is repaired by apply; only row errors remain here.
+  const records = [valid, bad(0, ''), bad(1, '-1'), bad(3, '1234'),
+    bad(5, 'x'.repeat(51)), bad(6, '31/02/2026'), bad(7, 'x'.repeat(2001)),
     bad(3, '990000000000038'), bad(3, '990000000000038'), bad(8, '8*%')];
   const sheets = [{ name: 'Stock', rows: [header, ...records] }];
   const analysis = applyImportPlan({ sheets, section: 'inventory', currency: 'USD', plan: [{
