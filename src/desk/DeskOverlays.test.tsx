@@ -49,8 +49,9 @@ describe('measured context menu placement', () => {
     measuredHeight = status === 'CANCELADA' ? 100 : 187;
     mount();
     expectPlacement();
-    expect(screen.getAllByRole('button')).toHaveLength(status === 'CANCELADA' ? 1 : 3);
-    expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(status === 'CANCELADA' ? 0 : 3);
+    if (status === 'CANCELADA') expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
+    else expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
     if (status === 'CANCELADA') {
       expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Devolver' })).not.toBeInTheDocument();
@@ -66,16 +67,16 @@ describe('measured context menu placement', () => {
   it('uses the short menu for a sale annulled through voidedAt, as in the sales table', () => {
     ctx.sales[0].voidedAt = '2026-10-23T04:03:52.250Z'; measuredHeight = 100;
     mount(); expectPlacement();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
   });
 
   it('also resolves annulled sales from the existing archive cache', () => {
     rememberVoidedSales([{ ...ctx.sales[0], voidedAt: '2026-10-23T04:03:52.250Z' } as Sale]);
     ctx.sales = []; measuredHeight = 100;
     mount(); expectPlacement();
-    expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Anular' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Anular' })).not.toBeInTheDocument();
   });
 
   it('repositions on content and window resize, and disconnects on close', () => {
