@@ -214,7 +214,7 @@ describe('repair and archival concurrency #461', () => {
 describe('import consistency #461', () => {
   it.each(['ordinary sale', 'second distinct import'])('preserves current totals against %s', async mode => {
     const f = await fixture();
-    const rows = [{ clientName: f.client.name, clientDni: f.client.dni!, device: 'Imported', amount: '30', date: '01/01/2026' }];
+    const rows = [{ clientName: f.client.name, clientDni: f.client.dni!, device: 'Imported', amount: '30', currency: 'USD', date: '01/01/2026' }];
     const result = await overlap('Client', () => importSales(f.storeId, rows, f.actor), () => mode === 'ordinary sale' ? pending(f) : importSales(f.storeId, rows.map(row => ({ ...row, device: 'Another imported device' })), f.actor), 'findMany');
     expect(result).toMatchObject({ status: 'fulfilled', value: { imported: 1, errors: [] } });
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).totalSpent)).toBe(mode === 'ordinary sale' ? 130 : 60);
@@ -223,20 +223,18 @@ describe('import consistency #461', () => {
   it('rechecks reservation after the initial item lookup', async () => {
     const f = await fixture();
     const result = await overlap('InventoryItem', () => importSales(f.storeId, [{ clientName: f.client.name, productImei: f.inventoryItem.imei!, amount: '30' }], f.actor), () => createDeposit(f.storeId, f.client.id, { amount: 10, currency: 'ARS', exchangeRate: 1000, method: 'EFECTIVO', productId: f.inventoryItem.id, requestKey: 'reservation' }, f.actor));
-    expect(result).toMatchObject({ status: 'fulfilled', value: { imported: 0, errors: [expect.objectContaining({ message: expect.stringMatching(/reservado/) })] } });
+    expect(result).toMatchObject({ status: 'fulfilled', value: { imported: 1, errors: [], warnings: [expect.objectContaining({ message: expect.stringMatching(/no disponible/) })] } });
     const item = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } });
     expect(item.status).toBe('RESERVADO');
     expect(item.reservedDepositId).toBeTruthy();
-    expect(await prisma.sale.count()).toBe(0);
+    expect(await prisma.sale.count()).toBe(1);
   });
-  it('does not cache a client from a rolled back imported row', async () => {
+  it('rolls back the whole import if a seller is invalid, including newly created clients', async () => {
     const f = await fixture();
     const row = { clientName: 'New import client', device: 'Equipo', amount: '30' };
-    const result = await importSales(f.storeId, [{ ...row, sellerMemberId: 'missing-member' }, row], f.actor);
-    expect(result).toMatchObject({ imported: 1, errors: [expect.objectContaining({ row: 2 })] });
-    const client = await prisma.client.findFirstOrThrow({ where: { storeId: f.storeId, name: row.clientName } });
-    expect(Number(client.totalSpent)).toBe(30);
-    expect(await prisma.sale.count({ where: { clientId: client.id } })).toBe(1);
+    await expect(importSales(f.storeId, [row, { ...row, sellerMemberId: 'missing-member' }], f.actor)).rejects.toThrow();
+    expect(await prisma.client.findFirst({ where: { storeId: f.storeId, name: row.clientName } })).toBeNull();
+    expect(await prisma.sale.count()).toBe(0);
     expect(await cash(f.storeId)).toBe(0);
   });
 });

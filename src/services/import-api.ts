@@ -169,7 +169,7 @@ export async function importBackendRows(
 ): Promise<ImportResult> {
   try {
     let result: ImportResult | undefined;
-    const batchSize = section === 'inventory' ? Math.max(rows.length, 1) : 400;
+    const batchSize = ['inventory', 'sales'].includes(section) ? Math.max(rows.length, 1) : 400;
     // Preserve the existing empty-request behavior (including configuration errors).
     for (let offset = 0; offset < Math.max(rows.length, 1); offset += batchSize) {
       const batch = rows.slice(offset, offset + batchSize);
@@ -199,7 +199,7 @@ export async function importBackendRows(
         result = { ...result, partial: true, message, errors: [...result.errors, { row: sourceRow, message }] };
         break;
       }
-      if (section !== 'inventory') {
+      if (section !== 'inventory' && section !== 'sales') {
         // Other import endpoints number data rows from 2, independently per request.
         const physicalRow = (localRow: number) => {
           const row = submitted[localRow - 2];
@@ -210,7 +210,7 @@ export async function importBackendRows(
         if (next.diagnostics?.warnings) next.diagnostics.warnings = next.diagnostics.warnings.map(warning => ({ ...warning, row: physicalRow(warning.row) }));
         if (next.diagnostics?.rejected) next.diagnostics.rejected = next.diagnostics.rejected.map(error => ({ ...error, row: physicalRow(error.row) }));
       }
-      if (section === 'inventory' && (next.partial || next.errors.length || next.imported + next.updated !== rows.length)) {
+      if (['inventory', 'sales'].includes(section) && (next.partial || next.errors.length || next.imported + next.updated !== rows.length)) {
         throw new Error('No se pudo confirmar la importación completa: el conteo guardado no coincide con la vista previa. Revisá el inventario antes de reintentar.');
       }
       result = result ? mergeImportResults(result, next) : next;

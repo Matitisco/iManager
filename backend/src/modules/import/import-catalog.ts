@@ -106,6 +106,7 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
       { key: "tradeIn", label: "Canje", description: "Equipo entregado en canje, si la venta lo menciona." },
       { key: "seller", label: "Vendedor", description: "Quién cerró la venta en la tienda." },
       { key: "status", label: "Estado", description: "Estado de la venta." },
+      { key: "notes", label: "Notas", description: "Notas u observaciones de la venta; conservar texto completo." },
     ],
     hints: {
       fecha: "date",
@@ -134,6 +135,8 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
       permuta: "tradeIn",
       vendedor: "seller",
       vend: "seller",
+      notas: "notes", nota: "notes", observaciones: "notes", observacion: "notes", notes: "notes",
+      mediodepago: "paymentMethod", metododepago: "paymentMethod", formadepago: "paymentMethod",
       estado: "status",
     },
   },

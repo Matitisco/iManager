@@ -101,6 +101,17 @@ describe('import-api', () => {
     expect(call[2]).toBe(120_000);
   });
 
+  it('submits all sales in one request and preserves physical warning coordinates', async () => {
+    const rows = Array.from({ length: 801 }, (_, index) => ({ clientName: 'Persona ficticia', amount: '500', _sourceRow: String(index + 7), _sourceSheet: 'Ventas QA' }));
+    vi.mocked(fetchWithTimeout).mockResolvedValue(json({ imported: 800, updated: 1, errors: [], warnings: [{ row: 807, message: 'Por revisar' }] }));
+    const result = await importBackendRows(mockUser, 'sales', rows);
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
+    const submitted = JSON.parse(String(vi.mocked(fetchWithTimeout).mock.calls[0][1]?.body));
+    expect(submitted.rows).toHaveLength(801);
+    expect(submitted.rows[800].sourceRow).toBe(807);
+    expect(result.warnings).toEqual([{ row: 807, message: 'Por revisar' }]);
+  });
+
   it('requires a configured backend url', async () => {
     setApiBaseUrl('');
 

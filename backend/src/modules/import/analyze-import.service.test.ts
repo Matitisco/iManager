@@ -222,7 +222,8 @@ describe("battery and model normalization", () => {
       ['22/10/2026', 'Lucía', 'iPhone 13', 'importe inválido'],
       ['nota', 'llamar al cliente mañana', '', ''],
     ] }] });
-    expect(result.rows).toHaveLength(1);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[1]._review).toContain('Importe faltante');
     expect(result.rows[0]).toMatchObject({ clientName: 'Lucía', device: 'iPhone 13', amount: 'importe inválido' });
   });
 

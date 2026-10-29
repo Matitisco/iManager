@@ -348,7 +348,7 @@ export function SalesScreen() {
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
-                    <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></td>
+                    <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
                   </PressTarget>
                 );
               })}
@@ -423,7 +423,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
     <span className="sale-card">
       <span className="sale-top">
         <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
-        <Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />
+        <Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}
       </span>
       <span className="sale-who">
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />

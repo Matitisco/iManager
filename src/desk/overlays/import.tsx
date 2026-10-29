@@ -98,6 +98,8 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
       fields: [
         { key: 'date', label: 'Fecha', required: false },
         { key: 'clientName', label: 'Cliente', required: false },
+        { key: 'clientDni', label: 'DNI del cliente', required: false },
+        { key: 'clientPhone', label: 'Teléfono del cliente', required: false },
         { key: 'device', label: 'Equipo', required: false },
         { key: 'productImei', label: IMEI_OPTIONAL_LABEL, required: false },
         { key: 'amount', label: 'Precio', required: false },
@@ -106,6 +108,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', after: () => Promise<void>, s
         { key: 'tradeIn', label: 'Canje', required: false },
         { key: 'seller', label: 'Vendedor', required: false },
         { key: 'status', label: 'Estado', required: false },
+        { key: 'notes', label: 'Notas', required: false },
       ],
       onImport: async (user: NonNullable<ReturnType<typeof useAppContext>['user']>, rows: Record<string, string>[], source: 'excel' | 'text') => {
         const result = await importBackendRows(user, 'sales', rows, undefined, source);

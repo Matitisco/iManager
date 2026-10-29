@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 vi.mock("../lib/blue-rate.js", () => ({ currentBlueRate: async () => 1000, saleExchangeRate: async (rate?: number) => rate ?? 1000 }));
+vi.mock("../modules/import/sale-import-quotes.js", () => ({ historicalSaleRates: async () => new Map<string, number>() }));
 process.env.NODE_ENV = process.env.NODE_ENV || "test";
 process.env.DATABASE_URL = process.env.DATABASE_URL || "postgresql://postgres:postgres@127.0.0.1:5432/imanager_test";
 process.env.ENABLE_TEST_AUTH_BYPASS = process.env.ENABLE_TEST_AUTH_BYPASS || "true";

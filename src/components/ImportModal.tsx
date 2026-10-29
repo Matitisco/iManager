@@ -1,3 +1,4 @@
+import { SalesImportReview } from './SalesImportReview';
 import { InventoryImportReview } from './InventoryImportReview';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import { ReplayValue } from '../desk/replay-privacy';
@@ -114,6 +115,7 @@ export const ImportModal: React.FC<Props> = ({
   customFieldDefinitions = [], customFieldDefinitionsError, fields, onImport, onClose, onStageChange, onFilterPriceToDefine, existingImeis = [], title = 'Importar',
   nouns = { one: 'fila', many: 'filas' }, unrelatedNotice = UNRELATED_IMPORT_NOTICE, onAnalyze, onApply, onAnalyzeText,
 }) => {
+  const isSales = fields.some(field => field.key === 'amount') && fields.some(field => field.key === 'device');
   const isInventory = fields.some(field => field.key === 'model') && fields.some(field => field.key === 'price');
   const [discardedColumns, setDiscardedColumns] = useState<DiscardedImportColumns>({});
   const [newFieldReview, setNewFieldReview] = useState<{ sheet: string; request: number } | null>(null);
@@ -291,7 +293,7 @@ export const ImportModal: React.FC<Props> = ({
         if (requestRef.current === requestId) setApplying(false);
       }
     };
-    if (isInventory && !textPreview) applyTimer.current = setTimeout(() => void run(), 250);
+    if ((isInventory || isSales) && !textPreview) applyTimer.current = setTimeout(() => void run(), 250);
     else void run();
   };
 
@@ -305,7 +307,7 @@ export const ImportModal: React.FC<Props> = ({
   const replacementFields = fields.filter(field => field.key !== 'imei' && updatingRows.some(row => row[field.key] !== undefined && (field.key !== 'cost' || parseImportNumber(row.cost) !== undefined) && (field.key !== 'price' || Boolean(row.price?.trim())))).map(field => field.label);
   const equipmentCount = textPreview ? selectedRows.reduce((sum, row) => sum + Number(row.quantity), 0) : selectedRows.length;
   const validationError = textPreview ? selectedRows.map(textRowError).find(Boolean) ?? (equipmentCount > 2000 ? 'El listado supera los 2000 equipos.' : null) : null;
-  const canImport = !applying && selectedRows.length > 0 && !validationError && (textPreview || (requiredMissing.length === 0 && included.length > 0));
+  const canImport = !applying && selectedRows.length > 0 && !validationError && (textPreview || ((isSales || requiredMissing.length === 0) && included.length > 0));
   const unrelated = rows.length === 0 && (notice === unrelatedNotice || notice === 'Este texto no parece tener equipos para importar');
   const active = plan.find((item) => item.name === activeSheet) ?? plan[0];
   const activeRows = sheets.find((item) => item.name === active?.name)?.rows ?? [];
@@ -327,6 +329,7 @@ export const ImportModal: React.FC<Props> = ({
     }
   };
   const inventoryReview = isInventory && !textPreview && step === 'summary';
+  const salesReview = isSales && step === 'summary';
 
   const newFieldSheets = included.map(sheet => ({ sheet, columns: unassignedImportColumns(sheet, sheets.find(source => source.name === sheet.name)?.rows ?? [], discardedColumns) }));
   const newFieldCount = newFieldSheets.reduce((total, source) => total + source.columns.length, 0);
@@ -453,7 +456,10 @@ export const ImportModal: React.FC<Props> = ({
         {customFieldDefinitionsError && <div className="ferr" role="alert">{customFieldDefinitionsError}</div>}
       </InventoryImportReview>}
 
-      {step === 'summary' && !inventoryReview && summary && !unrelated && (
+      {salesReview && notice && !unrelated && <div className="import-guidance" role="status">Revisá las columnas asignadas antes de importar.</div>}
+      {salesReview && active && <SalesImportReview rows={rows} sheets={sheets} plan={plan} active={active} fields={fields} disabled={busy} onSheet={setActiveSheet} onChange={reapply} />}
+
+      {step === 'summary' && !inventoryReview && !salesReview && summary && !unrelated && (
         <div data-testid="import-summary" className="space-y-3">
           <DiscardNotice diagnostics={diagnostics} zeroRows={summary.rowCount === 0}>
             {summary.rowCount === 0 && (diagnostics?.discardedByReason.missing_model ?? 0) > 0 && <button type="button" className="wlink" onClick={() => adjustField('model')}>Asignar columna de modelo</button>}
@@ -657,7 +663,7 @@ export const ImportModal: React.FC<Props> = ({
           <AlertCircle size={15} /> {fileError}
         </div>
       )}
-      {step === 'summary' && !inventoryReview && summary?.rowCount !== 0 && requiredMissing.length > 0 && (
+      {step === 'summary' && !inventoryReview && !salesReview && summary?.rowCount !== 0 && requiredMissing.length > 0 && (
         <p className="mt-3 text-sm text-red-700">Falta mapear {requiredMissing.map((field) => field.label).join(', ')}.</p>
       )}
     </div>
@@ -690,7 +696,7 @@ export const ImportModal: React.FC<Props> = ({
           <span className="imp-new-field-plus"><Plus size={12} aria-hidden="true" /></span>
           <span>{newFieldCount} {newFieldCount === 1 ? 'columna se guarda como campo nuevo' : 'columnas se guardan como campos nuevos'} · <button type="button" className="wlink" disabled={busy} onClick={reviewNewFields}>Revisar</button></span>
         </div>}
-        {!isInventory && !unrelated && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={openAdjust}>Ajustar importación</button>}
+        {!isInventory && !isSales && !unrelated && !textPreview && <button type="button" className="import-adjust" data-testid="import-adjust-open" disabled={busy} onClick={openAdjust}>Ajustar importación</button>}
         {(!unrelated || inventoryReview) && <button type="button" className="btn2 p" data-testid="import-confirm" aria-busy={importing} disabled={!canImport || importing || Boolean(customFieldDefinitionsError)} onClick={() => void handleImport()}>{importLabel} <ArrowRight size={15} aria-hidden="true" /></button>}
       </>}
       {step === 'adjust' && !isInventory && <button type="button" className="btn2 p" disabled={busy} onClick={() => setStep('summary')}>Listo</button>}
@@ -698,7 +704,7 @@ export const ImportModal: React.FC<Props> = ({
     </div>
   );
 
-  return <Sheet title={inventoryReview ? 'Importar equipos' : title} onClose={onClose} busy={importing || step === 'reading' || (!isInventory && applying)} className={`inv-import${inventoryReview ? ' imp-review-sheet' : ''}`} footer={footer}>
+  return <Sheet title={inventoryReview ? 'Importar equipos' : title} onClose={onClose} busy={importing || step === 'reading' || (!isInventory && applying)} className={`inv-import${inventoryReview || salesReview ? ' imp-review-sheet' : ''}${salesReview ? ' sales-import-sheet' : ''}`} footer={footer}>
     {body}
   </Sheet>;
 };
