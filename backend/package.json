@@ -19,7 +19,9 @@
     "eval:import": "tsx scripts/eval-import-llm.ts",
     "billing:sync": "tsx scripts/billing-sync.ts",
     "billing:sync:start": "timeout 90 node dist/scripts/billing-sync.js || echo 'Aviso: la sincronización de facturación falló; la API arranca igual.'",
-    "reports:send": "tsx scripts/periodic-reports.ts"
+    "reports:send": "tsx scripts/periodic-reports.ts",
+    "agrupar:repetidos": "node dist/scripts/agrupar-repetidos.js",
+    "agrupar:seed": "node dist/scripts/seed-agrupar.js"
   },
   "engines": {
     "node": "22.x"
