@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { analyzeTextImport, amountInSource, chunkText, normalizeTextModel, normalizeTextRow, UNRELATED_TEXT_NOTICE } from './text-import.service.js';
 import { TEXT_LIMITS, textOutputSchema, textRowSchema, type TextRow } from './text-import.schema.js';
-import { createTextImportLimiter } from './text-import-rate-limit.js';
+import { createTextImportLimiter, textImportQuota } from './text-import-rate-limit.js';
 
 const row: TextRow = { line: 1, endLine: 1, model: 'iPhone 13', capacity: '128GB', color: 'Midnight', batteryHealth: '89%', condition: null, imei: null, serial: null, price: 420, currency: 'USD', cost: null, quantity: 1, dudas: [] };
 const text = 'iPhone 13 128GB Midnight 89% US$ 420';
@@ -143,12 +143,12 @@ it('limits expanded quantities server-side', async () => {
 
 it('enforces per-store rolling quota and one active analysis, and releases failed requests', () => {
   let now = 0;
-  const acquire = createTextImportLimiter(() => now);
+  const acquire = createTextImportLimiter(() => now, 10);
   const release = acquire('a');
   expect(() => acquire('a')).toThrow('Ya hay');
   acquire('b')(); release();
-  for (let i = 0; i < 4; i++) acquire('a')();
-  expect(() => acquire('a')).toThrow('5 análisis');
+  for (let i = 0; i < 9; i++) acquire('a')();
+  expect(() => acquire('a')).toThrow('10 análisis');
   now = 600000;
   expect(() => acquire('a')()).not.toThrow();
 });
@@ -243,4 +243,10 @@ it('agrupa texto x2 + x3 con review alineada y conserva variantes e IMEI', async
   expect(result.rows[2]).toMatchObject({ quantity: '1', imei: '990000000000038' });
   expect(result.review.map(review => review.line)).toEqual([1, 3, 4]);
   expect(result.review[0].original).toBe(lines.slice(0, 2).join('\n'));
+});
+
+it('has no quota in the Railway test environment and 10 elsewhere', () => {
+  expect(textImportQuota('test')).toBe(Infinity);
+  expect(textImportQuota('production')).toBe(10);
+  expect(textImportQuota(undefined)).toBe(10);
 });
