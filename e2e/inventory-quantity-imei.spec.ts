@@ -38,7 +38,7 @@ for (const width of [1440, 390]) test.describe(`Cantidad con IMEI ${width}`, () 
       await fixed.dblclick();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       const quantity = page.getByRole('spinbutton', { name: 'Cantidad de 14 Pro' });
-      const imeiHeader = page.getByRole('columnheader', { name: 'IMEI', exact: true });
+      const imeiHeader = page.getByRole('columnheader', { name: /^IMEI/ });
       await expect(imeiHeader).toBeInViewport();
       const headings = await page.getByRole('columnheader').allTextContents();
       const imeiIndex = headings.indexOf('IMEI');

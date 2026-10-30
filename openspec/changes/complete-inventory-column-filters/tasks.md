@@ -1,0 +1,4 @@
+- [x] Complete filter state, predicates, active indicators and pagination keys.
+- [x] Add missing header filters and mobile criteria without quantity cell styles.
+- [x] Add regressions, run related tests and both TypeScript checks.
+- [x] Inspect screenshots at 1440 and 390 and document evidence.

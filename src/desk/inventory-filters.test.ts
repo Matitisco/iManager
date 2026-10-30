@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Product } from '../types';
-import { EMPTY_COLUMN_FILTERS, columnFilterActive, columnFilterKey, compareInventoryColor, inventoryColorOptions, inventoryConditionOptions, matchesInventoryColor, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, searchInventoryColors, type InventoryColumnFilters } from './inventory-filters';
+import { EMPTY_COLUMN_FILTERS, activeColumnCount, columnFiltersActive, columnFilterActive, columnFilterKey, compareInventoryColor, inventoryColorOptions, inventoryConditionOptions, matchesInventoryColor, matchesInventoryColumns, matchesInventoryCondition, matchesInventoryStatuses, searchInventoryColors, type InventoryColumnFilters } from './inventory-filters';
 
 function product(overrides: Partial<Product> = {}): Product {
   return {
@@ -24,6 +24,68 @@ function filters(overrides: Partial<InventoryColumnFilters> = {}): InventoryColu
 }
 
 describe('inventory column filters', () => {
+  it('filtra ingreso con límites inclusivos y abiertos, fechas argentinas y sin fecha', () => {
+    const range = filters({ entryFrom: '28/10/2026', entryTo: '30/10/2026' });
+    for (const entryDate of ['2026-10-28', '2026-10-30', '30/10/2026', '2026-10-31T02:59:59Z']) {
+      expect(matchesInventoryColumns(product({ entryDate }), range)).toBe(true);
+    }
+    for (const entryDate of [null, '', 'inválida', '2026-10-27', '2026-10-31']) {
+      expect(matchesInventoryColumns(product({ entryDate }), range)).toBe(false);
+    }
+    expect(matchesInventoryColumns(product({ entryDate: '2026-10-30' }), filters({ entryFrom: '2026-10-30' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ entryDate: '2026-10-28' }), filters({ entryTo: '2026-10-28' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ entryDate: '2026-10-29' }), filters({ entryFrom: '2026-10-30', entryTo: '2026-10-28' }))).toBe(false);
+    expect(matchesInventoryColumns(product({ entryDate: '2026-10-28' }), filters({ entryFrom: '31/02/2026' }))).toBe(false);
+  });
+
+  it('combina búsqueda de texto y presencia sin confundir vacíos y espacios', () => {
+    expect(matchesInventoryColumns(product(), filters({ imei: '00001', imeiPresence: 'filled' }))).toBe(true);
+    expect(matchesInventoryColumns(product(), filters({ imeiPresence: 'empty' }))).toBe(false);
+    for (const imei of ['', '   ']) expect(matchesInventoryColumns(product({ imei }), filters({ imeiPresence: 'empty' }))).toBe(true);
+    for (const batteryNote of [undefined, null, '', '  ']) {
+      expect(matchesInventoryColumns(product({ batteryNote }), filters({ batteryNotePresence: 'empty' }))).toBe(true);
+      expect(matchesInventoryColumns(product({ batteryNote }), filters({ batteryNotePresence: 'filled' }))).toBe(false);
+    }
+    expect(matchesInventoryColumns(product({ batteryNote: ' Batería ORIGINAL ' }), filters({ batteryNote: ' original ', batteryNotePresence: 'filled' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ batteryNote: 'Original' }), filters({ batteryNote: 'original', batteryNotePresence: 'empty' }))).toBe(false);
+    expect(matchesInventoryColumns(product(), filters({ equipoPresence: 'filled' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ model: '', capacity: '', color: '' }), filters({ equipoPresence: 'empty' }))).toBe(true);
+  });
+
+  it('filtra cantidades históricas, costo cero y batería por mínimos y máximos', () => {
+    expect(matchesInventoryColumns(product(), filters({ quantityMin: '1', quantityMax: '1' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ cantidad: 73 }), filters({ quantityMin: '73', quantityMax: '73' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ cantidad: 74 }), filters({ quantityMax: '73' }))).toBe(false);
+    expect(matchesInventoryColumns(product({ cantidad: 2 }), filters({ quantityMin: '3' }))).toBe(false);
+    expect(matchesInventoryColumns(product({ cost: 0 }), filters({ costMax: '0' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ cost: undefined }), filters({ costMax: '100' }))).toBe(false);
+    expect(matchesInventoryColumns(product({ cost: 1500 }), filters({ costMin: '1.500', costMax: '1500' }))).toBe(true);
+    expect(matchesInventoryColumns(product({ cost: 1501 }), filters({ costMax: '1500' }))).toBe(false);
+    expect(matchesInventoryColumns(product(), filters({ batteryMin: '83', batteryMax: '83' }))).toBe(true);
+    expect(matchesInventoryColumns(product(), filters({ batteryMax: '82' }))).toBe(false);
+    expect(matchesInventoryColumns(product({ batteryHealth: 'N/A' }), filters({ batteryMin: '0' }))).toBe(false);
+  });
+
+  it('compone todos los criterios y permite seleccionar ambos valores de catálogo', () => {
+    const item = product({ entryDate: '2026-10-30', cantidad: 1, batteryNote: 'Original', catalogIncluded: true });
+    const selected = filters({ entryFrom: '2026-10-30', entryTo: '2026-10-30', imeiPresence: 'filled', quantityMin: '1', quantityMax: '1', costMin: '10', costMax: '10', batteryNote: 'original', catalog: ['included'], colors: ['Azul'], conditions: ['USADO'], equipo: 'Pixel', priceMin: '150000', priceMax: '150000' });
+    expect(matchesInventoryColumns(item, selected)).toBe(true);
+    expect(matchesInventoryColumns({ ...item, catalogIncluded: false }, selected)).toBe(false);
+    expect(matchesInventoryColumns({ ...item, catalogIncluded: false }, { ...selected, catalog: ['included', 'excluded'] })).toBe(true);
+    expect(matchesInventoryColumns(product(), filters({ catalog: ['excluded'] }))).toBe(true);
+  });
+
+  it('activa cada nuevo criterio, cambia la clave y cuenta una vez cada columna', () => {
+    const patches: Partial<InventoryColumnFilters>[] = [{ entryTo: '2026-10-30' }, { imei: '123' }, { imeiPresence: 'empty' }, { equipoPresence: 'filled' }, { quantityMax: '3' }, { costMin: '0' }, { batteryNotePresence: 'empty' }, { batteryNote: 'original' }, { catalog: ['excluded'] }, { batteryMax: '90' }];
+    for (const patch of patches) {
+      expect(columnFiltersActive(filters(patch))).toBe(true);
+      expect(columnFilterKey(filters(patch))).not.toBe(columnFilterKey(EMPTY_COLUMN_FILTERS));
+      expect(activeColumnCount(filters(patch))).toBe(1);
+    }
+    expect(activeColumnCount(filters({ entryFrom: '2026-10-28', entryTo: '2026-10-30', quantityMin: '1', quantityMax: '3', statuses: ['DISPONIBLE'], needsCompletion: true }))).toBe(3);
+    expect(columnFiltersActive(EMPTY_COLUMN_FILTERS)).toBe(false);
+    expect(activeColumnCount(EMPTY_COLUMN_FILTERS)).toBe(0);
+  });
   it('searches compound and historical colors without changing their exact filter values', () => {
     const colors = inventoryColorOptions(['Azul océano', 'AZUL OCEANO', 'Azul / Plata', 'Negro', 'Azul océano']);
     expect(searchInventoryColors(colors, '  OCEANO ')).toEqual(['Azul océano', 'AZUL OCEANO']);

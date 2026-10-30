@@ -16,7 +16,7 @@ const context = vi.hoisted(() => ({
   viewSection: vi.fn(async () => undefined),
   inventory: [] as Product[],
   suppliers: [] as { id: string; name: string }[],
-  appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string; onboardingStartedAt?: string; currency?: string } } | null,
+  appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string; onboardingStartedAt?: string; currency?: string }; membership?: { role: string; sections?: string[] } } | null,
   operationNotifications: [] as OperationNotification[],
   markNotificationRead: vi.fn(async () => undefined),
   updateProduct: vi.fn(async (_product: Product) => undefined),
@@ -48,6 +48,76 @@ function renderScreen() {
     </DeskProvider>,
   );
 }
+
+describe.each([false, true])('Filtros completos de inventario (móvil=%s)', phone => {
+  let originalMatchMedia: typeof window.matchMedia;
+  beforeEach(() => {
+    originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: phone && query.includes('760'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.appSession = { store: { name: 'Tienda Centro' }, membership: { role: 'OWNER' } };
+    context.inventory = [
+      item('1', { model: 'Pixel elegido', entryDate: '2026-10-30', cantidad: 1, cost: 450, batteryNote: 'Original', catalogIncluded: true }),
+      item('2', { model: 'Pixel anterior', entryDate: '2026-10-28', imei: '', cantidad: 3, cost: 800, batteryNote: null }),
+      item('3', { model: 'Galaxy', entryDate: '2026-10-30', imei: '', cantidad: 2, cost: 450, batteryNote: 'Reemplazada' }),
+    ];
+  });
+  afterEach(() => { window.matchMedia = originalMatchMedia; context.appSession = { store: { name: 'Tienda Centro' } }; });
+
+  it('combina nuevos criterios, búsqueda y limpieza sin cambiar la edición de Cantidad', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    if (phone) await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await user.type(screen.getByPlaceholderText(phone ? 'Buscar por IMEI, modelo o color' : 'Buscar modelo o color'), 'Pixel');
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 6');
+    if (phone) {
+      await user.click(screen.getByRole('button', { name: 'Filtros' }));
+      const sheet = screen.getByRole('dialog', { name: 'Filtros' });
+      await user.type(within(sheet).getByRole('textbox', { name: 'Ingreso desde' }), '30/10/2026');
+      await user.click(within(sheet).getByRole('button', { name: 'Con IMEI' }));
+      await user.type(within(sheet).getByRole('textbox', { name: 'Cantidad máximo' }), '1');
+      await user.type(within(sheet).getByRole('textbox', { name: 'Costo máximo' }), '450');
+      await user.type(within(sheet).getByRole('textbox', { name: 'Buscar detalle batería' }), 'original');
+      await user.click(within(sheet).getByRole('checkbox', { name: 'En catálogo' }));
+      expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 6');
+      await user.click(within(sheet).getByRole('button', { name: 'Aplicar filtros' }));
+      expect(screen.getByRole('button', { name: 'Filtros' }).parentElement).toHaveTextContent('6');
+    } else {
+      for (const header of screen.getAllByRole('columnheader').slice(1)) {
+        expect(within(header).getByRole('button', { name: /^Filtrar / })).toBeInTheDocument();
+      }
+      await user.click(screen.getByRole('button', { name: 'Filtrar ingreso' }));
+      await user.type(screen.getByRole('textbox', { name: 'Desde' }), '30/10/2026');
+      await user.click(screen.getByRole('button', { name: 'Filtrar IMEI' }));
+      await user.click(screen.getByRole('button', { name: 'Con IMEI' }));
+      await user.click(screen.getByRole('button', { name: 'Filtrar cantidad' }));
+      await user.type(screen.getByRole('textbox', { name: 'Cantidad máximo' }), '1');
+      await user.click(screen.getByRole('button', { name: 'Filtrar costo' }));
+      await user.type(screen.getByRole('textbox', { name: 'Costo máximo' }), '450');
+      await user.click(screen.getByRole('button', { name: 'Filtrar detalle batería' }));
+      await user.type(screen.getByRole('textbox', { name: 'Contiene' }), 'original');
+      await user.click(screen.getByRole('button', { name: 'Filtrar catálogo' }));
+      await user.click(screen.getByRole('checkbox', { name: 'En catálogo' }));
+      for (const name of ['ingreso', 'IMEI', 'cantidad', 'costo', 'detalle batería', 'catálogo']) expect(screen.getByRole('button', { name: `Filtrar ${name}` })).toHaveAttribute('aria-pressed', 'true');
+      await user.keyboard('{Escape}');
+    }
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 6');
+    expect(screen.getByText('Pixel elegido · 128 GB')).toBeInTheDocument();
+    expect(screen.queryByText('Pixel anterior · 128 GB')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 6');
+    if (!phone) expect(screen.getByRole('spinbutton', { name: 'Cantidad de Pixel anterior · 128 GB' })).toHaveValue(3);
+  });
+
+  it('oculta filtros de costo a miembros sin permiso financiero', async () => {
+    context.appSession = { store: { name: 'Tienda Centro' }, membership: { role: 'SELLER', sections: ['inventory'] } };
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    if (phone) await user.click(screen.getByRole('button', { name: 'Filtros' }));
+    expect(screen.queryByRole('button', { name: 'Filtrar costo' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Costo mínimo' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Costo', { exact: true })).not.toBeInTheDocument();
+  });
+});
 
 describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) => {
   let originalMatchMedia: typeof window.matchMedia;
