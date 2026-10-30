@@ -59,6 +59,13 @@
 }
 .import-actions > .btn2:only-child { width: 100%; }
 
+.imp-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; }
+.sheet.inv-import .imp-row-actions > .btn2 { flex: 0 0 auto; height: 52px; min-height: 52px; padding: 0 20px; white-space: nowrap; }
+.sheet.inv-import .imp-row-actions > .btn2.s { background: var(--card); border: 1px solid var(--border); color: var(--err); }
+@media (max-width: 760px) {
+  .sheet.inv-import .imp-row-actions > .btn2 { flex: 1 0 132px; }
+}
+
 .imp-header-settings { position: relative; flex: none; color: var(--secondary); font-size: 12px; }
 .imp-header-trigger { min-height: 36px; white-space: nowrap; }
 .imp-header-popover { position: absolute; top: 100%; right: 0; z-index: 10; width: min(340px, calc(100vw - 48px)); padding: 14px; display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 16px; background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
