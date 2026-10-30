@@ -677,8 +677,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .pending-sale b, .pending-sale small { display: block; }
 .pending-sale b { font-size: 13px; }
 .pending-sale-label { display: inline-flex; align-items: center; gap: 4px; }
-.needs-completion-label { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; max-width: 100%; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: var(--theme-warn-soft, #fff7ed); color: var(--theme-err, #9a3412); font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em; text-transform: uppercase; }
-.phone-row .needs-completion-label { color: var(--theme-err, #9a3412); font-size: 11px; font-weight: 700; }
+.needs-completion-label { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; max-width: 100%; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: var(--theme-warn-soft, #fff7ed); color: #9a3412; font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0.02em; text-transform: uppercase; }
+.phone-row .needs-completion-label { color: #9a3412; font-size: 11px; font-weight: 700; }
 .inv-card .needs-completion-label { margin-top: 0; }
 .unlisted-eq { margin: -4px 0 12px; padding: 12px; border: 1px solid var(--theme-warn-border, #f3e4c4); border-radius: 14px; background: var(--theme-warn-soft, #fffaf3); }
 .unlisted-eq .eqs-note { margin: 0 0 10px; }
@@ -2777,6 +2777,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   [data-theme="dark"] .desk-app :is(.commission-hero, .first-empty-stock) { background: var(--theme-hero); color: var(--theme-hero-text); }
   [data-theme="dark"] .desk-app .btn2.danger { color: var(--theme-on-status); }
   [data-theme="dark"] .desk-app .wchip.semantic { color: color-mix(in srgb, var(--chip-color) 60%, white); }
+  [data-theme="dark"] .desk-app .needs-completion-label { color: var(--theme-warn); }
   [data-theme="dark"] .desk-app .spill.cst { color: color-mix(in srgb, var(--pc) 55%, white); }
   [data-theme="dark"] .desk-app :is(input, select, textarea, .ds-select-trigger, .btn2.s, .dbtn.s, .sg:not(.on), .dp-trigger) { border-color: #758197; }
   [data-theme="dark"] .desk-app .sw.on { background: var(--lime); }
