@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../plugins/prisma.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
 import { useIntegrationApp } from './integration-helpers.js';
 import type { TextRow } from '../modules/import/text-import.schema.js';
 
-const { getApp } = useIntegrationApp();
 const env = { ...process.env };
+// The limiter captures the Railway environment when the app registers its routes.
+beforeEach(() => { process.env.RAILWAY_ENVIRONMENT_NAME = 'production'; });
+const { getApp } = useIntegrationApp();
 afterEach(() => { process.env = { ...env }; vi.restoreAllMocks(); });
 function headers(context: Awaited<ReturnType<typeof seedStoreContext>>) { return buildAuthHeaders({ uid: context.user.firebaseUid, email: context.user.email ?? undefined }); }
 function mockLLM(rows: TextRow[]) {
@@ -57,10 +59,13 @@ describe('inventory text import API with mocked LLM and real PostgreSQL', () => 
     expect((await request('iPhone 13 USD420')).statusCode).toBe(422);
     expect(fetch).toHaveBeenCalledTimes(2);
     fetch.mockResolvedValue(new Response('{}', { status: 500 }));
-    for (let i = 0; i < 4; i++) expect((await request('iPhone 13 USD420')).statusCode).toBe(502);
+    // The schema failure consumes one analysis, even though it retries the provider.
+    for (let i = 0; i < 9; i++) expect((await request('iPhone 13 USD420')).statusCode).toBe(502);
+    expect(fetch).toHaveBeenCalledTimes(11);
     const limited = await request('iPhone 13 USD420');
     expect(limited.statusCode).toBe(429);
-    expect(limited.json().error).toContain('5 análisis');
+    expect(limited.json().error).toBe('Llegaste al límite de 10 análisis cada 10 minutos por tienda. Probá más tarde.');
+    expect(fetch).toHaveBeenCalledTimes(11);
     expect(await prisma.inventoryItem.count()).toBe(0);
   });
 

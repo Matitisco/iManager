@@ -248,5 +248,16 @@ it('agrupa texto x2 + x3 con review alineada y conserva variantes e IMEI', async
 it('has no quota in the Railway test environment and 10 elsewhere', () => {
   expect(textImportQuota('test')).toBe(Infinity);
   expect(textImportQuota('production')).toBe(10);
+  delete process.env.RAILWAY_ENVIRONMENT_NAME;
   expect(textImportQuota(undefined)).toBe(10);
+});
+
+it('allows more than 10 analyses in Railway test while still blocking concurrent analyses', () => {
+  process.env.RAILWAY_ENVIRONMENT_NAME = 'test';
+  const acquire = createTextImportLimiter(() => 0);
+  for (let i = 0; i < 11; i++) acquire('a')();
+  const release = acquire('a');
+  expect(() => acquire('a')).toThrow('Ya hay un listado analizándose');
+  release();
+  expect(() => acquire('a')()).not.toThrow();
 });
