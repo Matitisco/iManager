@@ -49,12 +49,13 @@ describe("stock del onboarding", () => {
       withoutCurrency: 0,
     });
     const payload = onboardingPayload(rows);
-    expect(payload).toHaveLength(3);
+    expect(payload).toHaveLength(2);
+    expect(payload[0].quantity).toBe(2);
     expect(payload[0].customFields).toEqual({
       onboardingReview: "Falta capacidad",
     });
-    expect(payload[1].customFields).toEqual(payload[0].customFields);
-    expect(payload[2].currency).toBe("ARS");
+    expect(payload[1].customFields).toEqual({});
+    expect(payload[1].currency).toBe("ARS");
   });
   it("permite guardar datos pendientes con precio a definir y marca, sin inventar valores", () => {
     const rows = prepareOnboardingRows({

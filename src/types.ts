@@ -1,4 +1,5 @@
 export interface Product {
+  cantidad?: number;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
   reservedDepositId?: string | null;
@@ -50,6 +51,7 @@ export interface CustomColumn {
 }
 
 export interface Sale {
+  cantidad?: number;
   depositAppliedAmount?: number;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;
@@ -116,6 +118,7 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
+  cantidad?: number;
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
   reservedClientName?: string | null;
@@ -160,6 +163,7 @@ export interface TradeIn {
   removedFromSaleNumber?: number | null;
   receivedInventoryItemId?: string | null;
   operationSource?: 'inventory' | 'sales' | 'tradeins' | 'clients' | null;
+  draftCantidad?: number;
   draftProductId?: string | null;
   draftDeviceLabel?: string | null;
   draftAmount?: number | null;

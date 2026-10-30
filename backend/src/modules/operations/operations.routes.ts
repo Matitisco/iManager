@@ -49,6 +49,7 @@ const inputSchema = z.object({
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
+  cantidad: z.number().int().min(1).max(2147483647).optional(),
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: z.number().nonnegative().optional(),

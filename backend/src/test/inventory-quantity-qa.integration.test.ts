@@ -21,7 +21,7 @@ it('persiste un equipo por fila sin expandir cantidades de QA 02', async () => {
   const rows = analysis.json<{ rows: Record<string, string>[] }>().rows;
   const response = await getApp().inject({
     method: 'POST', url: '/api/inventory/import', headers: buildAuthHeaders(),
-    payload: { rows: rows.map(row => ({ imei: '', model: row.model, price: Number(row.price), currency: row.currency, batteryHealth: row.batteryHealth })) },
+    payload: { rows: rows.map(row => ({ imei: '', quantity: Number(row.quantity), model: row.model, price: Number(row.price), currency: row.currency, batteryHealth: row.batteryHealth })) },
   });
   expect(response.statusCode, response.body).toBe(200);
   expect(response.json()).toMatchObject({ imported: 2, updated: 0, errors: [] });
@@ -29,6 +29,6 @@ it('persiste un equipo por fila sin expandir cantidades de QA 02', async () => {
   expect(stored).toHaveLength(2);
   expect(stored.filter(item => item.model === 'iPhone 13')).toHaveLength(1);
   expect(stored.filter(item => item.model === 'iPhone 14')).toHaveLength(1);
-  expect(stored.every(item => item.currency === 'USD' && item.quantity === 1 && !item.imei)).toBe(true);
+  expect(stored.every(item => item.currency === 'USD' && [2, 3].includes(item.cantidad) && !item.imei)).toBe(true);
   expect(stored.reduce((total, item) => total + Number(item.price), 0)).toBe(900);
 });

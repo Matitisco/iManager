@@ -248,8 +248,9 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
       });
     } else if (activeTab === 'Stock') {
+      rows[0].splice(3, 0, 'Cantidad');
       rows[0].push('Fecha de ingreso', 'Detalle batería', ...customFieldDefinitions.map(field => field.label));
-      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, ...moneyCells(item.price, item.currency), statusLabel(item.status), item.entryDate ? formatShortDate(item.entryDate) : '', item.batteryNote || '', ...customFieldDefinitions.map(field => { const value = item.customFields?.[field.key]; return value != null && value !== '' && field.type === 'date' ? formatShortDate(String(value)) : String(value ?? ''); })]));
+      stockRows.forEach((item) => rows.push([`${item.model} ${item.capacity}`, ...moneyCells(item.price, item.currency), String(item.cantidad ?? 1), statusLabel(item.status), item.entryDate ? formatShortDate(item.entryDate) : '', item.batteryNote || '', ...customFieldDefinitions.map(field => { const value = item.customFields?.[field.key]; return value != null && value !== '' && field.type === 'date' ? formatShortDate(String(value)) : String(value ?? ''); })]));
     } else if (activeTab === 'Canjes') {
       tradeRows.forEach((item) => {
         rows.push([`${tradeCode(tradeIns, item.id)} ${tradeClientLabel(item, clients)}`, ...moneyCells(item.differencePaid, item.currency), statusLabel(item.status)]);
@@ -404,7 +405,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
       )}
       {activeTab === 'Stock' && (
         <>
-          <div className="glh"><h3>Equipos ingresados</h3><span>{stockRows.length} en el período</span></div>
+          <div className="glh"><h3>Equipos ingresados</h3><span>{stockRows.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)} en el período</span></div>
           <p className="gnote">Equipos ingresados en el período, con su estado actual.{undatedStock > 0 ? ` ${undatedStock} ${undatedStock === 1 ? 'equipo sin fecha de ingreso no se incluye' : 'equipos sin fecha de ingreso no se incluyen'}.` : ''}</p>
           {!stockRows.length && <p className="gnote">No hay equipos para este período y filtro.</p>}
           {stockRows.map((item) => (
@@ -592,20 +593,21 @@ function buildReport(
     };
   }
   if (tab === 'Stock') {
-    const available = data.inventory.filter((item) => isInStock(item.status)).length;
-    for (const item of data.inventory) addToReportBucket(buckets, item.createdAt, 1);
+    const stockTotal = data.inventory.reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
+    const available = data.inventory.filter((item) => isInStock(item.status)).reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
+    for (const item of data.inventory) addToReportBucket(buckets, item.createdAt, item.cantidad ?? 1);
     const grouped = groupBreakdown(data.inventory.map((item) => ({
       label: stockBreakdownLabel(item, dimension),
-      value: 1,
+      value: item.cantidad ?? 1,
     })), catalog);
     return {
       eye: 'Equipos ingresados',
-      total: data.inventory.length,
-      headline: data.inventory.length,
+      total: stockTotal,
+      headline: stockTotal,
       barMoney: false,
       unavailable: false,
       donutMoney: false,
-      donutTotal: data.inventory.length,
+      donutTotal: stockTotal,
       delta: `${available} disponibles en este grupo`,
       note: '',
       bucketLabel,

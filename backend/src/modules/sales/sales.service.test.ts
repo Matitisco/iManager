@@ -131,7 +131,7 @@ describe("sales.service", () => {
       where: { storeId: "store-1", clientId: "client-1", id: { not: "sale-1" }, voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } },
       _sum: { amount: true }, _max: { soldAt: true },
     });
-    expect(prismaMock.inventoryItem.updateMany).toHaveBeenCalledWith({ where: { id: "item-1", storeId: "store-1" }, data: { status: "DISPONIBLE" } });
+    expect(prismaMock.inventoryItem.update).toHaveBeenCalledWith({ where: { id: "item-1", storeId: "store-1" }, data: { status: "DISPONIBLE", pendingSaleRegistration: false } });
     expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(500), lastPurchaseAt: null } });
   });
 

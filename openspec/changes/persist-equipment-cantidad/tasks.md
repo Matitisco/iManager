@@ -1,0 +1,5 @@
+- [x] Schema compatible y contratos de cantidad
+- [x] Importación compacta de Excel/CSV/texto/onboarding e IMEI
+- [x] Inventario y alta/edición manual
+- [x] Venta parcial, anulación, edición y reportes
+- [x] Tests relacionados, TypeScript y QA 1440/390

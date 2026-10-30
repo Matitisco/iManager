@@ -109,7 +109,7 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
   } };
 }
 
-/** Lossless file preparation. Keep source rows compact; quantity counts individual devices. */
+/** Lossless file preparation. Keep one record per source row; quantity stores available units. */
 export function prepareInventoryImportRow(raw: Record<string, string>, row: number, seenImeis: Map<string, number>) {
   const next = { ...raw };
   const notes: string[] = [];
@@ -127,7 +127,7 @@ export function prepareInventoryImportRow(raw: Record<string, string>, row: numb
     if (next.quantity?.trim() && next.quantity !== '1') preserve('quantity', '1');
     else next.quantity = '1';
   } else next.quantity = String(quantity);
-  if (Number(next.quantity) > 1 && next.imei?.trim()) preserve('imei');
+  if (Number(next.quantity) > 1 && next.imei?.trim()) preserve('quantity', '1');
   if (!next.model?.trim() || next.model.length > 100 || /^=|^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/i.test(next.model.trim())) preserve('model', 'Equipo sin modelo');
   for (const field of ['price', 'cost']) {
     const value = next[field];

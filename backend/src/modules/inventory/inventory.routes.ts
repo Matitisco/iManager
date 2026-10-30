@@ -32,6 +32,7 @@ import {
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
+  cantidad: z.number().int().min(0).max(2147483647).optional(),
   imei: zodOptionalImei().optional(),
   model: z.string().trim().min(1).max(100),
   capacity: z.string().trim().max(50),

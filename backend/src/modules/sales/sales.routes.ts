@@ -38,6 +38,7 @@ const saleCreateSchema = z.object({
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
+  cantidad: z.number().int().min(1).max(2147483647).optional(),
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: z.number().nonnegative(),

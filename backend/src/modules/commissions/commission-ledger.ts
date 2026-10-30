@@ -53,7 +53,7 @@ export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId
   const store = batch?.store ?? await tx.store.findUniqueOrThrow({ where: { id: storeId } });
   const currency = (sale.amountCurrency ?? store.currency) as Currency;
   const exchangeRate = Number(sale.exchangeRate ?? await currentBlueRate());
-  const cost = convert(Number(sale.inventoryItem?.cost ?? 0), (sale.inventoryItem?.currency ?? store.currency) as Currency, currency, exchangeRate);
+  const cost = convert(Number(sale.inventoryItem?.cost ?? 0) * (sale.cantidad ?? 1), (sale.inventoryItem?.currency ?? store.currency) as Currency, currency, exchangeRate);
   const takeValue = convert(Number(sale.tradeIn?.takeValue ?? 0), (sale.tradeIn?.currency ?? store.currency) as Currency, currency, exchangeRate);
   const amount = Number(sale.amount);
   // Preserve the applied rule for financial edits; changing seller/date reselects by sale date.

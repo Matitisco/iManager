@@ -194,6 +194,7 @@ describe('Inventory column filters', () => {
     const index = headers.findIndex(header => header.textContent === 'Detalle batería');
     expect(headers[index - 1]).toHaveTextContent('Batería');
     expect(headers[index + 1]).toHaveTextContent('Precio');
+    expect(headers.some(header => header.textContent === 'Cantidad')).toBe(true);
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
     const detail = within(rows[0]).getAllByRole('cell')[index];
     expect(within(detail).getByTitle(note)).toHaveTextContent(note);

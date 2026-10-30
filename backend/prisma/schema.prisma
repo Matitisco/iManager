@@ -221,8 +221,8 @@ model InventoryItem {
   price         Decimal?           @db.Decimal(12, 2)
   // Null on rows created before currency tracking: interpret as the current store currency.
   currency      String?            @db.VarChar(3)
-  // The desk UI no longer edits quantity, but production rows still store it.
-  quantity      Int                @default(1)
+  // Available units. Keep the existing column and its data.
+  cantidad      Int                @default(1) @map("quantity")
   status        String             @db.VarChar(20)
   archivedAt    DateTime?
   archivedBy    String?            @db.VarChar(255)
@@ -275,6 +275,8 @@ model StoreCounter {
 }
 
 model Sale {
+  cantidad        Int            @default(1)
+  stockDeducted   Boolean        @default(false)
   id              String         @id @default(cuid())
   sellerMemberId  String?
   registeredByUserId String?
@@ -335,6 +337,7 @@ model Sale {
 }
 
 model TradeIn {
+  draftCantidad   Int            @default(1)
   id                 String           @id @default(cuid())
   tradeNumber        Int              @default(autoincrement())
   storeId            String

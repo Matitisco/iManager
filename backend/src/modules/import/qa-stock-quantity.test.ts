@@ -39,8 +39,8 @@ it('usa uno sin columna, con celda vacía o cantidad explícita 1', () => {
 
 it('no replica IMEI para cantidades múltiples y conserva el original para revisar', () => {
   const result = apply([{ name: 'Stock', rows: [['Modelo', 'Cantidad', 'IMEI'], ['15 Pro', '3', '990000000001109']] }]);
-  expect(result.rows[0]).toMatchObject({ quantity: '3', imei: '', status: 'EN_REVISION', batteryNote: 'imei (origen): 990000000001109' });
-  expect(result.summary.rowCount).toBe(3);
+  expect(result.rows[0]).toMatchObject({ quantity: '1', imei: '990000000001109', status: 'EN_REVISION', batteryNote: 'quantity (origen): 3' });
+  expect(result.summary.rowCount).toBe(1);
 });
 
 it.each(['0', '-1', '1.5', 'Infinity', 'tres', '9007199254740992'])('conserva cantidad inválida %s para revisión sin expansión', quantity => {

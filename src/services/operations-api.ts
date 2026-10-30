@@ -7,6 +7,7 @@ export type OperationSource = 'inventory' | 'sales' | 'tradeins' | 'clients';
 export type OperationSaleStatus = 'COMPLETADA' | 'PENDIENTE';
 
 export interface OperationInput {
+  cantidad?: number;
   depositIds?: string[];
   creditNoteIds?: string[];
   sellerMemberId?: string | null;

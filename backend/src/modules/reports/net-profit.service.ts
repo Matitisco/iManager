@@ -42,6 +42,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       amountCurrency: true,
       dateLabel: true,
       soldAt: true,
+      cantidad: true,
       inventoryItem: { select: { cost: true, currency: true } },
     },
   });
@@ -55,7 +56,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       ...returnRecognitionSelect,
       moneyAmount: true,
       moneyCurrency: true,
-      sale: { select: { amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
+      sale: { select: { cantidad: true, amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
     },
   });
   const inRange = (day: string) => day >= from && day <= to;
@@ -71,7 +72,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       return [{
         amount: Number(sale.amount),
         currency: sale.amountCurrency ?? currency,
-        cost: Number(sale.inventoryItem?.cost ?? 0),
+        cost: Number(sale.inventoryItem?.cost ?? 0) * (sale.cantidad ?? 1),
         costCurrency: sale.inventoryItem?.currency ?? currency,
       }];
     }),
@@ -86,7 +87,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
       const reversal = returnReversal({
         saleAmount: Number(claim.sale?.amount ?? claim.moneyAmount),
         moneyAmount: Number(claim.moneyAmount),
-        itemCost: Number(claim.sale?.inventoryItem?.cost ?? 0),
+        itemCost: Number(claim.sale?.inventoryItem?.cost ?? 0) * (claim.sale?.cantidad ?? 1),
       });
       return [{
         amount: reversal.amount,

@@ -200,6 +200,7 @@ function buildProductLabel(input?: {
 }
 
 type CompletedSale = {
+  cantidad?: number;
   amount: number;
   paymentMethod: string;
   soldAt: Date;
@@ -238,7 +239,7 @@ export function resolvePreviousWindow(input: ReportsOverviewInput) {
 }
 
 export function buildInventoryAging(
-  items: Array<{ createdAt: Date; cost: number }>,
+  items: Array<{ createdAt: Date; cost: number; cantidad?: number }>,
   now = new Date()
 ) {
   const buckets = new Map(
@@ -261,8 +262,8 @@ export function buildInventoryAging(
       continue;
     }
 
-    bucket.count += 1;
-    bucket.costValue += item.cost;
+    bucket.count += item.cantidad ?? 1;
+    bucket.costValue += item.cost * (item.cantidad ?? 1);
   }
 
   return AGING_BUCKETS.map((label) => {
@@ -271,7 +272,7 @@ export function buildInventoryAging(
   });
 }
 
-function summarizeCompleted(sales: Array<{ amount: number; cost: number | null }>) {
+function summarizeCompleted(sales: Array<{ amount: number; cost: number | null; cantidad?: number }>) {
   const revenue = sales.reduce((accumulator, sale) => accumulator + sale.amount, 0);
   const costedSales = sales.filter((sale): sale is { amount: number; cost: number } => sale.cost !== null);
   const marginRevenue = costedSales.reduce((total, sale) => total + sale.amount, 0);
@@ -279,8 +280,8 @@ function summarizeCompleted(sales: Array<{ amount: number; cost: number | null }
     (accumulator, sale) => accumulator + (sale.amount - sale.cost),
     0
   );
-  const unitsSold = sales.length;
-  const averageTicket = unitsSold > 0 ? revenue / unitsSold : 0;
+  const unitsSold = sales.reduce((sum, sale) => sum + (sale.cantidad ?? 1), 0);
+  const averageTicket = sales.length > 0 ? revenue / sales.length : 0;
 
   return { revenue, grossProfit, marginRevenue, salesWithoutCost: sales.length - costedSales.length, unitsSold, averageTicket };
 }
@@ -313,18 +314,19 @@ function buildSalesSeries(
   }
   for (const sale of sales) {
     const bucket = buckets.get(keyOf(argentinaDay(sale.soldAt)));
-    if (bucket) { bucket.revenue += sale.amount; bucket.unitsSold += 1; }
+    if (bucket) { bucket.revenue += sale.amount; bucket.unitsSold += sale.cantidad ?? 1; }
   }
   return [...buckets.values()];
 }
 
 function buildActivitySeries(
-  entries: Array<{ at: Date; amount: number }>,
+  entries: Array<{ at: Date; amount: number; cantidad?: number }>,
   startDate: Date | null,
   endDate: Date | null
 ) {
   return buildSalesSeries(
     entries.map((entry) => ({
+      cantidad: entry.cantidad,
       amount: entry.amount,
       paymentMethod: "",
       soldAt: entry.at,
@@ -368,10 +370,10 @@ export async function getReportsOverview(
     tradeIns,
     totalClients,
     pendingBalanceAggregate,
-    totalItems,
-    availableItems,
-    soldItems,
-    inReviewItems,
+    totalAggregate,
+    availableAggregate,
+    soldAggregate,
+    reviewAggregate,
     inventoryValuation,
     availableStock,
     inboundStock,
@@ -379,6 +381,7 @@ export async function getReportsOverview(
     prisma.sale.findMany({
       where: salesWhere,
       select: {
+        cantidad: true,
         amount: true,
         amountCurrency: true,
         paymentMethod: true,
@@ -415,7 +418,8 @@ export async function getReportsOverview(
             },
           },
           select: {
-            amount: true,
+            cantidad: true,
+        amount: true,
             amountCurrency: true,
             inventoryItem: {
               select: { cost: true, currency: true },
@@ -438,29 +442,30 @@ export async function getReportsOverview(
       where: { storeId },
       _sum: { pendingBalance: true },
     }),
-    prisma.inventoryItem.count({
+    prisma.inventoryItem.aggregate({
+      _sum: { cantidad: true },
       where: inventoryWhere,
     }),
-    prisma.inventoryItem.count({
+    prisma.inventoryItem.aggregate({
+      _sum: { cantidad: true },
       where: { ...inventoryWhere, status: "DISPONIBLE" },
     }),
-    prisma.inventoryItem.count({
+    prisma.inventoryItem.aggregate({
+      _sum: { cantidad: true },
       where: { ...inventoryWhere, status: "VENDIDO" },
     }),
-    prisma.inventoryItem.count({
+    prisma.inventoryItem.aggregate({
+      _sum: { cantidad: true },
       where: { ...inventoryWhere, status: "EN_REVISION" },
     }),
-    prisma.inventoryItem.groupBy({
-      by: ["currency"],
+    prisma.inventoryItem.findMany({
       where: { ...inventoryWhere, status: "DISPONIBLE" },
-      _sum: {
-        cost: true,
-        price: true,
-      },
+      select: { cost: true, price: true, currency: true, cantidad: true },
     }),
     prisma.inventoryItem.findMany({
       where: { ...inventoryWhere, status: "DISPONIBLE" },
       select: {
+        cantidad: true,
         createdAt: true,
         cost: true,
         currency: true,
@@ -469,6 +474,7 @@ export async function getReportsOverview(
     prisma.inventoryItem.findMany({
       where: inventoryWhere,
       select: {
+        cantidad: true,
         createdAt: true,
         cost: true,
         currency: true,
@@ -484,7 +490,7 @@ export async function getReportsOverview(
     },
     select: {
       ...returnRecognitionSelect, moneyAmount: true, moneyCurrency: true,
-      sale: { select: { amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
+      sale: { select: { cantidad: true, amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
     },
   });
   const compensatedReturns = commercialReturns.filter(row => {
@@ -518,7 +524,8 @@ export async function getReportsOverview(
       product: buildProductLabel(sale.inventoryItem),
       category: sale.category?.name?.trim() || "Sin categoría",
       clientName: sale.client?.name?.trim() || "Sin cliente",
-      cost: knownCost(sale.inventoryItem),
+      cantidad: sale.cantidad ?? 1,
+      cost: knownCost(sale.inventoryItem) == null ? null : knownCost(sale.inventoryItem)! * (sale.cantidad ?? 1),
     }));
 
   const activeTradeIns = tradeIns.filter((tradeIn) => tradeIn.status !== "CANCELADO");
@@ -532,7 +539,8 @@ export async function getReportsOverview(
   const previousMetrics = summarizeCompleted(
     previousSales.map((sale) => ({
       amount: convert(sale.amount, sale.amountCurrency),
-      cost: knownCost(sale.inventoryItem),
+      cantidad: sale.cantidad ?? 1,
+      cost: knownCost(sale.inventoryItem) == null ? null : knownCost(sale.inventoryItem)! * (sale.cantidad ?? 1),
     }))
   );
   const adjustedProfit = (metrics: typeof currentMetrics, from: Date | null, to: Date | null) => {
@@ -543,7 +551,7 @@ export async function getReportsOverview(
       const reversal = returnReversal({
         saleAmount: toNumber(row.sale?.amount ?? row.moneyAmount),
         moneyAmount: toNumber(row.moneyAmount),
-        itemCost: toNumber(row.sale?.inventoryItem?.cost),
+        itemCost: toNumber(row.sale?.inventoryItem?.cost) * (row.sale?.cantidad ?? 1),
       });
       return [{ ...reversal, currency: row.moneyCurrency ?? currency,
         costCurrency: row.sale?.inventoryItem?.currency ?? row.moneyCurrency ?? currency }];
@@ -568,7 +576,7 @@ export async function getReportsOverview(
   const topProductsMap = new Map<string, { unitsSold: number; revenue: number }>();
   for (const sale of completedSales) {
     const current = topProductsMap.get(sale.product) ?? { unitsSold: 0, revenue: 0 };
-    current.unitsSold += 1;
+    current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
     topProductsMap.set(sale.product, current);
   }
@@ -603,7 +611,7 @@ export async function getReportsOverview(
   const categoryMap = new Map<string, { unitsSold: number; revenue: number }>();
   for (const sale of completedSales) {
     const current = categoryMap.get(sale.category) ?? { unitsSold: 0, revenue: 0 };
-    current.unitsSold += 1;
+    current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
     categoryMap.set(sale.category, current);
   }
@@ -688,24 +696,26 @@ export async function getReportsOverview(
     topClients,
     paymentMethods,
     inventory: {
-      totalItems,
-      availableItems,
-      soldItems,
-      inReviewItems,
+      totalItems: totalAggregate._sum.cantidad ?? 0,
+      availableItems: availableAggregate._sum.cantidad ?? 0,
+      soldItems: soldAggregate._sum.cantidad ?? 0,
+      inReviewItems: reviewAggregate._sum.cantidad ?? 0,
       valuation: {
-        costValue: inventoryValuation.reduce((total, row) => total + convert(row._sum.cost, row.currency), 0),
-        retailValue: inventoryValuation.reduce((total, row) => total + convert(row._sum.price, row.currency), 0),
+        costValue: inventoryValuation.reduce((total, row) => total + convert(row.cost, row.currency) * (row.cantidad ?? 1), 0),
+        retailValue: inventoryValuation.reduce((total, row) => total + convert(row.price, row.currency) * (row.cantidad ?? 1), 0),
       },
       aging: buildInventoryAging(
         availableStock.map((item) => ({
+          cantidad: item.cantidad,
           createdAt: item.createdAt,
           cost: convert(item.cost, item.currency),
         }))
       ),
       series: buildActivitySeries(
         inboundStock.map((item) => ({
+          cantidad: item.cantidad,
           at: item.createdAt,
-          amount: convert(item.cost, item.currency),
+          amount: convert(item.cost, item.currency) * (item.cantidad ?? 1),
         })),
         input.startDate,
         input.endDate

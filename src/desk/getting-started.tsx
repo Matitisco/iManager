@@ -80,7 +80,7 @@ export function OnboardingInventorySummary() {
   ]);
   for (const item of equipment) {
     const status = item.status || 'DISPONIBLE';
-    counts.set(status, (counts.get(status) ?? 0) + 1);
+    counts.set(status, (counts.get(status) ?? 0) + (item.cantidad ?? 1));
   }
   const breakdown = [...counts].filter(([, count]) => count > 0).map(([status, count]) => {
     const label = status === 'DISPONIBLE' ? (count === 1 ? 'disponible' : 'disponibles')
@@ -94,7 +94,7 @@ export function OnboardingInventorySummary() {
     stock.map((item) => ({
       price: item.price == null ? "" : String(item.price),
       currency: item.currency || appSession.store!.currency,
-      quantity: "1",
+      quantity: String(item.cantidad ?? 1),
       _review: "",
     })),
     money.rate,
@@ -113,7 +113,7 @@ export function OnboardingInventorySummary() {
     >
       <span>
         <small>Equipos</small>
-        <b>{equipment.length}</b>
+        <b>{equipment.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)}</b>
         {breakdown ? <small className="first-stock-breakdown">{breakdown}</small> : null}
       </span>
       <span>

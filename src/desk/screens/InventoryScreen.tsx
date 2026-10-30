@@ -1,3 +1,4 @@
+import { canSeeFinancials } from '../sections';
 import { ReplayValue } from '../replay-privacy';
 import { DeskSelect } from '../select';
 import { consumePriceToDefineFilter, PRICE_TO_DEFINE_EVENT } from '../price-to-define-filter';
@@ -120,7 +121,17 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
 }
 
 export function InventoryScreen() {
-  const { inventory, suppliers, deleteProduct, operationDrafts = [], listsLoaded } = useAppContext();
+  const { inventory, suppliers, deleteProduct, updateProduct, appSession, operationDrafts = [], listsLoaded } = useAppContext();
+  const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
+  const [quantityError, setQuantityError] = useState('');
+  const [savingQuantity, setSavingQuantity] = useState<string | null>(null);
+  const saveQuantity = async (item: Product, raw: string) => {
+    const cantidad = Number(raw);
+    if (cantidad === (item.cantidad ?? 1)) return;
+    if (!raw.trim() || !Number.isInteger(cantidad) || cantidad < 0 || (item.imei && cantidad > 1)) { setQuantityError('Ingresá una cantidad entera válida; con IMEI, máximo 1'); return; }
+    setSavingQuantity(item.id); setQuantityError('');
+    try { await updateProduct({ ...item, cantidad }); } catch (cause) { setQuantityError(cause instanceof Error ? cause.message : 'No se pudo guardar la cantidad'); } finally { setSavingQuantity(null); }
+  };
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell } = useDisplayQuote();
@@ -278,10 +289,11 @@ export function InventoryScreen() {
       </div>
       {phone && source.length > 0 ? (
         <>
-          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span></div>
+          <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)} de ${source.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)}`}</span></div>
           {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
         </>
       ) : null}
+      {quantityError ? <div className="ferr" role="alert">{quantityError}</div> : null}
       <div className="dcard flush">
         {phone ? (
           page.visible.length === 0 ? null : <PhoneRecords>
@@ -297,6 +309,7 @@ export function InventoryScreen() {
                   onMenu={(point) => open({ type: 'ctx', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity), onSelect: () => selection.start(item.id), ...point })}
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
+                  <small>Cantidad: {item.cantidad ?? 1}{seeCosts && item.cost != null ? ` · Costo: ${money.show(item.cost, item.currency)}` : ''}</small>
                   {item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : null}
                   {item.reservedClientName ? <small className="reservation-label">Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
@@ -310,7 +323,7 @@ export function InventoryScreen() {
           <div className="dch pad">
             <h3>Equipos</h3>
             <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} />
-            <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.length} de ${source.length}`}</span>
+            <span className="mut" data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)} de ${source.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)}`}</span>
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
@@ -326,6 +339,8 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
+                <th className="r">Cantidad</th>
+                {seeCosts ? <th className="r">Costo</th> : null}
                 <th>
                   <span className="thf">
                     <button type="button" className="thsort" aria-label="Ordenar por color" onClick={() => setSort((current) => current === 'Color ↑' ? 'Color ↓' : 'Color ↑')}>
@@ -453,6 +468,8 @@ export function InventoryScreen() {
                       <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}<SupplierMark item={item} />{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
+                  <td className="r" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}><input className="inv-quantity" key={`${item.id}-${item.cantidad}`} aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`} type="number" min="0" max={item.imei ? 1 : 2147483647} step="1" defaultValue={item.cantidad ?? 1} disabled={Boolean(item.archivedAt) || savingQuantity !== null} onBlur={event => { void saveQuantity(item, event.currentTarget.value); }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value = String(item.cantidad ?? 1); event.currentTarget.blur(); } }} /></td>
+                  {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}
                   <td>{(item.color ?? '').trim() || '—'}</td>
                   <td>{conditionLabel(item.condition)}</td>
                   <td>{displayQuality(item.condition, item.grade) || '—'}</td>

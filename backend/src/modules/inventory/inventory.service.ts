@@ -26,6 +26,7 @@ import { readPurchaseName } from "../suppliers/purchase-name.js";
 import { inventoryGrade } from "./quality.js";
 
 export interface InventoryItemInput {
+  cantidad?: number;
   imei?: string | null;
   model: string;
   capacity: string;
@@ -47,6 +48,7 @@ export interface InventoryItemInput {
 }
 
 export interface InventoryItemResponse {
+  cantidad: number;
   catalogVisible: boolean;
   catalogIncluded: boolean;
   reservedDepositId?: string | null;
@@ -100,7 +102,7 @@ export interface InventoryItemDetailResponse extends InventoryItemResponse {
 type InventoryRecord = {
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
-  quantity?: number;
+  cantidad?: number;
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
   reservedClientName?: string | null;
@@ -169,8 +171,8 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
   return value as Record<string, unknown>;
 };
 
-function inPublicCatalog(item: { catalogVisible?: boolean; quantity?: number; status: string; batteryHealth: string; archivedAt?: Date | string | null; needsCompletion?: boolean }, catalog: StorePublicCatalog | null) {
-  return Boolean(catalog?.active && item.catalogVisible && !ruleReason({ ...item, quantity: item.quantity ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog));
+function inPublicCatalog(item: { catalogVisible?: boolean; cantidad?: number; status: string; batteryHealth: string; archivedAt?: Date | string | null; needsCompletion?: boolean }, catalog: StorePublicCatalog | null) {
+  return Boolean(catalog?.active && item.catalogVisible && !ruleReason({ ...item, quantity: item.cantidad ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog));
 }
 
 function keptImei(customFields: Prisma.JsonValue | null | undefined): string {
@@ -184,6 +186,7 @@ function visibleImei(imei: string | null | undefined, customFields: Prisma.JsonV
 
 export function serializeInventoryItem(item: InventoryRecord): InventoryItemResponse {
   return {
+    cantidad: item.cantidad ?? 1,
     catalogVisible: item.catalogVisible ?? false,
     catalogIncluded: item.catalogIncluded ?? false,
     id: item.id,
@@ -307,7 +310,7 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 type RawInventoryRow = {
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
-  quantity?: number;
+  cantidad?: number;
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
   currency: string | null;
@@ -331,6 +334,7 @@ type RawInventoryRow = {
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
   return {
+    cantidad: row.cantidad ?? 1,
     catalogVisible: row.catalogVisible ?? false,
     catalogIncluded: row.catalogIncluded ?? false,
     id: row.id,
@@ -376,7 +380,7 @@ export async function listInventoryPaged(
 
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
-      SELECT "catalogVisible", "quantity", "id", "imei", "model", "capacity", "color", "condition", "grade",
+      SELECT "catalogVisible", "quantity" AS "cantidad", "id", "imei", "model", "capacity", "color", "condition", "grade",
              "entryDate", "batteryNote", "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt",
              "supplierId", "stockPurchaseId"
@@ -541,11 +545,12 @@ export async function createInventoryItem(
       condition: input.condition,
       grade,
       batteryHealth: input.batteryHealth,
+      cantidad: validCantidad(input.cantidad ?? 1, input.imei),
       cost: toDecimal(input.cost),
       price: priceDecimal(input.price),
       currency,
-      status: input.status,
-      pendingSaleRegistration: input.status === "VENDIDO",
+      status: input.cantidad === 0 ? "VENDIDO" : input.status,
+      pendingSaleRegistration: input.status === "VENDIDO" && input.cantidad !== 0,
       previousSaleStatus: input.status === "VENDIDO" ? "DISPONIBLE" : null,
       categoryId: input.categoryId ?? null,
       entryDate: entryDateValue(input.entryDate),
@@ -677,7 +682,14 @@ export async function updateInventoryItem(
       }
     }
 
+    const cantidad = validCantidad(input.cantidad ?? existing.cantidad, input.imei === undefined ? existing.imei : input.imei);
     const data: Prisma.InventoryItemUpdateInput = {};
+    if (input.cantidad !== undefined) {
+      if (existing.reservedDepositId && cantidad !== existing.cantidad) throw new InventoryError("Cancelá la seña antes de cambiar la cantidad", 409);
+      data.cantidad = cantidad;
+      if (cantidad === 0) data.status = "VENDIDO";
+      else if (existing.cantidad === 0 && existing.status === "VENDIDO") data.status = "DISPONIBLE";
+    }
     const kept = keptImei(existing.customFields);
     const keepRetiredImei = input.imei !== undefined && !existing.imei && Boolean(nextImei) && nextImei === kept;
     if (input.imei !== undefined && !keepRetiredImei) data.imei = nextImei;
@@ -722,6 +734,8 @@ export async function updateInventoryItem(
       }
     }
 
+    if (cantidad === 0) { data.status = "VENDIDO"; data.pendingSaleRegistration = false; }
+    else if (input.cantidad !== undefined && existing.cantidad === 0 && input.status === existing.status) data.status = "DISPONIBLE";
     const updated = await tx.inventoryItem.update({ where: { id }, data });
     const label = deviceLabel({ ...existing, ...input, imei: nextImei ?? existing.imei });
     if (options?.actor && priceChanges) {
@@ -965,6 +979,12 @@ export async function bulkMoveCategory(storeId: string, ids: string[], categoryI
   return result.count;
 }
 
+export function validCantidad(value: number, imei?: string | null): number {
+  if (!Number.isInteger(value) || value < 0 || value > 2147483647) throw new InventoryError("La cantidad debe ser un entero entre 0 y 2147483647", 400);
+  if (imei?.trim() && value > 1) throw new InventoryError("Los equipos con IMEI solo pueden tener cantidad 1", 400);
+  return value;
+}
+
 // ─── Import ───────────────────────────────────────────────────────────────────
 
 export interface ImportRow {
@@ -1025,7 +1045,7 @@ export async function importInventoryItems(
   if (!Number.isSafeInteger(equipmentCount) || equipmentCount > MAX_INVENTORY_IMPORT_ITEMS) {
     throw new InventoryError(`El archivo supera los ${MAX_INVENTORY_IMPORT_ITEMS} equipos. Dividilo en partes.`, 400);
   }
-  const batchCreates = rows.length > batchSize || rows.some(row => (row.quantity ?? 1) > 1);
+  const batchCreates = rows.length > batchSize;
   let acceptedRows = 0;
   let pending: Prisma.InventoryItemCreateManyInput[] = [];
   let pendingSourceRow = 1;
@@ -1046,13 +1066,14 @@ export async function importInventoryItems(
 
   for (let i = 0; i < rows.length; i++) {
     const source = rows[i];
+    validCantidad(Number(String(source.quantity ?? '').trim() === '' ? 1 : source.quantity ?? 1), source.imei);
     if (!Object.entries(source).some(([key, value]) => key !== 'sourceRow' && (key === 'customFields'
       ? Object.values(value ?? {}).some(cell => cell != null && String(cell).trim())
       : value != null && String(value).trim()))) { collector.reject({ row: source.sourceRow ?? i + 1, imei: '', message: 'Fila vacía' }, 'empty'); continue; }
     const prepared = prepareInventoryImportRow(Object.fromEntries(Object.entries(source)
       .filter(([key, value]) => !['customFields', 'sourceRow'].includes(key) && value != null).map(([key, value]) => [key, String(value)])), source.sourceRow ?? i + 1, seenImeis);
     const raw: ImportRow = { ...source, ...prepared, quantity: Number(prepared.quantity || 1), currency: prepared.currency || undefined };
-    const quantity = Number(prepared.quantity || 1);
+    const quantity = validCantidad(Number(prepared.quantity || 1), source.imei);
 
     if (typeof raw.price === 'string' && !raw.price.trim()) raw.price = null;
     const rowNum = raw.sourceRow ?? i + 1;
@@ -1180,6 +1201,7 @@ export async function importInventoryItems(
           condition: input.condition,
           grade: input.grade,
           batteryHealth: input.batteryHealth,
+          cantidad: quantity,
           cost: toDecimal(input.cost),
           price: priceDecimal(input.price),
           currency: rowCurrency,
@@ -1189,18 +1211,16 @@ export async function importInventoryItems(
           customFields: customFields as Prisma.InputJsonValue,
         };
         if (batchCreates) {
-          for (let unit = 0; unit < quantity; unit++) {
-            const id = randomUUID();
-            pendingSourceRow = rowNum;
-            pending.push({ ...data, id });
-            if (rowSupplierId) {
-              const key = JSON.stringify([rowSupplierId, purchaseKey]);
-              const group = supplierPurchases.get(key) ?? { supplierId: rowSupplierId, name: rowPurchaseName, purchasedAt, ids: [] };
-              group.ids.push(id);
-              supplierPurchases.set(key, group);
-            }
-            if (pending.length >= batchSize) await flushCreates();
+          const id = randomUUID();
+          pendingSourceRow = rowNum;
+          pending.push({ ...data, id });
+          if (rowSupplierId) {
+            const key = JSON.stringify([rowSupplierId, purchaseKey]);
+            const group = supplierPurchases.get(key) ?? { supplierId: rowSupplierId, name: rowPurchaseName, purchasedAt, ids: [] };
+            group.ids.push(id);
+            supplierPurchases.set(key, group);
           }
+          if (pending.length >= batchSize) await flushCreates();
         } else {
           const created = await db.inventoryItem.create({ data });
           if (rowSupplierId && !options?.supplierId) await assignItemSupplier(db, storeId, created.id, rowSupplierId, options?.actor);
@@ -1208,11 +1228,11 @@ export async function importInventoryItems(
           group.ids.push(created.id);
           purchases.set(purchaseKey, group);
         }
-        if (input.price == null) result.priceToDefine += quantity;
-        result.imported += quantity;
+        if (input.price == null) result.priceToDefine++;
+        result.imported++;
       }
       acceptedRows++;
-      if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + quantity;
+      if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + 1;
     } catch (error) {
       throw new InventoryError(`No se importó ningún equipo. Fila ${rowNum}: ${error instanceof DomainError ? error.message : 'No se pudo guardar el archivo completo. Volvé a intentarlo.'}`, error instanceof DomainError ? error.statusCode : 409);
     }

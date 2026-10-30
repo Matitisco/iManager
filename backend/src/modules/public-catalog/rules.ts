@@ -14,8 +14,8 @@ export function ruleReason(item: { status: string; quantity: number; batteryHeal
   if (config.minBattery != null && (battery == null || battery < config.minBattery)) return `Regla: batería < ${config.minBattery} %`;
   return null;
 }
-export function countAvailable(items: { status: string }[]) {
-  return items.filter(item => !item.status || item.status === 'DISPONIBLE').length;
+export function countAvailable(items: { status: string; cantidad?: number }[]) {
+  return items.filter(item => !item.status || item.status === 'DISPONIBLE').reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
 }
 export function convertCatalogPrice(price: number, from: string, to: string, rate: number): number {
   if (from === to) return price;

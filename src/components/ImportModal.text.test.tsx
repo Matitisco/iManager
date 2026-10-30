@@ -14,7 +14,7 @@ const analysis: ImportAnalysis = {
 const fields = ['model', 'capacity', 'color', 'batteryHealth', 'price', 'cost', 'imei', 'condition'].map((key) => ({ key, label: ({ model: 'Modelo', price: 'Precio', condition: 'Condición' } as Record<string, string>)[key] ?? key, required: key === 'model' }));
 function setup(sheet = false, result = analysis) {
   const onAnalyzeText = vi.fn(async () => result);
-  const onImport = vi.fn(async (_rows: Record<string, string>[]) => ({ imported: 3, updated: 0, errors: [] }));
+  const onImport = vi.fn(async (_rows: Record<string, string>[]) => ({ imported: 1, updated: 0, errors: [] }));
   render(<ImportModal fields={fields} sheet={sheet} onAnalyzeText={onAnalyzeText} onAnalyze={vi.fn()} onApply={vi.fn()} onImport={onImport} onClose={vi.fn()} nouns={{ one: 'equipo', many: 'equipos' }} />);
   return { onAnalyzeText, onImport };
 }
@@ -38,8 +38,8 @@ describe('text import shares Excel review', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Listo' }));
     await userEvent.click(screen.getByTestId('import-confirm'));
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    expect(onImport.mock.calls[0][0]).toHaveLength(3);
-    expect(onImport.mock.calls[0][0][0]).toMatchObject({ price: '530', currency: 'USD' });
+    expect(onImport.mock.calls[0][0]).toHaveLength(1);
+    expect(onImport.mock.calls[0][0][0]).toMatchObject({ price: '530', currency: 'USD', quantity: '3' });
   });
   it('sends identical txt content to the same analyzer', async () => {
     const { onAnalyzeText } = setup();

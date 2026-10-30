@@ -1,3 +1,4 @@
+import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
 import { captureSaleCancellation, restoreCancelledSale } from './sale-restoration.js';
 import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
@@ -51,6 +52,7 @@ export type OperationInput = {
   date?: string;
   clientId?: string | null;
   clientName?: string | null;
+  cantidad?: number;
   productId?: string | null;
   deviceLabel?: string | null;
   amount?: number;
@@ -174,6 +176,7 @@ async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.Inventor
 type TradeForResponse = TradeIn & { saleId?: string | null; sale?: { id: string } | null };
 function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capacity"> | null) {
   return {
+    cantidad: sale.cantidad ?? 1,
     id: sale.id,
     saleNumber: sale.saleNumber,
     date: formatStoredDate(sale.dateLabel, sale.soldAt),
@@ -227,6 +230,7 @@ function serializeTrade(trade: TradeForResponse) {
     batteryHealth: trade.batteryHealth ?? null,
     grade: trade.grade ?? null,
     customFields: trade.customFields ?? {},
+    draftCantidad: trade.draftCantidad ?? 1,
     draftProductId: trade.draftProductId ?? null,
     draftDeviceLabel: trade.draftDeviceLabel ?? null,
     draftSaleCategoryId: trade.draftSaleCategoryId ?? null,
@@ -245,6 +249,7 @@ function serializeTrade(trade: TradeForResponse) {
 
 function serializeProduct(product: InventoryItem) {
   return {
+    cantidad: product.cantidad ?? 1,
     id: product.id,
     imei: product.imei ?? "",
     model: product.model,
@@ -501,6 +506,7 @@ export async function getOperationOptions(storeId: string) {
         capacity: true,
         color: true,
         imei: true,
+        cantidad: true,
         price: true,
         currency: true,
         condition: true,
@@ -568,6 +574,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       if (input.productId) {
         const draftProduct = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
         if (!draftProduct) throw new OperationError("Inventory item not found", 404);
+        saleUnits(input.cantidad ?? 1, draftProduct);
         if (!canRegisterOutgoingSale(draftProduct)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
       const receivedImei = parseOptionalImei(input.tradeIn.deviceReceivedImei);
@@ -594,6 +601,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         grade: strictTradeGrade(input.tradeIn.grade),
         customFields: toJson(input.tradeIn.customFields),
         requestKey: input.requestKey ?? null,
+        draftCantidad: saleUnits(input.cantidad ?? 1),
         draftProductId: input.productId ?? null,
         draftDeviceLabel: input.deviceLabel ?? null,
         draftSaleCategoryId: input.saleCategoryId ?? null,
@@ -632,7 +640,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (product?.price === null && !((input.amount ?? 0) > 0)) throw new OperationError("Cargá el precio de venta del equipo con precio a definir");
     if (product && !canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
-    if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
+    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     if (!product && input.unlistedEquipment) {
       product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, input.amount ?? 0, currency);
     }
@@ -691,16 +699,10 @@ export async function createOperation(storeId: string, source: OperationSource, 
         data: { receivedInventoryItemId: incoming.id },
       });
     }
+    const cantidad = saleUnits(input.cantidad ?? 1, product);
     if (product) {
-      await tx.inventoryItem.update({
-        where: { id: product.id },
-        data: {
-          status: "VENDIDO",
-          pendingSaleRegistration: false,
-          previousSaleStatus: null,
-          ...salePricePatch(product.price, input.amount!, currency),
-        },
-      });
+      await takeStock(tx, product, cantidad);
+      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.amount! / cantidad), currency } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
@@ -708,6 +710,8 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays, product?.condition ?? input.unlistedEquipment?.condition);
     let sale = await tx.sale.create({
       data: {
+        cantidad,
+        stockDeducted: Boolean(product),
         storeId,
         saleNumber,
         sellerMemberId: input.sellerMemberId ?? null,
@@ -847,7 +851,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     if (product && !canRegisterOutgoingSale(product, { ...input, clientId: input.clientId ?? trade.clientId })) {
       throw new OperationError("El equipo no esta disponible", 409);
     }
-    if (product && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) {
+    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) {
       throw new OperationError("Este equipo ya tiene una venta activa", 409);
     }
     const typedClientName = input.clientName !== undefined
@@ -911,11 +915,13 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
         ? false
         : product?.pendingSaleRegistration ?? false,
     } });
+    const cantidad = saleUnits(input.cantidad ?? trade.draftCantidad ?? 1, product);
     if (product) await tx.inventoryItem.update({ where: { id: product.id }, data: {
-      status: "VENDIDO",
+      cantidad: (product.cantidad ?? 1) - cantidad,
+      status: (product.cantidad ?? 1) > cantidad ? "DISPONIBLE" : "VENDIDO",
       pendingSaleRegistration: false,
       previousSaleStatus: null,
-      ...salePricePatch(product.price, outgoingAmount, currency),
+      ...salePricePatch(product.price, outgoingAmount / cantidad, currency),
     } });
     const sellerMemberId = input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId;
     await assertSeller(tx, storeId, sellerMemberId);
@@ -932,6 +938,8 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       clientName: client.name,
       categoryId: saleCategoryId ?? null,
       inventoryItemId: product?.id ?? null,
+      cantidad,
+      stockDeducted: Boolean(product),
       deviceLabel: product ? fullDeviceLabel(product) : deviceLabel,
       dateLabel: formatArDate(date),
       soldAt: date,
@@ -1023,6 +1031,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
 export async function updateSaleOperation(storeId: string, saleId: string, input: OperationInput, actor?: Actor) {
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError("Sale not found", 404);
     if (sale.status === "CANCELADA") throw new OperationError("No se puede editar una operación cancelada", 409);
     if (hasSettlement(input)) throw new OperationError("Las cuotas y los pagos mixtos se definen al crear la venta", 409);
@@ -1037,6 +1046,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       throw new OperationError("Completá el equipo recibido y un valor tomado válido", 400);
     }
     if (hasTrade && !trade && nextTradeInput?.takeValue === undefined) throw new OperationError("Completá el valor tomado", 400);
+    const nextCantidad = saleUnits(input.cantidad ?? sale.cantidad ?? 1);
     const nextAmount = input.amount ?? toNum(sale.amount);
     const amountChanges = input.amount !== undefined && moneyChanged(sale.amount, input.amount);
     const takeChanges = Boolean(hasTrade && nextTradeInput?.takeValue !== undefined && (!trade || moneyChanged(trade.takeValue, nextTradeInput.takeValue)));
@@ -1064,7 +1074,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
     if (nextProduct && nextProductId !== sale.inventoryItemId) {
       if (!canRegisterOutgoingSale(nextProduct)) throw new OperationError("El equipo no está disponible", 409);
-      if (await tx.sale.findFirst({ where: { storeId, inventoryItemId: nextProduct.id, id: { not: sale.id }, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
+      if (nextProduct.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: nextProduct.id, id: { not: sale.id }, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     }
     const typedClientName = input.clientName !== undefined
       && (input.clientId === null || (input.clientId === undefined && input.clientName?.trim() !== sale.clientName));
@@ -1094,18 +1104,23 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       if (received) archivedIncoming = await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
       removedTrade = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", removedFromSaleNumber: sale.saleNumber } });
     }
-    if (sale.inventoryItemId && sale.inventoryItemId !== nextProductId) {
-      await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
+    const stockChanges = nextProductId !== sale.inventoryItemId || nextCantidad !== (sale.cantidad ?? 1);
+    if (stockChanges) {
+      await releaseStock(tx, storeId, sale);
+      if (nextProduct) {
+        const refreshed = await tx.inventoryItem.findFirstOrThrow({ where: { id: nextProduct.id, storeId } });
+        await takeStock(tx, refreshed, nextCantidad);
+      }
     }
-    if (nextProduct && nextProduct.id !== sale.inventoryItemId) {
-      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { status: "VENDIDO", pendingSaleRegistration: false, previousSaleStatus: null, ...salePricePatch(nextProduct.price, nextAmount, nextCurrency) } });
-    } else if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0) {
-      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
+    if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0) {
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount / nextCantidad), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     let updatedSale = await tx.sale.update({
       where: { id: sale.id },
       data: {
+        cantidad: nextCantidad,
+        ...(stockChanges ? { stockDeducted: Boolean(nextProduct) } : {}),
         integratedOperation: true,
         ...(input.sellerMemberId !== undefined ? { sellerMemberId: input.sellerMemberId } : {}),
         ...(input.exchangeRate !== undefined ? { exchangeRate: await saleExchangeRate(input.exchangeRate) } : {}),
@@ -1309,6 +1324,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         takeValue: input.tradeIn?.takeValue === undefined ? trade.takeValue : dec(input.tradeIn.takeValue),
         status: input.tradeIn?.status ?? trade.status, batteryHealth: input.tradeIn?.batteryHealth === undefined ? trade.batteryHealth : input.tradeIn.batteryHealth,
         grade: input.tradeIn?.grade === undefined ? trade.grade : strictTradeGrade(input.tradeIn.grade),
+        draftCantidad: saleUnits(input.cantidad ?? trade.draftCantidad ?? 1),
         draftProductId: input.productId === undefined ? trade.draftProductId : input.productId,
         draftDeviceLabel: input.deviceLabel === undefined ? trade.draftDeviceLabel : input.deviceLabel,
         draftAmount: input.amount === undefined ? trade.draftAmount : dec(input.amount),
@@ -1541,6 +1557,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     // race on the unique cash reversal before reaching the sale status update.
     await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError("Sale not found", 404);
     if (!sale.integratedOperation) throw new OperationError("Esta venta no pertenece a una operación integrada", 409);
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
@@ -1563,7 +1580,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
       saleId: sale.id,
       exchangeRate: sale.exchangeRate == null ? null : toNum(sale.exchangeRate),
     });
-    if (sale.inventoryItemId && sale.integratedOperation) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? false } });
+    if (sale.inventoryItemId && sale.integratedOperation) await releaseStock(tx, storeId, sale);
     else if (sale.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: "DISPONIBLE" } });
     await restoreSaleDeposits(tx, storeId, sale.id, actor);
     await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
@@ -1645,7 +1662,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     if (sale) await restoreSaleDeposits(tx, storeId, sale.id, actor);
     if (sale) await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     if (sale) await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
-    if (sale?.inventoryItemId) await tx.inventoryItem.update({ where: { id: sale.inventoryItemId }, data: { status: sale.previousInventoryStatus ?? trade.previousOutgoingStatus ?? "DISPONIBLE", pendingSaleRegistration: sale.previousPendingSaleRegistration ?? trade.previousOutgoingPendingRegistration ?? false } });
+    if (sale?.inventoryItemId) await releaseStock(tx, storeId, sale);
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", ...stamp } });
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
@@ -1775,6 +1792,7 @@ export async function restoreSaleOperation(storeId: string, saleId: string, acto
     if (linked?.tradeInId) await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${linked.tradeInId} AND "storeId" = ${storeId} FOR UPDATE`;
     await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError('Venta no encontrada', 404);
     if (!sale.voidedAt && !['CANCELADA', 'ANULADA'].includes(sale.status)) return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: 'La venta ya está activa' };
     const result = await restoreCancelledSale(tx, sale, actor);

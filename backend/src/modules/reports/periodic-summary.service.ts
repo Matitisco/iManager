@@ -48,7 +48,7 @@ export async function getPeriodicSummary(storeId: string, member: Member, select
   const [saleRecords, claims, counts] = await Promise.all([
     salesAllowed ? prisma.sale.findMany({
       where: { storeId },
-      select: { id: true, dateLabel: true, soldAt: true, amount: true, amountCurrency: true, status: true, voidedAt: true, cancelledAt: true, deviceLabel: true, clientName: true, client: { select: { name: true } }, inventoryItem: { select: { model: true, capacity: true } } },
+      select: { cantidad: true, id: true, dateLabel: true, soldAt: true, amount: true, amountCurrency: true, status: true, voidedAt: true, cancelledAt: true, deviceLabel: true, clientName: true, client: { select: { name: true } }, inventoryItem: { select: { model: true, capacity: true } } },
       orderBy: [{ soldAt: 'desc' }, { id: 'desc' }],
     }) : [],
     salesAllowed ? prisma.returnCase.findMany({
@@ -70,7 +70,7 @@ export async function getPeriodicSummary(storeId: string, member: Member, select
       ? `${storedDay.getFullYear()}-${String(storedDay.getMonth() + 1).padStart(2, '0')}-${String(storedDay.getDate()).padStart(2, '0')}`
       : summaryDay(sale.soldAt, timeZone);
     if (!inPeriod(day)) return [];
-    return [{ id: sale.id, day, title: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(' ') || 'Venta', detail: sale.clientName || sale.client?.name || '', amount: Number(sale.amount), currency: sale.amountCurrency, voided: summarySaleVoided(sale) }];
+    return [{ cantidad: sale.cantidad ?? 1, id: sale.id, day, title: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(' ') || 'Venta', detail: sale.clientName || sale.client?.name || '', amount: Number(sale.amount), currency: sale.amountCurrency, voided: summarySaleVoided(sale) }];
   }).sort((a, b) => b.day.localeCompare(a.day) || b.id.localeCompare(a.id));
   const returns = claims.flatMap(claim => {
     // Supplier RMA may settle a refund before the repair is completed.
