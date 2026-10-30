@@ -1,6 +1,6 @@
 import { parseArDate } from '../../lib/ar-date.js';
 import { validBatteryHealth } from '../../lib/battery-health.js';
-import { parseOptionalImei } from '../../lib/imei.js';
+import { parseOptionalImei } from '../../lib/imei-value.js';
 import type { DiscardReason, ImportWarning } from '../import/import-diagnostics.js';
 import { normalizeInventoryImportStatus } from '../import/inventory-status.js';
 import { inventoryGrade } from './quality.js';

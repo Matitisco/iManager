@@ -1,4 +1,6 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+// This module also runs in the browser, where backend packages are absent.
+vi.mock('zod', () => { throw new Error('Import grouping must not load server schema dependencies'); });
 import { INVENTORY_DUPLICATE_FIELDS, inventoryDuplicateKey } from './duplicate-key.js';
 import { groupInventoryPreviewRows, inventoryImportGroups } from './import-grouping.js';
 
