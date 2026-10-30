@@ -176,6 +176,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [battery, setBattery] = useState(current?.batteryHealth?.replace(/%$/, '') ?? '');
   const [cantidad, setCantidad] = useState(String(current?.cantidad ?? 1));
   const [imei, setImei] = useState(current?.imei ?? '');
+  useEffect(() => { if (imei.trim() && Number(cantidad) > 1) setCantidad('1'); }, [imei, cantidad]);
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
   const [price, setPrice] = useState(current?.price != null ? money.inputValue(current.price, current.currency) : '');
@@ -269,7 +270,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         </div>
         {current ? null : <ScanReady />}
       </div>
-      <Field label="Cantidad" error={bad.cantidad}><input aria-label="Cantidad" type="number" min={current ? 0 : 1} max={imei.trim() ? 1 : 2147483647} step="1" value={cantidad} onChange={event => { setCantidad(event.target.value); clearBad(setBad, 'cantidad'); }} /></Field>
+      <Field label="Cantidad" error={bad.cantidad}><input aria-label="Cantidad" disabled={Boolean(imei.trim())} type="number" min={current ? 0 : 1} max={imei.trim() ? 1 : 2147483647} step="1" value={cantidad} onChange={event => { setCantidad(event.target.value); clearBad(setBad, 'cantidad'); }} /></Field>
       <Field label="Proveedor">
         {suppliers === null ? <FieldSkeleton /> : (
           <InlineSupplier disabled={!!supplierId} value={supplierId || supplier} onChange={setSupplier} />

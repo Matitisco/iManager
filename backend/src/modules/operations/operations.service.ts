@@ -702,7 +702,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const cantidad = saleUnits(input.cantidad ?? 1, product);
     if (product) {
       await takeStock(tx, product, cantidad);
-      if (product.price === null) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.amount! / cantidad), currency } });
+      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.amount! / cantidad), currency } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);

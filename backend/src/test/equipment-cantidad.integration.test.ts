@@ -105,3 +105,11 @@ it('conserva cantidad al guardar y confirmar un borrador de canje', async () => 
   expect(confirm.json().sale.cantidad).toBe(3);
   expect((await stored(id)).cantidad).toBe(5);
 });
+
+it('completa el precio unitario de un equipo sin precio al vender varias unidades', async () => {
+  const { id } = await stock(8);
+  await request('PATCH', `/api/inventory/${id}`, { price: 0 });
+  const sale = await sell(id, 3);
+  expect(sale.statusCode, sale.body).toBe(201);
+  expect(sale.json().inventory[0]).toMatchObject({ cantidad: 5, price: 650 });
+});
