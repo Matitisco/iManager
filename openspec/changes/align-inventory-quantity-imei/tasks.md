@@ -1,0 +1,4 @@
+- [x] Unificar geometría y mensaje de Cantidad.
+- [x] Mostrar IMEI por defecto después de Equipo, incluidos valores vacíos.
+- [x] Verificar regresiones, TypeScript frontend/backend y recorrido de navegador.
+- [x] Documentar capturas antes/después y preparar entrega por PR contra test.
