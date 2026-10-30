@@ -1,0 +1,5 @@
+- [x] Agregar helpers de cantidad y sufijo sin modificar saleEquipment.
+- [x] Mostrar sufijo en escritorio, móvil e historial del cliente.
+- [x] Agregar unidades al resumen usando periodSales.
+- [x] Agregar pruebas unitarias y de render relacionadas.
+- [x] Verificar TypeScript frontend/backend, 56 tests relacionados y ancho 1440/390.

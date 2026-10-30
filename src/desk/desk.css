@@ -308,6 +308,11 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-delta { display: block; margin-top: 8px; color: var(--secondary); font-size: 12px; font-weight: 700; }
 .sale-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .sale-hero-grid.solo { grid-template-columns: minmax(0, 1fr); }
+.sale-hero-margin { grid-column: 1 / -1; }
+.sale-quantity { color: var(--secondary); font-size: 12px; font-weight: 500; white-space: nowrap; }
+@media (min-width: 1100px) {
+  .sales-screen .dstats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .sale-hero-grid .mid { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
 .sale-hero-grid small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; font-weight: 600; }
 .sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }

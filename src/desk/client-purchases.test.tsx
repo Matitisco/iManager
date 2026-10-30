@@ -72,6 +72,30 @@ describe('client purchases', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it.each([false, true])('shows sale quantities in preview and full history (phone=%s)', async phone => {
+    const originalMedia = window.matchMedia;
+    window.matchMedia = vi.fn(query => ({ matches: phone && query.includes('max-width'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    try {
+      render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}>
+        <ClientPurchases clientName="Cliente ejemplo" clientId="c1" sales={[
+          sale('bulk', { cantidad: 5, productId: 'p1' }),
+          sale('single', { cantidad: 1, deviceLabel: 'Equipo individual' }),
+          sale('legacy', { deviceLabel: 'Equipo histórico' }),
+          sale('bulk-import', { cantidad: 2, date: '01/10/2026', deviceLabel: 'Equipo importado' }),
+        ]} tradeIns={[]} repairs={[]} inventory={inventory} sellers={sellers} />
+      </ExchangeProvider>);
+      const preview = screen.getByTestId('client-purchases');
+      expect(within(preview).getByTestId('purchase-sale-bulk')).toHaveTextContent('iPhone 15 Pro 256GB x5');
+      expect(within(preview).getByTestId('purchase-sale-single')).not.toHaveTextContent(/x\d/);
+      expect(within(preview).getByTestId('purchase-sale-legacy')).not.toHaveTextContent(/x\d/);
+      await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByTestId('purchases-more'));
+      const dialog = screen.getByRole('dialog', { name: phone ? 'Compras' : 'Compras · Cliente ejemplo' });
+      expect(within(dialog).getByTestId('purchase-sale-bulk')).toHaveTextContent('iPhone 15 Pro 256GB x5');
+      expect(within(dialog).getByTestId('purchase-sale-bulk-import')).toHaveTextContent('Equipo importado x2');
+      expect(within(dialog).getByTestId('purchase-sale-single')).not.toHaveTextContent(/x\d/);
+    } finally { window.matchMedia = originalMedia; }
+  });
+
   it('shows three rows with full IMEI, keeps annulled records and opens a separate full list', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderPurchases();
