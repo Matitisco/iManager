@@ -1,3 +1,4 @@
+import { inventoryImportGroups } from './import-grouping.js';
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { randomUUID } from 'node:crypto';
 import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, validateFields, type DefinitionInput } from '../custom-fields/custom-fields.service.js';
@@ -1010,6 +1011,8 @@ export interface ImportRow {
 }
 
 export interface ImportResult {
+  processedRows?: number;
+  units?: number;
   diagnostics?: ImportDiagnostics;
   warnings?: { row: number; message: string }[];
   imported: number;
@@ -1047,6 +1050,7 @@ export async function importInventoryItems(
   }
   const batchCreates = rows.length > batchSize;
   let acceptedRows = 0;
+  let savedUnits = 0;
   let pending: Prisma.InventoryItemCreateManyInput[] = [];
   let pendingSourceRow = 1;
   const flushCreates = async () => {
@@ -1064,8 +1068,10 @@ export async function importInventoryItems(
     if (!supplier) throw new InventoryError("Ese proveedor no está en esta tienda", 404);
   }
 
-  for (let i = 0; i < rows.length; i++) {
-    const source = rows[i];
+  const groups = inventoryImportGroups(rows, importedCurrency);
+  for (const group of groups) {
+    const i = group.indices[0]!;
+    const source = { ...group.row, ...(group.indices.length > 1 || group.row.quantity !== undefined ? { quantity: group.quantity } : {}) };
     validCantidad(Number(String(source.quantity ?? '').trim() === '' ? 1 : source.quantity ?? 1), source.imei);
     if (!Object.entries(source).some(([key, value]) => key !== 'sourceRow' && (key === 'customFields'
       ? Object.values(value ?? {}).some(cell => cell != null && String(cell).trim())
@@ -1231,7 +1237,8 @@ export async function importInventoryItems(
         if (input.price == null) result.priceToDefine++;
         result.imported++;
       }
-      acceptedRows++;
+      acceptedRows += group.indices.length;
+      savedUnits += quantity;
       if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + 1;
     } catch (error) {
       throw new InventoryError(`No se importó ningún equipo. Fila ${rowNum}: ${error instanceof DomainError ? error.message : 'No se pudo guardar el archivo completo. Volvé a intentarlo.'}`, error instanceof DomainError ? error.statusCode : 409);
@@ -1247,6 +1254,6 @@ export async function importInventoryItems(
       await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt, transaction);
     }
   }
-  return { ...result, diagnostics: { ...collector.finish(rows.length, acceptedRows), ...(result.warnings ? { warnings: result.warnings } : {}) } };
+  return { ...result, processedRows: acceptedRows, units: savedUnits, diagnostics: { ...collector.finish(rows.length, acceptedRows), ...(result.warnings ? { warnings: result.warnings } : {}) } };
 }
 

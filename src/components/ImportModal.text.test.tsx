@@ -92,3 +92,15 @@ describe('errores visibles en filas de texto', () => {
     expect(onImport).not.toHaveBeenCalled();
   });
 });
+
+
+it.each([false, true])('muestra texto agrupado y confirma una fila cantidad 5 (%s móvil)', async sheet => {
+  const result = { ...analysis, rows: [{ ...analysis.rows[0], quantity: '5', _groupedLines: '2' }] };
+  const { onImport } = setup(sheet, result);
+  await paste();
+  expect(screen.getAllByTestId('import-preview-row')).toHaveLength(1);
+  expect(screen.getByTestId('import-preview')).toHaveTextContent('Cantidad: 5 · agrupadas 2 líneas');
+  await userEvent.click(screen.getByTestId('import-confirm'));
+  await waitFor(() => expect(onImport).toHaveBeenCalledOnce());
+  expect(onImport.mock.calls[0][0]).toEqual([expect.objectContaining({ quantity: '5' })]);
+});

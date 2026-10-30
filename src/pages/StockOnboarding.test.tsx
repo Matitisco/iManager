@@ -323,3 +323,20 @@ describe('PostHog onboarding completion', () => {
     await waitFor(() => expect(posthog.capture).toHaveBeenCalledExactlyOnceWith('onboarding_step_skipped', { step: 'stock' }));
   });
 });
+
+
+it('onboarding de texto muestra una fila agrupada y guarda sus 5 unidades', async () => {
+  api.analyzeInventoryTextProgress.mockResolvedValue({ ...analysis, rows: [{ ...analysis.rows[0], quantity: '5', _groupedLines: '2' }] });
+  api.importBackendRows.mockResolvedValue({ imported: 1, updated: 0, errors: [], units: 5 });
+  const finish = vi.fn();
+  render(<StockOnboarding onFinish={finish} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Pegar lista' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'Listado de equipos' }), { target: { value: 'iPhone 13 x2\niPhone 13 x3' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Analizar mi lista' }));
+  const save = await screen.findByRole('button', { name: 'Guardar 5 equipos e ir al inventario' });
+  expect(screen.getByText('agrupadas 2 líneas')).toBeVisible();
+  expect(screen.getAllByRole('button', { name: /Revisar iPhone 13, fila/ })).toHaveLength(1);
+  fireEvent.click(save);
+  await waitFor(() => expect(api.importBackendRows).toHaveBeenCalledOnce());
+  expect(api.importBackendRows.mock.calls[0][2]).toEqual([expect.objectContaining({ model: 'iPhone 13', quantity: 5 })]);
+});

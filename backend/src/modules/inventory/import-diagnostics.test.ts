@@ -26,7 +26,7 @@ it('keeps amount-only rows, bad prices and invalid IMEIs as devices with preserv
     { imei: '', model: 'iPhone 13', price: NaN },
     { imei: '1234', model: 'iPhone 13', price: 500 },
   ]);
-  expect(result).toMatchObject({ imported: 4, updated: 0, diagnostics: {
+  expect(result).toMatchObject({ imported: 4, updated: 0, processedRows: 4, units: 4, diagnostics: {
     detectedRows: 4, acceptedRows: 4, discardedRows: 0,
     discardedByReason: {},
     missingRequiredFields: [], missingRecommendedFields: [],
@@ -75,7 +75,7 @@ it('preserves unreadable batteries and imports the second file IMEI without an i
     { sourceRow: 60, imei: '', model: 'iPhone 15' },
     { sourceRow: 61, imei: '', model: 'iPhone 15' },
   ]);
-  expect(result).toMatchObject({ imported: 4, updated: 0,
+  expect(result).toMatchObject({ imported: 3, updated: 0, processedRows: 4, units: 4,
     errors: [],
     warnings: [{ row: 38, message: expect.stringContaining('sin batería') }, { row: 59, message: expect.stringContaining('sin batería') }],
     diagnostics: { discardedRows: 0, discardedByReason: {} },

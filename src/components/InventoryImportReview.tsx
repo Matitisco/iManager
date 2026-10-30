@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, GripVertical, Plus } from 'lucide-react';
 import { ImportColumnPicker } from './ImportColumnPicker';
 import { Field, Segs } from '../desk/ui';
 import { ReplayValue } from '../desk/replay-privacy';
 import { columnLetter, importColumns, assignImportColumn, reorderPreviewColumns, resizePreviewColumn } from '../lib/import-preview';
-import { automaticFieldName, unassignedImportColumns, importColumnScope, type DiscardedImportColumns } from '../lib/import-custom-fields';
+import { prepareAutomaticImportFields, automaticFieldName, unassignedImportColumns, importColumnScope, type DiscardedImportColumns } from '../lib/import-custom-fields';
 import { updatePlanMapping } from '../lib/import-mapping';
 import type { CustomFieldDefinition, CustomFieldInput } from '../services/custom-fields-api';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
@@ -123,7 +123,9 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const pending = columns.filter(column => column.pending);
   const order = columns.map(column => column.key);
   const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : unassigned.has(columns.find(column => column.key === key)?.source ?? -1) ? 260 : 160);
-  const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
+  const previewRows = useMemo(() => prepareAutomaticImportFields(rows, sheets, plan, [...definitions, ...drafts], discardedColumns).rows,
+    [rows, sheets, plan, definitions, drafts, discardedColumns]);
+  const sheetRows = previewRows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
   const equipmentCount = rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0);
   const possibleTotals = rows.filter(isPossibleTotal).length;
   const start = Math.min(Math.max(0, sheetRows.length - 1), Math.max(0, Math.floor((scrollTop - HEADER_HEIGHT) / ROW_HEIGHT) - 5));
@@ -243,6 +245,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
       const amount = parseImportNumber(row.price);
       return amount === undefined ? row.price : new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(amount);
     }
+    if (column.key === 'model' && Number(row.quantity) > 1 && !columns.some(item => item.key === 'quantity')) return `${row.model} · ×${row.quantity}`;
     return row[column.key]?.trim() || '—';
   };
 
@@ -296,7 +299,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
             <tbody>
               {start > 0 && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: start * ROW_HEIGHT, padding: 0 }} /></tr>}
               {sheetRows.slice(start, end).map((row, index) => <tr key={start + index} data-testid="import-preview-row" data-index={start + index} aria-rowindex={start + index + 2} className={isPossibleTotal(row) ? 'imp-total-row' : undefined}>
-                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue>{column.key === 'model' && isPossibleTotal(row) && <small className="imp-total-note" title={POSSIBLE_TOTAL_NOTE}>Por revisar · {POSSIBLE_TOTAL_NOTE}</small>}</td>)}
+                {columns.map(column => <td key={column.source} className={`${column.key === 'model' ? 'imp-pinned ' : ''}${column.unused ? `imp-unused ${unassigned.has(column.source!) ? `imp-unassigned ${reviewingNewFields ? 'imp-new-field-review ' : ''}` : ''}` : ''}${highlightSource === column.source ? 'imp-selected ' : ''}${column.pending ? 'imp-pending' : ''}`} onClick={() => reveal(column.source, true)}><ReplayValue>{cellValue(row, start + index, column)}</ReplayValue>{column.key === 'model' && Number(row._groupedLines) > 1 && <small className="text-xs text-gray-500"> · agrupadas {row._groupedLines} líneas</small>}{column.key === 'model' && isPossibleTotal(row) && <small className="imp-total-note" title={POSSIBLE_TOTAL_NOTE}>Por revisar · {POSSIBLE_TOTAL_NOTE}</small>}</td>)}
               </tr>)}
               {end < sheetRows.length && <tr aria-hidden="true"><td colSpan={columns.length} style={{ height: (sheetRows.length - end) * ROW_HEIGHT, padding: 0 }} /></tr>}
             </tbody>

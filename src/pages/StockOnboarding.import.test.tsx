@@ -178,3 +178,23 @@ describe('onboarding con el importador real de Inventario', () => {
     expect(mocks.importBackendRows).not.toHaveBeenCalled();
   });
 });
+
+
+it.each(['onboarding', 'inventory'])('%s muestra una fila agrupada con 5 unidades y confirma esa cantidad', async entry => {
+  const grouped = analysis();
+  grouped.rows = [{ model: 'iPhone 13', imei: '', price: '450', currency: 'USD', quantity: '5', _sourceRow: '2', _sourceSheet: 'Hoja 1', _groupedLines: '2', 'custom:origen': 'Ficticio' }];
+  grouped.summary = { sheetCount: 1, rowCount: 5, sheets: [{ name: 'Hoja 1', rows: 5, included: true, condition: '' }] };
+  mocks.analyzeImport.mockResolvedValue(grouped);
+  mocks.applyImportPlan.mockResolvedValue(grouped);
+  mocks.importBackendRows.mockResolvedValue({ imported: 1, updated: 0, errors: [], units: 5, processedRows: 1 });
+  if (entry === 'onboarding') onboarding();
+  else render(<DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ImportHost kind="inv" /></DeskProvider>);
+  await upload();
+  expect(screen.getAllByTestId('import-preview-row')).toHaveLength(1);
+  expect(screen.getByTestId('import-preview-count')).toHaveTextContent('5 equipos');
+  expect(screen.getByText(/agrupadas 2 líneas/)).toBeVisible();
+  expect(screen.getByTestId('import-preview-row')).toHaveTextContent('×5');
+  await userEvent.click(screen.getByTestId('import-confirm'));
+  await waitFor(() => expect(mocks.importBackendRows).toHaveBeenCalledOnce());
+  expect(mocks.importBackendRows.mock.calls[0][2]).toEqual([expect.objectContaining({ quantity: 5, model: 'iPhone 13' })]);
+});

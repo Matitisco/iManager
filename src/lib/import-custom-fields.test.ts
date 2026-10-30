@@ -54,7 +54,8 @@ it('separa valores por hoja y omite las excluidas, reutilizando campos compatibl
   expect(result.definitions.some(field => field.label === 'No guardar')).toBe(false);
   const shared = prepareAutomaticImportFields([...rows, { ...rows[0], _sourceSheet: 'Otra' }], [{ name: 'Stock', rows: grid }, { name: 'Otra', rows: grid }], [plan, { ...plan, name: 'Otra' }], [], {});
   expect(shared.definitions).toHaveLength(3);
-  expect(shared.rows[2]['custom:cf_obs_interna']).toBe('pantalla');
+  expect(shared.rows).toHaveLength(2);
+  expect(shared.rows[0]).toMatchObject({ 'custom:cf_obs_interna': 'pantalla', quantity: '2', _groupedLines: '2' });
 });
 
 it('sin encabezado usa la letra física, también después de Z', () => {
@@ -67,4 +68,15 @@ it('no bloquea una importación sin columnas nuevas y no modifica las filas', ()
   const result = prepareAutomaticImportFields(rows, [{ name: 'Stock', rows: grid.map(row => row.slice(0, 1)) }], [plan], [], {});
   expect(result.rows).toEqual(rows);
   expect(result.definitions).toEqual([]);
+});
+
+
+it('solo agrupa después de considerar columnas nuevas y recalcula al descartarlas', () => {
+  const localRows = [{ model: 'iPhone 13', quantity: '2', _sourceRow: '2', _sourceSheet: 'Stock' }, { model: 'iPhone 13', quantity: '3', _sourceRow: '3', _sourceSheet: 'Stock' }];
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Obs'], ['iPhone 13', 'A'], ['iPhone 13', 'B']] }];
+  const separate = prepareAutomaticImportFields(localRows, sheets, [plan], [], {});
+  expect(separate.rows).toHaveLength(2);
+  const grouped = prepareAutomaticImportFields(localRows, sheets, [plan], [], { 'Stock:1': [1] });
+  expect(grouped.rows).toHaveLength(1);
+  expect(grouped.rows[0]).toMatchObject({ quantity: '5', _groupedLines: '2' });
 });

@@ -154,7 +154,8 @@ describe("ejemplo stock heuristic", () => {
       ["iPhones Nuevos", 13, "NUEVO"],
       ["OUTLET", 8, "USADO"],
     ]);
-    expect(result.rows).toHaveLength(42);
+    expect(result.rows).toHaveLength(41);
+    expect(result.rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0)).toBe(42);
     expect(result.rows.some((row) => JSON.stringify(row).includes("[object Object]"))).toBe(false);
     expect(result.rows.every((row) => !row.model?.includes("GB"))).toBe(true);
 

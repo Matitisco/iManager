@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { prepareTextRows, textRowError } from './text-import-review';
+import { groupTextReviewRows, prepareTextRows, textRowError } from './text-import-review';
 const row = { model: 'iPhone 13', price: '420', currency: 'USD', condition: 'USADO', quantity: '3', imei: '' };
 describe('text import review validation', () => {
   it('conserva una fila con cantidad y moneda', () => {
@@ -30,4 +30,24 @@ it('accepts Argentine amounts entered from mobile keyboards', () => {
 it('permite precio a definir sin convertir la ausencia a cero', () => {
   expect(textRowError({ ...row, price: '' })).toBeNull();
   expect(prepareTextRows([{ ...row, price: '' }])[0].price).toBe('');
+});
+
+
+it('agrupa cantidades repetidas tras editar y conserva variantes e IMEI', () => {
+  const base = { ...row, quantity: '1' };
+  const result = prepareTextRows([{ ...base, quantity: '2' }, { ...base, quantity: '3' }, { ...base, color: 'Rojo' }, { ...base, imei: '990000000000038' }]);
+  expect(result).toHaveLength(3);
+  expect(result[0]).toMatchObject({ quantity: '5', _groupedLines: '2' });
+  expect(result[1]).toMatchObject({ quantity: '1', color: 'Rojo' });
+  expect(result[2]).toMatchObject({ quantity: '1', imei: '990000000000038' });
+});
+
+
+it('realinea dudas y exclusiones al unir filas después de editar', () => {
+  const result = groupTextReviewRows([{ ...row, quantity: '2' }, { ...row, quantity: '3' }, { ...row, quantity: '1' }],
+    [1, 2, 3].map(line => ({ line, original: `Línea ${line}`, dudas: [`Duda ${line}`] })), 'USD', new Set([2]));
+  expect(result.rows).toHaveLength(2);
+  expect(result.rows[0].quantity).toBe('5');
+  expect(result.review[0]).toEqual({ line: 1, original: 'Línea 1\nLínea 2', dudas: ['Duda 1', 'Duda 2'] });
+  expect(result.excluded).toEqual(new Set([1]));
 });

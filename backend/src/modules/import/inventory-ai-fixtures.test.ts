@@ -51,7 +51,9 @@ it.each([1500, 5000])('validates every physical row in a large anonymized varian
   const sheets: ImportSheet[] = [{ name: 'Stock', rows: [['Modelo', 'Precio'], ...Array.from({ length: size }, (_, i) => ['iPhone QA', i === size - 1 ? 'ilegible' : '450'])] }];
   const fetchImpl = vi.fn(async () => Response.json({ answers: [ { name: 'h0_inc', probability: .99 }, { name: 'h0_c0', choice: 'model' }, { name: 'h0_c1', choice: 'price' } ] }));
   const result = await analyzeImport({ section: 'inventory', currency: 'USD', sheets }, { fetchImpl });
-  expect(result.rows).toHaveLength(size); expect(result.rows[size - 1].batteryNote).toContain('price (origen): ilegible');
+  expect(result.rows).toHaveLength(2); expect(result.rows[1].batteryNote).toContain('price (origen): ilegible');
+  expect(result.rows.map(row => Number(row.quantity))).toEqual([size - 1, 1]);
+  expect(result.diagnostics?.acceptedRows).toBe(size);
   expect(result.diagnostics?.discardedRows).toBe(0);
   expect(result.plan[0].mapping[1].review?.length).toBeGreaterThan(0);
 });

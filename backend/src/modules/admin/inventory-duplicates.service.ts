@@ -6,6 +6,7 @@
  * { expectStoreName, backup } restores those physical rows and removes its audits.
  * All endpoints require a verified platform admin. Never log the backup.
  */
+import { INVENTORY_DUPLICATE_FIELDS as KEY_FIELDS, inventoryDuplicateKeySql, canonicalInventoryValue as canonical } from '../inventory/duplicate-key.js';
 import { randomBytes } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -20,23 +21,12 @@ export const inventoryDuplicatesQuery = z.object({
   message: 'Tenés que indicar exactamente uno de storeEmail o storeId.',
 });
 
-const KEY_FIELDS = [
-  'storeId', 'categoryId', 'model', 'capacity', 'color', 'condition', 'grade',
-  'batteryHealth', 'batteryNote', 'cost', 'price', 'currency', 'status', 'supplierId',
-  'stockPurchaseId', 'entryDate', 'customFields', 'catalogVisible', 'sampleBatchId',
-] as const;
 const KEY = KEY_FIELDS.map(f => f === 'entryDate' ? 'entryDate(día)' : f).join(', ');
 const SUMMARY_FIELDS = ['model', 'capacity', 'color', 'condition', 'grade', 'batteryHealth', 'batteryNote', 'cost', 'price', 'currency', 'status'] as const;
 const EXPECTED_VARIATION = new Set(['id', 'createdAt', 'updatedAt', 'quantity']);
 const EDIT_ACTIONS = ['inventory.updated', 'inventory.price', 'inventory.cost', 'inventory.status', 'inventory.archived', 'inventory.restored', 'inventory.moved'];
 
-// Keep this SQL expression identical to the reference script's KEY_EXPR.
-const KEY_SQL = Prisma.sql`md5(jsonb_build_array(
-  i."storeId", i."categoryId", i."model", i."capacity", i."color", i."condition", i."grade",
-  i."batteryHealth", i."batteryNote", i."cost"::text, i."price"::text, i."currency",
-  i."status", i."supplierId", i."stockPurchaseId", i."entryDate"::date::text,
-  coalesce(i."customFields", 'null'::jsonb), i."catalogVisible", i."sampleBatchId"
-)::text)`;
+const KEY_SQL = Prisma.raw(inventoryDuplicateKeySql());
 
 type Json = Prisma.JsonValue;
 export type InventoryDuplicateRow = Record<string, Json> & {
@@ -55,14 +45,6 @@ const decimalOverrides = inventoryFields.filter(f => f.type === 'Decimal').flatM
   return [Prisma.sql`${name}`, Prisma.sql`${Prisma.raw(`i."${name}"`)}::text`];
 });
 const dateColumns = inventoryFields.filter(f => f.type === 'DateTime').map(f => f.dbName ?? f.name);
-
-function canonical(value: Json): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map(k => `${JSON.stringify(k)}:${canonical(value[k]!)}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
 
 function bucketBy<T>(rows: T[], key: (row: T) => string): T[][] {
   const buckets = new Map<string, T[]>();

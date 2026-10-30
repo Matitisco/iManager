@@ -34,7 +34,8 @@ it.each([false, true])('normaliza batería mezclada con encabezado=%s sin rechaz
   if (header) rows.unshift(['Modelo', 'Batería', 'Costo USD']);
   const sheets = [{ name: 'Stock', rows }];
   const result = applyImportPlan({ section: 'inventory', currency: 'ARS', sheets, plan: heuristicPlan(sheets, 'inventory', 'ARS') });
-  expect(result.rows.map(row => row.batteryHealth)).toEqual(['85%', '85%', '85%', '', '100%', 'N/A']);
+  expect(result.rows.map(row => row.batteryHealth)).toEqual(['85%', '', '100%', 'N/A']);
+  expect(result.rows.map(row => row.quantity)).toEqual(['3', '1', '1', '1']);
   expect(result.diagnostics?.warnings).toContainEqual({ row: header ? 5 : 4, message: expect.stringContaining('sin batería') });
 });
 it('preserva varias notas y la moneda explícita del costo, y respeta elección manual', async () => {

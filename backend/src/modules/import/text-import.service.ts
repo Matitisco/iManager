@@ -1,3 +1,4 @@
+import { groupInventoryPreviewRows } from '../inventory/import-grouping.js';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
 import { INVENTORY_MODELS } from '../../lib/inventory-models.js';
@@ -202,9 +203,16 @@ export async function analyzeTextImport(input: { text: string; currency: 'ARS' |
     }
     const reasons = new Map(outputs.flatMap((item) => item.discarded).map((item) => [item.line, item.reason]));
     const discarded = originalLines.flatMap((original, index) => !original.trim() || covered.has(index + 1) ? [] : [{ line: index + 1, original, reason: reasons.get(index + 1) ?? 'No se reconoció un equipo en esta línea. Revisá si falta información.' }]);
+    const units = rawRows.reduce((sum, row) => sum + row.quantity, 0);
+    const groups = groupInventoryPreviewRows(rows, input.currency);
+    const groupedReview = groups.map(group => ({
+      line: review[group.indices[0]!]!.line,
+      original: group.indices.map(index => review[index]!.original).join('\n'),
+      dudas: [...new Set(group.indices.flatMap(index => review[index]!.dudas))],
+    }));
     return {
-      source: 'model', currency: input.currency, notice: rows.length ? null : UNRELATED_TEXT_NOTICE, plan: [], rows, review, discarded,
-      summary: { sheetCount: 1, rowCount: rows.length, sheets: [{ name: 'Listado de texto', rows: rows.length, condition: '', included: true }] },
+      source: 'model', currency: input.currency, notice: rows.length ? null : UNRELATED_TEXT_NOTICE, plan: [], rows: groups.map(group => group.row), review: groupedReview, discarded,
+      summary: { sheetCount: 1, rowCount: units, sheets: [{ name: 'Listado de texto', rows: units, condition: '', included: true }] },
       usage: { model, calls, inputTokens, outputTokens, estimatedUsd: estimateImportUsd(model, inputTokens, outputTokens), latencyMs: Date.now() - start },
     };
   } finally {

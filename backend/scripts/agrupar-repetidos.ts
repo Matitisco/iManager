@@ -8,6 +8,7 @@
  * Guardas: dry-run por defecto; --apply exige --expect-store-name igual al nombre real; aborta si detecta producción
  * (RAILWAY_ENVIRONMENT_NAME=production o host de la base de producción) salvo --allow-production. No imprime secretos.
  */
+import { inventoryDuplicateKeySql } from '../src/modules/inventory/duplicate-key.js';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -36,12 +37,7 @@ const fail = (message: string, code = 2): never => { console.error(message); pro
 if (looksLikeProduction() && !flag('allow-production')) fail('ABORTADO: esto parece producción (entorno o host). No corro sin --allow-production.', 3);
 
 // Todo igual => mismo grupo. NULL cuenta como un valor.
-const KEY_EXPR = `md5(jsonb_build_array(
-  i."storeId", i."categoryId", i."model", i."capacity", i."color", i."condition", i."grade",
-  i."batteryHealth", i."batteryNote", i."cost"::text, i."price"::text, i."currency",
-  i."status", i."supplierId", i."stockPurchaseId", i."entryDate"::date::text,
-  coalesce(i."customFields", 'null'::jsonb), i."catalogVisible", i."sampleBatchId"
-)::text)`;
+const KEY_EXPR = inventoryDuplicateKeySql();
 
 const CANDIDATES_SQL = `
 SELECT i."id", i."model", i."capacity", i."color", i."condition", i."grade", i."cost"::text AS cost, i."price"::text AS price,
