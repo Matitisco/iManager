@@ -23,8 +23,9 @@ afterAll(async () => { await browser?.close(); });
 describe.each([390, 1440])('quantity layout at %ipx', width => {
   it('keeps equipment, quantity and summary within their containers', async () => {
     const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ media: query, matches: width === 390 && query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    const date = new Date().toISOString();
     context.sales = [5, undefined, 2, 20].map((cantidad, i) => ({
-      id: `sale-${i}`, saleNumber: i + 1, cantidad, date: new Date().toISOString(),
+      id: `sale-${i}`, saleNumber: i + 1, cantidad, date,
       clientId: 'c', clientName: 'Cliente ejemplo', productId: '', deviceLabel: 'iPhone 15 Pro Max 256GB',
       amount: 1000, amountCurrency: 'USD', paymentMethod: 'EFECTIVO', status: i === 3 ? 'ANULADA' : 'COMPLETADA',
     }));
@@ -62,7 +63,7 @@ describe.each([390, 1440])('quantity layout at %ipx', width => {
       </ExchangeProvider></div>);
       const purchases = document.querySelector('[data-testid="purchase-layout"]')!;
       await page.setContent(`<!doctype html><meta charset="utf-8"><style>body{margin:0}${css}</style>${purchases.outerHTML}`);
-      expect(await page.locator('.buy-title').first().textContent()).toContain('x5');
+      expect(await page.getByTestId('purchase-sale-sale-0').locator('.buy-title').textContent()).toContain('x5');
       for (const title of await page.locator('.buy-title').all()) {
         expect(await title.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
       }
