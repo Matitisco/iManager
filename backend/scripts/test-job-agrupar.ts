@@ -3,7 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 
-const NAME = 'iManager PRUEBA';
+const NAME = 'iManager PRUEBA (datos ficticios)';
 if ((process.env.RAILWAY_ENVIRONMENT_NAME ?? '') !== 'test') { console.log('[agrupar-job] no es el entorno test: no hago nada.'); process.exit(0); }
 const prisma = new PrismaClient();
 const run = (script: string, extra: string[]) => {
