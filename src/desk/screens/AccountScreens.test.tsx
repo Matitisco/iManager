@@ -5,6 +5,7 @@ import type { TeamMember } from '../../services/members-api';
 import { listInvitations } from '../../services/invitations-api';
 import { DeskProvider } from '../ui';
 import { SettingsScreen } from './AccountScreens';
+import { initializeTheme, THEME_KEY } from '../../lib/theme';
 
 const membersApi = vi.hoisted(() => ({
   listMembers: vi.fn(async () => [] as TeamMember[]),
@@ -54,6 +55,23 @@ describe('Settings store contact', () => {
     context.appSession.store.phone = '2614001122';
     context.appSession.store.email = 'hola@tienda.test';
     context.appSession.store.instagram = 'mitienda';
+  });
+
+  it('permite elegir Claro, Oscuro y Automático en este dispositivo', async () => {
+    const dispose = initializeTheme();
+    renderSettings();
+    const theme = screen.getByRole('group', { name: 'Tema de este dispositivo' });
+    expect(within(theme).getByRole('button', { name: 'Automático' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(within(theme).getByRole('button', { name: 'Oscuro' }));
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(within(theme).getByRole('button', { name: 'Oscuro' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(within(theme).getByRole('button', { name: 'Claro' }));
+    expect(document.documentElement.dataset.theme).toBe('light');
+    await userEvent.click(within(theme).getByRole('button', { name: 'Automático' }));
+    expect(localStorage.getItem(THEME_KEY)).toBe('auto');
+    dispose();
+    document.documentElement.removeAttribute('data-theme');
   });
 
   it('el dueño abre el reporte automático y un encargado no lo ve', async () => {

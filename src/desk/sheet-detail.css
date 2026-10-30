@@ -16,12 +16,12 @@
   --radius-dialog: 20px;
   --radius-sheet: 24px;
   --radius-round: 999px;
-  --surface-muted: #F6F6F7;
-  --surface-icon: #F3F4F6;
-  --surface-handle: #D1D5DB;
-  --border-subtle: #F1F1F3;
-  --text-muted: #9CA3AF;
-  --text-icon: #4B5563;
+  --surface-muted: var(--theme-row, #F6F6F7);
+  --surface-icon: var(--theme-row, #F3F4F6);
+  --surface-handle: var(--theme-row, #D1D5DB);
+  --border-subtle: var(--theme-border, #F1F1F3);
+  --text-muted: var(--theme-secondary, #9CA3AF);
+  --text-icon: var(--theme-secondary, #4B5563);
   --font-body: 15px;
   --font-body-small: 14.5px;
   --font-label: 12px;

@@ -1,3 +1,4 @@
+import { initializeTheme } from './lib/theme';
 import { initAnalytics } from './lib/posthog-analytics';
 import { readBootSession } from './lib/boot-cache';
 import { prefetchMainRoutes } from './desk/prefetch-routes';
@@ -10,6 +11,7 @@ import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { initializeInstallEvents, isStandalone, registerServiceWorker } from './lib/pwa';
 
+initializeTheme();
 initAnalytics();
 
 const catalogMatch = window.location.pathname.match(/^\/c\/([a-z0-9-]{1,160})\/?$/);

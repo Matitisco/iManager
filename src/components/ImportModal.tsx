@@ -542,7 +542,7 @@ export const ImportModal: React.FC<Props> = ({
                 <input
                   type="checkbox"
                   className="accent-black"
-                  style={{ accentColor: '#16181D' }}
+                  style={{ accentColor: 'var(--primary)' }}
                   data-testid={`import-sheet-${item.name}`}
                   checked={item.include}
                   disabled={isInventory && busy}
@@ -574,8 +574,8 @@ export const ImportModal: React.FC<Props> = ({
                   }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm"
                   style={selectedRow
-                    ? { background: '#16181D', color: '#fff', border: '1px solid #16181D' }
-                    : { background: '#fff', color: '#374151', border: '1px solid #e5e7eb' }}
+                    ? { background: 'var(--primary)', color: 'var(--theme-on-action, #fff)', border: '1px solid var(--primary)' }
+                    : { background: 'var(--card)', color: 'var(--theme-text, #374151)', border: '1px solid var(--theme-border, #e5e7eb)' }}
                 >
                   <span className="w-6 shrink-0 font-mono text-xs opacity-70">{index + 1}</span>
                   <span data-ph-mask={selectedRow ? undefined : true} className="truncate">{row.filter(Boolean).slice(0, 5).join(' · ') || 'fila vacía'}</span>

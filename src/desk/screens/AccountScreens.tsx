@@ -1,3 +1,4 @@
+import { ThemeSelector } from '../theme-selector';
 import { ListSkeleton } from '../list-skeleton';
 import { track } from '../../lib/analytics';
 import { billingAccountSubtitle } from './BillingScreen';
@@ -394,6 +395,8 @@ export function SettingsScreen() {
             {teamContent}
           </>
         )}
+        <div className="sec">Apariencia</div>
+        <div className="card"><ThemeSelector /></div>
         <div className="sec" data-testid="settings-account">Mi cuenta</div>
         <div className="card">
           <MRow icon={<ImanagerIcon name="cliente" size={20} />} title="Perfil" sub={`${me?.displayName || 'Usuario'} · ${me?.email || ''}`} onClick={() => open({ type: 'profile' })} />

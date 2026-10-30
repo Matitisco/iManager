@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <style>
       html, body { margin: 0; background: #F7F8FA; }
+      html[data-theme="dark"], html[data-theme="dark"] body, html[data-theme="dark"] #boot-splash { background: #121418; }
       #boot-splash { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; background: #F7F8FA; opacity: 1; }
       #boot-splash img { width: 80px; height: 80px; display: block; border-radius: 18px; }
       @media (prefers-reduced-motion: reduce) { #boot-splash { transition: none !important; } }
@@ -19,6 +20,17 @@
     <link rel="apple-touch-icon" href="/icons/icon-167.png" sizes="167x167" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#FFD000" />
+    <script>
+      (function () {
+        var preference;
+        try { preference = localStorage.getItem('imanager-theme'); } catch (_) {}
+        var dark = preference === 'dark';
+        try { if (preference !== 'light' && preference !== 'dark') dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (_) {}
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        document.querySelector('meta[name="theme-color"]').content = dark ? '#121418' : '#FFD000';
+      })();
+    </script>
     <meta name="apple-mobile-web-app-title" content="iManager" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
