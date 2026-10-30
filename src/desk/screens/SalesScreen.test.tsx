@@ -42,6 +42,55 @@ function renderScreen() {
   );
 }
 
+describe.each([390, 1440])('sale quantities at %ipx', width => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 18, 12));
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ media: query, matches: width === 390 && query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [
+      sale(1, { cantidad: 5 }),
+      sale(2),
+      sale(3, { cantidad: 2 }),
+      sale(4, { cantidad: 20, status: 'ANULADA' }),
+      sale(5, { cantidad: 30, date: '2026-01-01' }),
+    ];
+    context.clients = [];
+    context.inventory = [];
+    context.appSession = { membership: { role: 'OWNER', sections: null } };
+    context.commissionSellers = [];
+  });
+
+  afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+
+  it('shows quantity beside equipment and sums units in the same period as the other cards', async () => {
+    renderScreen();
+    const row = (buyer: string) => screen.getByText(buyer).closest(width === 390 ? '.sale-card' : 'tr')!;
+    expect(row('Cliente 1')).toHaveTextContent('Equipo 1 x5');
+    expect(row('Cliente 2')).toHaveTextContent('Equipo 2');
+    expect(row('Cliente 2')).not.toHaveTextContent(/x\d/);
+    expect(row('Cliente 3')).toHaveTextContent('Equipo 3 x2');
+    expect(row('Cliente 4')).toHaveTextContent('Equipo 4 x20');
+    expect(screen.queryByText('Cliente 5')).not.toBeInTheDocument();
+    const units = screen.getByText('Unidades vendidas').parentElement!;
+    expect(within(units).getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('3 ventas')).toBeInTheDocument();
+
+    // List-only filters leave all summary cards scoped to the selected period.
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    if (width === 390) await user.click(screen.getByRole('button', { name: 'Buscar' }));
+    await user.type(screen.getByPlaceholderText('Buscar cliente, equipo o número'), 'Cliente 1');
+    expect(screen.queryByText('Cliente 3')).not.toBeInTheDocument();
+    expect(within(units).getByText('8')).toBeInTheDocument();
+  });
+
+  it('counts absent or invalid quantities as one unit', () => {
+    context.sales = [sale(1, { cantidad: 0 }), sale(2, { cantidad: NaN }), sale(3, { cantidad: 1 })];
+    renderScreen();
+    expect(within(screen.getByText('Unidades vendidas').parentElement!).getByText('3')).toBeInTheDocument();
+    expect(screen.queryByText(/^x\d+$/)).not.toBeInTheDocument();
+  });
+});
+
 describe('Sales column filters', () => {
   beforeEach(() => {
     context.sales = [

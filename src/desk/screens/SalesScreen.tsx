@@ -23,6 +23,8 @@ import {
   periodBounds,
   saleCode,
   saleEquipment,
+  saleQuantity,
+  saleQuantityLabel,
   statusLabel,
   type PeriodKey,
 } from '../format';
@@ -101,6 +103,7 @@ export function SalesScreen() {
   const listed = useMemo(() => salePool.filter((sale) => inWindow(sale)), [salePool, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => !isVoidRow(sale) && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
   const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const units = periodSales.reduce((sum, sale) => sum + saleQuantity(sale), 0);
   const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const avg = total != null && periodSales.length ? Math.round(total / periodSales.length) : null;
   const cost = money.sum(periodSales.map((sale) => {
@@ -199,6 +202,7 @@ export function SalesScreen() {
           approx={approxActive(total, money.active, sell)}
           staleClock={staleClock}
           count={periodSales.length}
+          units={units}
           average={avg == null ? '—' : money.showActive(avg)}
           margin={hasCost && margin != null ? money.showActive(margin) : '—'}
           marginNote={hasCost ? (marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`) : 'Cargá el costo en el equipo'}
@@ -207,6 +211,7 @@ export function SalesScreen() {
       ) : phone ? null : (
       <div className="dstats">
         {seeFinancials ? <div className="dstat"><div className="eb">Facturación total</div><div data-ph-mask className="big">{total == null ? '—' : money.showActive(total)}</div><span className="spill lime">{periodSales.length === 1 ? '1 venta' : `${periodSales.length} ventas`}</span></div> : null}
+        <div className="dstat"><div className="eb">Unidades vendidas</div><div className="big">{units}</div></div>
         <div className="dstat"><div className="eb">Ticket promedio</div><div data-ph-mask className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
         {seeFinancials ? (
           <div className="dstat">
@@ -254,7 +259,7 @@ export function SalesScreen() {
                       onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[[saleEquipment(sale, inventory), saleQuantityLabel(sale)].filter(Boolean).join(' '), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
                   </div>
                 );
@@ -345,7 +350,7 @@ export function SalesScreen() {
                     <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
-                    <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
+                    <td>{saleEquipment(sale, inventory)}{saleQuantityLabel(sale) ? <> <span className="sale-quantity">{saleQuantityLabel(sale)}</span></> : null}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
@@ -364,12 +369,13 @@ export function SalesScreen() {
   );
 }
 
-function SalesHero({ seeFinancials, total, approx, staleClock, count, average, margin, marginNote, delta }: {
+function SalesHero({ seeFinancials, total, approx, staleClock, count, units, average, margin, marginNote, delta }: {
   seeFinancials: boolean;
   total: string;
   approx: string | null;
   staleClock: string;
   count: number;
+  units: number;
   average: string;
   margin: string;
   marginNote: string;
@@ -386,14 +392,18 @@ function SalesHero({ seeFinancials, total, approx, staleClock, count, average, m
           <small className="sale-delta">{delta == null ? '— vs período anterior' : <span className={delta >= 0 ? 'up' : 'down'}>{delta >= 0 ? '▲' : '▼'} {Math.abs(delta)}% vs período anterior</span>}</small>
         </>
       ) : <span className="spill lime">{count === 1 ? '1 venta' : `${count} ventas`}</span>}
-      <div className={`sale-hero-grid${seeFinancials ? '' : ' solo'}`}>
+      <div className="sale-hero-grid">
+        <div>
+          <div className="eb">Unidades vendidas</div>
+          <div className="mid">{units}</div>
+        </div>
         <div>
           <div className="eb">Ticket promedio</div>
           <div data-ph-mask className="mid">{average}</div>
           <small>Por venta</small>
         </div>
         {seeFinancials ? (
-          <div>
+          <div className="sale-hero-margin">
             <div className="eb">Margen bruto est.</div>
             <div data-ph-mask className="mid">{margin}</div>
             <small>{marginNote}</small>

@@ -257,6 +257,16 @@ export function saleEquipment(sale: { productId?: string; deviceLabel?: string |
   return sale.deviceLabel?.trim() || 'Equipo';
 }
 
+export function saleQuantity(sale: { cantidad?: number }): number {
+  const quantity = sale.cantidad;
+  return quantity != null && Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 1;
+}
+
+export function saleQuantityLabel(sale: { cantidad?: number }): string {
+  const quantity = saleQuantity(sale);
+  return quantity > 1 ? `x${quantity}` : '';
+}
+
 export function saleCode(sale: Sale): string {
   const number = sale.saleNumber ?? 0;
   return `V-${String(number || 0).padStart(4, '0')}`;

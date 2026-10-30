@@ -1,6 +1,6 @@
 import type { Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { CommissionSeller } from '../types/commissions';
-import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate } from './format';
+import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate, saleQuantityLabel } from './format';
 import { parseArDate } from '../lib/ar-date';
 import { repairWarrantyView, saleWarrantyView, type WarrantyState } from '../lib/warranty';
 import { recordCurrency, type MoneyCurrency } from './money';
@@ -17,6 +17,7 @@ export type ClientPurchase = {
   id: string;
   kind: 'sale' | 'trade' | 'repair';
   title: string;
+  quantityLabel?: string;
   imei: string | null;
   dateLabel: string;
   sortKey: number;
@@ -79,6 +80,7 @@ export function clientPurchases(input: {
         id: `sale-${sale.id}`,
         kind: 'sale',
         title: product ? equipmentTitle(product.model, product.capacity).replace(/\s*·\s*/g, ' ') : (sale.deviceLabel?.trim() || 'Equipo vendido').replace(/\s*·\s*/g, ' '),
+        quantityLabel: saleQuantityLabel(sale),
         imei,
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),
