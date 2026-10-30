@@ -149,7 +149,7 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
   };
 
   return (
-    <td className="r inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
+    <td className="inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
       {item.imei?.trim() ? <span className="inv-quantity-value" title={IMEI_QUANTITY_MESSAGE}>1</span> : (
         <input
           className="inv-quantity inv-quantity-value"
@@ -396,7 +396,7 @@ export function InventoryScreen() {
                     <InventoryTextFilter label="IMEI" value={columns.imei} presence={columns.imeiPresence} onValue={imei => setColumn({ imei })} onPresence={imeiPresence => setColumn({ imeiPresence })} />
                   </ColumnFilter>
                 </span></th>
-                <th className="r"><span className="thf">Cantidad
+                <th className="inv-quantity-cell"><span className="thf"><span>Cantidad</span>
                   <ColumnFilter label="cantidad" {...menu('cantidad')} active={columnFilterActive(columns, 'quantityMin')} onClear={() => setColumn({ quantityMin: '', quantityMax: '' })}>
                     <InventoryNumberRange label="Cantidad" min={columns.quantityMin} max={columns.quantityMax} onMin={quantityMin => setColumn({ quantityMin })} onMax={quantityMax => setColumn({ quantityMax })} />
                   </ColumnFilter>

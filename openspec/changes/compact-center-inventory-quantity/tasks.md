@@ -1,0 +1,4 @@
+- [x] Compactar el control y centrar la columna Cantidad.
+- [x] Verificar TypeScript, tests relacionados y geometría en navegador.
+- [x] Revisar capturas antes/después 1440/390 y documentar evidencia.
+- [x] Entregar por PR contra test.

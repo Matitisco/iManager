@@ -2683,7 +2683,10 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 
 /* Stock units reuse table typography and neutral controls. */
 .inv-imei-col { white-space: nowrap; }
-.inv-quantity-value { display: inline-block; width: 72px; min-height: 44px; border: 1px solid transparent; padding: 8px; text-align: right; color: var(--primary); font: inherit; }
+.inv-stock-table .inv-quantity-cell { text-align: center; }
+.inv-stock-table th.inv-quantity-cell .thf { display: grid; grid-template-columns: 22px auto 22px; justify-content: center; }
+.inv-stock-table th.inv-quantity-cell .thf::before { content: ''; }
+.inv-quantity-value { display: inline-block; width: 48px; min-height: 44px; border: 1px solid transparent; padding: 8px 4px; text-align: center; color: var(--primary); font: inherit; }
 .inv-quantity { border-color: var(--border); border-radius: 12px; background: var(--row); appearance: textfield; -moz-appearance: textfield; }
 .inv-quantity::-webkit-inner-spin-button, .inv-quantity::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .inv-quantity-error { min-width: 180px; max-width: 240px; white-space: normal; text-align: left; margin: 8px 0 0; }

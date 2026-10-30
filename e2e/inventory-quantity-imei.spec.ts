@@ -28,7 +28,7 @@ for (const width of [1440, 390]) test.describe(`Cantidad con IMEI ${width}`, () 
       await mkdir(process.env.IMEI_QUANTITY_SHOTS, { recursive: true });
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: `${process.env.IMEI_QUANTITY_SHOTS}/${state}-${width}.png` });
+      await page.screenshot({ path: `${process.env.IMEI_QUANTITY_SHOTS}/${state}-${width}.png`, animations: 'disabled' });
     };
 
     if (width === 1440) {
@@ -40,20 +40,26 @@ for (const width of [1440, 390]) test.describe(`Cantidad con IMEI ${width}`, () 
       const quantity = page.getByRole('spinbutton', { name: 'Cantidad de 14 Pro' });
       const imeiHeader = page.getByRole('columnheader', { name: /^IMEI/ });
       await expect(imeiHeader).toBeInViewport();
-      const headings = await page.getByRole('columnheader').allTextContents();
+      const headings = (await page.getByRole('columnheader').allTextContents()).map(text => text.trim());
       const imeiIndex = headings.indexOf('IMEI');
       expect(headings[imeiIndex - 1]).toBe('Equipo');
       expect(headings[imeiIndex + 1]).toBe('Cantidad');
       await expect(page.locator('tbody tr').filter({ has: fixed }).locator('td').nth(imeiIndex)).toHaveText('49 015420 323751 8');
       await expect(page.locator('tbody tr').filter({ has: quantity }).locator('td').nth(imeiIndex)).toHaveText('—');
-      const geometry = await Promise.all([fixed, quantity].map(locator => locator.evaluate(element => {
+      const quantityHeader = page.getByRole('columnheader', { name: /^Cantidad/ });
+      const geometry = await Promise.all([fixed, quantity, quantityHeader].map(locator => locator.evaluate(element => {
         const rect = element.getBoundingClientRect();
         const style = getComputedStyle(element);
-        return { width: rect.width, right: rect.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth), textAlign: style.textAlign, appearance: style.appearance };
+        return { width: rect.width, center: rect.x + rect.width / 2, paddingLeft: style.paddingLeft, paddingRight: style.paddingRight, textAlign: style.textAlign, appearance: style.appearance };
       })));
-      expect(geometry[0].width).toBe(geometry[1].width);
-      expect(geometry[0].right).toBeCloseTo(geometry[1].right, 1);
-      expect(geometry.map(value => value.textAlign)).toEqual(['right', 'right']);
+      expect(geometry.slice(0, 2).map(value => value.width)).toEqual([48, 48]);
+      expect(geometry[0].center).toBeCloseTo(geometry[2].center, 1);
+      expect(geometry[1].center).toBeCloseTo(geometry[2].center, 1);
+      expect(geometry.map(value => value.textAlign)).toEqual(['center', 'center', 'center']);
+      expect(geometry[1].paddingLeft).toBe('4px');
+      expect(geometry[1].paddingRight).toBe('4px');
+      const label = await quantityHeader.getByText('Cantidad', { exact: true }).boundingBox();
+      expect(label!.x + label!.width / 2).toBeCloseTo(geometry[2].center, 1);
       expect(geometry[1].appearance).toBe('textfield');
       await shot('imei-despues');
       await quantity.fill('0'); await quantity.press('Enter');
