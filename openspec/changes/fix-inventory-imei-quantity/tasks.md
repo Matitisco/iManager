@@ -1,0 +1,4 @@
+- [x] Cubrir regresiones de IMEI, enteros positivos, errores locales y teclado.
+- [x] Ajustar celda y estilos mínimos.
+- [x] Verificar TypeScript y tests relacionados; capturar antes/después 1440/390.
+- [x] Documentar evidencia y preparar PR contra test.

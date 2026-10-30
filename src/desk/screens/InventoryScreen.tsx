@@ -8,7 +8,7 @@ import { useNavigationState } from '../route-viewport';
 import { OnboardingInventorySummary } from '../getting-started';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { fetchArchivedInventory } from '../../services/inventory-api';
 import { rememberArchivedProducts } from '../archive-cache';
@@ -120,18 +120,75 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
   return statuses.filter((item) => item !== id);
 }
 
+function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateProduct: (product: Product) => Promise<unknown> }) {
+  const [draft, setDraft] = useState(String(item.cantidad ?? 1));
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const pending = useRef(false);
+  const errorId = useId();
+
+  useEffect(() => {
+    setDraft(String(item.cantidad ?? 1));
+    setError('');
+  }, [item.cantidad, item.imei]);
+
+  const save = async (raw: string) => {
+    if (pending.current || item.archivedAt) return;
+    setError('');
+    const cantidad = Number(raw);
+    if (!raw.trim() || !Number.isInteger(cantidad) || cantidad < 1) {
+      setError('Ingresá una cantidad entera de 1 o más unidades.');
+      return;
+    }
+    if (cantidad === (item.cantidad ?? 1)) return;
+    pending.current = true;
+    setSaving(true);
+    try {
+      await updateProduct({ ...item, cantidad });
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : '';
+      setError(/imei/i.test(message)
+        ? 'Este equipo tiene IMEI, así que cuenta como 1 unidad. Para cargar varios, usá equipos sin IMEI.'
+        : message || 'No se pudo guardar la cantidad. Intentá de nuevo.');
+    } finally {
+      pending.current = false;
+      setSaving(false);
+    }
+  };
+
+  return (
+    <td className="r inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
+      {item.imei?.trim() ? <span title="Equipo con IMEI: siempre 1 unidad">1</span> : (
+        <input
+          className="inv-quantity"
+          aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
+          type="number" min="1" step="1"
+          value={draft}
+          disabled={Boolean(item.archivedAt) || saving}
+          onChange={event => { setDraft(event.currentTarget.value); setError(''); }}
+          onBlur={event => { void save(event.currentTarget.value); }}
+          onKeyDown={event => {
+            event.stopPropagation();
+            if (event.key === 'Enter') event.currentTarget.blur();
+            if (event.key === 'Escape') {
+              event.currentTarget.value = String(item.cantidad ?? 1);
+              setDraft(event.currentTarget.value);
+              setError('');
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      )}
+      {error ? <div className="ferr inv-quantity-error" id={errorId} role="alert">{error}</div> : null}
+    </td>
+  );
+}
+
 export function InventoryScreen() {
   const { inventory, suppliers, deleteProduct, updateProduct, appSession, operationDrafts = [], listsLoaded } = useAppContext();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
-  const [quantityError, setQuantityError] = useState('');
-  const [savingQuantity, setSavingQuantity] = useState<string | null>(null);
-  const saveQuantity = async (item: Product, raw: string) => {
-    const cantidad = Number(raw);
-    if (cantidad === (item.cantidad ?? 1)) return;
-    if (!raw.trim() || !Number.isInteger(cantidad) || cantidad < 0 || (item.imei && cantidad > 1)) { setQuantityError('Ingresá una cantidad entera válida; con IMEI, máximo 1'); return; }
-    setSavingQuantity(item.id); setQuantityError('');
-    try { await updateProduct({ ...item, cantidad }); } catch (cause) { setQuantityError(cause instanceof Error ? cause.message : 'No se pudo guardar la cantidad'); } finally { setSavingQuantity(null); }
-  };
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell } = useDisplayQuote();
@@ -293,7 +350,6 @@ export function InventoryScreen() {
           {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
         </>
       ) : null}
-      {quantityError ? <div className="ferr" role="alert">{quantityError}</div> : null}
       <div className="dcard flush">
         {phone ? (
           page.visible.length === 0 ? null : <PhoneRecords>
@@ -468,7 +524,7 @@ export function InventoryScreen() {
                       <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}<SupplierMark item={item} />{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
-                  <td className="r" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}><input className="inv-quantity" key={`${item.id}-${item.cantidad}`} aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`} type="number" min="0" max={item.imei ? 1 : 2147483647} step="1" defaultValue={item.cantidad ?? 1} disabled={Boolean(item.archivedAt) || savingQuantity !== null} onBlur={event => { void saveQuantity(item, event.currentTarget.value); }} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter') event.currentTarget.blur(); if (event.key === 'Escape') { event.currentTarget.value = String(item.cantidad ?? 1); event.currentTarget.blur(); } }} /></td>
+                  <InventoryQuantityCell item={item} updateProduct={updateProduct} />
                   {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}
                   <td>{(item.color ?? '').trim() || '—'}</td>
                   <td>{conditionLabel(item.condition)}</td>
