@@ -5,7 +5,11 @@ import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
 import { requirePlatformAdmin } from "./access.js";
 import { listStoreActivity } from "./store-activity.service.js";
-import { inventoryDuplicatesQuery, listInventoryDuplicates } from "./inventory-duplicates.service.js";
+import {
+  inventoryDuplicatesQuery, listInventoryDuplicates,
+  inventoryDuplicatesApplyBody, applyInventoryDuplicates,
+  inventoryDuplicatesRestoreBody, restoreInventoryDuplicates,
+} from "./inventory-duplicates.service.js";
 
 const querySchema = z.object({
   range: z.enum(["7d", "30d", "all"]).optional(),
@@ -15,6 +19,12 @@ export async function adminRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (_request, reply) => { reply.header("cache-control", "no-store"); });
   app.get('/inventory-duplicates', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     return listInventoryDuplicates(inventoryDuplicatesQuery.parse(request.query));
+  });
+  app.post('/inventory-duplicates/apply', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+    return applyInventoryDuplicates(inventoryDuplicatesApplyBody.parse(request.body));
+  });
+  app.post('/inventory-duplicates/restore', { bodyLimit: 16 * 1024 * 1024, preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+    return restoreInventoryDuplicates(inventoryDuplicatesRestoreBody.parse(request.body));
   });
   app.get('/imei-tac-misses', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).strict().parse(request.query);
