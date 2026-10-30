@@ -2,6 +2,7 @@ import type { Product } from '../types';
 import { extractMinBattery } from '../utils/inventory';
 import { conditionLabel, isInStock, parseMoney } from './format';
 import { displayQuality } from './quality';
+import { parseReportDate } from './report-period';
 
 /** Catalog fallback. These stay available even when the stock is empty. */
 export const CONDITION_FILTERS = [
@@ -119,13 +120,29 @@ export function compareInventoryColor(left: string, right: string, direction: 'a
   return direction === 'asc' ? order : -order;
 }
 
+export type TextPresence = '' | 'filled' | 'empty';
+
 export type InventoryColumnFilters = {
   equipo: string;
+  equipoPresence: TextPresence;
+  entryFrom: string;
+  entryTo: string;
+  imei: string;
+  imeiPresence: TextPresence;
+  quantityMin: string;
+  quantityMax: string;
+  costMin: string;
+  costMax: string;
+  batteryNote: string;
+  batteryNotePresence: TextPresence;
+  catalog: string[];
   conditions: string[];
   qualities: string[];
   statuses: string[];
   colors: string[];
   battery: '' | '90' | '80' | '70';
+  batteryMin: string;
+  batteryMax: string;
   priceMin: string;
   priceMax: string;
   needsCompletion: boolean;
@@ -135,11 +152,25 @@ export type InventoryColumnFilters = {
 
 export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
   equipo: '',
+  equipoPresence: '',
+  entryFrom: '',
+  entryTo: '',
+  imei: '',
+  imeiPresence: '',
+  quantityMin: '',
+  quantityMax: '',
+  costMin: '',
+  costMax: '',
+  batteryNote: '',
+  batteryNotePresence: '',
+  catalog: [],
   conditions: [],
   qualities: [],
   statuses: [],
   colors: [],
   battery: '',
+  batteryMin: '',
+  batteryMax: '',
   priceMin: '',
   priceMax: '',
   needsCompletion: false,
@@ -149,6 +180,14 @@ export const EMPTY_COLUMN_FILTERS: InventoryColumnFilters = {
 export function columnFilterKey(filters: InventoryColumnFilters) {
   return [
     filters.equipo.trim().toLowerCase(),
+    filters.equipoPresence,
+    filters.entryFrom.trim(), filters.entryTo.trim(),
+    filters.imei.trim(), filters.imeiPresence,
+    filters.quantityMin.trim(), filters.quantityMax.trim(),
+    filters.costMin.trim(), filters.costMax.trim(),
+    filters.batteryNote.trim().toLowerCase(), filters.batteryNotePresence,
+    [...filters.catalog].sort().join('|'),
+    filters.batteryMin.trim(), filters.batteryMax.trim(),
     [...filters.conditions].sort().join('|'),
     [...filters.qualities].sort().join('|'),
     [...filters.statuses].sort().join('|'),
@@ -168,13 +207,37 @@ export function columnFiltersActive(filters: InventoryColumnFilters) {
 
 export function columnFilterActive(filters: InventoryColumnFilters, column: keyof InventoryColumnFilters) {
   if (column === 'supplierId') return Boolean(filters.supplierId);
-  if (column === 'equipo') return filters.equipo.trim() !== '';
+  if (column === 'equipo' || column === 'equipoPresence') return filters.equipo.trim() !== '' || filters.equipoPresence !== '';
+  if (column === 'entryFrom' || column === 'entryTo') return Boolean(filters.entryFrom.trim() || filters.entryTo.trim());
+  if (column === 'imei' || column === 'imeiPresence') return Boolean(filters.imei.trim() || filters.imeiPresence);
+  if (column === 'quantityMin' || column === 'quantityMax') return Boolean(filters.quantityMin.trim() || filters.quantityMax.trim());
+  if (column === 'costMin' || column === 'costMax') return Boolean(filters.costMin.trim() || filters.costMax.trim());
+  if (column === 'batteryNote' || column === 'batteryNotePresence') return Boolean(filters.batteryNote.trim() || filters.batteryNotePresence);
+  if (column === 'catalog') return filters.catalog.length > 0;
   if (column === 'conditions') return filters.conditions.length > 0;
   if (column === 'qualities') return filters.qualities.length > 0;
   if (column === 'statuses') return filters.statuses.length > 0 || filters.needsCompletion;
   if (column === 'colors') return filters.colors.length > 0;
-  if (column === 'battery') return filters.battery !== '';
+  if (column === 'battery' || column === 'batteryMin' || column === 'batteryMax') return Boolean(filters.battery || filters.batteryMin.trim() || filters.batteryMax.trim());
   return Boolean(filters.priceToDefine) || filters.priceMin.trim() !== '' || filters.priceMax.trim() !== '';
+}
+
+export function activeColumnCount(filters: InventoryColumnFilters) {
+  const columns: (keyof InventoryColumnFilters)[] = ['entryFrom', 'equipo', 'imei', 'quantityMin', 'costMin', 'colors', 'conditions', 'qualities', 'battery', 'batteryNote', 'priceMin', 'statuses', 'catalog', 'supplierId'];
+  return columns.filter(column => columnFilterActive(filters, column)).length;
+}
+
+function matchesText(value: string | null | undefined, query: string, presence: TextPresence) {
+  const text = value?.trim() ?? '';
+  if (presence === 'filled' && !text) return false;
+  if (presence === 'empty' && text) return false;
+  return text.toLocaleLowerCase('es').includes(query.trim().toLocaleLowerCase('es'));
+}
+
+function matchesRange(value: number | null | undefined, min: string, max: string) {
+  if (!min.trim() && !max.trim()) return true;
+  if (value == null || !Number.isFinite(value)) return false;
+  return (!min.trim() || value >= parseMoney(min)) && (!max.trim() || value <= parseMoney(max));
 }
 
 /** Empty selection means every status. «Disponible» also includes stock with a blank status. */
@@ -186,10 +249,19 @@ export function matchesInventoryStatuses(status: string, selected: string[]) {
 export function matchesInventoryColumns(item: Product, filters: InventoryColumnFilters) {
   if (filters.priceToDefine && item.price != null) return false;
   if (filters.supplierId && item.supplierId !== filters.supplierId) return false;
-  const equipo = filters.equipo.trim().toLowerCase();
-  if (equipo) {
-    const haystack = `${item.model} ${item.capacity} ${item.color}`.toLowerCase();
-    if (!haystack.includes(equipo)) return false;
+  if (!matchesText([item.model, item.capacity, item.color].filter(Boolean).join(' '), filters.equipo, filters.equipoPresence)) return false;
+  if (!matchesText(item.imei, filters.imei, filters.imeiPresence)) return false;
+  if (!matchesText(item.batteryNote, filters.batteryNote, filters.batteryNotePresence)) return false;
+  if (!matchesRange(item.cantidad ?? 1, filters.quantityMin, filters.quantityMax)) return false;
+  if (!matchesRange(item.cost, filters.costMin, filters.costMax)) return false;
+  if (filters.catalog.length && !filters.catalog.includes(item.catalogIncluded ? 'included' : 'excluded')) return false;
+  if (filters.entryFrom.trim() || filters.entryTo.trim()) {
+    const date = parseReportDate(item.entryDate ?? undefined);
+    const from = parseReportDate(filters.entryFrom);
+    const to = parseReportDate(filters.entryTo);
+    if (!date || (filters.entryFrom.trim() && !from) || (filters.entryTo.trim() && !to)) return false;
+    const calendarDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+    if ((from && calendarDay(date) < calendarDay(from)) || (to && calendarDay(date) > calendarDay(to))) return false;
   }
   if (!matchesInventoryCondition(item.condition, filters.conditions)) return false;
   if (!matchesInventoryColor(item.color, filters.colors)) return false;
@@ -199,6 +271,10 @@ export function matchesInventoryColumns(item: Product, filters: InventoryColumnF
   if (filters.battery) {
     if (!item.batteryHealth?.trim()) return false;
     if (extractMinBattery(item.batteryHealth) < Number(filters.battery)) return false;
+  }
+  if (filters.batteryMin.trim() || filters.batteryMax.trim()) {
+    const value = item.batteryHealth?.match(/\d+/) ? extractMinBattery(item.batteryHealth) : null;
+    if (!matchesRange(value, filters.batteryMin, filters.batteryMax)) return false;
   }
   if (filters.priceMin.trim() && (item.price == null || item.price < parseMoney(filters.priceMin))) return false;
   if (filters.priceMax.trim() && (item.price == null || item.price > parseMoney(filters.priceMax))) return false;

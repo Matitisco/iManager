@@ -15,6 +15,7 @@ import { rememberArchivedProducts } from '../archive-cache';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, PhoneRecord, PhoneRecords } from '../section-notice-view';
 import { ColumnFilter, MoneyFilterInput, MoneyRange, useColumnMenu } from '../ColumnFilter';
+import { InventoryCatalogFilter, InventoryEntryRange, InventoryNumberRange, InventoryTextFilter } from '../InventoryFilterFields';
 import { catalogChoices, useCatalogs } from '../catalog';
 import { approxUsd, useDisplayQuote, useMoney, type MoneyApi } from '../exchange';
 import { conditionLabel, conditionName, equipmentTitle, formatImei, formatShortDate, statusLabel } from '../format';
@@ -22,6 +23,7 @@ import { compareQuality, DEVICE_QUALITIES, displayQuality, qualityPhrase } from 
 import {
   CONDITION_FILTERS,
   EMPTY_COLUMN_FILTERS,
+  activeColumnCount,
   columnFilterActive,
   columnFilterKey,
   columnFiltersActive,
@@ -101,18 +103,6 @@ function batteryLine(value: string) {
   const trimmed = value.trim();
   if (!trimmed || trimmed === '0' || trimmed === '0%') return '';
   return `Bat. ${trimmed.includes('%') ? trimmed : `${trimmed}%`}`;
-}
-
-function activeColumnCount(filters: InventoryColumnFilters) {
-  return Number(filters.conditions.length > 0)
-    + Number(filters.qualities.length > 0)
-    + Number(filters.statuses.length > 0)
-    + Number(filters.colors.length > 0)
-    + Number(Boolean(filters.battery))
-  + Number(Boolean(filters.priceToDefine || filters.priceMin.trim() || filters.priceMax.trim()))
-  + Number(Boolean(filters.equipo.trim()))
-  + Number(filters.needsCompletion)
-  + Number(Boolean(filters.supplierId));
 }
 
 function withStatus(statuses: string[], id: string, checked: boolean) {
@@ -389,17 +379,33 @@ export function InventoryScreen() {
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
-                <th className="inv-entry-col">Ingreso</th>
+                <th className="inv-entry-col"><span className="thf">Ingreso
+                  <ColumnFilter label="ingreso" {...menu('ingreso')} active={columnFilterActive(columns, 'entryFrom')} onClear={() => setColumn({ entryFrom: '', entryTo: '' })}>
+                    <InventoryEntryRange filters={columns} onChange={setColumn} />
+                  </ColumnFilter>
+                </span></th>
                 <th>
                   <span className="thf">Equipo
-                    <ColumnFilter label="equipo" {...menu('equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '' })}>
-                      <input aria-label="Contiene" placeholder="Modelo, capacidad o color" value={columns.equipo} onChange={(event) => setColumn({ equipo: event.target.value })} />
+                    <ColumnFilter label="equipo" {...menu('equipo')} active={columnFilterActive(columns, 'equipo')} onClear={() => setColumn({ equipo: '', equipoPresence: '' })}>
+                      <InventoryTextFilter label="Equipo" value={columns.equipo} presence={columns.equipoPresence} placeholder="Modelo, capacidad o color" onValue={equipo => setColumn({ equipo })} onPresence={equipoPresence => setColumn({ equipoPresence })} />
                     </ColumnFilter>
                   </span>
                 </th>
-                <th className="inv-imei-col">IMEI</th>
-                <th className="r">Cantidad</th>
-                {seeCosts ? <th className="r">Costo</th> : null}
+                <th className="inv-imei-col"><span className="thf">IMEI
+                  <ColumnFilter label="IMEI" {...menu('imei')} active={columnFilterActive(columns, 'imei')} onClear={() => setColumn({ imei: '', imeiPresence: '' })}>
+                    <InventoryTextFilter label="IMEI" value={columns.imei} presence={columns.imeiPresence} onValue={imei => setColumn({ imei })} onPresence={imeiPresence => setColumn({ imeiPresence })} />
+                  </ColumnFilter>
+                </span></th>
+                <th className="r"><span className="thf">Cantidad
+                  <ColumnFilter label="cantidad" {...menu('cantidad')} active={columnFilterActive(columns, 'quantityMin')} onClear={() => setColumn({ quantityMin: '', quantityMax: '' })}>
+                    <InventoryNumberRange label="Cantidad" min={columns.quantityMin} max={columns.quantityMax} onMin={quantityMin => setColumn({ quantityMin })} onMax={quantityMax => setColumn({ quantityMax })} />
+                  </ColumnFilter>
+                </span></th>
+                {seeCosts ? <th className="r"><span className="thf">Costo
+                  <ColumnFilter label="costo" {...menu('costo')} active={columnFilterActive(columns, 'costMin')} onClear={() => setColumn({ costMin: '', costMax: '' })}>
+                    <InventoryNumberRange label="Costo" min={columns.costMin} max={columns.costMax} onMin={costMin => setColumn({ costMin })} onMax={costMax => setColumn({ costMax })} />
+                  </ColumnFilter>
+                </span></th> : null}
                 <th>
                   <span className="thf">
                     <button type="button" className="thsort" aria-label="Ordenar por color" onClick={() => setSort((current) => current === 'Color ↑' ? 'Color ↓' : 'Color ↑')}>
@@ -468,16 +474,21 @@ export function InventoryScreen() {
                 </th>
                 <th>
                   <span className="thf">Batería
-                    <ColumnFilter label="batería" {...menu('batería')} active={columnFilterActive(columns, 'battery')} onClear={() => setColumn({ battery: '' })}>
+                    <ColumnFilter label="batería" {...menu('batería')} active={columnFilterActive(columns, 'battery')} onClear={() => setColumn({ battery: '', batteryMin: '', batteryMax: '' })}>
                       <div className="opts">
                         {BATTERY_FILTERS.map((option) => (
                           <button key={option.label} className={`opt${columns.battery === option.id ? ' on' : ''}`} type="button" onClick={() => setColumn({ battery: option.id })}>{option.label}</button>
                         ))}
                       </div>
+                      <InventoryNumberRange label="Batería" min={columns.batteryMin} max={columns.batteryMax} onMin={batteryMin => setColumn({ batteryMin })} onMax={batteryMax => setColumn({ batteryMax })} />
                     </ColumnFilter>
                   </span>
                 </th>
-                <th>Detalle batería</th>
+                <th><span className="thf">Detalle batería
+                  <ColumnFilter label="detalle batería" {...menu('detalle batería')} active={columnFilterActive(columns, 'batteryNote')} onClear={() => setColumn({ batteryNote: '', batteryNotePresence: '' })}>
+                    <InventoryTextFilter label="Detalle batería" value={columns.batteryNote} presence={columns.batteryNotePresence} onValue={batteryNote => setColumn({ batteryNote })} onPresence={batteryNotePresence => setColumn({ batteryNotePresence })} />
+                  </ColumnFilter>
+                </span></th>
                 <th className="r">
                   <span className="thf">Precio
                     <ColumnFilter label="precio" align="right" {...menu('precio')} active={columnFilterActive(columns, 'priceMin')} onClear={() => setColumn({ priceMin: '', priceMax: '', priceToDefine: false })}>
@@ -507,7 +518,11 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
-                <th>Catálogo</th>
+                <th><span className="thf">Catálogo
+                  <ColumnFilter label="catálogo" align="right" {...menu('catálogo')} active={columnFilterActive(columns, 'catalog')} onClear={() => setColumn({ catalog: [] })}>
+                    <InventoryCatalogFilter value={columns.catalog} onChange={catalog => setColumn({ catalog })} />
+                  </ColumnFilter>
+                </span></th>
               </tr>
             </thead>
             <tbody>
@@ -563,6 +578,18 @@ export function InventoryScreen() {
           <div className="inv-filters">
             <p className="inv-filter-count" role="status">{activeColumnCount(draftFilters)} {activeColumnCount(draftFilters) === 1 ? 'filtro seleccionado' : 'filtros seleccionados'}</p>
             <p className="mut">Los cambios, incluso Limpiar filtros, se confirman con Aplicar filtros.</p>
+            <p className="sec">Ingreso</p>
+            <InventoryEntryRange phone filters={draftFilters} onChange={patch => setDraftFilters(current => ({ ...current, ...patch }))} />
+            <InventoryTextFilter phone label="Equipo" value={draftFilters.equipo} presence={draftFilters.equipoPresence} onValue={equipo => setDraftFilters(current => ({ ...current, equipo }))} onPresence={equipoPresence => setDraftFilters(current => ({ ...current, equipoPresence }))} />
+            <InventoryTextFilter phone label="IMEI" value={draftFilters.imei} presence={draftFilters.imeiPresence} onValue={imei => setDraftFilters(current => ({ ...current, imei }))} onPresence={imeiPresence => setDraftFilters(current => ({ ...current, imeiPresence }))} />
+            <p className="sec">Cantidad</p>
+            <InventoryNumberRange phone label="Cantidad" min={draftFilters.quantityMin} max={draftFilters.quantityMax} onMin={quantityMin => setDraftFilters(current => ({ ...current, quantityMin }))} onMax={quantityMax => setDraftFilters(current => ({ ...current, quantityMax }))} />
+            {seeCosts ? <><p className="sec">Costo</p>
+              <InventoryNumberRange phone label="Costo" min={draftFilters.costMin} max={draftFilters.costMax} onMin={costMin => setDraftFilters(current => ({ ...current, costMin }))} onMax={costMax => setDraftFilters(current => ({ ...current, costMax }))} />
+            </> : null}
+            <InventoryTextFilter phone label="Detalle batería" value={draftFilters.batteryNote} presence={draftFilters.batteryNotePresence} onValue={batteryNote => setDraftFilters(current => ({ ...current, batteryNote }))} onPresence={batteryNotePresence => setDraftFilters(current => ({ ...current, batteryNotePresence }))} />
+            <p className="sec">Catálogo</p>
+            <InventoryCatalogFilter phone value={draftFilters.catalog} onChange={catalog => setDraftFilters(current => ({ ...current, catalog }))} />
             <p className="sec">Para completar</p>
             <div className="inv-checks">
               <label className="chk">
@@ -632,6 +659,7 @@ export function InventoryScreen() {
                 <button key={option.label} className={`wchip${draftFilters.battery === option.id ? ' on' : ''}`} type="button" aria-pressed={draftFilters.battery === option.id} onClick={() => setDraftFilters((current) => ({ ...current, battery: option.id }))}>{option.label}</button>
               ))}
             </div>
+            <InventoryNumberRange phone label="Batería" min={draftFilters.batteryMin} max={draftFilters.batteryMax} onMin={batteryMin => setDraftFilters(current => ({ ...current, batteryMin }))} onMax={batteryMax => setDraftFilters(current => ({ ...current, batteryMax }))} />
             <p className="sec">Precio</p><label className="inv-check"><input type="checkbox" checked={Boolean(draftFilters.priceToDefine)} onChange={event => setDraftFilters(current => ({ ...current, priceToDefine: event.target.checked, priceMin: '', priceMax: '' }))} />Precio a definir</label>
             <div className="inv-range">
               <Field label={`Mínimo · ${money.active}`}>
