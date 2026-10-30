@@ -4,8 +4,8 @@
   padding: 12px 14px;
   margin: 0;
   border-radius: 0 0 18px 18px;
-  background: #fff;
-  color: #16181D;
+  background: var(--theme-surface, #fff);
+  color: var(--theme-text, #16181D);
   box-shadow: 0 12px 24px rgb(22 24 29 / 9%);
   font-family: 'DM Sans', system-ui, sans-serif;
   font-size: 14px;
@@ -13,21 +13,21 @@
 .pwa-heading { display: flex; align-items: center; gap: 12px; }
 .pwa-heading img { flex: none; border-radius: 12px; }
 .pwa-heading h2 { font-size: 16px; font-weight: 800; margin: 0 0 3px; }
-.pwa-heading p { color: #737984; font-size: 13px; margin: 0; line-height: 1.4; }
+.pwa-heading p { color: var(--theme-secondary, #737984); font-size: 13px; margin: 0; line-height: 1.4; }
 .pwa-steps { display: flex; flex-direction: column; gap: 12px; list-style: none; padding: 0; margin: 18px 0 8px; }
 .pwa-steps li { display: flex; gap: 12px; align-items: center; }
-.pwa-step-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; background: #FFF4C2; border-radius: 12px; }
-.pwa-steps small { display: block; color: #737984; font-size: 12px; margin-top: 2px; line-height: 1.4; }
-.desk-app .pwa-action { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; min-height: 44px; padding: 10px; width: 100%; border-radius: 12px; background: #16181D; color: #fff; font-weight: 700; }
+.pwa-step-icon { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex: none; background: var(--theme-warn-soft, #FFF4C2); border-radius: 12px; }
+.pwa-steps small { display: block; color: var(--theme-secondary, #737984); font-size: 12px; margin-top: 2px; line-height: 1.4; }
+.desk-app .pwa-action { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; min-height: 44px; padding: 10px; width: 100%; border-radius: 12px; background: var(--theme-action, #16181D); color: var(--theme-on-action, #fff); font-weight: 700; }
 .pwa-install button:disabled { opacity: .6; }
 .pwa-dismiss-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
 .desk-app .pwa-dismiss-actions button { min-height: 44px; border-radius: 12px; padding: 8px 4px; font-size: 13px; font-weight: 700; line-height: 1.3; }
-.desk-app .pwa-later { background: #F0F1F3; color: #4B5059; }
-.desk-app .pwa-never { color: #737984; }
-.pwa-install button:focus-visible { outline: 3px solid #B28C00; outline-offset: 2px; }
-.pwa-error { font-size: 12px; color: #B42318; margin: 10px 0; }
-.pwa-notice { position: fixed; z-index: 90; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 16px; background: #16181D; color: #fff; box-shadow: 0 12px 24px rgb(22 24 29 / 18%); font: 13px/1.4 'DM Sans', system-ui, sans-serif; }
-.pwa-notice-check { display: flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: #22A86E; }
+.desk-app .pwa-later { background: var(--theme-row, #F0F1F3); color: var(--theme-secondary, #4B5059); }
+.desk-app .pwa-never { color: var(--theme-secondary, #737984); }
+.pwa-install button:focus-visible { outline: 3px solid var(--theme-err-border, #B28C00); outline-offset: 2px; }
+.pwa-error { font-size: 12px; color: var(--theme-err, #B42318); margin: 10px 0; }
+.pwa-notice { position: fixed; z-index: 90; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(100px + env(safe-area-inset-bottom, 0px)); display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 16px; background: var(--theme-action, #16181D); color: var(--theme-on-action, #fff); box-shadow: 0 12px 24px rgb(22 24 29 / 18%); font: 13px/1.4 'DM Sans', system-ui, sans-serif; }
+.pwa-notice-check { display: flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--theme-ok, #22A86E); }
 .pwa-notice b { display: block; font-weight: 800; }
 .pwa-notice p { margin: 1px 0 0; }
 @media (min-width: 761px) { .pwa-install, .pwa-notice { display: none; } }

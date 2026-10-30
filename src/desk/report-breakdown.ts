@@ -60,7 +60,7 @@ const BUILTIN: Record<ReportTab, BreakdownDimension[]> = {
   ],
 };
 
-const PALETTE = ['#397964', '#5B8DEF', '#DF668B', 'var(--c-lime)', '#16181D', '#E8A33D', '#8B5CF6'];
+const PALETTE = ['var(--theme-chart-green, #397964)', 'var(--theme-chart-neutral, #5B8DEF)', 'var(--theme-chart-warm, #DF668B)', 'var(--c-lime)', 'var(--primary)', 'var(--theme-warn, #E8A33D)', 'var(--theme-chart-muted, #8B5CF6)'];
 
 export interface BreakdownPart {
   label: string;
@@ -86,42 +86,42 @@ export function breakdownTitle(tab: ReportTab, dimensionId: string, dimensions: 
 export function breakdownCatalog(tab: ReportTab, dimensionId: string): Array<{ label: string; color: string }> | undefined {
   if (tab === 'Ventas' && dimensionId === 'payment') {
     return [
-      { label: 'Transferencia', color: '#397964' },
-      { label: 'Efectivo', color: '#5B8DEF' },
-      { label: 'Tarjeta', color: '#DF668B' },
+      { label: 'Transferencia', color: 'var(--theme-chart-green, #397964)' },
+      { label: 'Efectivo', color: 'var(--theme-chart-neutral, #5B8DEF)' },
+      { label: 'Tarjeta', color: 'var(--theme-chart-warm, #DF668B)' },
       { label: 'Cripto', color: 'var(--c-lime)' },
     ];
   }
   if (tab === 'Stock' && dimensionId === 'status') {
     return [
       { label: 'Disponible', color: 'var(--c-lime)' },
-      { label: 'En revisión', color: '#5B8DEF' },
-      { label: 'Vendido', color: '#397964' },
-      { label: 'Reservado', color: '#DF668B' },
+      { label: 'En revisión', color: 'var(--theme-chart-neutral, #5B8DEF)' },
+      { label: 'Vendido', color: 'var(--theme-chart-green, #397964)' },
+      { label: 'Reservado', color: 'var(--theme-chart-warm, #DF668B)' },
     ];
   }
   if (tab === 'Canjes' && dimensionId === 'status') {
     return [
-      { label: 'Pendiente', color: '#5B8DEF' },
-      { label: 'Peritaje téc.', color: '#DF668B' },
+      { label: 'Pendiente', color: 'var(--theme-chart-neutral, #5B8DEF)' },
+      { label: 'Peritaje téc.', color: 'var(--theme-chart-warm, #DF668B)' },
       { label: 'En revisión', color: 'var(--c-lime)' },
-      { label: 'Aprobado', color: '#397964' },
-      { label: 'Completado', color: '#16181D' },
+      { label: 'Aprobado', color: 'var(--theme-chart-green, #397964)' },
+      { label: 'Completado', color: 'var(--primary)' },
     ];
   }
   if (tab === 'Servicio' && dimensionId === 'status') {
     return [
-      { label: 'Recibido', color: '#9AA0AA' },
-      { label: 'En reparación', color: '#5B8DEF' },
-      { label: 'Listo para retirar', color: '#25A66A' },
-      { label: 'Entregado', color: '#16181D' },
+      { label: 'Recibido', color: 'var(--section)' },
+      { label: 'En reparación', color: 'var(--theme-chart-neutral, #5B8DEF)' },
+      { label: 'Listo para retirar', color: 'var(--theme-ok, #25A66A)' },
+      { label: 'Entregado', color: 'var(--primary)' },
     ];
   }
   if (tab === 'Clientes' && dimensionId === 'kind') {
     return [
-      { label: 'Alta', color: '#397964' },
-      { label: 'Recurrente', color: '#5B8DEF' },
-      { label: 'Primera compra', color: '#DF668B' },
+      { label: 'Alta', color: 'var(--theme-chart-green, #397964)' },
+      { label: 'Recurrente', color: 'var(--theme-chart-neutral, #5B8DEF)' },
+      { label: 'Primera compra', color: 'var(--theme-chart-warm, #DF668B)' },
     ];
   }
   return undefined;
@@ -137,7 +137,7 @@ export function groupBreakdown(
     const known = new Set(catalog.map((item) => item.label));
     const parts = catalog.map((item) => ({ ...item, value: totals.get(item.label) ?? 0 }));
     for (const [label, value] of totals) {
-      if (!known.has(label) && value > 0) parts.push({ label, value, color: '#737984' });
+      if (!known.has(label) && value > 0) parts.push({ label, value, color: 'var(--theme-secondary, #737984)' });
     }
     return { parts, otherLabels: [] };
   }
@@ -154,7 +154,7 @@ export function groupBreakdown(
   return {
     parts: [
       ...ranked.slice(0, 5).map(([label, value], index) => ({ label, value, color: PALETTE[index % PALETTE.length] })),
-      { label: 'Otros', value: rest.reduce((sum, [, value]) => sum + value, 0), color: '#737984' },
+      { label: 'Otros', value: rest.reduce((sum, [, value]) => sum + value, 0), color: 'var(--theme-secondary, #737984)' },
     ],
     otherLabels: rest.map(([label]) => label),
   };

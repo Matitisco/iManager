@@ -272,7 +272,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const figureFull = (value: number) => (model.barMoney ? (model.unavailable ? 'sin cotización' : money.showActive(value)) : value);
   const exportButton = (
     <button className="circ" type="button" aria-label="Exportar" disabled={activeTab === 'Comisiones' && (commissionReportLoading || Boolean(commissionReportError) || commissionReport?.key !== commissionReportKey)} onClick={exportReport}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16181D" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" /></svg>
     </button>
   );
   const rangePickers = (
@@ -491,7 +491,7 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle, maskLabel
     <div className="gcomp">
       <div className="gdonut">
         <svg width="132" height="132" viewBox="0 0 132 132">
-          {sum === 0 ? <circle cx="66" cy="66" r={DONUT_RADIUS} fill="none" stroke="#E7E7E7" strokeWidth="20" strokeDasharray="5 5" /> : visible.map((part) => {
+          {sum === 0 ? <circle cx="66" cy="66" r={DONUT_RADIUS} fill="none" stroke="var(--theme-border, #E7E7E7)" strokeWidth="20" strokeDasharray="5 5" /> : visible.map((part) => {
             const sweep = (Math.PI * 2) * (part.value / sum);
             const pad = Math.min(gap, sweep * 0.25);
             const start = cursor + pad / 2;
@@ -500,7 +500,7 @@ function Donut({ parts, money: showMoney, total, cat, phone, onToggle, maskLabel
             const path = donutSlicePath(start, end);
             const props = {
               fill: 'none' as const,
-              stroke: !cat || cat === part.label ? part.color : '#E7E7E7',
+              stroke: !cat || cat === part.label ? part.color : 'var(--theme-border, #E7E7E7)',
               strokeWidth: 20,
               role: 'button' as const,
               tabIndex: 0,

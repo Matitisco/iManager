@@ -8,7 +8,7 @@
 .comd-rule > b { text-align: right; }
 .comd-detail .comd-account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 0 18px; }
 .comd-detail .comd-account-grid > .dstat { background: var(--card); padding: 14px 16px; border-radius: 20px; box-shadow: none; }
-.comd-detail .comd-account-grid > .pending { background: var(--lime-soft); border-color: #F0D56B; }
+.comd-detail .comd-account-grid > .pending { background: var(--lime-soft); border-color: var(--theme-warn-border, #F0D56B); }
 .comd-detail .comd-account-grid > .deduction { background: var(--err-soft); }
 .comd-detail .comd-account-grid .commission-totals { font-size: 22px; line-height: 1.25; margin-top: 8px; overflow-wrap: anywhere; }
 .comd-detail .comd-account-grid .commission-totals small { font-size: 13px; }
@@ -26,7 +26,7 @@
 .comd-row-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; max-width: 55%; overflow-wrap: anywhere; }
 .comd-rows .comd-row-end > b { font-size: 14px; font-weight: 800; }
 .comd-row s { color: var(--secondary); }
-.comd-rows .comd-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); border-color: transparent; border-radius: 16px; overflow: hidden; }
+.comd-rows .comd-row.is-void { background: color-mix(in srgb, var(--err) 7%, var(--theme-surface, #fff)); border-color: transparent; border-radius: 16px; overflow: hidden; }
 .comd-void-pill.spill { background: var(--err-soft); color: var(--err); border: 0; }
 .comd-rows .comd-adjustment { background: var(--err-soft); }
 .comd-adjustment .comd-row-end { color: var(--err); }

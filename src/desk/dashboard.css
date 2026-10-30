@@ -13,13 +13,13 @@
 .dashboard-payment-bar i { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
 .dashboard-payment:first-child .dashboard-payment-bar i { background: var(--lime); }
 .dashboard-payment-name > i, .dashboard-payment-stack { display: none; }
-.desk-app .dashboard-calendar-fab { position: fixed; right: 32px; bottom: max(32px, env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: #fff; z-index: 44; box-shadow: 0 8px 24px #11111429; }
+.desk-app .dashboard-calendar-fab { position: fixed; right: 32px; bottom: max(32px, env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--theme-on-action, #fff); z-index: 44; box-shadow: 0 8px 24px #11111429; }
 .dashboard-calendar-fab[aria-expanded="true"] { outline: 4px solid var(--lime-soft); }
 .desk-app:has(.ov) .dashboard-calendar-fab, .desk-app:has(.ov) .dashboard-range-panel, .desk-app.steps-open .dashboard-calendar-fab { visibility: hidden; pointer-events: none; }
 .dashboard-range-panel { position: fixed; z-index: 45; right: 104px; bottom: max(32px, env(safe-area-inset-bottom, 0px)); width: 420px; max-width: calc(100vw - 24px); max-height: calc(100dvh - max(32px, env(safe-area-inset-bottom, 0px)) - 12px); overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; box-shadow: 0 20px 60px #11111429; display: flex; flex-direction: column; gap: 14px; }
 .dashboard-presets { display: flex; flex-wrap: nowrap; gap: 6px; }
 .desk-app .dashboard-presets button { border: 1px solid var(--border); border-radius: 99px; padding: 7px 11px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.desk-app .dashboard-presets button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.desk-app .dashboard-presets button.on { background: var(--primary); border-color: var(--primary); color: var(--theme-on-action, #fff); }
 .dashboard-calendar-heading { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
 .desk-app .dashboard-calendar-heading button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border); display: grid; place-items: center; }
 .dashboard-weekdays, .dashboard-calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; }
@@ -32,7 +32,7 @@
 .dashboard-calendar-days .in-range:nth-child(7n), .dashboard-calendar-days .range-end { border-radius: 0 99px 99px 0; }
 .dashboard-calendar-days .range-start.range-end { border-radius: 99px; }
 .dashboard-calendar-days [aria-current="date"] { text-decoration: underline; text-underline-offset: 3px; }
-.dashboard-calendar-days button:disabled, .dashboard-calendar-heading button:disabled { color: #C4C7CC; cursor: default; }
+.dashboard-calendar-days button:disabled, .dashboard-calendar-heading button:disabled { color: var(--theme-secondary, #C4C7CC); cursor: default; }
 .dashboard-range-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--row); padding-top: 14px; font-size: 14px; }
 
 .dashboard-screen button:focus-visible, .dashboard-screen a:focus-visible, .dashboard-range-panel button:focus-visible, .dashboard-calendar-fab:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
@@ -111,7 +111,7 @@
 .v3-stretch .dashboard-payment-list { flex: 1; justify-content: space-between; }
 /* bento «Contanos»: card oscura real `.commission-hero` (desk.css: bg --primary, texto blanco, radius 24, padding 20 / móvil 20 18) + CTA `.btn2.l` (lime sobre oscuro, desk.css).
    Solo se anula el margin 14px 0 de .commission-hero (acá manda el gap de la columna) y se ordena en columna. */
-a.v3-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin: 0; color: #fff; text-decoration: none; padding: 22px 24px; }
+a.v3-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin: 0; color: var(--theme-hero-text, #fff); text-decoration: none; padding: 22px 24px; }
 a.v3-contact > b { font-size: 20px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; max-width: 22ch; }
 a.v3-contact .btn2 { width: auto; padding: 0 24px; }
 @media (max-width: 760px) { .dashboard-screen .phone-rows + .v3-contact { margin-top: 14px; } a.v3-contact { padding: 22px 18px; } }

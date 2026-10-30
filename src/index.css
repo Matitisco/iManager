@@ -31,3 +31,28 @@ html.ios-standalone .mtab { left: calc(10px + env(safe-area-inset-left, 0px)); r
     scroll-behavior: auto !important;
   }
 }
+
+@media screen {
+  html[data-theme="dark"], html[data-theme="dark"] body { background: #121418; color: #f3f4f6; }
+  /* Legacy Tailwind forms are shared by login, onboarding and blocking screens. */
+  [data-theme="dark"] :is([class~="bg-white"], [class*="max-[760px]:bg-white"]) { background-color: var(--card); }
+  [data-theme="dark"] :is([class~="bg-gray-50"], [class~="bg-gray-100"], [class~="bg-zinc-100"], [class*="bg-[#F7F8FA]"]) { background-color: var(--bg); }
+  [data-theme="dark"] :is([class*="text-gray-9"], [class*="text-gray-8"], [class*="text-gray-7"], [class*="text-[#16181D]"]) { color: var(--primary); }
+  [data-theme="dark"] :is([class*="text-gray-6"], [class*="text-gray-5"], [class*="text-gray-4"], [class*="text-[#9AA0AA]"], [class*="text-[#4B5160]"]) { color: var(--secondary); }
+  [data-theme="dark"] :is([class*="border-gray-"], [class*="border-[#E6E8EC]"]) { border-color: var(--border); }
+  [data-theme="dark"] :is(input, textarea, select) { color: var(--primary); border-color: #758197; }
+  [data-theme="dark"] :is([class*="bg-red-50"], [class*="bg-orange-50"]) { background-color: var(--err-soft); }
+  [data-theme="dark"] :is([class*="text-red-"], [class*="text-orange-"]) { color: var(--err); }
+  [data-theme="dark"] [class*="bg-emerald-50"] { background-color: var(--ok-soft); }
+  [data-theme="dark"] [class*="text-emerald-"] { color: var(--ok); }
+  [data-theme="dark"] :is([class*="bg-amber-50"], [class*="bg-blue-50"]) { background-color: var(--lime-soft); }
+  [data-theme="dark"] :is([class*="text-amber-"], [class*="text-blue-"]) { color: var(--theme-warn); }
+  [data-theme="dark"] [class~="text-black"] { color: var(--primary); }
+  [data-theme="dark"] :is([class~="text-zinc-500"], [class~="text-zinc-400"]) { color: var(--secondary); }
+  [data-theme="dark"] [class~="bg-black"] { background-color: var(--primary); color: var(--theme-on-action); }
+  [data-theme="dark"] :is([class*="hover:bg-gray-50"], [class*="hover:bg-gray-100"]):hover { background-color: var(--row); }
+}
+
+@media screen and (max-width: 760px) {
+  [data-theme="dark"] [class*="bg-[#FFD000]"] { background-color: var(--lime); color: var(--theme-on-accent); }
+}

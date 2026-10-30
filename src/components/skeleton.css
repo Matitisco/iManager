@@ -1,4 +1,4 @@
-.skeleton { display: block; height: 12px; width: 100%; border-radius: 6px; background: #ecedef; visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
+.skeleton { display: block; height: 12px; width: 100%; border-radius: 6px; background: var(--theme-row, #ecedef); visibility: hidden; animation: skeleton-reveal 0s linear 180ms forwards; }
 .skeleton-field { height: 42px; border-radius: 12px; }
 @keyframes skeleton-reveal { to { visibility: visible; } }
 /* A list owns its delay; nested shapes become visible with the parent. */

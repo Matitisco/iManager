@@ -1,0 +1,4 @@
+- [x] Implementar preferencia local y bootstrap sin parpadeo.
+- [x] Agregar selector accesible en Configuración.
+- [x] Cubrir paleta oscura y preservar impresión.
+- [x] Verificar tests relacionados y capturas 1440/390; entregar PR hacia test.

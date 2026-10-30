@@ -141,7 +141,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const recent = useMemo(() => displayedSales.filter(sale => inRange(sale.date)).sort((a, b) => (parseAppDate(b.date)?.getTime() ?? 0) - (parseAppDate(a.date)?.getTime() ?? 0) || (b.saleNumber ?? 0) - (a.saleNumber ?? 0)).slice(0, phone ? 4 : 5), [displayedSales, displayedRange, phone]);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const people = members.length ? members.map(member => ({ name: member.user.displayName?.trim() || member.user.email || 'Usuario', role: member.role })) : [{ name, role }];
-  const avatars = <div className="avatars">{initialLoading ? <Skeleton style={{ width: 100, height: 34 }} /> : people.map((person, index) => <div key={index} className="av" style={{ background: index % 2 ? 'var(--lime)' : 'var(--primary)', color: index % 2 ? 'var(--primary)' : '#fff', fontSize: 12 }} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>)}{canViewTeam(role) ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}</div>;
+  const avatars = <div className="avatars">{initialLoading ? <Skeleton style={{ width: 100, height: 34 }} /> : people.map((person, index) => <div key={index} className="av" style={{ background: index % 2 ? 'var(--lime)' : 'var(--primary)', color: index % 2 ? 'var(--theme-on-accent, var(--primary))' : 'var(--theme-on-action, #fff)', fontSize: 12 }} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>)}{canViewTeam(role) ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}</div>;
   const currentMonth = dashboardMonth();
   const thisMonth = displayedRange?.start === currentMonth.start && displayedRange?.end === currentMonth.end;
   const emptyPeriod = !displayedRange ? 'en el historial' : thisMonth ? 'este mes' : 'en este período';
@@ -225,7 +225,7 @@ function SalesLoading({ phone }: { phone: boolean }) {
 function RecentSaleCard({ sale, buyer, equipment, amount }: { sale: Sale; buyer: string; equipment: string; amount: string }) {
   return <span className="sale-card">
     <span className="sale-top"><span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span><Pill status={sale.status} kind="SALE_STATUS" /></span>
-    <span className="sale-who"><span className="av-c" aria-hidden="true" style={{ background: 'var(--section)', color: '#fff' }} /><span><b data-ph-mask>{buyer}</b><small>{equipment}</small></span></span>
+    <span className="sale-who"><span className="av-c" aria-hidden="true" style={{ background: 'var(--section)', color: 'var(--theme-on-action, #fff)' }} /><span><b data-ph-mask>{buyer}</b><small>{equipment}</small></span></span>
     <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b></span></span>
   </span>;
 }
@@ -243,7 +243,7 @@ export function Delta({ value }: { value: number | null | undefined }) {
   return <span className={`spill ${value === 0 ? 'mid' : value > 0 ? 'ok' : 'cst'}`} style={value < 0 ? { '--pc': '#E8A33D' } as React.CSSProperties : undefined} aria-label={`Variación frente al período anterior: ${Math.round(value)}%`}>{`${value > 0 ? '▲' : value < 0 ? '▼' : '—'} ${Math.abs(Math.round(value))}%`}</span>;
 }
 
-const paymentColor = (index: number) => ['var(--primary)', 'var(--lime)', '#9CA3AF', '#E5E7EB'][index] ?? '#737984';
+const paymentColor = (index: number) => ['var(--primary)', 'var(--lime)', 'var(--theme-secondary, #9CA3AF)', 'var(--theme-chart-muted, #E5E7EB)'][index] ?? 'var(--theme-secondary, #737984)';
 
 function DashboardBell({ count, onClick }: { count: number; onClick: () => void }) {
   return <button type="button" className="rbtn dash-bell" data-testid="dashboard-bell" aria-label={count > 0 ? `Notificaciones, ${count} sin leer` : 'Notificaciones'} onClick={onClick}><DeskIcon name="bell" size={21} />{count > 0 ? <span className="dash-bell-count" aria-hidden="true">{count > 9 ? '9+' : count}</span> : null}</button>;

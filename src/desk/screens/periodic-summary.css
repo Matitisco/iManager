@@ -27,7 +27,7 @@
 .periodic-card .periodic-row { flex-wrap: wrap; }
 .periodic-card .periodic-copy { flex-basis: 100%; }
 .periodic-card .periodic-end { flex-direction: row; justify-content: space-between; align-items: center; width: 100%; }
-.desk-app .periodic-row.is-void { background: color-mix(in srgb, var(--err) 7%, #fff); border-color: transparent; border-radius: 16px; overflow: hidden; }
+.desk-app .periodic-row.is-void { background: color-mix(in srgb, var(--err) 7%, var(--theme-surface, #fff)); border-color: transparent; border-radius: 16px; overflow: hidden; }
 .periodic-void s { color: var(--secondary); }
 .periodic-danger.spill { background: var(--err-soft); color: var(--err); border: 0; }
 .periodic-breakdown .periodic-copy > b, .periodic-breakdown .periodic-copy > small { white-space: normal; overflow-wrap: anywhere; }
