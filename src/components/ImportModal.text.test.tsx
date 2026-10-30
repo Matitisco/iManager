@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ImportModal } from './ImportModal';
@@ -34,6 +34,13 @@ describe('text import shares Excel review', () => {
     expect(screen.getByTestId('import-preview')).toHaveTextContent('USD');
     await userEvent.click(screen.getByTestId('import-edit-row-0'));
     expect(screen.getByText('Revisá la cantidad.')).toBeInTheDocument();
+    const editor = within(screen.getByTestId('import-row-editor'));
+    const exclude = editor.getByRole('button', { name: 'Excluir fila' });
+    const done = editor.getByRole('button', { name: 'Listo' });
+    expect(exclude).toHaveClass('btn2', 's');
+    expect(done).toHaveClass('btn2', 'p');
+    expect(exclude.parentElement).toHaveClass('imp-row-actions');
+    expect(done.parentElement).toBe(exclude.parentElement);
     fireEvent.change(screen.getByRole('textbox', { name: 'Precio' }), { target: { value: '530' } });
     await userEvent.click(screen.getByRole('button', { name: 'Listo' }));
     await userEvent.click(screen.getByTestId('import-confirm'));

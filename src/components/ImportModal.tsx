@@ -520,9 +520,9 @@ export const ImportModal: React.FC<Props> = ({
             </label>)}
           </div>
           {textRowError(rows[editing]) && <p role="alert" className="text-sm text-red-700">{textRowError(rows[editing])}</p>}
-          <div className="flex gap-3">
-            <button type="button" className="btn2 s" style={{ minHeight: 44 }} onClick={() => { setExcluded((current) => new Set([...current, editing])); setEditing(null); }}>Excluir fila</button>
-            <button type="button" className="btn2 p" style={{ minHeight: 44 }} onClick={finishTextEdit}>Listo</button>
+          <div className="imp-row-actions">
+            <button type="button" className="btn2 s" onClick={() => { setExcluded((current) => new Set([...current, editing])); setEditing(null); }}>Excluir fila</button>
+            <button type="button" className="btn2 p" onClick={finishTextEdit}>Listo</button>
           </div>
         </fieldset>}
         {validationError && !selectedRows.some(textRowError) && <p role="alert" className="text-sm text-red-700">{validationError}</p>}
