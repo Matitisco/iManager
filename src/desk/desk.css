@@ -2683,3 +2683,4 @@ button.mini { background: #fff; border: 1px solid var(--border); border-radius: 
 
 /* Stock units reuse table typography and neutral controls. */
 .inv-quantity { width: 72px; min-height: 44px; border: 1px solid var(--border); border-radius: 12px; padding: 8px; text-align: right; color: var(--primary); background: var(--row); font: inherit; }
+.inv-quantity-error { min-width: 180px; max-width: 240px; white-space: normal; text-align: left; margin: 8px 0 0; }

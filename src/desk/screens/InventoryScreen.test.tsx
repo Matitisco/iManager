@@ -1,7 +1,7 @@
 import type { SectionChanges } from '../../services/section-views-api';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product } from '../../types';
@@ -19,6 +19,7 @@ const context = vi.hoisted(() => ({
   appSession: { store: { name: 'Tienda Centro' } } as { store?: { name?: string; onboardingStartedAt?: string; currency?: string } } | null,
   operationNotifications: [] as OperationNotification[],
   markNotificationRead: vi.fn(async () => undefined),
+  updateProduct: vi.fn(async (_product: Product) => undefined),
 }));
 
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
@@ -1048,4 +1049,109 @@ it('respeta Precio ↑ y ↓ aunque los equipos sean novedades', async () => {
   expect(models()[0]).toContain('Caro');
   expect(models()[1]).toContain('Barato');
   context.sectionChanges = {};
+});
+
+describe("Cantidad inline según IMEI", () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.appSession = { store: { name: "Tienda Centro" } };
+    context.sectionChanges = {};
+    context.inventory = [item("1"), item("2", { imei: "", cantidad: 73 }), item("3", { imei: "", cantidad: 83 })];
+    context.updateProduct.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("muestra 1 sin input ni estilo editable y explica el IMEI incluso en vendidos", () => {
+    context.inventory[0] = item("1", { cantidad: 0, status: "VENDIDO" });
+    renderScreen();
+    const fixed = screen.getByTitle("Equipo con IMEI: siempre 1 unidad");
+    expect(fixed).toHaveTextContent(/^1$/);
+    expect(fixed.tagName).toBe("SPAN");
+    expect(fixed).not.toHaveClass("inv-quantity");
+    expect(screen.queryByRole("spinbutton", { name: /Cantidad de Modelo 1/ })).not.toBeInTheDocument();
+    fireEvent.doubleClick(fixed);
+    expect(context.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 1001, 2147483648])("guarda %s sin IMEI por Enter, sin máximo de UI", async cantidad => {
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    expect(input).toHaveAttribute("min", "1");
+    expect(input).toHaveAttribute("step", "1");
+    expect(input).not.toHaveAttribute("max");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: String(cantidad) } });
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(context.updateProduct).toHaveBeenCalledWith(expect.objectContaining({ id: "2", cantidad })));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each(["", "0", "-1", "1.5"])("rechaza %j junto a la celda y conserva el valor persistido", async value => {
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    fireEvent.change(input, { target: { value } });
+    fireEvent.blur(input);
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent("Ingresá una cantidad entera de 1 o más unidades.");
+    expect(input.closest("td")).toContainElement(error);
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(error.textContent!);
+    expect(context.updateProduct).not.toHaveBeenCalled();
+    expect(context.inventory[1].cantidad).toBe(73);
+    expect(screen.getByRole("spinbutton", { name: /Cantidad de Modelo 3/ })).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("vincula el rechazo de persistencia a su celda y permite reintentar", async () => {
+    context.updateProduct.mockRejectedValueOnce(new Error("No se pudo guardar la cantidad"));
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    fireEvent.change(input, { target: { value: "74" } });
+    fireEvent.blur(input);
+    const error = await screen.findByRole("alert");
+    expect(input.closest("td")).toContainElement(error);
+    expect(error).toHaveTextContent("No se pudo guardar la cantidad");
+    expect(input).toHaveValue(74);
+    expect(input).not.toBeDisabled();
+    fireEvent.blur(input);
+    await waitFor(() => expect(context.updateProduct).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("explica un rechazo por IMEI en la celda", async () => {
+    context.updateProduct.mockRejectedValueOnce(new Error("Con IMEI, máximo 1"));
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    fireEvent.change(input, { target: { value: "74" } });
+    fireEvent.blur(input);
+    const error = await screen.findByRole("alert");
+    expect(input.closest("td")).toContainElement(error);
+    expect(error).toHaveTextContent("Este equipo tiene IMEI, así que cuenta como 1 unidad. Para cargar varios, usá equipos sin IMEI.");
+  });
+
+  it("Escape restaura la cantidad y limpia el error sin guardar", async () => {
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.blur(input);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    input.focus();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveValue(73);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(context.updateProduct).not.toHaveBeenCalled();
+  });
+
+  it("bloquea la celda durante el guardado sin duplicar el envío", async () => {
+    let finish!: () => void;
+    context.updateProduct.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    renderScreen();
+    const input = screen.getByRole("spinbutton", { name: /Cantidad de Modelo 2/ });
+    fireEvent.change(input, { target: { value: "74" } });
+    fireEvent.blur(input);
+    expect(input).toBeDisabled();
+    fireEvent.blur(input);
+    expect(context.updateProduct).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    expect(input).not.toBeDisabled();
+  });
 });
