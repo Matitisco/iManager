@@ -173,6 +173,7 @@ export const AuthActionPage: React.FC<AuthActionPageProps> = ({ link, onDone }) 
               <div className="pw">
                 <input
                   id="reset-password"
+                  className="ph-no-capture"
                   data-testid="reset-password"
                   type={visible ? 'text' : 'password'}
                   name="new-password"
@@ -204,6 +205,7 @@ export const AuthActionPage: React.FC<AuthActionPageProps> = ({ link, onDone }) 
               <div className="pw">
                 <input
                   id="reset-password-confirm"
+                  className="ph-no-capture"
                   data-testid="reset-password-confirm"
                   type={visible ? 'text' : 'password'}
                   name="confirm-password"

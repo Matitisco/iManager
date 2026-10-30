@@ -68,14 +68,17 @@ describe('PostHog runtime guard', () => {
 });
 
 describe('PostHog collection and privacy', () => {
-  it('initializes once, selectively masks replay and disables UI, console and network collection', async () => {
+  it('initializes once, keeps replay readable except passwords and disables UI, console and network collection', async () => {
     const { initAnalytics } = await import('./posthog-analytics');
     initAnalytics(); initAnalytics();
     expect(posthog.init).toHaveBeenCalledOnce();
     const config = vi.mocked(posthog.init).mock.calls[0][1]!;
     expect(config).toMatchObject({ autocapture: true, mask_all_element_attributes: false,
       disable_surveys: true, disable_conversations: true, enable_recording_console_log: false,
-      session_recording: { maskAllInputs: true, maskTextSelector: '.ph-mask, [data-ph-mask], .ph-no-capture', maskAllElementAttributes: false, recordHeaders: false, recordBody: false } });
+      session_recording: { maskAllInputs: false, maskInputOptions: { password: true }, maskAllElementAttributes: false, recordHeaders: false, recordBody: false,
+        recordCrossOriginIframes: false, captureCanvas: { recordCanvas: false }, captureJsonLd: false } });
+    expect(config.session_recording).not.toHaveProperty('maskTextSelector');
+    expect(config.session_recording!.maskInputOptions).toEqual({ password: true });
     expect(config).not.toHaveProperty('mask_all_text');
     expect(config.session_recording!.maskCapturedNetworkRequestFn!({ name: 'https://test/api?token=private', duration: 0, startTime: 0, entryType: 'resource' })).toBeNull();
   });

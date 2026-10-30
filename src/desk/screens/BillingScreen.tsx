@@ -408,7 +408,7 @@ function ConfirmCheckout({ quote, busy, error, phone, onClose, onContinue, onEma
           <small>{usd(quote.usd)} al dólar de hoy</small>
         </div>
         <div className="billing-row"><span>Después</span><b>{afterLabel(at ?? new Date().toISOString(), months)}</b></div>
-        <div className="billing-row billing-email-row"><span>Email del pago</span>{editing ? <input type="email" aria-label="Email del pagador" autoComplete="email" value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={saveEmail} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveEmail(); } }} /> : <b>{quote.payerEmail} <button type="button" className="billing-change" disabled={busy} onClick={() => setEditing(true)}>Cambiar</button></b>}</div>
+        <div className="billing-row billing-email-row"><span>Email del pago</span>{editing ? <input className="ph-no-capture" type="email" aria-label="Email del pagador" autoComplete="email" value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} onBlur={saveEmail} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveEmail(); } }} /> : <b><span className="ph-no-capture">{quote.payerEmail}</span> <button type="button" className="billing-change" disabled={busy} onClick={() => setEditing(true)}>Cambiar</button></b>}</div>
         <PaymentMethods />
         <p className="billing-fine">Débito automático en pesos según el dólar del día. Te avisamos antes del primer cobro. Cancelás cuando quieras.</p>
         {error && !isNetworkErrorMessage(error) ? <div ref={alertRef} className="billing-error" role="alert" tabIndex={-1}>{error}</div> : null}

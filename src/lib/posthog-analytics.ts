@@ -87,8 +87,8 @@ export function initAnalytics(): void {
       enable_recording_console_log: false,
       disable_session_recording: false,
       session_recording: {
-        maskAllInputs: true,
-        maskTextSelector: '.ph-mask, [data-ph-mask], .ph-no-capture',
+        maskAllInputs: false,
+        maskInputOptions: { password: true },
         maskAllElementAttributes: false,
         recordHeaders: false,
         recordBody: false,

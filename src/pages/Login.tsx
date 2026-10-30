@@ -449,7 +449,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
                 minLength={6}
                 autoComplete={isRegisterMode ? 'new-password' : 'current-password'}
                 onFocus={keepFieldVisible}
-                className={`${fieldClass} pl-11 pr-12 py-3.5`}
+                className={`${fieldClass} pl-11 pr-12 py-3.5 ph-no-capture`}
               />
               <button
                 type="button"
@@ -495,7 +495,7 @@ export const Login: React.FC<LoginProps> = ({ inviteToken, initialRegisterMode =
                     minLength={6}
                     autoComplete="new-password"
                     onFocus={keepFieldVisible}
-                    className={`${fieldClass} pl-11 pr-4 py-3.5`}
+                    className={`${fieldClass} pl-11 pr-4 py-3.5 ph-no-capture`}
                   />
                 </motion.div>
               )}
