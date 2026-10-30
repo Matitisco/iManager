@@ -15,6 +15,10 @@ const run = (script: string, extra: string[]) => {
 try {
   const stores = await prisma.$queryRawUnsafe<{ id: string; name: string }[]>(`SELECT "id","name" FROM "Store" WHERE "name" = $1`, NAME);
   console.log(`[agrupar-job] tiendas «${NAME}»: ${stores.length}`);
+  if (stores.length === 0) {
+    const all = await prisma.$queryRawUnsafe<{ id: string; name: string; items: number }[]>(`SELECT s."id", s."name", (SELECT count(*)::int FROM "InventoryItem" i WHERE i."storeId" = s."id") AS items FROM "Store" s ORDER BY s."name" LIMIT 50`);
+    for (const s of all) console.log(`[agrupar-job] tienda en test: ${s.id} «${s.name}» (${s.items} equipos)`);
+  }
   if (stores.length === 1) {
     const base = ['--store-id', stores[0].id];
     const seeded = await prisma.$queryRawUnsafe<{ n: number }[]>(`SELECT count(*)::int AS n FROM "InventoryItem" WHERE "storeId" = $1 AND "model" LIKE 'AGR %'`, stores[0].id);
