@@ -2721,53 +2721,54 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 @media screen {
   :root[data-theme="dark"], [data-theme="dark"] .desk-app {
     color-scheme: dark;
-    --bg: #121418;
-    --bg-deep: #171a20;
-    --card: #1c1f26;
-    --row: #282d37;
-    --primary: #f3f4f6;
-    --secondary: #b6becb;
-    --section: #a9b3c2;
-    --border: #505969;
-    --lime-soft: #3d3514;
-    --blue: #b6becb;
-    --c-blue: #b6becb;
-    --c-green: #79dfa9;
-    --c-pink: #e8b56f;
-    --ok: #79dfa9;
-    --ok-soft: #173c2c;
-    --err: #ff999e;
-    --err-soft: #45272d;
-    --sh: 0 1px 2px rgb(0 0 0 / 16%), 0 4px 14px rgb(0 0 0 / 20%);
+    --bg: #1B1A18;
+    --bg-deep: #151412;
+    --card: #232220;
+    --row: #2D2B28;
+    --primary: #E9E6DF;
+    --secondary: #B8B3AA;
+    --section: #98938A;
+    --border: #403E3A;
+    --lime: #D9B84A;
+    --lime-soft: #3A3320;
+    --blue: #B8B3AA;
+    --c-blue: #B8B3AA;
+    --c-green: #8FCFA8;
+    --c-pink: #D9A86C;
+    --ok: #8FCFA8;
+    --ok-soft: #213027;
+    --err: #E89B94;
+    --err-soft: #3A2624;
+    --sh: 0 1px 2px rgb(0 0 0 / 18%), 0 4px 14px rgb(0 0 0 / 22%);
     --theme-surface: var(--card);
     --theme-row: var(--row);
-    --theme-hover: #323946;
-    --theme-action: #f3f4f6;
-    --theme-on-action: #16181d;
-    --theme-on-status: #121418;
+    --theme-hover: #373531;
+    --theme-action: #E9E6DF;
+    --theme-on-action: #1B1A18;
+    --theme-on-status: #1B1A18;
     --theme-text: var(--primary);
     --theme-secondary: var(--secondary);
     --theme-muted: var(--section);
     --theme-border: var(--border);
-    --theme-focus: #c2cad6;
-    --theme-hero: #242932;
-    --theme-hero-text: #f3f4f6;
-    --theme-on-accent: #16181d;
-    --theme-thumb: #f3f4f6;
+    --theme-focus: #D6D1C7;
+    --theme-hero: #2A2826;
+    --theme-hero-text: #E9E6DF;
+    --theme-on-accent: #1B1A18;
+    --theme-thumb: #E9E6DF;
     --theme-ok: var(--ok);
     --theme-ok-soft: var(--ok-soft);
-    --theme-ok-border: #4a946d;
+    --theme-ok-border: #4E8465;
     --theme-err: var(--err);
     --theme-err-soft: var(--err-soft);
-    --theme-err-border: #b56c73;
-    --theme-warn: #f4d27e;
-    --theme-warn-soft: #3d3514;
-    --theme-warn-border: #97834e;
-    --theme-glass: rgb(28 31 38 / 96%);
-    --theme-chart-green: #79dfa9;
-    --theme-chart-neutral: #c2cad6;
-    --theme-chart-warm: #e8b56f;
-    --theme-chart-muted: #8e9baf;
+    --theme-err-border: #A5625C;
+    --theme-warn: #E0C46E;
+    --theme-warn-soft: #382F1B;
+    --theme-warn-border: #8F7B45;
+    --theme-glass: rgb(35 34 32 / 96%);
+    --theme-chart-green: #8FCFA8;
+    --theme-chart-neutral: #CFCAC0;
+    --theme-chart-warm: #D9A86C;
+    --theme-chart-muted: #9A958B;
   }
   [data-theme="dark"] .desk-app :is(.hl, .price-model h2 span) {
     background: linear-gradient(transparent 52%, var(--lime-soft) 52%, var(--lime-soft) 92%, transparent 92%);
@@ -2779,7 +2780,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   [data-theme="dark"] .desk-app .wchip.semantic { color: color-mix(in srgb, var(--chip-color) 60%, white); }
   [data-theme="dark"] .desk-app .needs-completion-label { color: var(--theme-warn); }
   [data-theme="dark"] .desk-app .spill.cst { color: color-mix(in srgb, var(--pc) 55%, white); }
-  [data-theme="dark"] .desk-app :is(input, select, textarea, .ds-select-trigger, .btn2.s, .dbtn.s, .sg:not(.on), .dp-trigger) { border-color: #758197; }
+  [data-theme="dark"] .desk-app :is(input, select, textarea, .ds-select-trigger, .btn2.s, .dbtn.s, .sg:not(.on), .dp-trigger) { border-color: #756F66; }
   [data-theme="dark"] .desk-app .sw.on { background: var(--lime); }
   [data-theme="dark"] .desk-app .sw i { background: var(--theme-thumb); }
   [data-theme="dark"] .desk-app .wchip.semantic.on { background: var(--row); color: var(--primary); border-color: color-mix(in srgb, var(--chip-color) 60%, white); }
@@ -2795,6 +2796,28 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .theme-preference { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
 .theme-preference .sgs { display: flex; gap: 6px; flex-wrap: wrap; }
 .theme-preference .sg { flex: 1; min-height: 44px; text-align: center; }
+.thm { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--row); border: 1px solid var(--border); flex: none; }
+.desk-app .thm button { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: var(--section); padding: 0; }
+.thm button svg { width: 15px; height: 15px; }
+.desk-app .thm button.on { background: var(--theme-action, #16181D); color: var(--theme-on-action, #fff); }
+.thm button:focus-visible { outline: 2px solid var(--theme-focus, #16181D); outline-offset: 2px; }
+.duser-row { display: flex; align-items: center; gap: 4px; padding-right: 6px; }
+.duser-row .duser { flex: 1; min-width: 0; padding: 8px 6px 8px 8px; gap: 10px; }
+.duser-row .duser .av-c { width: 36px; height: 36px; }
+.dolar.compact { padding: 0; display: flex; align-items: center; gap: 0; }
+.dolar.compact .dolar-hit { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 11px 12px; font-size: 13px; white-space: nowrap; }
+.dolar.compact .dolar-hit b { font-weight: 800; }
+.dolar.compact .px { margin-left: auto; display: flex; gap: 6px; align-items: center; font-weight: 800; }
+.dolar.compact .dolar-price-divider { width: 1px; height: 14px; background: var(--border); }
+.dolar.compact .dolar-skel { width: 42px; height: 10px; margin: 0; }
+.dolar.compact .dolar-refresh { position: static; margin: 0 8px 0 0; flex: none; }
+.mmore .whead { display: flex; align-items: center; justify-content: space-between; }
+.mmore .thm button { width: 34px; height: 34px; }
+.mmore .thm button svg { width: 18px; height: 18px; }
+.mgroup { border: 1px solid var(--border); border-radius: 18px; background: var(--theme-surface, #fff); box-shadow: var(--sh); overflow: hidden; margin-bottom: var(--space-4, 16px); }
+.mgroup .mprofile { border: 0; border-radius: 0; box-shadow: none; margin: 0; background: none; }
+.mgroup .mprofile + .mprofile { border-top: 1px solid var(--border); }
+.mmore .sn-mobile { background: none; border: 0; border-radius: 0; padding: 0; }
 @media print {
   html, body, :root[data-theme="dark"], [data-theme="dark"] .desk-app { color-scheme: light !important; background: #fff !important; color: #16181d; }
   #boot-splash { display: none !important; }

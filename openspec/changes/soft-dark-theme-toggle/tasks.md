@@ -1,0 +1,4 @@
+- [x] Aplicar paleta oscura y color del navegador.
+- [x] Implementar interruptor accesible y sincronizado en sidebar/Más.
+- [x] Compactar dólar desktop y perfil/menú móvil conservando acciones.
+- [x] Verificar TypeScript frontend/backend y 98 tests relacionados, máximo dos workers y sin build.

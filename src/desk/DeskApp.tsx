@@ -25,6 +25,7 @@ import { CommissionsScreen } from './screens/CommissionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
 import { BlueDollar } from './BlueDollar';
+import { ThemeToggle } from './theme-toggle';
 import { ExchangeProvider, exchangeFromStore, useMoney } from './exchange';
 import { DeskOverlays } from './DeskOverlays';
 import { CatalogProvider } from './catalog';
@@ -70,8 +71,9 @@ function MoreScreen({ name, store, role, navigation, onOpen }: {
   const { open } = useDesk();
   const { appSession } = useAppContext();
   return <div className="dscreen mmore" data-testid="more-screen">
-    <div className="whead"><h1>Más</h1></div>
+    <div className="whead"><h1>Más</h1><ThemeToggle /></div>
     <InstallCard />
+    <div className="mgroup">
     <button className="mprofile" type="button" data-testid="more-profile" onClick={() => onOpen('settings')}>
       <div className="av-c k">{initials(name)}</div>
       <span className="info"><b>{name}</b><small>{store} · {role}</small></span>
@@ -80,6 +82,7 @@ function MoreScreen({ name, store, role, navigation, onOpen }: {
     {canViewTeam(appSession?.membership?.role) ? <button className="mprofile" type="button" onClick={() => open({ type: 'invite' })}>
       <div className="av-c k"><UserPlus size={20} /></div><span className="info"><b>Invitar al equipo</b></span><span className="chev" aria-hidden="true">›</span>
     </button> : null}
+    </div>
     {navigation}
   </div>;
 }
@@ -293,11 +296,14 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             </div>
           </div>
           {navigation}
-          <BlueDollar />
+          <BlueDollar variant="compact" />
+          <div className="duser-row">
           <button className="duser" type="button" onClick={() => go('settings')}>
             <div className="av-c k">{initials(name)}</div>
             <div className="info"><b>{name}</b><small>{ROLE_LABEL[appSession?.membership?.role ?? 'STAFF']}</small></div>
           </button>
+          <ThemeToggle />
+          </div>
         </aside>
         )}
         <main ref={viewport.stageRef} className="stage">

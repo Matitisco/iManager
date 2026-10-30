@@ -59,7 +59,7 @@ function SheetMeta({
   );
 }
 
-export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } = {}) {
+export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' | 'compact' } = {}) {
   const exchange = useExchange();
   const { phase, quote, delta, title, refresh, settings } = exchange;
   const [open, setOpen] = useState(false);
@@ -84,6 +84,10 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
     : `Fuente: DolarApi (cotización ${settings.exchangeSource === 'mep' ? 'MEP' : settings.exchangeSource}).`;
   const house = manual ? 'Dólar' : exchangeHouseLabel(settings.exchangeSource);
   const skeletonStat = phase === 'loading' && !quote;
+  const sidebarCompact = variant === 'compact';
+  const tooltip = phase === 'loading' ? 'Actualizando...' : phase === 'error' && manual
+    ? 'Cargá la cotización en Configuración.'
+    : manual ? sourceLine : `Act. ${clock} · DolarApi`;
 
   const detail = open ? (
         <div className="ov dolar-ov" data-testid="blue-overlay" onMouseDown={() => setOpen(false)}>
@@ -186,8 +190,17 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
 
   return (
     <>
-      <div className={`dolar ${phase === 'error' && !manual ? 'ready' : phase}`} data-testid="blue-widget" data-state={phase}>
-        <button className="dolar-hit" type="button" onClick={() => setOpen(true)}>
+      <div className={`dolar${sidebarCompact ? ' compact' : ''} ${phase === 'error' && !manual ? 'ready' : phase}`} data-testid="blue-widget" data-state={phase}>
+        <button className="dolar-hit" type="button" aria-label={title} title={sidebarCompact ? tooltip : undefined} onClick={() => setOpen(true)}>
+          {sidebarCompact ? <>
+            <i className="dolar-dot" aria-hidden="true" />
+            <b>{house}</b>
+            <span className="px">
+              <span data-ph-mask aria-label="Compra">{phase === 'loading' ? <i className="dolar-skel" /> : quote ? formatMoney(quote.buy) : '—'}</span>
+              <i className="dolar-price-divider" aria-hidden="true" />
+              <span data-ph-mask aria-label="Venta">{phase === 'loading' ? <i className="dolar-skel" /> : quote ? formatMoney(quote.sell) : '—'}</span>
+            </span>
+          </> : <>
           <span className="dolar-top">
             <i className="dolar-dot" aria-hidden="true" />
             <ImanagerIcon name="dolar" size={16} />
@@ -200,6 +213,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
           {phase !== 'error' ? (
             <span className="dolar-foot">{phase === 'loading' ? 'Actualizando...' : manual ? 'Cotización de la tienda' : `Act. ${clock} · DolarApi`}</span>
           ) : null}
+          </>}
         </button>
         {manual ? null : (
           <button
@@ -213,7 +227,7 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' } =
             <RefreshCw size={15} />
           </button>
         )}
-        {phase === 'error' && manual ? <p className="dolar-foot">Cargá la cotización en Configuración.</p> : null}
+        {phase === 'error' && manual && !sidebarCompact ? <p className="dolar-foot">Cargá la cotización en Configuración.</p> : null}
       </div>
       {detail}
     </>
