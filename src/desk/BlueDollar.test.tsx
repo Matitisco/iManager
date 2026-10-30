@@ -6,7 +6,7 @@ import { ExchangeProvider } from './exchange';
 import { BLUE_REFRESH_MS, BLUE_STORAGE_KEY, argentinaDay, shiftDay } from './blue-rate';
 import { formatMoney } from './format';
 
-function renderWidget(variant?: 'chip') {
+function renderWidget(variant?: 'chip' | 'compact') {
   return render(
     <ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'auto', exchangeSource: 'blue', manualBuy: null, manualSell: null }}>
       <BlueDollar variant={variant} />
@@ -55,6 +55,44 @@ afterEach(() => {
 });
 
 describe('blue dollar widget', () => {
+  it('keeps sidebar prices compact with metadata in the tooltip, refresh and calculator', async () => {
+    const user = userEvent.setup();
+    seedFresh();
+    const fetchMock = mockRates();
+    vi.stubGlobal('fetch', fetchMock);
+    renderWidget('compact');
+    const widget = screen.getByTestId('blue-widget');
+    expect(widget).toHaveClass('compact');
+    expect(widget).toHaveTextContent('Blue');
+    expect(widget).toHaveTextContent(formatMoney(1280));
+    expect(widget).toHaveTextContent(formatMoney(1300));
+    expect(widget).not.toHaveTextContent(/Compra|Venta|DolarApi|Act\./);
+    const detail = screen.getByRole('button', { name: 'Dólar blue' });
+    expect(detail).toHaveAttribute('title', 'Act. 21:40 · DolarApi');
+    expect(fetchMock).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Actualizar cotización' }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await user.click(detail);
+    expect(screen.getByRole('dialog', { name: 'Dólar blue' })).toBeInTheDocument();
+    expect(screen.getByText('Fuente: DolarApi (cotización blue).')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Dólares'), '100');
+    expect(screen.getByTestId('blue-result')).toHaveTextContent(formatMoney(130000));
+    await user.click(screen.getByTestId('blue-done'));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('keeps manual configuration accessible from the compact sidebar without refresh', async () => {
+    const user = userEvent.setup();
+    render(<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: null, manualSell: null }}><BlueDollar variant="compact" /></ExchangeProvider>);
+    const detail = screen.getByRole('button', { name: 'Dólar' });
+    expect(detail).toHaveAttribute('title', 'Cargá la cotización en Configuración.');
+    expect(screen.queryByTestId('blue-refresh')).not.toBeInTheDocument();
+    await user.click(detail);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Cotización cargada por la tienda.')).toBeInTheDocument();
+  });
+
   it('shows a loading state and then the live quote', async () => {
     vi.stubGlobal('fetch', mockRates());
     renderWidget();

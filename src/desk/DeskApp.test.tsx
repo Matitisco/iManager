@@ -6,6 +6,7 @@ import { NETWORK_ERROR_MESSAGE } from '../lib/user-message';
 import { listMembers, updateMemberSections, type TeamMember } from '../services/members-api';
 import { listInvitations } from '../services/invitations-api';
 import { DeskApp } from './DeskApp';
+import { setThemePreference } from '../lib/theme';
 import { MOBILE_TAB_INDICATOR_TRANSITION, clampIndicatorFrame, mobileTabIndicatorFrame, sameIndicatorFrame } from './mobile-tab-bar';
 
 const context = vi.hoisted(() => ({
@@ -44,6 +45,7 @@ describe('sidebar unread counts', () => {
   });
 
   afterEach(() => {
+    document.documentElement.removeAttribute('data-theme');
     context.sectionChangesError = '';
     context.sectionChanges = {};
     context.viewSection = undefined;
@@ -89,6 +91,30 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it.each([390, 1440])('ofrece el interruptor en Más o junto al perfil sin anidar botones a %spx', async width => {
+    if (width === 390) usePhone();
+    window.location.hash = width === 390 ? '#/mas' : '#/dashboard';
+    setThemePreference('light');
+    render(<DeskApp />);
+    const toggle = screen.getByRole('group', { name: 'Tema' });
+    expect(toggle.closest('button')).toBeNull();
+    if (width === 390) {
+      expect(toggle.parentElement).toHaveClass('whead');
+      const profile = screen.getByTestId('more-profile');
+      expect(profile.parentElement).toHaveClass('mgroup');
+      expect(within(profile.parentElement!).getByRole('button', { name: 'Invitar al equipo' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Cuenta/ })).toBeInTheDocument();
+    } else {
+      expect(toggle.parentElement).toHaveClass('duser-row');
+      expect(screen.getByTestId('blue-widget')).toHaveClass('compact');
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Tema oscuro' }));
+    expect(localStorage.getItem('imanager-theme')).toBe('dark');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    fireEvent.click(width === 390 ? screen.getByTestId('more-profile') : within(toggle.parentElement!).getByRole('button', { name: /Ana/ }));
+    await waitFor(() => expect(location.hash).toBe('#/cuenta/configuracion'));
+  });
 
   it.each([
     ['#/returns?view=patterns&groupBy=model', '#/analisis/fallas?groupBy=model', 'Fallas', 'patterns'],

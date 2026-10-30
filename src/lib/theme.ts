@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 
 export type ThemePreference = 'light' | 'dark' | 'auto';
 export const THEME_KEY = 'imanager-theme';
-export const THEME_COLORS = { light: '#FFD000', dark: '#121418' } as const;
+export const THEME_COLORS = { light: '#FFD000', dark: '#1B1A18' } as const;
 const SYSTEM_THEME = '(prefers-color-scheme: dark)';
 
 export function parseThemePreference(value: string | null): ThemePreference {
@@ -47,7 +47,12 @@ export function setThemePreference(value: ThemePreference) {
 export function initializeTheme() {
   update(readThemePreference());
   const media = typeof window.matchMedia === 'function' ? window.matchMedia(SYSTEM_THEME) : null;
-  const onSystem = () => { if (preference === 'auto') applyTheme(preference, media?.matches); };
+  const onSystem = () => {
+    if (preference === 'auto') {
+      applyTheme(preference, media?.matches);
+      listeners.forEach(listener => listener());
+    }
+  };
   const onStorage = (event: StorageEvent) => {
     if (event.key === THEME_KEY || event.key === null) update(readThemePreference());
   };
@@ -66,4 +71,11 @@ const subscribe = (listener: () => void) => {
 
 export function useThemePreference() {
   return useSyncExternalStore(subscribe, () => preference, () => 'auto' as const);
+}
+
+export function useResolvedTheme() {
+  return useSyncExternalStore(subscribe, () => {
+    const theme = document.documentElement.dataset.theme;
+    return theme === 'dark' || theme === 'light' ? theme : resolveTheme(preference, systemDark());
+  }, () => 'light' as const);
 }
