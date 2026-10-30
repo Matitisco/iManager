@@ -33,16 +33,16 @@ describe('import-api', () => {
     setApiBaseUrl('https://api.imanager.test/');
   });
 
-  it('confirma cantidades compactas mayores a 100 usando el total de unidades', async () => {
+  it('confirma cantidades compactas mayores a 100 conservando una fila por equipo', async () => {
     const rows = [{ model: '15 Pro', imei: '', price: 650, cost: 450, quantity: 1001 }, { model: '14 Pro', imei: '', price: null }];
-    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1002, updated: 0, errors: [] }));
-    expect(await importBackendRows(mockUser, 'inventory', rows)).toMatchObject({ imported: 1002 });
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 2, updated: 0, errors: [] }));
+    expect(await importBackendRows(mockUser, 'inventory', rows)).toMatchObject({ imported: 2 });
     expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(vi.mocked(fetchWithTimeout).mock.calls[0][1]?.body)).rows).toEqual(rows);
   });
 
   it('rechaza un conteo guardado que no coincide con las cantidades de la vista previa', async () => {
-    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1, updated: 0, errors: [] }));
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1001, updated: 0, errors: [] }));
     await expect(importBackendRows(mockUser, 'inventory', [{ model: '15 Pro', imei: '', price: null, quantity: 101 }])).rejects.toThrow('conteo guardado');
   });
 

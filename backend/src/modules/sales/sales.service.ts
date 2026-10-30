@@ -1,3 +1,4 @@
+import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
 import { captureSaleCancellation } from '../operations/sale-restoration.js';
 import { addSaleReview, prepareSaleReviewRows, type SaleReviewRow } from '../import/sale-import-row.js';
 import { priceSaleReviewRows } from '../import/sale-import-rate.js';
@@ -26,6 +27,7 @@ import { parseMoney } from "../import/sheet-plan.js";
 import { saleDaysFromStore } from "../warranty/warranty.js";
 
 export interface SaleInput {
+  cantidad?: number;
   sellerMemberId?: string | null;
   exchangeRate?: number;
   date: string;
@@ -60,6 +62,7 @@ export interface SalePatchInput {
 }
 
 export interface SaleResponse {
+  cantidad: number;
   depositAppliedAmount?: number;
   openBalance?: number | null;
   sellerMemberId: string | null;
@@ -90,6 +93,7 @@ export interface SaleResponse {
 }
 
 type SaleRecord = {
+  cantidad?: number;
   depositAppliedAmount?: Decimal;
   openBalance?: Decimal | null;
   sellerMemberId?: string | null;
@@ -179,6 +183,7 @@ async function recomputeClientStats(
 
 function serializeSale(sale: SaleRecord): SaleResponse {
   return {
+    cantidad: sale.cantidad ?? 1,
     id: sale.id,
     saleNumber: sale.saleNumber,
     sellerMemberId: sale.sellerMemberId ?? null,
@@ -255,6 +260,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
       throw new SalesError("Indicá el equipo", 400);
     }
 
+    const cantidad = saleUnits(input.cantidad ?? 1, inventoryItem);
     const soldAt = parseArDateOr(input.date);
     const dateLabel = formatArDate(soldAt);
     const warrantyStore = await tx.store.findUnique({
@@ -273,6 +279,8 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
         sellerMemberId: input.sellerMemberId ?? null,
         registeredByUserId: actor?.userId ?? null,
         exchangeRate,
+        cantidad,
+        stockDeducted: Boolean(inventoryItem),
         storeId,
         clientId: client?.id ?? null,
         clientName: input.clientName?.trim() || client?.name || "",
@@ -293,10 +301,8 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
     if (sale.status === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.amount), currency: amountCurrency ?? 'ARS', method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de venta', actor });
     if (input.sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
     if (inventoryItem) {
-      await tx.inventoryItem.update({
-        where: { id: inventoryItem.id },
-        data: { status: "VENDIDO", ...(inventoryItem.price === null ? { price: toDecimal(input.amount), currency: amountCurrency } : {}) },
-      });
+      await takeStock(tx, inventoryItem, cantidad);
+      if (inventoryItem.price === null) await tx.inventoryItem.update({ where: { id: inventoryItem.id }, data: { price: toDecimal(input.amount / cantidad), currency: amountCurrency } });
     }
 
     if (client && !["CANCELADA", "ANULADA"].includes(input.status)) {
@@ -430,20 +436,12 @@ export async function updateSale(
       });
     }
 
-    if (existing.inventoryItemId && existing.inventoryItemId !== nextInventoryItemId) {
-      await tx.inventoryItem.updateMany({
-        where: { id: existing.inventoryItemId, storeId },
-        data: { status: "DISPONIBLE" },
-      });
+    if (cancelling || existing.inventoryItemId !== nextInventoryItemId) await releaseStock(tx, storeId, existing);
+    if (!cancelling && nextInventoryItemId && nextInventoryItemId !== existing.inventoryItemId) {
+      const nextItem = await tx.inventoryItem.findFirstOrThrow({ where: { id: nextInventoryItemId, storeId } });
+      await takeStock(tx, nextItem, existing.cantidad);
+      await tx.sale.update({ where: { id }, data: { stockDeducted: true } });
     }
-
-    if (nextInventoryItemId && nextInventoryItemId !== existing.inventoryItemId) {
-      await tx.inventoryItem.updateMany({
-        where: { id: nextInventoryItemId, storeId },
-        data: { status: "VENDIDO" },
-      });
-    }
-
     const nextStatus = input.status ?? existing.status;
     if (existing.status === "PENDIENTE" && nextStatus === "COMPLETADA" && nextClientId) {
       const payer = await tx.client.findFirst({ where: { id: nextClientId, storeId } });
@@ -493,12 +491,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     const saveCancellation = !cancelled ? await captureSaleCancellation(tx, existing) : null;
 
     // Cancellation already restored the operation. Its stock may have been sold again.
-    if (!cancelled && existing.inventoryItemId) {
-      await tx.inventoryItem.updateMany({
-        where: { id: existing.inventoryItemId, storeId },
-        data: { status: "DISPONIBLE" },
-      });
-    }
+    if (!cancelled && existing.inventoryItemId) await releaseStock(tx, storeId, existing);
 
     if (!cancelled && existing.clientId) {
       const aggregate = await tx.sale.aggregate({

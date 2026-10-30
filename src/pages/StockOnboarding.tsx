@@ -239,12 +239,7 @@ function StockFlow({
     importFinished('paste', result.imported + result.updated, result.errors.length);
     if (result.errors.length) {
       // The existing importer may persist a subset. Retrying must send only failures.
-      const expanded = rows.flatMap((row) =>
-        Array.from({ length: Number(row.quantity) }, () => ({
-          ...row,
-          quantity: "1",
-        })),
-      );
+      const expanded = rows;
       setRows(
         result.errors.map((item) => ({
           ...expanded[item.row - 1],

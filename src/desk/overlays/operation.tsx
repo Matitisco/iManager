@@ -83,6 +83,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const optionClients: (OperationClientOption | Client)[] = options?.clients ?? clients;
   const linkedProductId = currentSale?.productId || currentTrade?.draftProductId || preset?.productId || '';
   const linkedProduct = productOptions.find((item) => item.id === linkedProductId) ?? inventory.find((item) => item.id === linkedProductId);
+  const [cantidad, setCantidad] = useState(String(currentSale?.cantidad ?? currentTrade?.draftCantidad ?? 1));
   const [productId, setProductId] = useState(linkedProductId);
   const [deviceLabel, setDeviceLabel] = useState(currentSale?.deviceLabel || currentTrade?.draftDeviceLabel || (linkedProduct ? equipmentTitle(linkedProduct.model, linkedProduct.capacity) : ''));
   const [clientId, setClientId] = useState(currentSale?.clientId || currentTrade?.clientId || preset?.clientId || '');
@@ -171,6 +172,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('sellerMemberId', () => setSellerMemberId(currentSale.sellerMemberId ?? ''));
       update('clientId', () => setClientId(currentSale.clientId || ''));
       update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
+      update('cantidad', () => setCantidad(String(currentSale.cantidad ?? 1)));
       update('productId', () => setProductId(currentSale.productId || ''));
       update('deviceLabel', () => setDeviceLabel(currentSale.deviceLabel || ''));
       update('amount', () => setAmount(money.inputValue(currentSale.amount, currentSale.amountCurrency) || '0'));
@@ -178,6 +180,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
     }
     if (currentTrade) {
+      if (!currentSale) update('cantidad', () => setCantidad(String(currentTrade.draftCantidad ?? 1)));
       if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftSellerMemberId ?? ''));
       update('hasTrade', () => setHasTrade(true));
       update('clientId', () => setClientId(currentTrade.clientId || ''));
@@ -215,6 +218,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     dirty.current.add('productId');
     dirty.current.add('amount');
     setDeviceLabel(equipmentTitle(item.model, item.capacity));
+    dirty.current.add('cantidad');
+    setCantidad('1');
     setProductId(item.id);
     setOutgoingCapacity('');
     setOutgoingColor('');
@@ -241,7 +246,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     dirty.current.add('deviceLabel');
     dirty.current.add('productId');
     setDeviceLabel(formatImei(imei));
-    setProductId('');
+    setCantidad('1'); dirty.current.add('cantidad'); setProductId('');
     clearBad(setBad, 'equipment');
   };
   useEffect(() => {
@@ -301,6 +306,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     date: arFromIso(saleDate),
     clientId: clientId || null,
     clientName: buyer.trim() || null,
+    cantidad: Number(cantidad),
     productId: productId || null,
     deviceLabel: deviceLabel.trim() || undefined,
     ...(!draft && source !== 'inventory' && !productId && deviceLabel.trim() ? { unlistedEquipment: {
@@ -348,6 +354,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       if (!selectedProduct && outgoingColor.trim().length > INPUT_LIMITS.color) next.outgoingColor = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
       if (!selectedProduct && outgoingCapacity.trim().length > 50) next.outgoingCapacity = 'La capacidad puede tener hasta 50 caracteres';
       if (!selectedProduct && imeiFormatError(outgoingImei)) next.outgoingImei = IMEI_FORMAT_MESSAGE;
+      if (!cantidad.trim() || !Number.isInteger(Number(cantidad)) || Number(cantidad) < 1 || (selectedProduct?.imei && Number(cantidad) > 1) || (selectedProduct && Number(cantidad) > (selectedProduct.cantidad ?? 1) + (currentSale?.productId === selectedProduct.id ? currentSale.cantidad ?? 1 : 0))) next.cantidad = 'Revisá las unidades disponibles';
       if (!amount.trim() || (selectedProduct && (selectedProduct.price ?? 0) <= 0 && parseMoney(amount) <= 0)) {
         next.amount = hasTrade && !selectedProduct ? MISSING_OUTGOING_PRICE : 'Completá el precio de salida';
       } else if (hasTrade && tradeGap.warning) next.amount = tradeGap.warning === NEGATIVE_TRADE_DIFFERENCE ? NEGATIVE_TRADE_DIFFERENCE : tradeGap.warning;
@@ -493,14 +500,14 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
             dirty.current.add('deviceLabel');
             dirty.current.add('productId');
             setDeviceLabel(formatImei(digits));
-            setProductId('');
+            setCantidad('1'); dirty.current.add('cantidad'); setProductId('');
             clearBad(setBad, 'equipment');
             return;
           }
           dirty.current.add('deviceLabel');
           dirty.current.add('productId');
           setDeviceLabel(value);
-          setProductId('');
+          setCantidad('1'); dirty.current.add('cantidad'); setProductId('');
           clearBad(setBad, 'equipment');
         }}
         onPick={(item) => pickStock(item)}
@@ -546,6 +553,12 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       ) : null}
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       {foldTrade ? null : tradeBlock}
+      {selectedProduct && ((selectedProduct.cantidad ?? 1) > 1 || (currentSale?.cantidad ?? 1) > 1) ? <Field label="Cantidad" error={bad.cantidad}><input aria-label="Cantidad" type="number" min="1" step="1" max={(selectedProduct.cantidad ?? 1) + (currentSale?.productId === selectedProduct.id ? currentSale.cantidad ?? 1 : 0)} value={cantidad} onChange={event => {
+        const raw = event.target.value; dirty.current.add('cantidad'); setCantidad(raw); clearBad(setBad, 'cantidad');
+        if (!currentSale && Number.isInteger(Number(raw)) && Number(raw) > 0 && selectedProduct.price != null) {
+          dirty.current.add('amount'); setAmount(money.inputValue(selectedProduct.price * Number(raw), productMoneyCurrency(selectedProduct)));
+        }
+      }} /></Field> : null}
       <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input ref={amountRef} value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
       {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       {dueCopy ? <p data-ph-mask className="op-summary">{dueCopy}</p> : null}
@@ -721,6 +734,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
         <time dateTime={sale.date} aria-label="Fecha de venta">{formatShortDate(sale.date)}</time>
       </div>
       <div className="kv"><span>Cliente</span><b data-ph-mask>{saleBuyer(sale, clients)}</b></div>
+      <div className="kv"><span>Cantidad</span><b>{sale.cantidad ?? 1}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
       <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>

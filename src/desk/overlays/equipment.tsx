@@ -117,6 +117,7 @@ export function EquipmentDetail({ id }: { id: string }) {
         <div className="pending-sale"><div><b className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</b><small>El equipo sigue vendido hasta completar el registro.</small></div><button type="button" disabled={busy} onClick={() => open({ type: 'new-sale', productId: item.id, source: 'inventory' })}>Retomar</button></div>
       ) : null}
       <div className="kv"><span>IMEI</span><b data-ph-mask>{item.imei ? formatImei(item.imei) : '—'}</b></div>
+      <div className="kv"><span>Cantidad</span><b>{item.cantidad ?? 1}</b></div>
       {seeCosts ? <div className="kv"><span>Costo</span><b data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</b></div> : null}
       <div className="kv"><span>Color</span><b>{item.color}</b></div>
       <div className="kv"><span>Condición</span><b>{conditionLabel(item.condition)}</b></div>
@@ -173,6 +174,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
   const [customValues, setCustomValues] = useState<Record<string, unknown>>(current?.customFields ?? {});
   const phoneLayout = usePhoneLayout();
   const [battery, setBattery] = useState(current?.batteryHealth?.replace(/%$/, '') ?? '');
+  const [cantidad, setCantidad] = useState(String(current?.cantidad ?? 1));
   const [imei, setImei] = useState(current?.imei ?? '');
   const [condition, setCondition] = useState(current?.condition ?? '');
   const [grade, setGrade] = useState<string>(displayQuality(current?.condition, current?.grade));
@@ -267,6 +269,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         </div>
         {current ? null : <ScanReady />}
       </div>
+      <Field label="Cantidad" error={bad.cantidad}><input aria-label="Cantidad" type="number" min={current ? 0 : 1} max={imei.trim() ? 1 : 2147483647} step="1" value={cantidad} onChange={event => { setCantidad(event.target.value); clearBad(setBad, 'cantidad'); }} /></Field>
       <Field label="Proveedor">
         {suppliers === null ? <FieldSkeleton /> : (
           <InlineSupplier disabled={!!supplierId} value={supplierId || supplier} onChange={setSupplier} />
@@ -292,6 +295,8 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
       {customFieldDefinitions.length > 0 && <section className="eq-custom-fields"><p className="sec">Campos personalizados</p><div className="eq-custom-grid">{customFieldDefinitions.map(field => <Field key={field.id} label={field.label}><input aria-label={field.label} value={field.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(String(customValues[field.key] ?? '')) ? String(customValues[field.key]).split('-').reverse().join('/') : String(customValues[field.key] ?? '')} maxLength={2000} inputMode={field.type === 'number' ? 'decimal' : 'text'} placeholder={field.type === 'date' ? 'dd/mm/aaaa' : undefined} onChange={event => setCustomValues(values => ({ ...values, [field.key]: event.target.value }))} /></Field>)}</div></section>}
       <Actions busy={busy || Boolean(customFieldDefinitionsError)} primary={current ? 'Guardar cambios' : 'Guardar equipo'} onSecondary={close} onPrimary={() => {
         const next: Record<string, string> = {};
+        if (!cantidad.trim() || !Number.isInteger(Number(cantidad)) || Number(cantidad) < (current ? 0 : 1)) next.cantidad = 'Ingresá una cantidad entera válida';
+        else if (imei.trim() && Number(cantidad) > 1) next.cantidad = 'Con IMEI, la cantidad debe ser 1';
         if (!model.trim()) next.model = 'Completá este dato';
         else if (model.trim().length > INPUT_LIMITS.model) next.model = `El modelo puede tener hasta ${INPUT_LIMITS.model} caracteres`;
         if (color.trim().length > INPUT_LIMITS.color) next.color = `El color puede tener hasta ${INPUT_LIMITS.color} caracteres`;
@@ -311,6 +316,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
         }
         void run(async () => {
         const payload: Omit<Product, 'id'> = {
+          cantidad: Number(cantidad),
           imei: imei.trim(),
           model: model.trim(),
           capacity,

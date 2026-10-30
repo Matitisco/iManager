@@ -7,19 +7,19 @@ export function textRowError(row: Record<string, string>): string | null {
   if (!['ARS', 'USD'].includes(row.currency)) return 'Elegí una moneda.';
   if (!['NUEVO', 'USADO', 'PRE-OWNED', 'OUTLET'].includes(row.condition)) return 'Elegí una condición.';
   if (row.imei?.trim() && !/^\d{15}$/.test(row.imei.trim())) return 'El IMEI tiene 15 dígitos.';
-  const quantity = Number(row.quantity);
+  const quantity = Number(row.quantity || 1);
   if (!Number.isSafeInteger(quantity) || quantity < 1) return 'La cantidad debe ser un entero positivo.';
   if (quantity > 1 && (row.imei?.trim() || row.serial?.trim())) return 'Usá cantidad 1 con IMEI/serie, o quitá el identificador.';
   if ((row.color?.length ?? 0) > 50) return 'El color puede tener hasta 50 caracteres.';
   return null;
 }
 
-export function expandTextRows(rows: Record<string, string>[]): Record<string, string>[] {
-  const count = rows.reduce((sum, row) => sum + Number(row.quantity), 0);
+export function prepareTextRows(rows: Record<string, string>[]): Record<string, string>[] {
+  const count = rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0);
   if (!Number.isFinite(count) || count > 2000) throw new Error('El listado supera los 2000 equipos.');
-  return rows.flatMap((row) => {
+  return rows.map((row) => {
     const error = textRowError(row);
     if (error) throw new Error(error);
-    return Array.from({ length: Number(row.quantity) }, () => ({ ...row, quantity: '1', price: row.price?.trim() ? String(parseImportNumber(row.price)) : '', cost: row.cost?.trim() ? String(parseImportNumber(row.cost)) : row.cost ?? '' }));
+    return { ...row, quantity: row.quantity || '1', price: row.price?.trim() ? String(parseImportNumber(row.price)) : '', cost: row.cost?.trim() ? String(parseImportNumber(row.cost)) : row.cost ?? '' };
   });
 }

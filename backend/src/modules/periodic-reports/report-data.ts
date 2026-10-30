@@ -10,10 +10,10 @@ export async function loadMailReport(storeId: string, period: DuePeriod, now: Da
   const [summary, profit, stock, trades, clients, reviewCount] = await Promise.all([
     getPeriodicSummary(storeId, { role: 'OWNER' }, selection, now),
     getNetProfit(storeId, period.start, addCalendarDays(period.end, -1)),
-    prisma.inventoryItem.count({ where: { storeId, archivedAt: null, status: 'DISPONIBLE' } }),
+    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'DISPONIBLE' } }),
     prisma.tradeIn.findMany({ where: { storeId, confirmationStatus: 'CONFIRMED', voidedAt: null, cancelledAt: null, status: { notIn: ['CANCELADO', 'ANULADO', 'CANCELADA', 'ANULADA'] } }, select: { dateLabel: true, tradeAt: true } }),
     prisma.client.findMany({ where: { storeId, archivedAt: null, pendingBalance: { gt: 0 } }, select: { pendingBalance: true, balanceCurrency: true } }),
-    prisma.inventoryItem.count({ where: { storeId, archivedAt: null, status: 'EN_REVISION' } }),
+    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'EN_REVISION' } }),
   ]);
   const inPeriod = (day: string) => day >= period.start && day < period.end;
   const currency = profit.currency;
@@ -21,7 +21,7 @@ export async function loadMailReport(storeId: string, period: DuePeriod, now: Da
   const sales = summary.sales?.items.filter(s => !s.voided) ?? [];
   return {
     storeName: store.name, timezone: store.timezone, currency, period, periodLabel: periodLabel(period.start, period.end), capturedAt: now.toISOString(),
-    sales: sum(sales), sold: sales.length, profit: profit.netProfit, stock, reviewCount,
+    sales: sum(sales), sold: sales.reduce((sum, sale) => sum + (sale.cantidad ?? 1), 0), profit: profit.netProfit, stock: stock._sum.cantidad ?? 0, reviewCount: reviewCount._sum.cantidad ?? 0,
     trades: trades.filter(t => inPeriod(labelToIso(t.dateLabel) ?? (/^\d{4}-\d{2}-\d{2}$/.test(t.dateLabel) ? t.dateLabel : calendarDay(t.tradeAt, store.timezone)))).length,
     claims: summary.returns?.items.length ?? 0, pendingClaims: summary.returns?.items.filter(r => r.pending).length ?? 0,
     refunds: sum(summary.returns?.total ?? []), debt: sum(clients.map(c => ({ amount: Number(c.pendingBalance), currency: c.balanceCurrency }))), debtors: clients.length,

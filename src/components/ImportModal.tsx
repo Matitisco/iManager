@@ -10,7 +10,7 @@ import { Sheet } from '../desk/ui';
 import { assignColumn, columnKey, fieldToColumn, mappingFromFields, planColumns, updatePlanMapping } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
-import { expandTextRows, textRowError } from '../lib/text-import-review';
+import { prepareTextRows, textRowError } from '../lib/text-import-review';
 import { prepareAutomaticImportFields, unassignedImportColumns, type DiscardedImportColumns } from '../lib/import-custom-fields';
 import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
@@ -347,7 +347,7 @@ export const ImportModal: React.FC<Props> = ({
     try {
       const prepared = isInventory && !textPreview
         ? prepareAutomaticImportFields(selectedRows, sheets, plan, [...customFieldDefinitions, ...draftDefinitions], discardedColumns)
-        : { rows: textPreview ? expandTextRows(selectedRows) : selectedRows, definitions: draftDefinitions.filter(definition => selectedRows.some(row => Object.hasOwn(row, `custom:${definition.key}`))) };
+        : { rows: textPreview ? prepareTextRows(selectedRows) : selectedRows, definitions: draftDefinitions.filter(definition => selectedRows.some(row => Object.hasOwn(row, `custom:${definition.key}`))) };
       const importingRows = prepared.rows;
       const definitions = prepared.definitions.filter(definition => !customFieldDefinitions.some(existing => existing.key === definition.key));
       const response = definitions.length ? await onImport(importingRows, definitions) : await onImport(importingRows);

@@ -5,8 +5,8 @@ import { writeAudit, type Actor } from '../audit/audit.js';
 import { restoreCashMovements } from '../cash/service.js';
 
 type Tx = Prisma.TransactionClient;
-const stockState = (item: InventoryItem) => ({ id: item.id, status: item.status, pendingSaleRegistration: item.pendingSaleRegistration, archivedAt: item.archivedAt?.toISOString() ?? null });
-const stockSchema = z.object({ id: z.string(), status: z.string(), pendingSaleRegistration: z.boolean(), archivedAt: z.string().nullable() });
+const stockState = (item: InventoryItem) => ({ id: item.id, cantidad: item.cantidad, status: item.status, pendingSaleRegistration: item.pendingSaleRegistration, archivedAt: item.archivedAt?.toISOString() ?? null });
+const stockSchema = z.object({ cantidad: z.number().int().nonnegative().optional(), id: z.string(), status: z.string(), pendingSaleRegistration: z.boolean(), archivedAt: z.string().nullable() });
 const snapshotSchema = z.object({
   status: z.string(), openBalance: z.string().nullable(),
   stock: z.array(z.object({ before: stockSchema, after: stockSchema })),
@@ -98,7 +98,7 @@ export async function restoreCancelledSale(tx: Tx, sale: Sale, actor: Actor) {
   for (const row of snapshot.stock) {
     await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${row.before.id} AND "storeId" = ${storeId} FOR UPDATE`;
     const current = await tx.inventoryItem.findFirst({ where: { id: row.before.id, storeId } });
-    if (!current || JSON.stringify(stockState(current)) !== JSON.stringify(row.after) || current.reservedDepositId || await tx.sale.findFirst({ where: { storeId, inventoryItemId: row.before.id, id: { not: sale.id }, voidedAt: null, status: { notIn: ['CANCELADA', 'ANULADA'] } } })) conflict('No se puede revertir: un equipo ya se vendió, se reservó o cambió de estado.');
+    if (!current || (current.status !== row.after.status || current.pendingSaleRegistration !== row.after.pendingSaleRegistration || (current.archivedAt?.toISOString() ?? null) !== row.after.archivedAt || row.after.cantidad !== undefined && current.cantidad !== row.after.cantidad) || current.reservedDepositId || current.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: row.before.id, id: { not: sale.id }, voidedAt: null, status: { notIn: ['CANCELADA', 'ANULADA'] } } })) conflict('No se puede revertir: un equipo ya se vendió, se reservó o cambió de estado.');
   }
   if (sale.clientId && !snapshot.client || sale.inventoryItemId && !snapshot.stock.some(row => row.before.id === sale.inventoryItemId)) conflict('La operación perdió un registro asociado.');
   for (const row of [...snapshot.deposits, ...snapshot.credits]) {
@@ -110,7 +110,7 @@ export async function restoreCancelledSale(tx: Tx, sale: Sale, actor: Actor) {
     if (!client || client.archivedAt || client.balanceCurrency !== snapshot.client.currency) conflict('El cliente está archivado o cambió la moneda de su cuenta.');
     await tx.client.update({ where: { id: client.id }, data: { totalSpent: { increment: snapshot.client.total }, pendingBalance: { increment: snapshot.client.debt } } });
   }
-  for (const row of snapshot.stock) await tx.inventoryItem.update({ where: { id: row.before.id }, data: { status: row.before.status, pendingSaleRegistration: row.before.pendingSaleRegistration, archivedAt: row.before.archivedAt ? new Date(row.before.archivedAt) : null } });
+  for (const row of snapshot.stock) await tx.inventoryItem.update({ where: { id: row.before.id }, data: { ...(row.before.cantidad === undefined ? {} : { cantidad: row.before.cantidad }), status: row.before.status, pendingSaleRegistration: row.before.pendingSaleRegistration, archivedAt: row.before.archivedAt ? new Date(row.before.archivedAt) : null } });
   if (snapshot.trade) {
     const trade = await tx.tradeIn.findFirst({ where: { id: snapshot.trade.id, storeId } });
     if (!trade || trade.confirmationStatus !== 'CANCELLED' || trade.receivedInventoryItemId && !snapshot.stock.some(row => row.before.id === trade.receivedInventoryItemId) || await tx.sale.findFirst({ where: { storeId, tradeInId: snapshot.trade.id, id: { not: sale.id } } })) conflict('El canje asociado cambió.');

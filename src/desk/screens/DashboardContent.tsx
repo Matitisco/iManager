@@ -127,7 +127,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const hideLoadMessage = !overview && (backendStatus === 'offline' || current?.networkFailure);
   const comparable = !!displayedRange && !!overview?.comparison.available;
   const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, overview?.currency ?? appSession?.store?.currency) : money.show(amount, overview?.currency ?? appSession?.store?.currency);
-  const available = inventory.filter(item => isInStock(item.status)).length;
+  const stockTotal = inventory.reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
+  const available = inventory.filter(item => isInStock(item.status)).reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
   const openTrades = tradeIns.filter(item => !isVoidRow(item) && isInProgressTrade(item.status)).length;
   const balance = money.sum(clients.filter(client => clientNet(client) > 0).map(client => ({ amount: clientNet(client), currency: client.balanceCurrency })));
   const inRange = (value: string) => {
@@ -163,8 +164,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
         <Kpi label="Margen bruto" note={overview?.summary.salesWithoutCost ? `${overview.summary.salesWithoutCost} ${overview.summary.salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}` : undefined} value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
       </> : null}
       {showUnits ? <Kpi label="Equipos vendidos" value={seeFinancials ? overview?.summary.unitsSold ?? '—' : listsLoadFailed ? '—' : units} loading={seeFinancials ? periodLoading : initialLoading} onClick={can('sales') ? () => go('sales') : undefined}>{comparable ? <Delta value={overview?.comparison.unitsChange} /> : null}</Kpi> : null}
-      {showStock ? <Kpi label="Stock disponible" value={listsLoadFailed ? '—' : available} suffix={!listsLoadFailed && inventory.length ? `de ${inventory.length}` : undefined} loading={initialLoading} onClick={can('inventory') ? () => go('inventory') : undefined}>
-        {!listsLoadFailed ? <div className="budget" role="meter" aria-label="Stock disponible" aria-valuemin={0} aria-valuemax={Math.max(1, inventory.length)} aria-valuenow={available}><i style={{ width: `${inventory.length ? available / inventory.length * 100 : 0}%` }} /></div> : null}
+      {showStock ? <Kpi label="Stock disponible" value={listsLoadFailed ? '—' : available} suffix={!listsLoadFailed && inventory.length ? `de ${stockTotal}` : undefined} loading={initialLoading} onClick={can('inventory') ? () => go('inventory') : undefined}>
+        {!listsLoadFailed ? <div className="budget" role="meter" aria-label="Stock disponible" aria-valuemin={0} aria-valuemax={Math.max(1, stockTotal)} aria-valuenow={available}><i style={{ width: `${stockTotal ? available / stockTotal * 100 : 0}%` }} /></div> : null}
       </Kpi> : null}
     </div> : null}
     {seeFinancials ? <div className={`dgrid${phone ? '' : ' two v3-stretch'}`}>

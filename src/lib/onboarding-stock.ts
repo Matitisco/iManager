@@ -1,5 +1,5 @@
 import { parseImportNumber } from "./import-number";
-import { expandTextRows } from "./text-import-review";
+import { prepareTextRows } from "./text-import-review";
 import type {
   ImportAnalysis,
   InventoryImportRow,
@@ -85,7 +85,8 @@ export function prepareOnboardingRows(analysis: ImportAnalysis) {
 export function onboardingPayload(
   rows: Record<string, string>[],
 ): InventoryImportRow[] {
-  return expandTextRows(rows).map((row) => ({
+  return prepareTextRows(rows).map((row) => ({
+    quantity: Number(row.quantity || 1),
     imei: row.imei ?? "",
     model: row.model,
     capacity: row.capacity,

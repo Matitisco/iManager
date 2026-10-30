@@ -13,7 +13,7 @@ export type ImportDiagnostics = {
   rejected?: ImportRejection[];
   /** Physical rows in the selected data range (submitted rows for persistence). */
   detectedRows: number;
-  /** Physical rows retained; inventory quantity expansion is separate from this count. */
+  /** Physical rows retained; inventory quantities are stored on each row. */
   acceptedRows: number;
   discardedRows: number;
   discardedByReason: Partial<Record<DiscardReason, number>>;

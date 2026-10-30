@@ -7,8 +7,8 @@ const {
   tradeInFindManyMock,
   clientCountMock,
   clientAggregateMock,
-  inventoryCountMock,
-  inventoryGroupMock,
+  inventoryAggregateMock,
+  inventoryValuationMock,
   inventoryFindManyMock,
   returnCaseFindManyMock,
 } = vi.hoisted(() => ({
@@ -18,8 +18,8 @@ const {
   tradeInFindManyMock: vi.fn(),
   clientCountMock: vi.fn(),
   clientAggregateMock: vi.fn(),
-  inventoryCountMock: vi.fn(),
-  inventoryGroupMock: vi.fn(),
+  inventoryAggregateMock: vi.fn(),
+  inventoryValuationMock: vi.fn(),
   inventoryFindManyMock: vi.fn(),
   returnCaseFindManyMock: vi.fn(),
 }));
@@ -40,9 +40,8 @@ vi.mock("../../plugins/prisma.js", () => ({
       aggregate: clientAggregateMock,
     },
     inventoryItem: {
-      count: inventoryCountMock,
-      groupBy: inventoryGroupMock,
-      findMany: inventoryFindManyMock,
+      aggregate: inventoryAggregateMock,
+      findMany: (query: { select?: { price?: boolean } }) => query.select?.price ? inventoryValuationMock(query) : inventoryFindManyMock(query),
     },
     returnCase: {
       findMany: returnCaseFindManyMock,
@@ -176,17 +175,14 @@ describe("getReportsOverview", () => {
         pendingBalance: { toNumber: () => 1250 },
       },
     });
-    inventoryCountMock
-      .mockResolvedValueOnce(10)
-      .mockResolvedValueOnce(6)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1);
-    inventoryGroupMock.mockResolvedValue([{
+    inventoryAggregateMock
+      .mockResolvedValueOnce({ _sum: { cantidad: 10 } })
+      .mockResolvedValueOnce({ _sum: { cantidad: 6 } })
+      .mockResolvedValueOnce({ _sum: { cantidad: 3 } })
+      .mockResolvedValueOnce({ _sum: { cantidad: 1 } });
+    inventoryValuationMock.mockResolvedValue([{
       currency: null,
-      _sum: {
-        cost: { toNumber: () => 3000 },
-        price: { toNumber: () => 4500 },
-      },
+      cantidad: 1, cost: 3000, price: 4500,
     }]);
     inventoryFindManyMock.mockResolvedValue([]);
   });
@@ -274,9 +270,9 @@ describe("getReportsOverview", () => {
     saleFindManyMock.mockResolvedValue([]);
     const claim = (moneyAmount: number, moneyCurrency: string) => ({ settlement: 'REINTEGRO', resolvedAt: new Date('2026-04-15'), creditNote: null, events: [], moneyAmount, moneyCurrency, sale: null });
     returnCaseFindManyMock.mockResolvedValue([claim(701000, 'ARS'), claim(100, 'USD')]);
-    inventoryGroupMock.mockResolvedValue([
-      { currency: 'ARS', _sum: { cost: 16066000, price: 21866000 } },
-      { currency: 'USD', _sum: { cost: 28920, price: 36570 } },
+    inventoryValuationMock.mockResolvedValue([
+      { currency: 'ARS', cantidad: 1, cost: 16066000, price: 21866000 },
+      { currency: 'USD', cantidad: 1, cost: 28920, price: 36570 },
     ]);
     const overview = await getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null });
     const divisor = currency === 'USD' ? 1250 : 1;
@@ -288,7 +284,7 @@ describe("getReportsOverview", () => {
   it('rechaza valuación en otra moneda sin cotización aunque no haya ventas', async () => {
     saleFindManyMock.mockResolvedValue([]);
     rateMock.mockResolvedValue(null);
-    inventoryGroupMock.mockResolvedValue([{ currency: 'USD', _sum: { cost: 400, price: 600 } }]);
+    inventoryValuationMock.mockResolvedValue([{ currency: 'USD', cantidad: 1, cost: 400, price: 600 }]);
     await expect(getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null })).rejects.toMatchObject({ statusCode: 503 });
   });
 
@@ -323,7 +319,8 @@ describe("getReportsOverview", () => {
     expect(overview.tradeIns.series.length).toBeGreaterThan(28);
     expect(overview.tradeIns.series.reduce((sum, point) => sum + point.revenue, 0)).toBe(150);
     expect(overview.inventory.series.length).toBe(overview.tradeIns.series.length);
-    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, {
+    expect(inventoryAggregateMock).toHaveBeenNthCalledWith(1, {
+      _sum: { cantidad: true },
       where: {
         archivedAt: null,
         storeId: "store-1",
@@ -462,7 +459,7 @@ describe("getReportsOverview", () => {
     });
 
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
-    expect(inventoryCountMock).toHaveBeenNthCalledWith(1, { where: { storeId: "store-1", archivedAt: null } });
+    expect(inventoryAggregateMock).toHaveBeenNthCalledWith(1, { _sum: { cantidad: true }, where: { storeId: "store-1", archivedAt: null } });
     expect(overview.comparison.available).toBe(false);
     expect(overview.comparison.revenueChange).toBeNull();
   });
