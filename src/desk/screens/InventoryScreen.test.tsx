@@ -1060,10 +1060,27 @@ describe("Cantidad inline según IMEI", () => {
     context.updateProduct.mockReset().mockResolvedValue(undefined);
   });
 
+  it("muestra IMEI por defecto después de Equipo y conserva vacíos sin desplazar Cantidad", () => {
+    context.inventory[0] = item("1", { imei: "490154203237518" });
+    renderScreen();
+    const headers = screen.getAllByRole('columnheader');
+    const index = headers.findIndex(header => header.textContent === 'IMEI');
+    expect(index).toBeGreaterThan(0);
+    expect(headers[index - 1]).toHaveTextContent('Equipo');
+    expect(headers[index + 1]).toHaveTextContent('Cantidad');
+    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getAllByRole('cell')[index]).toHaveTextContent('49 015420 323751 8');
+    expect(within(rows[0]).getAllByRole('cell')[index]).toHaveAttribute('data-ph-mask');
+    for (const row of rows.slice(1)) {
+      expect(within(row).getAllByRole('cell')[index]).toHaveTextContent(/^—$/);
+      expect(within(within(row).getAllByRole('cell')[index + 1]).getByRole('spinbutton')).toBeInTheDocument();
+    }
+  });
+
   it("muestra 1 sin input ni estilo editable y explica el IMEI incluso en vendidos", () => {
     context.inventory[0] = item("1", { cantidad: 0, status: "VENDIDO" });
     renderScreen();
-    const fixed = screen.getByTitle("Equipo con IMEI: siempre 1 unidad");
+    const fixed = screen.getByTitle("Este equipo tiene IMEI, así que cuenta como 1 unidad.");
     expect(fixed).toHaveTextContent(/^1$/);
     expect(fixed.tagName).toBe("SPAN");
     expect(fixed).not.toHaveClass("inv-quantity");
@@ -1125,7 +1142,7 @@ describe("Cantidad inline según IMEI", () => {
     fireEvent.blur(input);
     const error = await screen.findByRole("alert");
     expect(input.closest("td")).toContainElement(error);
-    expect(error).toHaveTextContent("Este equipo tiene IMEI, así que cuenta como 1 unidad. Para cargar varios, usá equipos sin IMEI.");
+    expect(error.textContent).toBe("Este equipo tiene IMEI, así que cuenta como 1 unidad.");
   });
 
   it("Escape restaura la cantidad y limpia el error sin guardar", async () => {

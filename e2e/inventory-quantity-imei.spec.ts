@@ -32,13 +32,30 @@ for (const width of [1440, 390]) test.describe(`Cantidad con IMEI ${width}`, () 
     };
 
     if (width === 1440) {
-      const fixed = page.getByTitle('Equipo con IMEI: siempre 1 unidad');
+      const fixed = page.getByTitle('Este equipo tiene IMEI, así que cuenta como 1 unidad.');
       await expect(fixed).toHaveText('1');
       await expect(page.getByRole('spinbutton', { name: 'Cantidad de 15 Pro' })).toHaveCount(0);
       await fixed.dblclick();
       await expect(page.getByRole('dialog')).toHaveCount(0);
-      await shot('imei-despues');
       const quantity = page.getByRole('spinbutton', { name: 'Cantidad de 14 Pro' });
+      const imeiHeader = page.getByRole('columnheader', { name: 'IMEI', exact: true });
+      await expect(imeiHeader).toBeInViewport();
+      const headings = await page.getByRole('columnheader').allTextContents();
+      const imeiIndex = headings.indexOf('IMEI');
+      expect(headings[imeiIndex - 1]).toBe('Equipo');
+      expect(headings[imeiIndex + 1]).toBe('Cantidad');
+      await expect(page.locator('tbody tr').filter({ has: fixed }).locator('td').nth(imeiIndex)).toHaveText('49 015420 323751 8');
+      await expect(page.locator('tbody tr').filter({ has: quantity }).locator('td').nth(imeiIndex)).toHaveText('—');
+      const geometry = await Promise.all([fixed, quantity].map(locator => locator.evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return { width: rect.width, right: rect.right - parseFloat(style.paddingRight) - parseFloat(style.borderRightWidth), textAlign: style.textAlign, appearance: style.appearance };
+      })));
+      expect(geometry[0].width).toBe(geometry[1].width);
+      expect(geometry[0].right).toBeCloseTo(geometry[1].right, 1);
+      expect(geometry.map(value => value.textAlign)).toEqual(['right', 'right']);
+      expect(geometry[1].appearance).toBe('textfield');
+      await shot('imei-despues');
       await quantity.fill('0'); await quantity.press('Enter');
       const cell = page.getByRole('cell').filter({ has: quantity });
       await expect(cell.getByRole('alert')).toHaveText('Ingresá una cantidad entera de 1 o más unidades.');

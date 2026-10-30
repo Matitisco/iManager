@@ -120,6 +120,8 @@ function withStatus(statuses: string[], id: string, checked: boolean) {
   return statuses.filter((item) => item !== id);
 }
 
+const IMEI_QUANTITY_MESSAGE = 'Este equipo tiene IMEI, así que cuenta como 1 unidad.';
+
 function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateProduct: (product: Product) => Promise<unknown> }) {
   const [draft, setDraft] = useState(String(item.cantidad ?? 1));
   const [error, setError] = useState('');
@@ -148,7 +150,7 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '';
       setError(/imei/i.test(message)
-        ? 'Este equipo tiene IMEI, así que cuenta como 1 unidad. Para cargar varios, usá equipos sin IMEI.'
+        ? IMEI_QUANTITY_MESSAGE
         : message || 'No se pudo guardar la cantidad. Intentá de nuevo.');
     } finally {
       pending.current = false;
@@ -158,9 +160,9 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
 
   return (
     <td className="r inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-      {item.imei?.trim() ? <span title="Equipo con IMEI: siempre 1 unidad">1</span> : (
+      {item.imei?.trim() ? <span className="inv-quantity-value" title={IMEI_QUANTITY_MESSAGE}>1</span> : (
         <input
-          className="inv-quantity"
+          className="inv-quantity inv-quantity-value"
           aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
@@ -395,6 +397,7 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
+                <th className="inv-imei-col">IMEI</th>
                 <th className="r">Cantidad</th>
                 {seeCosts ? <th className="r">Costo</th> : null}
                 <th>
@@ -524,6 +527,7 @@ export function InventoryScreen() {
                       <div><b>{equipmentTitle(item.model, item.capacity)}</b><NoticeTag reason={notices.reasonFor(item.id)} />{item.customFields?.onboardingReview ? <small className="needs-completion-label">Para revisar</small> : null}{item.needsCompletion ? <small className="needs-completion-label" data-testid="needs-completion">Para completar</small> : null}<SupplierMark item={item} />{archiveCaption(item) ? <small className="archive-note">{archiveCaption(item)}</small> : null}</div>
                     </div>
                   </td>
+                  <td className="inv-imei-col" data-ph-mask>{item.imei?.trim() ? formatImei(item.imei) : '—'}</td>
                   <InventoryQuantityCell item={item} updateProduct={updateProduct} />
                   {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}
                   <td>{(item.color ?? '').trim() || '—'}</td>
