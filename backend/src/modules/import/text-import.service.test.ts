@@ -11,6 +11,14 @@ const row: TextRow = { line: 1, endLine: 1, model: 'iPhone 13', capacity: '128GB
 const text = 'iPhone 13 128GB Midnight 89% US$ 420';
 const response = (output: unknown) => new Response(JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: typeof output === 'string' ? output : JSON.stringify(output) }] }], usage: { input_tokens: 10, output_tokens: 20 } }));
 const env = { ...process.env };
+it.each([101, 1001])('acepta %i unidades en una fila de texto', async quantity => {
+  process.env.OPENAI_API_KEY = 'mock';
+  const result = await analyzeTextImport({ text: `${text} x${quantity}`, currency: 'USD' }, {
+    fetchImpl: vi.fn(async () => response({ rows: [{ ...row, quantity }], discarded: [] })),
+  });
+  expect(result.rows[0].quantity).toBe(String(quantity));
+  expect(textRowSchema.safeParse({ ...row, quantity }).success).toBe(true);
+});
 afterEach(() => { process.env = { ...env }; vi.restoreAllMocks(); vi.useRealTimers(); });
 
 it('uses server-only key, strict schema, selected model, and only pasted data', async () => {

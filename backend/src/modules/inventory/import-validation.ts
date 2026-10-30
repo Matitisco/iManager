@@ -5,6 +5,8 @@ import type { DiscardReason, ImportWarning } from '../import/import-diagnostics.
 import { normalizeInventoryImportStatus } from '../import/inventory-status.js';
 import { inventoryGrade } from './quality.js';
 
+export const MAX_INVENTORY_IMPORT_ITEMS = 60_000;
+
 const CONDITIONS: Record<string, string> = {
   nuevo: 'NUEVO', new: 'NUEVO', usado: 'USADO', used: 'USADO', outlet: 'OUTLET',
   'pre-owned': 'PRE-OWNED', preowned: 'PRE-OWNED', 'pre owned': 'PRE-OWNED',
@@ -107,7 +109,7 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
   } };
 }
 
-/** Lossless file preparation. One nonempty source row always remains one device. */
+/** Lossless file preparation. Keep source rows compact; quantity counts individual devices. */
 export function prepareInventoryImportRow(raw: Record<string, string>, row: number, seenImeis: Map<string, number>) {
   const next = { ...raw };
   const notes: string[] = [];
@@ -120,6 +122,12 @@ export function prepareInventoryImportRow(raw: Record<string, string>, row: numb
     if (next[field]?.trim()) notes.push(`${field} (origen): ${next[field]}`);
     next[field] = fallback;
   };
+  const quantity = next.quantity?.trim() ? Number(next.quantity.replace(',', '.')) : 1;
+  if (!Number.isSafeInteger(quantity) || quantity < 1 || needsReview) {
+    if (next.quantity?.trim() && next.quantity !== '1') preserve('quantity', '1');
+    else next.quantity = '1';
+  } else next.quantity = String(quantity);
+  if (Number(next.quantity) > 1 && next.imei?.trim()) preserve('imei');
   if (!next.model?.trim() || next.model.length > 100 || /^=|^#(?:REF!|N\/A|VALUE!|DIV\/0!|NAME\?|NUM!|NULL!)/i.test(next.model.trim())) preserve('model', 'Equipo sin modelo');
   for (const field of ['price', 'cost']) {
     const value = next[field];

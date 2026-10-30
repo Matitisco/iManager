@@ -10,7 +10,7 @@ const aliases: Record<string, string[]> = {
   imei: ['Serie', 'S/N', 'Serial'], capacity: ['Memoria', 'Storage', 'Cap.', 'Almac.'], price: ['P. Venta', 'u$s venta'],
   batteryHealth: ['Bat', 'Bat.', 'Battery', 'BH', 'Batt'],
   cost: ['Precio de compra', 'Compra', 'P. compra', 'Precio compra USD', 'Inversión'],
-  status: ['Disponibilidad', 'Situación', 'Stock'], condition: ['Tipo', 'Nuevo/Usado', 'Estado físico'],
+  status: ['Disponibilidad', 'Situación'], quantity: ['Cantidad', 'Cant', 'Qty', 'Unidades', 'Stock'], condition: ['Tipo', 'Nuevo/Usado', 'Estado físico'],
   grade: ['Categoría', 'Cat.'], supplierName: ['Comprado a', 'Supplier', 'Vendedor origen'],
   entryDate: ['Fecha', 'F. ingreso', 'Date', 'Fecha compra'], batteryNote: ['Observaciones', 'Notas', 'Reparaciones', 'Arreglos'],
 };

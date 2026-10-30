@@ -178,7 +178,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
       const body = z.object({
-        items: z.array(inventoryItemSchema).min(1).max(200),
+        items: z.array(inventoryItemSchema).min(1).max(60_000),
       }).parse(request.body);
       const seeCosts = canSeeFinancials(request.appUser);
       const items = body.items.map((item) => ({
@@ -234,6 +234,8 @@ export async function inventoryRoutes(app: FastifyInstance) {
           .array(
             z.object({
               sourceRow: z.number().int().positive().optional(),
+              quantity: z.preprocess(value => typeof value === 'string' && !value.trim() ? 1 : value,
+                z.coerce.number().int().safe().positive().optional()),
               entryDate: z.string().nullable().optional(),
               batteryNote: z.string().nullable().optional(),
               supplierName: z.string().optional(),

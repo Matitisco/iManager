@@ -28,6 +28,7 @@ const ALWAYS_ASK = new Set(["price", "amount", "status", "condition"]);
 
 const INVENTORY_CHOICES: { value: string; description: string }[] = [
   { value: "model", description: "modelo del equipo" },
+  { value: "quantity", description: "cantidad de equipos: Cantidad, cant, qty, unidades o stock numérico" },
   { value: "capacity", description: "almacenamiento GB" },
   { value: "batteryHealth", description: "salud de batería %" },
   { value: "color", description: "color" },

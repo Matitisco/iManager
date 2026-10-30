@@ -27,6 +27,7 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
     accessLabel: "Inventario",
     fields: [
       { key: "model", label: "Modelo", description: "Nombre comercial del equipo, por ejemplo iPhone 13 o Galaxy S21." },
+      { key: "quantity", label: "Cantidad", description: "Cantidad de equipos idénticos sin IMEI. Vacío equivale a uno." },
       { key: "imei", label: IMEI_LABEL, description: "Identificador único del equipo, en general 15 dígitos." },
       { key: "price", label: "Precio", description: "Precio de venta." },
       { key: "currency", label: "Moneda", description: "Moneda del equipo, ARS o USD. No convierte el importe." },
@@ -51,7 +52,8 @@ export const IMPORT_CATALOGS: Record<ImportSection, ImportCatalog> = {
       bat: "batteryHealth", battery: "batteryHealth", bh: "batteryHealth", batt: "batteryHealth", pila: "batteryHealth",
       purchaseprice: "cost", buyprice: "cost", costprice: "cost",
       preciodecompra: "cost", compra: "cost", pcompra: "cost", preciocomprausd: "cost", inversion: "cost",
-      disponibilidad: "status", situacion: "status", stock: "status",
+      disponibilidad: "status", situacion: "status",
+      cantidad: "quantity", cant: "quantity", qty: "quantity", quantity: "quantity", unidades: "quantity", stock: "quantity",
       tipo: "condition", nuevousado: "condition", estadofisico: "condition", cond: "condition",
       categoria: "grade", cat: "grade",
       compradoa: "supplierName", supplier: "supplierName", vendedororigen: "supplierName",

@@ -33,6 +33,19 @@ describe('import-api', () => {
     setApiBaseUrl('https://api.imanager.test/');
   });
 
+  it('confirma cantidades compactas mayores a 100 usando el total de unidades', async () => {
+    const rows = [{ model: '15 Pro', imei: '', price: 650, cost: 450, quantity: 1001 }, { model: '14 Pro', imei: '', price: null }];
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1002, updated: 0, errors: [] }));
+    expect(await importBackendRows(mockUser, 'inventory', rows)).toMatchObject({ imported: 1002 });
+    expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(vi.mocked(fetchWithTimeout).mock.calls[0][1]?.body)).rows).toEqual(rows);
+  });
+
+  it('rechaza un conteo guardado que no coincide con las cantidades de la vista previa', async () => {
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1, updated: 0, errors: [] }));
+    await expect(importBackendRows(mockUser, 'inventory', [{ model: '15 Pro', imei: '', price: null, quantity: 101 }])).rejects.toThrow('conteo guardado');
+  });
+
   it('sends inventory text only to the authenticated backend with its bounded analysis timeout', async () => {
     const text = '13pm 256 azul usado bat 85 520usd';
     const analysis = { source: 'model', rows: [], review: [], discarded: [] };

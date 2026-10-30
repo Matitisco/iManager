@@ -38,7 +38,7 @@ describe('spreadsheet diagnostics', () => {
     expect(result.diagnostics.missingRequiredFields).toEqual([]);
   });
 
-  it('keeps every nonempty physical row exactly once and preserves invalid values', () => {
+  it('keeps physical rows compact, counts quantities and preserves invalid values', () => {
     const result = apply([{ name: 'Stock', rows: [
       ['Modelo', 'Precio', 'Color', 'Cantidad'],
       ['iPhone 13', '500', 'Negro', '3'],
@@ -49,10 +49,11 @@ describe('spreadsheet diagnostics', () => {
       ['iPhone 14', '', 'Negro', ''],
       ['iPhone 15', 'a consultar', 'Negro', ''],
     ] }]);
-    expect(result.summary.rowCount).toBe(6);
+    expect(result.summary.rowCount).toBe(8);
     expect(result.diagnostics).toEqual({ detectedRows: 7, acceptedRows: 6, discardedRows: 1,
       discardedByReason: { empty: 1 }, missingRequiredFields: [], missingRecommendedFields: ['imei'] });
-    expect(result.rows[0].batteryNote).toContain('Cantidad (origen): 3');
+    expect(result.rows[0].quantity).toBe('3');
+    expect(result.rows).toHaveLength(6);
     expect(result.rows[3]).toMatchObject({ model: 'Equipo sin modelo', status: 'EN_REVISION' });
     expect(result.rows[5].batteryNote).toContain('a consultar');
   });

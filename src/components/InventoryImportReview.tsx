@@ -124,6 +124,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const order = columns.map(column => column.key);
   const widthFor = (key: string) => widths[`${scope}:${columns.find(column => column.key === key)?.source}`] ?? (key === 'model' ? 180 : unassigned.has(columns.find(column => column.key === key)?.source ?? -1) ? 260 : 160);
   const sheetRows = rows.filter(row => !row._sourceSheet || row._sourceSheet === active.name);
+  const equipmentCount = rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0);
   const possibleTotals = rows.filter(isPossibleTotal).length;
   const start = Math.min(Math.max(0, sheetRows.length - 1), Math.max(0, Math.floor((scrollTop - HEADER_HEIGHT) / ROW_HEIGHT) - 5));
   const end = Math.min(sheetRows.length, start + 24);
@@ -236,6 +237,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
   const cellValue = (row: Record<string, string>, index: number, column: PreviewColumn) => {
     if (column.unused) return grid[(Number(row._sourceRow) || active.dataStartRow + index) - 1]?.[column.source!] || '—';
     if (column.key === 'currency') return row.currency || defaultCurrency;
+    if (column.key === 'quantity') return row.quantity || '1';
     if (column.key === 'price') {
       if (!row.price?.trim()) return 'A definir';
       const amount = parseImportNumber(row.price);
@@ -269,7 +271,7 @@ export function InventoryImportReview({ active, sheets, plan, rows, summary, fie
     {!plan.some(sheet => sheet.include) && <div className="imp-review-error" role="status">Incluí al menos una hoja para importar.</div>}
     <div className="imp-review-layout">
       <div className="imp-table-area">
-        <div className="imp-table-title"><h4>Equipos a importar <span data-testid="import-preview-count">{new Intl.NumberFormat('es-AR').format(rows.length)} {rows.length === 1 ? 'equipo' : 'equipos'}</span></h4><HeaderSettings key={active.name} active={active} rowCount={grid.length} disabled={disabled}
+        <div className="imp-table-title"><h4>Equipos a importar <span data-testid="import-preview-count">{new Intl.NumberFormat('es-AR').format(equipmentCount)} {equipmentCount === 1 ? 'equipo' : 'equipos'}</span></h4><HeaderSettings key={active.name} active={active} rowCount={grid.length} disabled={disabled}
           onChange={headerRow => onChange(plan.map(item => item.name === active.name ? { ...item, headerRow, dataStartRow: headerRow + 1 } : item), true)} /></div>
         <div ref={table} className="imp-table-scroll" data-testid="import-preview" role="region" tabIndex={0} aria-label="Equipos a importar" aria-busy={applying} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}>
           <table className="dtable compact imp-preview-table" aria-label="Vista previa de equipos" aria-rowcount={sheetRows.length + 1} style={{ width: columns.reduce((total, column) => total + widthFor(column.key), 0) }}>

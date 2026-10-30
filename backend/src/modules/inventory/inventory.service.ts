@@ -1,8 +1,9 @@
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
+import { randomUUID } from 'node:crypto';
 import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, validateFields, type DefinitionInput } from '../custom-fields/custom-fields.service.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
-import { validateInventoryImportRow, prepareInventoryImportRow } from "./import-validation.js";
+import { validateInventoryImportRow, prepareInventoryImportRow, MAX_INVENTORY_IMPORT_ITEMS } from "./import-validation.js";
 import { ruleReason } from '../public-catalog/rules.js';
 import type { StorePublicCatalog } from '@prisma/client';
 import { lockInventory } from '../deposits/deposits.service.js';
@@ -967,6 +968,7 @@ export async function bulkMoveCategory(storeId: string, ids: string[], categoryI
 // ─── Import ───────────────────────────────────────────────────────────────────
 
 export interface ImportRow {
+  quantity?: number;
   sourceRow?: number;
   entryDate?: string | null;
   batteryNote?: string | null;
@@ -1018,6 +1020,22 @@ export async function importInventoryItems(
   const importedCurrency = await storeCurrency(storeId, db);
   const defaultPurchasedAt = new Date();
   const purchases = new Map<string, { name: string | null; purchasedAt: Date; ids: string[] }>();
+  const batchSize = 500;
+  const equipmentCount = rows.reduce((sum, row) => sum + Number(row.quantity ?? 1), 0);
+  if (!Number.isSafeInteger(equipmentCount) || equipmentCount > MAX_INVENTORY_IMPORT_ITEMS) {
+    throw new InventoryError(`El archivo supera los ${MAX_INVENTORY_IMPORT_ITEMS} equipos. Dividilo en partes.`, 400);
+  }
+  const batchCreates = rows.length > batchSize || rows.some(row => (row.quantity ?? 1) > 1);
+  let acceptedRows = 0;
+  let pending: Prisma.InventoryItemCreateManyInput[] = [];
+  let pendingSourceRow = 1;
+  const flushCreates = async () => {
+    if (!pending.length) return;
+    try { await db.inventoryItem.createMany({ data: pending }); }
+    catch { throw new InventoryError(`No se importó ningún equipo. Fila ${pendingSourceRow}: No se pudo guardar el archivo completo. Volvé a intentarlo.`, 409); }
+    pending = [];
+  };
+  const supplierPurchases = new Map<string, { supplierId: string; name: string | null; purchasedAt: Date; ids: string[] }>();
   if (options?.supplierId) {
     const supplier = await db.supplier.findFirst({
       where: { id: options.supplierId, storeId, deletedAt: null },
@@ -1033,7 +1051,8 @@ export async function importInventoryItems(
       : value != null && String(value).trim()))) { collector.reject({ row: source.sourceRow ?? i + 1, imei: '', message: 'Fila vacía' }, 'empty'); continue; }
     const prepared = prepareInventoryImportRow(Object.fromEntries(Object.entries(source)
       .filter(([key, value]) => !['customFields', 'sourceRow'].includes(key) && value != null).map(([key, value]) => [key, String(value)])), source.sourceRow ?? i + 1, seenImeis);
-    const raw: ImportRow = { ...source, ...prepared, currency: prepared.currency || undefined };
+    const raw: ImportRow = { ...source, ...prepared, quantity: Number(prepared.quantity || 1), currency: prepared.currency || undefined };
+    const quantity = Number(prepared.quantity || 1);
 
     if (typeof raw.price === 'string' && !raw.price.trim()) raw.price = null;
     const rowNum = raw.sourceRow ?? i + 1;
@@ -1152,43 +1171,62 @@ export async function importInventoryItems(
         if (existing.price == null && !applyPrice) result.priceToDefine++;
         result.updated++;
       } else {
-        const created = await db.inventoryItem.create({
-          data: {
-            storeId,
-            imei: input.imei,
-            model: input.model,
-            capacity: input.capacity,
-            color: input.color,
-            condition: input.condition,
-            grade: input.grade,
-            batteryHealth: input.batteryHealth,
-            cost: toDecimal(input.cost),
-            price: priceDecimal(input.price),
-            currency: rowCurrency,
-            status: input.status,
-            entryDate,
-            batteryNote: raw.batteryNote || null,
-            customFields: customFields as Prisma.InputJsonValue,
-          },
-        });
-        if (rowSupplierId && !options?.supplierId) await assignItemSupplier(db, storeId, created.id, rowSupplierId, options?.actor);
-        const group = purchases.get(purchaseKey) ?? { name: rowPurchaseName, purchasedAt, ids: [] };
-        group.ids.push(created.id);
-        purchases.set(purchaseKey, group);
-        if (input.price == null) result.priceToDefine++;
-        result.imported++;
+        const data = {
+          storeId,
+          imei: input.imei,
+          model: input.model,
+          capacity: input.capacity,
+          color: input.color,
+          condition: input.condition,
+          grade: input.grade,
+          batteryHealth: input.batteryHealth,
+          cost: toDecimal(input.cost),
+          price: priceDecimal(input.price),
+          currency: rowCurrency,
+          status: input.status,
+          entryDate,
+          batteryNote: raw.batteryNote || null,
+          customFields: customFields as Prisma.InputJsonValue,
+        };
+        if (batchCreates) {
+          for (let unit = 0; unit < quantity; unit++) {
+            const id = randomUUID();
+            pendingSourceRow = rowNum;
+            pending.push({ ...data, id });
+            if (rowSupplierId) {
+              const key = JSON.stringify([rowSupplierId, purchaseKey]);
+              const group = supplierPurchases.get(key) ?? { supplierId: rowSupplierId, name: rowPurchaseName, purchasedAt, ids: [] };
+              group.ids.push(id);
+              supplierPurchases.set(key, group);
+            }
+            if (pending.length >= batchSize) await flushCreates();
+          }
+        } else {
+          const created = await db.inventoryItem.create({ data });
+          if (rowSupplierId && !options?.supplierId) await assignItemSupplier(db, storeId, created.id, rowSupplierId, options?.actor);
+          const group = purchases.get(purchaseKey) ?? { name: rowPurchaseName, purchasedAt, ids: [] };
+          group.ids.push(created.id);
+          purchases.set(purchaseKey, group);
+        }
+        if (input.price == null) result.priceToDefine += quantity;
+        result.imported += quantity;
       }
-      if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + 1;
+      acceptedRows++;
+      if (!input.imei) result.withoutImei = (result.withoutImei ?? 0) + quantity;
     } catch (error) {
       throw new InventoryError(`No se importó ningún equipo. Fila ${rowNum}: ${error instanceof DomainError ? error.message : 'No se pudo guardar el archivo completo. Volvé a intentarlo.'}`, error instanceof DomainError ? error.statusCode : 409);
     }
   }
 
+  await flushCreates();
+  for (const group of supplierPurchases.values()) {
+    await attachItemsToPurchase(storeId, group.supplierId, group.ids, options?.actor, group.name, group.purchasedAt, transaction);
+  }
   if (options?.supplierId) {
     for (const group of purchases.values()) {
       await attachItemsToPurchase(storeId, options.supplierId, group.ids, options.actor, group.name, group.purchasedAt, transaction);
     }
   }
-  return { ...result, diagnostics: { ...collector.finish(rows.length, result.imported + result.updated), ...(result.warnings ? { warnings: result.warnings } : {}) } };
+  return { ...result, diagnostics: { ...collector.finish(rows.length, acceptedRows), ...(result.warnings ? { warnings: result.warnings } : {}) } };
 }
 

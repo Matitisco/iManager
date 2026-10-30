@@ -1,0 +1,5 @@
+- [x] Reconocer y normalizar cantidades, incluidos aliases y valores vacíos.
+- [x] Mostrar cantidades y total de equipos en el importador compartido.
+- [x] Persistir unidades sin IMEI en lotes atómicos conservando costo/precio y proveedores.
+- [x] Retirar límite de 100 y permitir series de miles mediante lotes.
+- [x] Verificar TypeScript, tests relacionados, integración y preview 1440/390.
