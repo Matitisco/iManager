@@ -14,7 +14,7 @@ export const textRowSchema = z.object({
   price: z.number().finite().nonnegative().nullable(),
   currency: z.enum(['ARS', 'USD']).nullable(),
   cost: z.number().finite().nonnegative().nullable(),
-  quantity: z.number().int().min(1).max(100),
+  quantity: z.number().int().safe().min(1),
   dudas: z.array(z.string().max(250)).max(15),
 }).strict();
 export const textOutputSchema = z.object({
@@ -37,7 +37,7 @@ export const TEXT_OUTPUT_JSON_SCHEMA = {
         condition: { type: ['string', 'null'], enum: ['NUEVO', 'USADO', 'PRE-OWNED', 'OUTLET', null] },
         imei: nullableString, serial: nullableString, price: nullableNumber,
         currency: { type: ['string', 'null'], enum: ['ARS', 'USD', null] }, cost: nullableNumber,
-        quantity: { type: 'integer', minimum: 1, maximum: 100 },
+        quantity: { type: 'integer', minimum: 1 },
         dudas: { type: 'array', items: { type: 'string' } },
       },
     } },

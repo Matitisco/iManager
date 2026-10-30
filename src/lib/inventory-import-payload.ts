@@ -4,6 +4,7 @@ import { parseImportNumber } from './import-number';
 export function inventoryImportPayload(rows: Record<string, string>[]): InventoryImportRow[] {
   return rows.map((row) => ({
     sourceRow: row._sourceRow ? Number(row._sourceRow) : undefined,
+    quantity: row.quantity?.trim() ? Number(row.quantity) : 1,
     entryDate: row.entryDate,
     batteryNote: row.batteryNote,
     supplierName: row.supplierName,
@@ -14,7 +15,7 @@ export function inventoryImportPayload(rows: Record<string, string>[]): Inventor
     color: row.color,
     condition: row.condition,
     grade: row.grade,
-    batteryHealth: row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
+    batteryHealth: row._sourceRow ? row.batteryHealth : row.quantity ? row.batteryHealth || 'N/A' : row.batteryHealth,
     cost: parseImportNumber(row.cost) ?? row.cost,
     currency: row.currency === 'ARS' || row.currency === 'USD' ? row.currency : undefined,
     customFields: {

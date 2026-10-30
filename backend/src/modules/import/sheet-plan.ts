@@ -1,10 +1,11 @@
 import { parseQuality } from "../inventory/quality.js";
+import { DomainError } from '../../lib/domain-error.js';
 import { imeiPassesLuhn } from "../../lib/imei.js";
 import type { MoneyCurrency } from "../../lib/money-currency.js";
 import { autoMap, isPurchaseHeader, normalizeHeader, isIgnoredInventoryHeader } from "./column-mapping.js";
 import { IMPORT_CATALOGS, type ImportCatalog, type ImportSection } from "./import-catalog.js";
 import { amountCellCurrency, normalizeCurrencyToken, normalizeSectionRow, preferWhatsappPhone } from "./normalize-import.js";
-import { isInventoryFooter, isPossibleInventoryTotal, POSSIBLE_TOTAL_NOTE, prepareInventoryImportRow } from "../inventory/import-validation.js";
+import { isInventoryFooter, isPossibleInventoryTotal, POSSIBLE_TOTAL_NOTE, prepareInventoryImportRow, MAX_INVENTORY_IMPORT_ITEMS } from "../inventory/import-validation.js";
 import { recordRejection, countDiscard, emptyDiagnostics, missingFields, type ImportDiagnostics } from "./import-diagnostics.js";
 
 export const CONDITIONS = ["", "NUEVO", "USADO", "PRE-OWNED"] as const;
@@ -50,7 +51,7 @@ export type ImportSummary = {
   sheets: SheetSummary[];
 };
 
-const QUANTITY_HEADERS = new Set(["cantidad", "unidades", "qty", "quantity"]);
+const QUANTITY_HEADERS = new Set(["cantidad", "cant", "unidades", "qty", "quantity", "stock"]);
 const MONEY_FIELDS = new Set(["price", "cost", "amount", "takeValue", "differencePaid"]);
 const CAPACITY_RE = /^(.*\S)\s+(\d+(?:[.,]\d+)?)\s*(GB|TB|MB)\s*$/i;
 
@@ -737,7 +738,7 @@ export function applyPlans(
         const filled = Object.values(normalized).some((value) => value.trim());
         if (!filled) { countDiscard(diagnostics, "empty"); continue; }
         diagnostics.acceptedRows += 1;
-        count += 1;
+        count += section === "inventory" ? Number(normalized.quantity || 1) : 1;
         rows.push({ ...normalized, ...(["inventory", "sales"].includes(section) ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
@@ -769,6 +770,9 @@ export function applyPlans(
   }
   diagnostics.missingRequiredFields = [...new Set(missingSheets.flatMap((sheet) => sheet.diagnostics.missingRequiredFields))];
   diagnostics.missingRecommendedFields = [...new Set(missingSheets.flatMap((sheet) => sheet.diagnostics.missingRecommendedFields))];
+  if (section === 'inventory' && includedSheets.reduce((sum, sheet) => sum + sheet.rows, 0) > MAX_INVENTORY_IMPORT_ITEMS) {
+    throw new DomainError(`El archivo supera los ${MAX_INVENTORY_IMPORT_ITEMS} equipos. Dividilo en partes.`, 400);
+  }
   return {
     rows,
     plans,

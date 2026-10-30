@@ -88,6 +88,7 @@ function importConfig(kind: 'inv' | 'sale' | 'cl', supplier?: { id: string; name
       unrelatedNotice: 'Este archivo no parece tener equipos para importar.',
       fields: [
         { key: 'model', label: 'Modelo', required: true },
+        { key: 'quantity', label: 'Cantidad', required: false },
         { key: 'imei', label: IMEI_OPTIONAL_LABEL, required: false },
         { key: 'price', label: 'Precio', required: false },
         { key: 'currency', label: 'Moneda', required: false },

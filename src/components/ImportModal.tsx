@@ -305,7 +305,7 @@ export const ImportModal: React.FC<Props> = ({
   const updatingRows = selectedRows.filter(row => row.imei?.trim() && existing.has(row.imei.trim()));
   const updatingCount = new Set(updatingRows.map(row => row.imei.trim())).size;
   const replacementFields = fields.filter(field => field.key !== 'imei' && updatingRows.some(row => row[field.key] !== undefined && (field.key !== 'cost' || parseImportNumber(row.cost) !== undefined) && (field.key !== 'price' || Boolean(row.price?.trim())))).map(field => field.label);
-  const equipmentCount = textPreview ? selectedRows.reduce((sum, row) => sum + Number(row.quantity), 0) : selectedRows.length;
+  const equipmentCount = textPreview || isInventory ? selectedRows.reduce((sum, row) => sum + Number(row.quantity || 1), 0) : selectedRows.length;
   const validationError = textPreview ? selectedRows.map(textRowError).find(Boolean) ?? (equipmentCount > 2000 ? 'El listado supera los 2000 equipos.' : null) : null;
   const canImport = !applying && selectedRows.length > 0 && !validationError && (textPreview || ((isSales || requiredMissing.length === 0) && included.length > 0));
   const unrelated = rows.length === 0 && (notice === unrelatedNotice || notice === 'Este texto no parece tener equipos para importar');
@@ -315,7 +315,7 @@ export const ImportModal: React.FC<Props> = ({
   const selected = active ? fieldToColumn(active.mapping) : {};
   const missingPriceColumn = isInventory && !textPreview && (missingRecommendedFields.includes('price')
     || included.some(item => !item.mapping.some(column => column.field === 'price')));
-  const noPriceRows = isInventory ? selectedRows.filter(row => !row.price?.trim()).length : 0;
+  const noPriceRows = isInventory ? selectedRows.filter(row => !row.price?.trim()).reduce((sum, row) => sum + Number(row.quantity || 1), 0) : 0;
   const openAdjust = () => { setTargetField(null); setStep('adjust'); };
   const adjustField = (key: string) => {
     const sheet = included.find(item => !item.mapping.some(column => column.field === key));
@@ -508,7 +508,7 @@ export const ImportModal: React.FC<Props> = ({
           <p data-ph-mask className="text-xs text-gray-600 whitespace-pre-wrap break-words">{review[editing]?.original}</p>
           {review[editing]?.dudas.map((duda, index) => <p key={index} className="text-xs text-amber-900">{duda}</p>)}
           <div className="grid grid-cols-2 gap-3">
-            {[...fields.filter((field) => !['grade', 'status'].includes(field.key)), { key: 'currency', label: 'Moneda' }, { key: 'serial', label: 'Serie' }, { key: 'quantity', label: 'Cantidad' }].map((field) => <label key={field.key} className="text-xs font-medium text-gray-700 min-w-0">{field.label}
+            {[...fields.filter((field) => !['grade', 'status', 'currency', 'quantity'].includes(field.key)), { key: 'currency', label: 'Moneda' }, { key: 'serial', label: 'Serie' }, { key: 'quantity', label: 'Cantidad' }].map((field) => <label key={field.key} className="text-xs font-medium text-gray-700 min-w-0">{field.label}
               {['currency', 'condition'].includes(field.key) ? <DeskSelect label={field.label} value={rows[editing][field.key] ?? ''}
                 onChange={(value) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: value } : row))}
                 options={(field.key === 'currency' ? ['ARS', 'USD'] : ['USADO', 'NUEVO', 'PRE-OWNED', 'OUTLET']).map(value => ({ value, label: value }))} /> : <input aria-label={field.label} value={rows[editing][field.key] ?? ''} inputMode={['price', 'cost', 'quantity', 'imei'].includes(field.key) ? 'decimal' : undefined} onChange={(event) => setRows((current) => current.map((row, index) => index === editing ? { ...row, [field.key]: event.target.value } : row))} className="block w-full min-h-11 rounded-lg border border-gray-200 bg-white px-2 text-base" />}

@@ -125,6 +125,7 @@ export async function applyImportPlan(
 }
 
 export interface InventoryImportRow {
+  quantity?: number;
   sourceRow?: number;
   entryDate?: string | null;
   batteryNote?: string | null;
@@ -210,7 +211,8 @@ export async function importBackendRows(
         if (next.diagnostics?.warnings) next.diagnostics.warnings = next.diagnostics.warnings.map(warning => ({ ...warning, row: physicalRow(warning.row) }));
         if (next.diagnostics?.rejected) next.diagnostics.rejected = next.diagnostics.rejected.map(error => ({ ...error, row: physicalRow(error.row) }));
       }
-      if (['inventory', 'sales'].includes(section) && (next.partial || next.errors.length || next.imported + next.updated !== rows.length)) {
+      const expected = section === 'inventory' ? rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0) : rows.length;
+      if (['inventory', 'sales'].includes(section) && (next.partial || next.errors.length || next.imported + next.updated !== expected)) {
         throw new Error('No se pudo confirmar la importación completa: el conteo guardado no coincide con la vista previa. Revisá el inventario antes de reintentar.');
       }
       result = result ? mergeImportResults(result, next) : next;

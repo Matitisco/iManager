@@ -61,6 +61,38 @@ async function upload() {
   await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File([sheets[0].rows.map(row => row.join(',')).join('\n')], 'stock-falso.csv', { type: 'text/csv' }));
   await screen.findByTestId('import-preview-count');
 }
+
+it.each(['onboarding', 'inventory'])('%s muestra 141 unidades y envía cantidades y costo unitario sin expandir el preview', async entry => {
+  const fixture = analysis();
+  fixture.rows = [
+    { model: '15 Pro', quantity: '58', cost: '450', price: '650', currency: 'USD', _sourceSheet: 'Hoja 1', _sourceRow: '2' },
+    { model: '14 Pro', quantity: '83', cost: '350', price: '500', currency: 'USD', _sourceSheet: 'Hoja 1', _sourceRow: '3' },
+  ];
+  fixture.plan[0] = { ...fixture.plan[0], dataEndRow: 3, mapping: [
+    { header: 'Modelo', columnIndex: 0, field: 'model' },
+    { header: 'Cantidad', columnIndex: 1, field: 'quantity' },
+    { header: 'Costo USD', columnIndex: 2, field: 'cost' },
+    { header: 'Precio USD', columnIndex: 3, field: 'price' },
+  ] };
+  fixture.summary = { sheetCount: 1, rowCount: 141, sheets: [{ name: 'Hoja 1', rows: 141, included: true, condition: '' }] };
+  mocks.analyzeImport.mockResolvedValueOnce(fixture);
+  mocks.importBackendRows.mockResolvedValueOnce({ imported: 141, updated: 0, errors: [] });
+  if (entry === 'onboarding') onboarding();
+  else render(<DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ImportHost kind="inv" /></DeskProvider>);
+  await userEvent.upload(screen.getByLabelText('Archivo a importar'), new File(['Modelo,Cantidad,Costo USD,Precio USD\n15 Pro,58,450,650\n14 Pro,83,350,500'], 'mayorista.csv', { type: 'text/csv' }));
+  expect(await screen.findByTestId('import-preview-count')).toHaveTextContent('141 equipos');
+  const preview = screen.getByRole('table', { name: 'Vista previa de equipos' });
+  expect(within(preview).getByRole('button', { name: 'Importar Cantidad como' })).toBeVisible();
+  expect(within(preview).getByText('58')).toBeVisible();
+  expect(within(preview).getByText('83')).toBeVisible();
+  expect(within(preview).getAllByRole('row')).toHaveLength(3);
+  await userEvent.click(screen.getByRole('button', { name: 'Importar 141 equipos' }));
+  await waitFor(() => expect(mocks.importBackendRows).toHaveBeenCalledOnce());
+  expect(mocks.importBackendRows.mock.calls[0][2]).toEqual([
+    expect.objectContaining({ quantity: 58, cost: 450, price: 650, imei: '', sourceRow: 2 }),
+    expect.objectContaining({ quantity: 83, cost: 350, price: 500, imei: '', sourceRow: 3 }),
+  ]);
+});
 function onboarding() {
   const onFinish = vi.fn();
   render(<StockOnboarding onFinish={onFinish} />);

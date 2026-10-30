@@ -3,8 +3,14 @@ import { expandTextRows, textRowError } from './text-import-review';
 const row = { model: 'iPhone 13', price: '420', currency: 'USD', condition: 'USADO', quantity: '3', imei: '' };
 describe('text import review validation', () => {
   it('expands only reviewed quantities and preserves currency', () => {
-    expect(expandTextRows([row])).toEqual(Array(3).fill({ ...row, cost: '' }));
+    expect(expandTextRows([row])).toEqual(Array(3).fill({ ...row, quantity: '1', cost: '' }));
     expect(expandTextRows([row])[0]).not.toBe(expandTextRows([row])[1]);
+  });
+  it('permite cantidades mayores a 100 sin multiplicarlas dos veces', () => {
+    expect(textRowError({ ...row, quantity: '1001' })).toBeNull();
+    const expanded = expandTextRows([{ ...row, quantity: '1001' }]);
+    expect(expanded).toHaveLength(1001);
+    expect(expanded.every(item => item.quantity === '1')).toBe(true);
   });
   it.each([{ ...row, quantity: '0' }, { ...row, quantity: '1.5' }, { ...row, price: '-1' }, { ...row, cost: 'bad' }, { ...row, model: '' }, { ...row, currency: 'EUR' }, { ...row, imei: '350000000000001' }, { ...row, serial: 'ABCD' }])('rejects invalid/unreviewed values %s', (bad) => {
     expect(textRowError(bad)).toBeTruthy();

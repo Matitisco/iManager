@@ -39,14 +39,27 @@ export async function createBackendInventoryBatch(
   user: AuthUserLike,
   items: Omit<Product, 'id'>[],
 ): Promise<{ created: Product[]; errors: { index: number; imei: string; message: string }[] }> {
-  const data = await apiRequest<{ created?: Product[]; errors?: { index: number; imei: string; message: string }[] }>(user, '/api/inventory/batch', {
-    method: 'POST',
-    body: { items },
-    fallback: (status) => `No se pudo cargar la serie (${status})`,
-    errorFrom: 'friendly',
-  });
-  if (data.created?.length) deviceAdded();
-  return { created: data.created ?? [], errors: data.errors ?? [] };
+  const result: { created: Product[]; errors: { index: number; imei: string; message: string }[] } = { created: [], errors: [] };
+  const batchSize = 200;
+  for (let offset = 0; offset < Math.max(items.length, 1); offset += batchSize) {
+    const batch = items.slice(offset, offset + batchSize);
+    try {
+      const data = await apiRequest<{ created?: Product[]; errors?: { index: number; imei: string; message: string }[] }>(user, '/api/inventory/batch', {
+        method: 'POST', body: { items: batch }, timeoutMs: 120_000,
+        fallback: (status) => `No se pudo cargar la serie (${status})`, errorFrom: 'friendly',
+      });
+      result.created.push(...(data.created ?? []));
+      result.errors.push(...(data.errors ?? []).map(error => ({ ...error, index: error.index + offset })));
+    } catch (error) {
+      if (offset === 0) throw error;
+      // Report saved rows and global indices for all failed or unsent items.
+      result.errors.push(...items.slice(offset).map((item, index) => ({ index: offset + index, imei: item.imei,
+        message: error instanceof Error ? error.message : 'No se pudo cargar el equipo' })));
+      break;
+    }
+  }
+  if (result.created.length) deviceAdded();
+  return result;
 }
 
 export async function updateBackendInventoryItem(user: AuthUserLike, item: Product): Promise<Product> {
