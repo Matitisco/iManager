@@ -257,7 +257,7 @@ describe('fixtures anonimizados natan', () => {
   });
 });
 
-it('keeps all 59 rows of a semicolon CSV with decimal batteries and slash qualities through confirmation', async () => {
+it('keeps all 59 units of a semicolon CSV with decimal batteries and slash qualities through confirmation', async () => {
   vi.stubEnv('OPENAI_API_KEY', 'test-only');
   try {
     const content = ['Modelo;Batería;Calidad;Precio', ...Array.from({ length: 59 }, (_, i) =>
@@ -276,11 +276,11 @@ it('keeps all 59 rows of a semicolon CSV with decimal batteries and slash qualit
     expect(result.notice).toBeNull();
     expect(result.plan[0].mapping.map(column => column.field)).toEqual(fields);
     expect(result.plan[0].mapping.some(column => column.review?.length)).toBe(false);
-    expect(result.rows).toHaveLength(59);
+    expect(result.rows).toHaveLength(2);
     expect(result.rows.every(row => row.batteryHealth === '87%')).toBe(true);
-    expect(result.rows.map(row => row.grade)).toEqual(Array.from({ length: 59 }, (_, i) => i % 2 ? 'B/C' : 'A/A-'));
+    expect(result.rows.map(row => [row.grade, row.quantity])).toEqual([['A/A-', '30'], ['B/C', '29']]);
     expect(result.diagnostics).toMatchObject({ acceptedRows: 59, discardedRows: 0 });
     const confirmed = await importInventoryItems('synthetic-store', result.rows.map(row => ({ ...row, model: row.model, imei: '' })));
-    expect(confirmed).toMatchObject({ imported: 59, updated: 0, errors: [] });
+    expect(confirmed).toMatchObject({ imported: 2, updated: 0, errors: [], units: 59 });
   } finally { vi.unstubAllEnvs(); }
 });

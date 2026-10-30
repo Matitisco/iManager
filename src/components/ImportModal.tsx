@@ -10,7 +10,7 @@ import { Sheet } from '../desk/ui';
 import { assignColumn, columnKey, fieldToColumn, mappingFromFields, planColumns, updatePlanMapping } from '../lib/import-mapping';
 import type { ImportAnalysis, ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { parseWorkbook } from '../utils/parse-workbook';
-import { prepareTextRows, textRowError } from '../lib/text-import-review';
+import { groupTextReviewRows, prepareTextRows, textRowError } from '../lib/text-import-review';
 import { prepareAutomaticImportFields, unassignedImportColumns, type DiscardedImportColumns } from '../lib/import-custom-fields';
 import { parseImportNumber } from '../lib/import-number';
 import { ImportPreviewList, previewColumns } from './ImportPreviewList';
@@ -340,6 +340,11 @@ export const ImportModal: React.FC<Props> = ({
     setNewFieldReview(current => ({ sheet: source.sheet.name, request: (current?.request ?? 0) + 1 }));
   };
 
+  const finishTextEdit = () => {
+    const grouped = groupTextReviewRows(rows, review, currency, excluded);
+    setRows(grouped.rows); setReview(grouped.review); setExcluded(grouped.excluded); setEditing(null);
+  };
+
   const handleImport = async () => {
     if (importing || !canImport) return;
     setImporting(true);
@@ -517,7 +522,7 @@ export const ImportModal: React.FC<Props> = ({
           {textRowError(rows[editing]) && <p role="alert" className="text-sm text-red-700">{textRowError(rows[editing])}</p>}
           <div className="flex gap-3">
             <button type="button" className="btn2 s" style={{ minHeight: 44 }} onClick={() => { setExcluded((current) => new Set([...current, editing])); setEditing(null); }}>Excluir fila</button>
-            <button type="button" className="btn2 p" style={{ minHeight: 44 }} onClick={() => setEditing(null)}>Listo</button>
+            <button type="button" className="btn2 p" style={{ minHeight: 44 }} onClick={finishTextEdit}>Listo</button>
           </div>
         </fieldset>}
         {validationError && !selectedRows.some(textRowError) && <p role="alert" className="text-sm text-red-700">{validationError}</p>}

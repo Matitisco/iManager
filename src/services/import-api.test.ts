@@ -46,6 +46,14 @@ describe('import-api', () => {
     await expect(importBackendRows(mockUser, 'inventory', [{ model: '15 Pro', imei: '', price: null, quantity: 101 }])).rejects.toThrow('conteo guardado');
   });
 
+  it('acepta menos filas guardadas cuando el backend procesó todas y conserva unidades', async () => {
+    const rows = [{ model: 'iPhone 13', imei: '', price: 450, quantity: 2 }, { model: 'iPhone 13', imei: '', price: 450, quantity: 3 }];
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1, updated: 0, errors: [], processedRows: 2, units: 5 }));
+    expect(await importBackendRows(mockUser, 'inventory', rows)).toMatchObject({ imported: 1, units: 5 });
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(json({ imported: 1, updated: 0, errors: [], processedRows: 2, units: 4 }));
+    await expect(importBackendRows(mockUser, 'inventory', rows)).rejects.toThrow('conteo guardado');
+  });
+
   it('sends inventory text only to the authenticated backend with its bounded analysis timeout', async () => {
     const text = '13pm 256 azul usado bat 85 520usd';
     const analysis = { source: 'model', rows: [], review: [], discarded: [] };

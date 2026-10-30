@@ -1,3 +1,4 @@
+import { groupInventoryPreviewRows } from '../inventory/import-grouping.js';
 import { parseQuality } from "../inventory/quality.js";
 import { DomainError } from '../../lib/domain-error.js';
 import { imeiPassesLuhn } from "../../lib/imei.js";
@@ -603,6 +604,8 @@ export function applyPlans(
       seen.add(column.field);
       return true;
     });
+    const assigned = new Set(mapping.map(column => mappingColumnIndex(headers, column)));
+    const unassignedColumns = headers.flatMap((header, index) => assigned.has(index) ? [] : [{ header, index }]);
     const diagnostics = { ...emptyDiagnostics(), ...missingFields(section, mapping.map((column) => column.field)) };
     const rate = findRate(grid);
     const usdHeader = headers.find((header) => priceKind(header) === "usd") ?? "";
@@ -739,6 +742,12 @@ export function applyPlans(
         if (!filled) { countDiscard(diagnostics, "empty"); continue; }
         diagnostics.acceptedRows += 1;
         count += section === "inventory" ? Number(normalized.quantity || 1) : 1;
+        if (section === 'inventory') {
+          // Ignored columns become custom fields in the browser unless explicitly
+          // discarded. Protect their values before collapsing source rows.
+          const unassigned = unassignedColumns.map(({ header, index }) => [header, line[index] ?? '']);
+          if (unassigned.length) normalized._unassignedKey = JSON.stringify(unassigned);
+        }
         rows.push({ ...normalized, ...(["inventory", "sales"].includes(section) ? { _sourceRow: String(rowIndex), _sourceSheet: plan.name } : {}) });
       }
     }
@@ -774,7 +783,7 @@ export function applyPlans(
     throw new DomainError(`El archivo supera los ${MAX_INVENTORY_IMPORT_ITEMS} equipos. Dividilo en partes.`, 400);
   }
   return {
-    rows,
+    rows: section === "inventory" ? groupInventoryPreviewRows(rows, storeCurrency).map(group => group.row) : rows,
     plans,
     diagnostics,
     summary: {

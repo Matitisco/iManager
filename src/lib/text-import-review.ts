@@ -1,3 +1,4 @@
+import { groupInventoryPreviewRows } from '../../backend/src/modules/inventory/import-grouping';
 import { parseImportNumber } from './import-number';
 
 export function textRowError(row: Record<string, string>): string | null {
@@ -17,9 +18,33 @@ export function textRowError(row: Record<string, string>): string | null {
 export function prepareTextRows(rows: Record<string, string>[]): Record<string, string>[] {
   const count = rows.reduce((sum, row) => sum + Number(row.quantity || 1), 0);
   if (!Number.isFinite(count) || count > 2000) throw new Error('El listado supera los 2000 equipos.');
-  return rows.map((row) => {
+  const prepared = rows.map((row) => {
     const error = textRowError(row);
     if (error) throw new Error(error);
     return { ...row, quantity: row.quantity || '1', price: row.price?.trim() ? String(parseImportNumber(row.price)) : '', cost: row.cost?.trim() ? String(parseImportNumber(row.cost)) : row.cost ?? '' };
   });
+  return groupInventoryPreviewRows(prepared, '').map(group => group.row);
+}
+
+/** Regroup after editing while keeping review text and exclusions aligned. */
+export function groupTextReviewRows(
+  rows: Record<string, string>[],
+  review: { line: number; original: string; dudas: string[] }[],
+  currency: string,
+  excluded = new Set<number>(),
+) {
+  const selected = rows.map((row, index) => ({ row, index })).filter(item => !excluded.has(item.index));
+  const groups = groupInventoryPreviewRows(selected.map(item => item.row), currency)
+    .map(group => ({ row: group.row, indices: group.indices.map(index => selected[index].index), excluded: false }));
+  for (const index of excluded) groups.push({ row: rows[index], indices: [index], excluded: true });
+  groups.sort((a, b) => a.indices[0] - b.indices[0]);
+  return {
+    rows: groups.map(group => group.row),
+    review: groups.map(group => ({
+      line: review[group.indices[0]]?.line ?? group.indices[0] + 1,
+      original: group.indices.map(index => review[index]?.original ?? '').filter(Boolean).join('\n'),
+      dudas: [...new Set(group.indices.flatMap(index => review[index]?.dudas ?? []))],
+    })),
+    excluded: new Set(groups.flatMap((group, index) => group.excluded ? [index] : [])),
+  };
 }

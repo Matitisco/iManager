@@ -1,3 +1,4 @@
+import { groupInventoryPreviewRows } from '../../backend/src/modules/inventory/import-grouping';
 import type { CustomFieldInput } from '../services/custom-fields-api';
 import type { ImportSheetPayload, ImportSheetPlan } from '../services/import-api';
 import { columnLetter, importColumns } from './import-preview';
@@ -51,5 +52,6 @@ export function prepareAutomaticImportFields(
     if (!original) return row;
     return { ...row, ...Object.fromEntries(source.columns.map(column => [column.key, original[column.index] ?? ''])) };
   });
-  return { rows: importingRows, definitions: [...definitions, ...additions].filter(field => importingRows.some(row => Object.hasOwn(row, `custom:${field.key}`))) };
+  const grouped = groupInventoryPreviewRows(importingRows.map(({ _unassignedKey, ...row }) => row), '').map(group => group.row);
+  return { rows: grouped, definitions: [...definitions, ...additions].filter(field => importingRows.some(row => Object.hasOwn(row, `custom:${field.key}`))) };
 }

@@ -1,3 +1,4 @@
+import { groupInventoryPreviewRows } from '../../backend/src/modules/inventory/import-grouping';
 import { ReplayValue } from '../desk/replay-privacy';
 import { capture } from '../lib/posthog-analytics';
 import { track, rowBucket } from '../lib/analytics';
@@ -255,6 +256,10 @@ function StockFlow({
     }
     setRows([]);
     await finish("inventory");
+  };
+  const finishTextEdit = () => {
+    setRows(current => groupInventoryPreviewRows(current, '').map(group => group.row));
+    setEditing(null);
   };
   const change = (field: string, value: string) =>
     setRows((current) =>
@@ -607,6 +612,7 @@ function StockFlow({
                             ? ` · ×${row.quantity}`
                             : ""}
                         </small>
+                        {Number(row._groupedLines) > 1 && <small>agrupadas {row._groupedLines} líneas</small>}
                         {row._review && (
                           <small className="onb-doubt">⚠ {row._review}</small>
                         )}
@@ -705,9 +711,9 @@ function StockFlow({
           ref={editorDialog}
           className="onb-edit-backdrop"
           aria-label="Revisar equipo"
-          onCancel={() => setEditing(null)}
+          onCancel={finishTextEdit}
           onClick={(event) => {
-            if (event.target === event.currentTarget) setEditing(null);
+            if (event.target === event.currentTarget) finishTextEdit();
           }}
         >
           <section className="onb-editor">
@@ -768,7 +774,7 @@ function StockFlow({
             {textRowError(rows[editing]) && (
               <p role="alert">{textRowError(rows[editing])}</p>
             )}
-            <button className="onb-primary" onClick={() => setEditing(null)}>
+            <button className="onb-primary" onClick={finishTextEdit}>
               Listo
             </button>
             <button

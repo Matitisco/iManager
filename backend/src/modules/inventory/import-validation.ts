@@ -93,11 +93,11 @@ export function validateInventoryImportRow(raw: Row, row: number, seenImeis: Rea
   const condition = conditionKey ? CONDITIONS[conditionKey] : 'USADO';
   if (!condition) return reject('invalid_row', 'La condición no existe');
   const parsedImei = parseImportImei(raw.imei);
-  if (!parsedImei.ok) return reject('invalid_imei', parsedImei.message);
+  if (parsedImei.ok === false) return reject('invalid_imei', parsedImei.message);
   const firstRow = parsedImei.imei ? seenImeis.get(parsedImei.imei) : undefined;
   if (firstRow !== undefined) return reject('duplicate', `IMEI repetido en el archivo (igual a la fila ${firstRow})`);
   const parsedGrade = inventoryGrade(condition, raw.grade);
-  if (!parsedGrade.ok) return reject('invalid_row', parsedGrade.message);
+  if (parsedGrade.ok === false) return reject('invalid_row', parsedGrade.message);
   const color = raw.color?.trim() || '';
   if (color.length > 50) return reject('invalid_row', 'El color puede tener hasta 50 caracteres');
   const entryDate = raw.entryDate ? parseArDate(raw.entryDate) : null;

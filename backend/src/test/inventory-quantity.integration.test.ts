@@ -109,3 +109,38 @@ it('la ruta de carga en serie acepta más de 200 equipos', async () => {
   expect(response.json().errors).toEqual([]);
   expect(await prisma.inventoryItem.count({ where: { storeId: store!.id } })).toBe(201);
 }, 20_000);
+
+
+it('agrupa solo este import y conserva una fila idéntica previa, variantes e IMEI', async () => {
+  const { store } = await seedStoreContext();
+  const base = { model: 'iPhone 13', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%', cost: 300, price: 450, currency: 'USD', status: 'DISPONIBLE' };
+  const existing = await prisma.inventoryItem.create({ data: { ...base, storeId: store!.id, cantidad: 9 } });
+  const response = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows: [
+    { ...base, quantity: 2 }, { ...base, quantity: 3 }, base,
+    { ...base, color: 'Rojo' }, { ...base, price: 451 }, { ...base, cost: 301 },
+    { ...base, imei: '990000000000038' }, { ...base, imei: '990000000001109' },
+  ] } });
+  expect(response.statusCode, response.body).toBe(200);
+  expect(response.json()).toMatchObject({ imported: 6, updated: 0, processedRows: 8, units: 11, errors: [] });
+  expect(await prisma.inventoryItem.findUnique({ where: { id: existing.id } })).toEqual(existing);
+  const items = await prisma.inventoryItem.findMany({ where: { storeId: store!.id, id: { not: existing.id } } });
+  expect(items).toHaveLength(6);
+  expect(items.find(item => item.cantidad === 6)).toMatchObject({ model: base.model, color: 'Negro', imei: null });
+  expect(items.filter(item => item.imei)).toHaveLength(2);
+  expect(items.reduce((sum, item) => sum + item.cantidad, 0)).toBe(11);
+});
+
+it('confirma Excel repetido con el mismo resultado que analyze/apply y una línea 73 sigue siendo una fila', async () => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const { store } = await seedStoreContext();
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Cantidad', 'Precio USD'], ['iPhone 13', '2', '450'], ['iPhone 13', '3', '450'], ['iPhone 14', '73', '500']] }];
+  const preview = await getApp().inject({ method: 'POST', url: '/api/import/analyze', headers, payload: { section: 'inventory', sheets } });
+  expect(preview.statusCode, preview.body).toBe(200);
+  expect(preview.json().rows).toHaveLength(2);
+  expect(preview.json().rows.map((row: Record<string, string>) => row.quantity)).toEqual(['5', '73']);
+  const saved = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers, payload: { rows: preview.json().rows } });
+  expect(saved.statusCode, saved.body).toBe(200);
+  expect(saved.json()).toMatchObject({ imported: 2, units: 78 });
+  const items = await prisma.inventoryItem.findMany({ where: { storeId: store!.id } });
+  expect(items.map(item => item.cantidad).sort((a, b) => a - b)).toEqual([5, 73]);
+});

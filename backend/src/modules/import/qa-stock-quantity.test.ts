@@ -83,3 +83,20 @@ it('el plan externo ofrece y aplica el campo cantidad', () => {
   const plan = plansFromAnswers(context, [{ name: 'h0_inc', probability: 1 }, { name: 'h0_c1', choice: 'quantity' }], 'inventory', 'USD');
   expect(plan[0].mapping).toContainEqual(expect.objectContaining({ field: 'quantity', columnIndex: 1 }));
 });
+
+
+it('agrupa filas Excel idénticas entre hojas, con cantidades 2 + 3 y sin cantidad', async () => {
+  vi.stubEnv('OPENAI_API_KEY', '');
+  const sheets = [{ name: 'A', rows: [['Modelo', 'Cantidad', 'Precio USD'], ['iPhone 13', '2', '450'], ['iPhone 13', '3', '450'], ['iPhone 13', '', '450']] }];
+  const result = await analyzeImport({ section: 'inventory', currency: 'USD', sheets });
+  expect(result.rows).toHaveLength(1);
+  expect(result.rows[0]).toMatchObject({ quantity: '6', _groupedLines: '3' });
+  expect(result.summary.rowCount).toBe(6);
+  expect((await applyImportPlan({ section: 'inventory', currency: 'USD', sheets, plan: result.plan })).rows).toEqual(result.rows);
+});
+
+it('preview no pierde valores distintos de columnas todavía sin asignar', () => {
+  const sheets = [{ name: 'Stock', rows: [['Modelo', 'Precio USD', 'Ubicación interna'], ['iPhone 13', '450', 'A'], ['iPhone 13', '450', 'B']] }];
+  const plan = heuristicPlan(sheets, 'inventory', 'USD').map(plan => ({ ...plan, mapping: plan.mapping.map(column => column.header === 'Ubicación interna' ? { ...column, field: 'ignore' } : column) }));
+  expect(applyPlans(sheets, plan, 'inventory', 'USD').rows).toHaveLength(2);
+});

@@ -119,3 +119,20 @@ it('publica avances reales y el resultado final por NDJSON sin escribir stock', 
   expect(events[1]).toMatchObject({ type: 'result', analysis: { rows: [{ model: 'iPhone 13' }] } });
   expect(await prisma.inventoryItem.count()).toBe(0);
 });
+
+
+it('preview de texto y confirmación comparten el agrupado de cantidades 2 + 3', async () => {
+  const context = await seedStoreContext();
+  mockLLM([{ ...row, quantity: 2 }, { ...row, line: 2, endLine: 2, quantity: 3 }]);
+  const line = 'iPhone 13 128GB azul usado 89% costo USD350 venta USD420';
+  const preview = await getApp().inject({ method: 'POST', url: '/api/import/analyze-text', headers: headers(context), payload: { text: `${line} x2\n${line} x3` } });
+  expect(preview.statusCode, preview.body).toBe(200);
+  expect(preview.json().rows).toHaveLength(1);
+  expect(preview.json().rows[0]).toMatchObject({ quantity: '5', _groupedLines: '2' });
+  const saved = await getApp().inject({ method: 'POST', url: '/api/inventory/import', headers: headers(context), payload: { rows: preview.json().rows } });
+  expect(saved.statusCode, saved.body).toBe(200);
+  expect(saved.json()).toMatchObject({ imported: 1, updated: 0, units: 5 });
+  const items = await prisma.inventoryItem.findMany({ where: { storeId: context.store!.id } });
+  expect(items).toHaveLength(1);
+  expect(items[0].cantidad).toBe(5);
+});

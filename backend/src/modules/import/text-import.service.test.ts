@@ -93,7 +93,8 @@ it('chunks all 500 lines, limits concurrency and keeps global provenance/order',
     return response({ rows: chunk.lines.map(({ line }) => ({ ...row, line, endLine: line })), discarded: [] });
   });
   const result = await analyzeTextImport({ text: Array(500).fill(text).join('\r\n'), currency: 'ARS' }, { fetchImpl });
-  expect(result.rows).toHaveLength(500); expect(result.review[499].line).toBe(500);
+  expect(result.rows).toHaveLength(1); expect(result.rows[0]).toMatchObject({ quantity: '500', _groupedLines: '500' });
+  expect(result.review[0].original.split('\n')).toHaveLength(500);
   expect(result.usage.calls).toBe(Math.ceil(500 / TEXT_LIMITS.chunkLines));
   expect(peak).toBeLessThanOrEqual(TEXT_LIMITS.concurrency);
 });
@@ -166,10 +167,14 @@ describe('57 realistic parser fixtures with a mocked LLM', () => {
     const rows = textOutputSchema.shape.rows.parse(JSON.parse(readFileSync(fixtureDir + name.replace('.txt', '.expected.json'), 'utf8')).rows);
     const fetchImpl = vi.fn(async () => response({ rows, discarded: [] }));
     const result = await analyzeTextImport({ text, currency: 'ARS' }, { fetchImpl });
-    expect(result.rows).toHaveLength(rows.length);
-    for (const [index, row] of rows.entries()) {
+    expect(result.rows.reduce((sum, row) => sum + Number(row.quantity), 0)).toBe(rows.reduce((sum, row) => sum + row.quantity, 0));
+    // Every original line remains represented after grouping, with its own
+    // model/identifier/money. Review metadata stays aligned with the result.
+    for (const row of rows) {
       textRowSchema.parse(row);
-      expect(result.rows[index]).toMatchObject({ model: row.model, imei: row.imei ?? '', price: row.price === null ? '' : String(row.price), currency: row.currency ?? '', quantity: String(row.quantity) });
+      const index = result.rows.findIndex((item, index) => item.model === row.model && item.imei === (row.imei ?? '') && item.price === (row.price === null ? '' : String(row.price)) && (result.review[index].line === row.line || result.review[index].original.split('\n').includes(text.trim().split('\n')[row.line - 1])));
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(result.rows[index]).toMatchObject({ model: row.model, imei: row.imei ?? '', price: row.price === null ? '' : String(row.price), currency: row.currency ?? '' });
     }
     if (!rows.length) expect(result.notice).toBe(UNRELATED_TEXT_NOTICE);
   });
@@ -220,4 +225,22 @@ it('accepts every generated Samsung suggestion without confusing Plus and base m
   expect(families).toEqual(['S', 'Z', 'A', 'Note', 'M', 'F']);
   const firstSamsung = INVENTORY_MODELS.indexOf(SAMSUNG_MODELS[0]);
   expect(INVENTORY_MODELS.slice(0, firstSamsung).every(model => model.startsWith('iPhone'))).toBe(true);
+});
+
+
+it('agrupa texto x2 + x3 con review alineada y conserva variantes e IMEI', async () => {
+  process.env.OPENAI_API_KEY = 'mock';
+  const lines = [text + ' x2', text + ' x3', text + ' rojo', text + ' IMEI 990000000000038'];
+  const result = await analyzeTextImport({ text: lines.join('\n'), currency: 'USD' }, {
+    fetchImpl: vi.fn(async () => response({ rows: [
+      { ...row, quantity: 2 }, { ...row, quantity: 3, line: 2, endLine: 2 },
+      { ...row, color: 'Rojo', line: 3, endLine: 3 }, { ...row, imei: '990000000000038', line: 4, endLine: 4 },
+    ], discarded: [] })),
+  });
+  expect(result.rows).toHaveLength(3);
+  expect(result.rows[0]).toMatchObject({ quantity: '5', _groupedLines: '2' });
+  expect(result.rows[1]).toMatchObject({ quantity: '1', color: 'Rojo' });
+  expect(result.rows[2]).toMatchObject({ quantity: '1', imei: '990000000000038' });
+  expect(result.review.map(review => review.line)).toEqual([1, 3, 4]);
+  expect(result.review[0].original).toBe(lines.slice(0, 2).join('\n'));
 });

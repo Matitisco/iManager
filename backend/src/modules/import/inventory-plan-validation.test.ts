@@ -59,8 +59,9 @@ it('checks rows beyond the prompt sample, per-sheet acceptance, fields and conte
   const plan = heuristicPlan(sheets, 'inventory', 'USD');
   const checked = validateInventoryPlan(sheets, plan, 'USD');
   expect(checked.issues.map(i => i.message).join(' ')).toContain('19/100');
-  expect(checked.applied.rows).toHaveLength(100);
-  expect(checked.applied.rows.filter(row => row.batteryNote?.includes('ilegible'))).toHaveLength(19);
+  expect(checked.applied.rows).toHaveLength(2);
+  expect(checked.applied.rows.reduce((sum, row) => sum + Number(row.quantity), 0)).toBe(100);
+  expect(checked.applied.rows.find(row => row.batteryNote?.includes('ilegible'))?.quantity).toBe('19');
   expect(checked.applied.diagnostics.discardedRows).toBe(0);
 });
 it.each([['A', 'grade'], ['AA+', 'custom:condicion_origen']])('repairs any invalid condition column (%s) before preview validation', async (quality, field) => {
