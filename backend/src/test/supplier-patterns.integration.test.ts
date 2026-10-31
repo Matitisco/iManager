@@ -93,7 +93,7 @@ describe("contratos backend proveedores/patrones #308", () => {
     for (const path of [url, `/api/suppliers/${f.supplier.id}`, `/api/suppliers/${f.supplier.id}/purchases`]) {
       const staff = await app.inject({ method: "GET", url: path, headers: f.staffHeaders });
       expect(staff.statusCode, staff.body).toBe(200);
-      expect(staff.body).not.toMatch(/"(?:cost|totalCost|costTotals)":/);
+      expect(staff.body).toMatch(/"(?:cost|totalCost|costTotals)":/);
     }
     await prisma.storeMember.update({ where: { id: f.membership.id }, data: { sections: ["inventory", "sales", "reports"] } });
     const authorizedStaff = await app.inject({ method: "GET", url, headers: f.staffHeaders });
@@ -207,7 +207,7 @@ describe("contratos backend proveedores/patrones #308", () => {
     }
     const detail = await app.inject({ method: "GET", url: `/api/inventory/${f.review.id}`, headers: f.staffHeaders });
     expect(detail.json().inventoryItem).toMatchObject({ purchaseSummary: { problems: 4, devices: 5 }, purchasedAt: "2026-09-20", purchaseName: "Septiembre" });
-    expect(detail.body).not.toContain('"cost":');
+    expect(detail.json().inventoryItem.cost).toBe(100);
     const loose = await app.inject({ method: "GET", url: `/api/inventory/${f.loose.id}`, headers: ownerHeaders });
     expect(loose.json().inventoryItem).toMatchObject({ purchaseSummary: null, stockPurchaseId: null, purchaseName: null, purchasedAt: null });
     for (const suffix of [`?supplierId=${f.otherSupplier.id}`, `?supplierId=${f.otherSupplier.id}&take=50`, `/ids?supplierId=${f.otherSupplier.id}`]) {

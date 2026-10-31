@@ -338,14 +338,14 @@ describe("commissions API (adapted from #122)", () => {
     expect(ownerMine.body).not.toMatch(/"(?:cost|grossProfit|takeValue)"/);
     expect((await getApp().inject({ url: `/api/commissions/mine?memberId=${f.membership!.id}`, headers: f.headers })).statusCode).toBe(400);
   });
-  it("requires Reportes as well for financial detail and commissions report", async () => {
+  it("temporarily shows staff financial detail while commissions report still requires Reportes", async () => {
     const f = await fixture();
     await rule();
     await sell(f.member.id);
     await prisma.storeMember.update({ where: { id: f.member.id }, data: { sections: ["commissions"] } });
     const hidden = await detail(f.member.id, PERIOD, f.headers);
-    expect(hidden.sales[0]).not.toHaveProperty("grossProfit");
-    expect(hidden.sales[0]).not.toHaveProperty("cost");
+    expect(hidden.sales[0]).toHaveProperty("grossProfit", 1000);
+    expect(hidden.sales[0]).toHaveProperty("cost", 0);
     const reportUrl = "/api/reports/commissions?from=2026-01&to=2026-02";
     expect((await getApp().inject({ url: reportUrl, headers: f.headers })).statusCode).toBe(403);
     await prisma.storeMember.update({ where: { id: f.member.id }, data: { sections: ["commissions", "reports"] } });

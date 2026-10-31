@@ -25,13 +25,13 @@ const staff = {
 };
 
 describe("financial visibility", () => {
-  it("follows an explicit reports grant and keeps the employee default closed", () => {
+  it("temporarily shows staff financials regardless of reports access", () => {
     expect(canSeeFinancials({ role: "OWNER", sections: null })).toBe(true);
     expect(canSeeFinancials({ role: "MANAGER", sections: null })).toBe(true);
     expect(canSeeFinancials({ role: "MANAGER", sections: ["sales", "reports"] })).toBe(true);
     expect(canSeeFinancials({ role: "MANAGER", sections: ["sales"] })).toBe(false);
-    expect(canSeeFinancials({ role: "STAFF", sections: null })).toBe(false);
-    expect(canSeeFinancials({ role: "STAFF", sections: ["sales"] })).toBe(false);
+    expect(canSeeFinancials({ role: "STAFF", sections: null })).toBe(true);
+    expect(canSeeFinancials({ role: "STAFF", sections: ["sales"] })).toBe(true);
     expect(canSeeFinancials({ role: "STAFF", sections: ["reports", "sales"] })).toBe(true);
     expect(canAccessSection("reports", { role: "STAFF", sections: ["reports"] })).toBe(true);
     expect(canAccessSection("reports", { role: "STAFF", sections: null })).toBe(false);

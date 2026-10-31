@@ -216,7 +216,7 @@ describe('Sales column filters', () => {
     expect(screen.getByRole('columnheader', { name: /Venta/ })).toBeInTheDocument();
   });
 
-  it('shows billing and margin only to members who can open reports', () => {
+  it('temporarily shows staff billing and margin without reports access', () => {
     context.sales = [sale(1, { amount: 1000, productId: 'eq', status: 'COMPLETADA' })];
     context.inventory = [{
       id: 'eq', imei: '123456789012345', model: 'Pixel', capacity: '128 GB', color: 'Negro',
@@ -241,9 +241,9 @@ describe('Sales column filters', () => {
 
     context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
     const staff = renderScreen();
-    expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
-    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
-    expect(screen.queryByText('≈ 60%')).not.toBeInTheDocument();
+    expect(screen.getByText('Facturación total')).toBeInTheDocument();
+    expect(screen.getByText('Ganancia total')).toBeInTheDocument();
+    expect(screen.getByText('≈ 60%')).toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();
     staff.unmount();
@@ -307,11 +307,11 @@ describe('Sales on a phone', () => {
     expect(screen.getByTestId('sales-hero')).toHaveTextContent('Ganancia total');
   });
 
-  it('hides billing and margin when the member cannot open reports', () => {
+  it('temporarily shows staff billing and margin on a phone without reports access', () => {
     context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
     renderScreen();
-    expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
-    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
+    expect(screen.getByText('Facturación total')).toBeInTheDocument();
+    expect(screen.getByText('Ganancia total')).toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
   });

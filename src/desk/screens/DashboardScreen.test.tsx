@@ -321,17 +321,18 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByTestId('dashboard-sales-loading')).toBeNull();
   });
 
-  it('oculta las finanzas sin consultar overview cuando falta permiso', async () => {
+  it('temporalmente muestra finanzas al empleado sin permiso de Reportes', async () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     renderScreen();
-    expect(screen.queryByRole('button', { name: /^Ventas|Margen bruto/ })).toBeNull();
-    expect(screen.queryByText('Tendencia de ventas')).toBeNull();
-    expect(screen.queryByText('Medios de pago')).toBeNull();
+    expect(await screen.findByText('$ 12,69M')).toBeVisible();
+    expect(screen.getAllByRole('button', { name: /^Ventas|Margen bruto/ })).toHaveLength(2);
+    expect(screen.getByText('Tendencia de ventas')).toBeVisible();
+    expect(screen.getByText('Medios de pago')).toBeVisible();
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
     expect(screen.queryByTestId('dashboard-trades')).toBeNull();
     expect(screen.queryByRole('button', { name: /Saldos a cobrar/ })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Invitar' })).toBeNull();
-    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
     expect(api.listMembers).not.toHaveBeenCalled();
   });
 
@@ -415,7 +416,7 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByText('$ 999')).toBeNull();
   });
 
-  it('descarta respuestas al cambiar de tienda y al perder permiso', async () => {
+  it('descarta respuestas al cambiar de tienda y de permisos del empleado', async () => {
     const resolvers: Array<(value: ReportsOverview) => void> = [];
     api.fetchReportsOverview.mockImplementation(() => new Promise(resolve => resolvers.push(resolve)));
     const view = renderScreen();
@@ -426,7 +427,8 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales'] };
     view.rerender(dashboardView());
     await act(async () => resolvers[1](report));
-    expect(screen.queryByRole('button', { name: /^Ventas/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Ventas/ })).toBeVisible();
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
   });
 
   it('en celular conserva CTA, mes y ventas clicables con accesos reales', async () => {
@@ -603,18 +605,20 @@ describe('Dashboard aprobado', () => {
     expect([stock, trades, balances].map(card => card.textContent)).toEqual(stable);
   });
 
-  it('sin finanzas cuenta solo ventas completadas no anuladas del rango y Total', async () => {
+  it('temporalmente usa el conteo financiero para el empleado en el rango y Total', async () => {
     const user = userEvent.setup();
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     context.sales = [makeSale('ok', '2026-10-22', 'Actual'), makeSale('past', '2020-01-01', 'Histórica'), { ...makeSale('p', '2026-10-22', 'Pendiente'), status: 'PENDIENTE' }, { ...makeSale('v', '2026-10-22', 'Anulada'), voidedAt: '2026-10-22' }];
     renderScreen();
-    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('1');
+    expect(await screen.findByText('$ 12,69M')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('15');
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     await user.click(screen.getByRole('button', { name: 'Total' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
-    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('2');
+    expect(await screen.findByText('$ 12,69M')).toBeVisible();
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent('15');
     expect(screen.getByText('Histórica')).toBeVisible();
-    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
   });
 
   it('no presenta ceros ni caché como cifras válidas si falló una lista inicial', async () => {
@@ -641,27 +645,29 @@ describe('Dashboard aprobado', () => {
     expect(api.fetchReportsOverview).toHaveBeenCalledTimes(calls);
   });
 
-  it('no presenta como cero métricas de listas sin permiso de lectura', () => {
+  it('temporalmente muestra finanzas al empleado y respeta los permisos de listas', async () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'clients'] };
     renderScreen();
-    expect(screen.queryByText('Equipos vendidos')).toBeNull();
+    expect(await screen.findByText('$ 12,69M')).toBeVisible();
+    expect(screen.getByText('Equipos vendidos')).toBeVisible();
     expect(screen.queryByText('Stock disponible')).toBeNull();
     expect(screen.queryByTestId('dashboard-sales')).toBeNull();
-    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: /Saldos a cobrar/ })).toBeVisible();
   });
 
-  it('reserva el layout autorizado mientras se resuelven Primeros pasos', () => {
+  it('reserva el layout autorizado mientras se resuelven Primeros pasos', async () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     context.gettingStartedLoaded = false;
     const view = renderScreen();
-    expect(document.querySelectorAll('.dstat')).toHaveLength(2);
-    expect(document.querySelector('.v3-stretch')).toBeNull();
+    expect(document.querySelectorAll('.dstat')).toHaveLength(4);
+    expect(document.querySelector('.v3-stretch')).not.toBeNull();
     context.gettingStartedLoaded = true;
     view.rerender(dashboardView());
-    expect(document.querySelectorAll('.dstat')).toHaveLength(2);
-    expect(document.querySelector('.v3-stretch')).toBeNull();
-    expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+    expect(await screen.findByText('$ 12,69M')).toBeVisible();
+    expect(document.querySelectorAll('.dstat')).toHaveLength(4);
+    expect(document.querySelector('.v3-stretch')).not.toBeNull();
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
   });
 
 });
