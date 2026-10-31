@@ -22,7 +22,7 @@ const ROWS = [
   ['iPhone 16 Pro Max', '256GB', 740, 5, 770],
 ] as const;
 
-async function fixture() {
+async function fixture(status: 'COMPLETADA' | 'PENDIENTE' = 'COMPLETADA') {
   const { user, store } = await seedStoreContext();
   await prisma.store.update({ where: { id: store!.id }, data: { currency: 'USD' } });
   await prisma.cashRegister.create({ data: { storeId: store!.id, name: 'USD', currency: 'USD', method: 'EFECTIVO', balance: 0, isDefault: true } as never });
@@ -30,7 +30,7 @@ async function fixture() {
   const actor = { userId: user.id, name: 'Owner' };
   for (const [model, capacity, cost, qty, amount] of ROWS) {
     const product = await prisma.inventoryItem.create({ data: { storeId: store!.id, model, capacity, color: '', condition: 'USADO', grade: '', batteryHealth: '', cost, price: null, currency: 'USD', cantidad: 10, status: 'DISPONIBLE' } as never });
-    await createOperation(store!.id, 'sales', { productId: product.id, cantidad: qty, amount, currency: 'USD', clientId: client.id, paymentMethod: 'EFECTIVO', status: 'COMPLETADA' } as never, actor);
+    await createOperation(store!.id, 'sales', { productId: product.id, cantidad: qty, amount, currency: 'USD', clientId: client.id, paymentMethod: 'EFECTIVO', status } as never, actor);
   }
   await prisma.inventoryItem.updateMany({ where: { model: 'iPhone 16 Pro' }, data: { currency: 'ARS' } });
   return { store: store!, client };
@@ -108,6 +108,25 @@ describe('POST /admin/sale-corrections', () => {
     expect(s).toEqual(expect.objectContaining({ amount: 2025, status: 'PENDIENTE', openBalance: 1620 }));
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).pendingBalance)).toBe(1620);
     expect(Number((await prisma.cashMovement.aggregate({ _sum: { amount: true } }))._sum.amount)).toBe(405 + 515 + 560 + 675 + 770);
+  });
+
+  it('pending sales (as in production): unit prices become totals, all of it stays as client debt, no cash', async () => {
+    const { client } = await fixture('PENDIENTE');
+    const stockBefore = await stock();
+    const payload = body({}, [1, 2, 3, 4, 5].map(n => ({ ...sale(n, { expectStatus: 'PENDIENTE' }), unitPrice: ROWS[n - 1]![4], collectDifference: false })));
+    const dry = await post({ ...payload, dryRun: true });
+    expect(dry.statusCode, dry.body).toBe(200);
+    expect((await amounts()).map(s => s.amount)).toEqual([405, 515, 560, 675, 770]);
+    const res = await post(payload);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().sales).toEqual(dry.json().sales);
+    const total = 2025 + 2575 + 560 + 3375 + 3850;
+    expect(await amounts()).toEqual([2025, 2575, 560, 3375, 3850].map((amount, i) => ({ amount, status: 'PENDIENTE', openBalance: null, cantidad: ROWS[i]![3] })));
+    expect(await stock()).toEqual(stockBefore);
+    const c = await prisma.client.findUniqueOrThrow({ where: { id: client.id } });
+    expect(Number(c.totalSpent)).toBe(total);
+    expect(Number(c.pendingBalance)).toBe(total);
+    expect(Number((await prisma.cashMovement.aggregate({ _sum: { amount: true } }))._sum.amount ?? 0)).toBe(0);
   });
 
   it('product price, cost and currency changes are audited', async () => {
