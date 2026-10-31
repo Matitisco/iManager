@@ -169,6 +169,31 @@ describe.each([1440, 390])('operation form layout at %ipx', width => {
     finally { await page.close(); }
   });
 
+  it('keeps the bulk sale unit price and total readable without horizontal overflow', async () => {
+    context.inventory = [{ ...context.inventory[0], imei: '', cantidad: 10 }];
+    context.operationOptions = { sales: { products: context.inventory, clients: context.clients } };
+    mount(width, 'sale');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Equipo' }), { target: { value: 'iPhone 14' } });
+    fireEvent.mouseDown(screen.getByRole('option', { name: /iPhone 14/ }));
+    fireEvent.change(screen.getByLabelText('Cantidad'), { target: { value: '5' } });
+    expect(screen.getByLabelText('Precio por unidad')).toHaveValue('800');
+    expect(screen.getByLabelText('Total')).toHaveTextContent('$ 4.000');
+    const page = await browser.newPage({ viewport: { width, height: width === 1440 ? 900 : 844 }, deviceScaleFactor: width === 390 ? 2 : 1 });
+    try {
+      await copyToBrowser(page);
+      await assertLayout(page);
+      await page.locator('.op-total').scrollIntoViewIfNeeded();
+      const metrics = await page.locator('.op-total').evaluate(row => {
+        const value = row.querySelector('strong')!;
+        const bounds = value.getBoundingClientRect();
+        return { weight: getComputedStyle(value).fontWeight, right: bounds.right, width: window.innerWidth };
+      });
+      expect(Number(metrics.weight)).toBeGreaterThanOrEqual(700);
+      expect(metrics.right).toBeLessThanOrEqual(metrics.width);
+      if (process.env.UNITPRICE_SHOTS) await page.screenshot({ path: `${process.env.UNITPRICE_SHOTS}/sale-${width}.png` });
+    } finally { await page.close(); }
+  });
+
   it('keeps expanded payments and installments in the scrolling body', async () => {
     mount(width, 'sale');
     fireEvent.change(screen.getByRole('combobox', { name: 'Cliente' }), { target: { value: 'Ana' } });

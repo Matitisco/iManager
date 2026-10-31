@@ -56,6 +56,7 @@ export type OperationInput = {
   productId?: string | null;
   deviceLabel?: string | null;
   amount?: number;
+  unitPrice?: number;
   paymentMethod?: string;
   status?: string;
   categoryId?: string | null;
@@ -702,7 +703,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const cantidad = saleUnits(input.cantidad ?? 1, product);
     if (product) {
       await takeStock(tx, product, cantidad);
-      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.amount! / cantidad), currency } });
+      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.unitPrice ?? input.amount! / cantidad), currency } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
@@ -921,7 +922,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       status: (product.cantidad ?? 1) > cantidad ? "DISPONIBLE" : "VENDIDO",
       pendingSaleRegistration: false,
       previousSaleStatus: null,
-      ...salePricePatch(product.price, outgoingAmount / cantidad, currency),
+      ...salePricePatch(product.price, input.unitPrice ?? outgoingAmount / cantidad, currency),
     } });
     const sellerMemberId = input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId;
     await assertSeller(tx, storeId, sellerMemberId);
@@ -1113,7 +1114,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       }
     }
     if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0) {
-      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(nextAmount / nextCantidad), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
+      await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(input.unitPrice ?? nextAmount / nextCantidad), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     let updatedSale = await tx.sale.update({

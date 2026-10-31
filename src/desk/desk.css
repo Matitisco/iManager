@@ -672,6 +672,9 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .op-check { display: flex; align-items: center; gap: 9px; margin: 10px 0 14px; color: var(--text); font-size: 13px; font-weight: 700; }
 .op-check input { width: 16px; height: 16px; accent-color: #111; }
 .op-summary { margin: -3px 0 14px; color: var(--secondary); font-size: 13px; font-weight: 700; }
+.op-total { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; color: var(--primary); }
+.op-total output { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.op-total strong { font-size: 16px; font-weight: 800; }
 .op-drafts { display: grid; gap: 10px; margin-bottom: 14px; padding: 16px; }
 .op-drafts small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; }
 .op-draft-list { display: grid; gap: 6px; }

@@ -18,6 +18,7 @@ export interface OperationInput {
   productId?: string | null;
   deviceLabel?: string;
   amount?: number;
+  unitPrice?: number;
   currency?: 'ARS' | 'USD' | null;
   warrantyDays?: number;
   unlistedEquipment?: {

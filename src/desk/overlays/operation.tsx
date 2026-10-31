@@ -96,6 +96,12 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const seededAmount = currentSale?.amount ?? currentTrade?.draftAmount;
   const seededCurrency = currentSale?.amountCurrency ?? currentTrade?.currency ?? productMoneyCurrency(linkedProduct);
   const [amount, setAmount] = useState(preset?.resumeAmount ? preset.resumeAmount : (seededAmount != null ? (money.inputValue(seededAmount, seededCurrency) || '0') : (linkedProduct?.price ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : '')));
+  const [unitPrice, setUnitPrice] = useState(() => formatInputMoney(parseMoney(amount) / Number(cantidad)));
+  // Keep the saved total intact, including totals that do not divide into exact cents.
+  const setTotalAmount = (total: string, units: number) => {
+    setAmount(total);
+    setUnitPrice(total.trim() ? (formatInputMoney(parseMoney(total) / units) || '0') : '');
+  };
   if (preset?.resumeAmount) dirty.current.add('amount');
   const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? '');
   const [sellerError, setSellerError] = useState('');
@@ -175,7 +181,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('cantidad', () => setCantidad(String(currentSale.cantidad ?? 1)));
       update('productId', () => setProductId(currentSale.productId || ''));
       update('deviceLabel', () => setDeviceLabel(currentSale.deviceLabel || ''));
-      update('amount', () => setAmount(money.inputValue(currentSale.amount, currentSale.amountCurrency) || '0'));
+      update('amount', () => setTotalAmount(money.inputValue(currentSale.amount, currentSale.amountCurrency) || '0', currentSale.cantidad ?? 1));
       update('payment', () => setPayment(currentSale.paymentMethod || 'TRANSFERENCIA'));
       update('paymentStatus', () => setPaymentStatus(currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA'));
     }
@@ -190,7 +196,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       const tradeAmount = currentTrade.confirmationStatus === 'PENDING'
         ? currentTrade.draftAmount
         : currentTrade.draftAmount ?? currentTrade.differencePaid + currentTrade.takeValue;
-      update('amount', () => setAmount(money.inputValue(currentSale?.amount ?? tradeAmount ?? 0, currentSale?.amountCurrency ?? currentTrade.currency) || '0'));
+      update('amount', () => setTotalAmount(money.inputValue(currentSale?.amount ?? tradeAmount ?? 0, currentSale?.amountCurrency ?? currentTrade.currency) || '0', currentSale?.cantidad ?? currentTrade.draftCantidad ?? 1));
       update('payment', () => setPayment(currentSale?.paymentMethod || currentTrade.draftPaymentMethod || 'TRANSFERENCIA'));
       update('paymentStatus', () => setPaymentStatus(currentSale ? (currentSale.status === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA') : currentTrade.draftPaymentStatus || 'COMPLETADA'));
       update('received', () => setReceived(currentTrade.deviceReceived || ''));
@@ -204,7 +210,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       update('productId', () => setProductId(linkedProduct.id));
       update('deviceLabel', () => setDeviceLabel(equipmentTitle(linkedProduct.model, linkedProduct.capacity)));
       if (!currentSale && (!currentTrade || (currentTrade.confirmationStatus === 'PENDING' && currentTrade.draftAmount == null))) {
-        update('amount', () => setAmount((linkedProduct.price ?? 0) > 0 ? money.inputValue(linkedProduct.price, productMoneyCurrency(linkedProduct)) : ''));
+        update('amount', () => setTotalAmount((linkedProduct.price ?? 0) > 0 ? money.inputValue(linkedProduct.price * Number(cantidad), productMoneyCurrency(linkedProduct)) : '', Number(cantidad)));
       }
     }
   }, [currentSale, currentTrade, linkedProduct, clients, money]);
@@ -225,7 +231,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setOutgoingColor('');
     setOutgoingCondition('');
     setOutgoingImei('');
-    if (!preset?.resumeAmount) setAmount((item.price ?? 0) > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '');
+    if (!preset?.resumeAmount) setTotalAmount((item.price ?? 0) > 0 ? money.inputValue(item.price, productMoneyCurrency(item)) : '', 1);
     clearBad(setBad, 'equipment');
     clearBad(setBad, 'amount');
   };
@@ -318,6 +324,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       price: parseMoney(amount),
     } } : {}),
     ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
+    ...(Number(cantidad) > 1 && amount.trim() ? { unitPrice: parseMoney(amount) / Number(cantidad) } : {}),
     paymentMethod: payment,
     status: paymentStatus,
     ...(typedWarranty.days !== undefined ? { warrantyDays: typedWarranty.days } : {}),
@@ -392,7 +399,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     const input = buildInput(kind === 'draft');
     const amountField = includeAmount ? group.amounts[0] : undefined;
     const takeField = hasTrade ? group.amounts[includeAmount ? 1 : 0] : undefined;
-    if (amountField && input.amount !== undefined) input.amount = amountField.amount;
+    if (amountField && input.amount !== undefined) {
+      input.amount = amountField.amount;
+      if (input.unitPrice !== undefined) input.unitPrice = amountField.amount / Number(cantidad);
+    }
     const stamp = stampedCurrency(amountField?.currency ?? takeField?.currency);
     if (stamp) input.currency = stamp;
     if (takeField && input.tradeIn) input.tradeIn.takeValue = takeField.amount;
@@ -554,12 +564,21 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       {source === 'clients' ? <p className="eqs-note">Elegí un cliente existente para registrar la venta desde su ficha.</p> : null}
       {foldTrade ? null : tradeBlock}
       {selectedProduct && ((selectedProduct.cantidad ?? 1) > 1 || (currentSale?.cantidad ?? 1) > 1) ? <Field label="Cantidad" error={bad.cantidad}><input aria-label="Cantidad" type="number" min="1" step="1" max={(selectedProduct.cantidad ?? 1) + (currentSale?.productId === selectedProduct.id ? currentSale.cantidad ?? 1 : 0)} value={cantidad} onChange={event => {
-        const raw = event.target.value; dirty.current.add('cantidad'); setCantidad(raw); clearBad(setBad, 'cantidad');
-        if (!currentSale && Number.isInteger(Number(raw)) && Number(raw) > 0 && selectedProduct.price != null) {
-          dirty.current.add('amount'); setAmount(money.inputValue(selectedProduct.price * Number(raw), productMoneyCurrency(selectedProduct)));
+        const raw = event.target.value;
+        const unit = unitPrice;
+        dirty.current.add('cantidad'); dirty.current.add('amount'); setCantidad(raw); clearBad(setBad, 'cantidad');
+        if (Number.isInteger(Number(raw)) && Number(raw) > 0) {
+          setAmount(unit.trim() ? (formatInputMoney(parseMoney(unit) * Number(raw)) || '0') : '');
         }
       }} /></Field> : null}
-      <Field label="Precio completo de salida" mark={money.active} error={bad.amount}><input ref={amountRef} value={amount} inputMode="numeric" onChange={(event) => { dirty.current.add('amount'); setAmount(operationMoneyInput(event.target.value)); clearBad(setBad, 'amount'); }} placeholder="$ 0" /></Field>
+      <Field label={Number(cantidad) > 1 ? 'Precio por unidad' : 'Precio completo de salida'} mark={money.active} error={bad.amount}><input ref={amountRef} value={Number(cantidad) > 1 ? unitPrice : amount} inputMode="numeric" onChange={(event) => {
+        dirty.current.add('amount');
+        const value = operationMoneyInput(event.target.value);
+        setUnitPrice(value);
+        setAmount(Number(cantidad) > 1 && value.trim() ? (formatInputMoney(parseMoney(value) * Number(cantidad)) || '0') : value);
+        clearBad(setBad, 'amount');
+      }} placeholder="$ 0" /></Field>
+      {Number(cantidad) > 1 ? <p data-ph-mask className="op-summary op-total"><span>Total</span><output aria-label="Total"><strong>{money.show(parseMoney(amount), typedCurrency, Number.isInteger(parseMoney(amount)) ? 0 : 2)}</strong></output></p> : null}
       {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       {dueCopy ? <p data-ph-mask className="op-summary">{dueCopy}</p> : null}
       {!currentSale ? <DepositChoices receipts={receipts} clientId={clientId} productId={productId} selected={depositIds} onChange={setDepositIds} currency={typedCurrency ?? money.active} rate={money.rate} maximum={cashDue} busy={busy} /> : null}
