@@ -43,7 +43,7 @@ function PurchaseRows({ rows, money }: { rows: ClientPurchase[]; money: MoneyApi
     {rows.map((row) => <div key={row.id} className={`buy-item${row.annulled ? ' annulled' : ''}`} data-testid={`purchase-${row.id}`}>
       <div className="buy-row">
         <span className={`av-c buy-kind ${KIND_TONE[row.kind]}`} aria-hidden="true">{KIND_MARK[row.kind]}</span>
-        <b className="buy-title">{row.title}{row.quantityLabel ? <> <span className="sale-quantity">{row.quantityLabel}</span></> : null}</b>
+        <b className="buy-title sale-equipment"><span>{row.title}</span>{row.quantityLabel ? <> <span className="sale-quantity">{row.quantityLabel}</span></> : null}</b>
         <b data-ph-mask className="buy-amt">{amountLabel(row, money)}</b>
         <small data-ph-mask={Boolean(row.imei) || undefined} className="buy-meta">{metaLine(row)}</small>
         {row.annulled ? <span className="spill buy-pill annulled">Anulada</span>

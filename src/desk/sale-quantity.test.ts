@@ -7,6 +7,7 @@ describe('sale quantity formatting', () => {
     [undefined, 1, ''],
     [0, 1, ''],
     [5, 5, 'x5'],
+    [2, 2, 'x2'],
     [-2, 1, ''],
     [1.5, 1, ''],
     [NaN, 1, ''],

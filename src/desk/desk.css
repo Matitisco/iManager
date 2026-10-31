@@ -309,7 +309,10 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .sale-hero-grid.solo { grid-template-columns: minmax(0, 1fr); }
 .sale-hero-margin { grid-column: 1 / -1; }
-.sale-quantity { color: var(--secondary); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.sale-quantity { display: inline-flex; align-items: center; justify-content: center; flex: none; padding: 2px 8px; border-radius: 999px; background: var(--lime); color: var(--theme-on-accent, var(--primary)); font-size: 12px; font-weight: 800; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sale-equipment, .sale-who small.sale-equipment { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.sale-equipment > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.dtable .sale-quantity-cell { width: 56px; padding-inline: 8px; text-align: center; font-variant-numeric: tabular-nums; }
 @media (min-width: 1100px) {
   .sales-screen .dstats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
