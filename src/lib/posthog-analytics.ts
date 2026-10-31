@@ -3,6 +3,19 @@ import { sanitizeImportEvent, type ImportEventProperties } from './import-diagno
 import { ROUTE, tabFromHash } from '../desk/hash-route';
 import type { AppMembershipRole } from '../types/app-session';
 
+export type SaleCreatedProps = {
+  quantity?: number;
+  unit_price?: number;
+  total?: number;
+  currency?: 'ARS' | 'USD';
+  model?: string;
+  capacity?: string;
+  stock_deducted?: boolean;
+  stock_left?: number;
+  sale_id?: string;
+  status?: 'COMPLETADA' | 'PENDIENTE';
+};
+
 type EventProps = {
   import_analysis_completed: ImportEventProperties;
   import_result: ImportEventProperties;
@@ -12,7 +25,7 @@ type EventProps = {
   first_device_added: undefined;
   excel_import_succeeded: { rows: number };
   excel_import_failed: { rows: number };
-  sale_created: undefined;
+  sale_created: SaleCreatedProps;
   trade_in_created: undefined;
   employee_invite_sent: undefined;
   employee_invite_accepted: undefined;
@@ -129,6 +142,25 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
   try {
     if (disabled() || !initialized) return;
     const input = args[0];
+    if (name === 'sale_created') {
+      const source = input as SaleCreatedProps | undefined;
+      const props: SaleCreatedProps = {};
+      for (const key of ['quantity', 'unit_price', 'total', 'stock_left'] as const) {
+        const value = source?.[key];
+        if (typeof value === 'number' && Number.isFinite(value)) props[key] = value;
+      }
+      for (const key of ['model', 'capacity', 'sale_id'] as const) {
+        const value = source?.[key];
+        if (typeof value !== 'string') continue;
+        const trimmed = value.trim();
+        if (trimmed) props[key] = key === 'sale_id' ? trimmed : trimmed.slice(0, 60);
+      }
+      if (source?.currency === 'ARS' || source?.currency === 'USD') props.currency = source.currency;
+      if (typeof source?.stock_deducted === 'boolean') props.stock_deducted = source.stock_deducted;
+      if (source?.status === 'COMPLETADA' || source?.status === 'PENDIENTE') props.status = source.status;
+      posthog.capture(name, props);
+      return;
+    }
     if (name === 'import_analysis_completed' || name === 'import_result') {
       const props = sanitizeImportEvent(input as ImportEventProperties);
       if (props) posthog.capture(name, props);
@@ -142,7 +174,7 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
       const step = input && 'step' in input ? input.step : undefined;
       if (step !== 'stock' && !(name === 'onboarding_step_completed' && step === 'store')) return;
       props = { step };
-    } else if (!['signup_completed', 'first_device_added', 'sale_created', 'trade_in_created', 'employee_invite_sent', 'employee_invite_accepted'].includes(name)) return;
+    } else if (!['signup_completed', 'first_device_added', 'trade_in_created', 'employee_invite_sent', 'employee_invite_accepted'].includes(name)) return;
     posthog.capture(name, props);
   } catch { /* Best effort only. */ }
 }

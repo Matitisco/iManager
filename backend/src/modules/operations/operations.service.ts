@@ -178,6 +178,7 @@ type TradeForResponse = TradeIn & { saleId?: string | null; sale?: { id: string 
 function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capacity"> | null) {
   return {
     cantidad: sale.cantidad ?? 1,
+    stockDeducted: Boolean(sale.stockDeducted),
     id: sale.id,
     saleNumber: sale.saleNumber,
     date: formatStoredDate(sale.dateLabel, sale.soldAt),
