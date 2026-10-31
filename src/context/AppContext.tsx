@@ -151,7 +151,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     operationNotifications, setOperationNotifications,
     notificationsLoaded, notificationsLoading, setNotificationsLoading, notificationsError, setNotificationsError,
     customColumns, setCustomColumns,
-    scopeRef, currentScope, canAccess, backendReady,
+    scopeRef, currentScope, canAccess, canSeeCosts, backendReady,
     backendInventoryEnabled, backendClientsEnabled, backendSalesEnabled,
     backendTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
@@ -508,7 +508,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (item.archivedAt) next.delete(item.id);
         else {
           const merged = { ...next.get(item.id), ...item };
-          if (!canAccess('reports')) delete merged.cost;
+          if (!canSeeCosts()) delete merged.cost;
           next.set(item.id, merged);
         }
       }
@@ -797,7 +797,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         backendMessage || 'El backend todavia no esta listo para guardar inventario. Reintenta en unos segundos.'
       );
     }
-    const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData, options)], canAccess('reports'))[0];
+    const createdProduct = visibleInventory([await createBackendInventoryItem(user, productData, options)], canSeeCosts())[0];
     setInventory(prev => [createdProduct, ...prev]);
     noteLocalMutation();
     if (createdProduct.status === 'VENDIDO' && canAccess('notifications')) void refreshNotifications().catch(() => undefined);
@@ -807,7 +807,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const updateProduct = async (updatedProduct: Product) => {
     if (!user) return;
     const current = beginRecordWrite('inventory', updatedProduct.id);
-    const visibleUpdate = canAccess('reports') ? updatedProduct : withoutStoredCost(updatedProduct);
+    const visibleUpdate = canSeeCosts() ? updatedProduct : withoutStoredCost(updatedProduct);
     let previousItem = inventory.find(product => product.id === visibleUpdate.id);
     setInventory(prev => {
       previousItem = prev.find(p => p.id === visibleUpdate.id);
@@ -819,7 +819,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           backendMessage || 'El backend todavia no esta listo para actualizar inventario. Reintenta en unos segundos.'
         );
       }
-      const backendProduct = visibleInventory([await updateBackendInventoryItem(user, updatedProduct)], canAccess('reports'))[0];
+      const backendProduct = visibleInventory([await updateBackendInventoryItem(user, updatedProduct)], canSeeCosts())[0];
       if (current()) setInventory(prev => prev.map(product => product.id === backendProduct.id ? backendProduct : product));
       noteLocalMutation();
       if (backendProduct.status === 'VENDIDO' && previousItem?.status !== 'VENDIDO' && canAccess('notifications')) {
@@ -853,7 +853,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const current = beginRead('inventory');
     const items = await fetchBackendInventory(user);
     if (!current()) return;
-    setInventory(visibleInventory(items, canAccess('reports')));
+    setInventory(visibleInventory(items, canSeeCosts()));
   };
 
   const reloadSales = async () => {

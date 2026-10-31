@@ -14,7 +14,7 @@ import { fetchBackendRepairs } from '../services/repairs-api';
 import { fetchNotifications, fetchOperationDrafts, type OperationNotification, type OperationOptions, type OperationSource } from '../services/operations-api';
 import { publishListMutation, useListRefresh } from '../lib/list-sync';
 import { normalizeDropdownOptions } from '../utils/dropdown-options';
-import { canOpenSection } from '../desk/sections';
+import { canOpenSection, canSeeFinancials } from '../desk/sections';
 
 const CUSTOM_COLUMN_ENTITIES: CustomColumnEntity[] = ['inventory', 'clients', 'sales', 'trade-ins'];
 
@@ -115,6 +115,8 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
   const activeStoreId = appSession?.store?.id ?? null;
   const backendReady = backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired;
   const canAccess = (section: OperationSource | 'reports' | 'notifications' | 'service') => canOpenSection(section, appSession?.membership?.sections, appSession?.membership?.role);
+  // TEMPORAL: los empleados ven costos y ganancia (ver canSeeFinancials)
+  const canSeeCosts = () => canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const backendInventoryEnabled = backendReady && canAccess('inventory');
   const loadInventoryEnabled = backendReady && canAccess('inventory');
   const backendClientsEnabled = backendReady && canAccess('clients');
@@ -234,7 +236,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     const clientsCurrent = beginRead('clients');
     const tradesCurrent = beginRead('tradeIns');
     const storeId = activeStoreId;
-    const seeCosts = canAccess('reports');
+    const seeCosts = canSeeCosts();
     const wantInventory = loadInventoryEnabled;
     const wantSales = loadSalesEnabled;
     const wantClients = backendClientsEnabled;
@@ -365,7 +367,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     // Replace rows in place. Clearing first would drop an open form's source record.
     if (loadInventoryEnabled) guard('inventory', 'Backend inventory refresh failed.', async (current) => {
       const items = await fetchBackendInventory(user);
-      if (current()) setInventory(visibleInventory(items, canAccess('reports')));
+      if (current()) setInventory(visibleInventory(items, canSeeCosts()));
     });
     if (loadSalesEnabled) guard('sales', 'Backend sales refresh failed.', async (current) => {
       const items = await fetchBackendSales(user);
@@ -436,7 +438,7 @@ export function useStoreRecords({ user, appSession, backendStatus }: StoreRecord
     notificationsLoaded: notificationsResolved.current === currentScope,
     notificationsLoading, setNotificationsLoading: scopedSetter(setNotificationsLoading), notificationsError, setNotificationsError: scopedSetter(setNotificationsError),
     customColumns, setCustomColumns: scopedSetter(setCustomColumns),
-    scopeRef, currentScope, canAccess, backendReady,
+    scopeRef, currentScope, canAccess, canSeeCosts, backendReady,
     backendInventoryEnabled, loadInventoryEnabled, backendClientsEnabled,
     backendSalesEnabled, loadSalesEnabled, backendTradeInsEnabled, loadTradeInsEnabled, loadRepairsEnabled,
     noteLocalMutation,
