@@ -46,7 +46,7 @@ describe('PostHog runtime guard', () => {
     vi.stubEnv(key, value);
     const analytics = await import('./posthog-analytics');
     expect(() => {
-      analytics.initAnalytics(); analytics.capture('sale_created');
+      analytics.initAnalytics(); analytics.capture('sale_created', {});
       analytics.identify('u', 's', 'OWNER'); analytics.reset();
       analytics.observeInventory(0); analytics.deviceAdded();
     }).not.toThrow();
@@ -139,6 +139,44 @@ describe('PostHog collection and privacy', () => {
     expect(JSON.stringify(vi.mocked(posthog.capture).mock.calls)).not.toContain('private');
   });
 
+  it('allowlists sale details, trims strings and excludes private extras', async () => {
+    const analytics = await import('./posthog-analytics'); analytics.initAnalytics(); vi.mocked(posthog.capture).mockClear();
+    const props = {
+      quantity: 5, unit_price: 800, total: 4000, currency: 'USD' as const,
+      model: `  ${'m'.repeat(70)}  `, capacity: `  ${'c'.repeat(70)}  `,
+      stock_deducted: true, stock_left: 3, sale_id: ' sale-1 ', status: 'COMPLETADA' as const,
+      client_name: 'Private Customer', clientId: 'private-client', imei: 'private-imei',
+      notes: 'private-note', payment_method: 'private-payment', deviceLabel: 'private-label',
+      customFields: { email: 'private@email.test' }, email: 'private@email.test',
+    };
+    analytics.capture('sale_created', props);
+    expect(posthog.capture).toHaveBeenCalledExactlyOnceWith('sale_created', {
+      quantity: 5, unit_price: 800, total: 4000, currency: 'USD', model: 'm'.repeat(60), capacity: 'c'.repeat(60),
+      stock_deducted: true, stock_left: 3, sale_id: 'sale-1', status: 'COMPLETADA',
+    });
+    expect(JSON.stringify(vi.mocked(posthog.capture).mock.calls)).not.toMatch(/private/i);
+  });
+
+  it.each([
+    { quantity: NaN, unit_price: Infinity, total: -Infinity, stock_left: '3', currency: 'EUR',
+      model: 42, capacity: null, stock_deducted: 'true', sale_id: 123, status: 'CANCELADA' },
+    { quantity: '5', unit_price: null, total: undefined, stock_left: NaN, currency: null,
+      model: '  ', capacity: '', stock_deducted: 0, sale_id: '  ', status: null },
+    {},
+  ])('omits invalid or absent sale properties without inventing defaults: %j', async props => {
+    const analytics = await import('./posthog-analytics'); analytics.initAnalytics(); vi.mocked(posthog.capture).mockClear();
+    analytics.capture('sale_created', props as never);
+    expect(posthog.capture).toHaveBeenCalledExactlyOnceWith('sale_created', {});
+  });
+
+  it('preserves valid zero amounts, false stock deduction, ARS and pending status', async () => {
+    const analytics = await import('./posthog-analytics'); analytics.initAnalytics(); vi.mocked(posthog.capture).mockClear();
+    const props = { quantity: 1, unit_price: 0, total: 0, currency: 'ARS' as const,
+      stock_deducted: false, status: 'PENDIENTE' as const };
+    analytics.capture('sale_created', props);
+    expect(posthog.capture).toHaveBeenCalledExactlyOnceWith('sale_created', props);
+  });
+
   it('allowlists aggregate import diagnostics at runtime, including nested keys and field arrays', async () => {
     const analytics = await import('./posthog-analytics'); analytics.initAnalytics(); vi.mocked(posthog.capture).mockClear();
     const props = { import_type: 'inventory' as const, source: 'excel' as const, phase: 'analyze' as const,
@@ -170,10 +208,10 @@ describe('PostHog collection and privacy', () => {
   it('contains SDK and storage exceptions', async () => {
     const a = await import('./posthog-analytics');
     vi.mocked(posthog.init).mockImplementationOnce(() => { throw new Error('SDK unavailable'); });
-    expect(a.initAnalytics).not.toThrow(); a.capture('sale_created'); expect(posthog.capture).not.toHaveBeenCalled();
+    expect(a.initAnalytics).not.toThrow(); a.capture('sale_created', {}); expect(posthog.capture).not.toHaveBeenCalled();
     a.initAnalytics();
     const fail = () => { throw new Error('SDK unavailable'); };
     vi.mocked(posthog.capture).mockImplementation(fail); vi.mocked(posthog.identify).mockImplementation(fail); vi.mocked(posthog.reset).mockImplementation(fail);
-    expect(() => { a.capture('sale_created'); a.identify('u', 's', 'OWNER'); a.reset(); }).not.toThrow();
+    expect(() => { a.capture('sale_created', {}); a.identify('u', 's', 'OWNER'); a.reset(); }).not.toThrow();
   });
 });

@@ -1,4 +1,4 @@
-import { capture } from '../lib/posthog-analytics';
+import { capture, type SaleCreatedProps } from '../lib/posthog-analytics';
 import type { Client, OperationClientOption, OperationProductOption, Product, Sale, TradeIn } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
@@ -106,9 +106,31 @@ export async function fetchOperationDrafts(user: AuthUserLike, source: Operation
   return request<{ tradeIns: TradeIn[] }>(user, `/api/operations/${source}/drafts`);
 }
 
+function saleEventProps(result: OperationResult, input: OperationInput): SaleCreatedProps {
+  const sale = result.sale;
+  if (!sale) return {};
+  const quantity = sale.cantidad ?? input.cantidad ?? 1;
+  const total = sale.amount;
+  const currency = sale.amountCurrency ?? input.currency;
+  const product = result.inventory.find(item => item.id === sale.productId);
+  return {
+    quantity,
+    unit_price: Math.round((total / quantity) * 100) / 100,
+    total,
+    ...(currency === 'ARS' || currency === 'USD' ? { currency } : {}),
+    ...(product ? { model: product.model, capacity: product.capacity } : {}),
+    ...(typeof sale.stockDeducted === 'boolean' ? { stock_deducted: sale.stockDeducted } : {}),
+    ...(sale.stockDeducted === true && product?.cantidad != null ? { stock_left: product.cantidad } : {}),
+    sale_id: sale.id,
+    ...(sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE' ? { status: sale.status } : {}),
+  };
+}
+
 export async function createOperation(user: AuthUserLike, source: OperationSource, input: OperationInput) {
   const result = await request<OperationResult>(user, `/api/operations/${source}`, 'POST', input);
-  if (result.sale) capture('sale_created');
+  try {
+    if (result.sale) capture('sale_created', saleEventProps(result, input));
+  } catch { /* Analytics must never affect a saved sale. */ }
   if (result.tradeIn) capture('trade_in_created');
   return result;
 }
@@ -123,7 +145,9 @@ export async function updateTradeOperation(user: AuthUserLike, source: Operation
 
 export async function confirmTradeOperation(user: AuthUserLike, source: OperationSource, id: string, input: OperationInput) {
   const result = await request<OperationResult>(user, `/api/operations/${source}/trades/${id}/confirm`, 'POST', input);
-  if (result.sale) capture('sale_created');
+  try {
+    if (result.sale) capture('sale_created', saleEventProps(result, input));
+  } catch { /* Analytics must never affect a saved sale. */ }
   return result;
 }
 

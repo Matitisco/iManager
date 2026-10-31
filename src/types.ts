@@ -52,6 +52,7 @@ export interface CustomColumn {
 
 export interface Sale {
   cantidad?: number;
+  stockDeducted?: boolean;
   depositAppliedAmount?: number;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;

@@ -28,8 +28,9 @@ describe("integrated operation API", () => {
     const confirmInput = { productId: fixture.inventoryItem.id, amount: 1500, paymentMethod: "EFECTIVO", status: "PENDIENTE", tradeIn: { deviceReceived: "iPhone 11 Confirmed", takeValue: 600 } };
     const confirmed = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/confirm`, headers, payload: confirmInput });
     expect(confirmed.statusCode).toBe(200);
-    expect(confirmed.json()).toMatchObject({ sale: { amount: 1500, status: "PENDIENTE", categoryId: null }, tradeIn: { categoryId: fixture.tradeInCategory.id, deviceReceived: "iPhone 11 Confirmed", takeValue: 600, differencePaid: 900, confirmationStatus: "CONFIRMED" } });
+    expect(confirmed.json()).toMatchObject({ sale: { amount: 1500, status: "PENDIENTE", categoryId: null, stockDeducted: true }, tradeIn: { categoryId: fixture.tradeInCategory.id, deviceReceived: "iPhone 11 Confirmed", takeValue: 600, differencePaid: 900, confirmationStatus: "CONFIRMED" } });
     expect(confirmed.json().inventory).toHaveLength(2);
+    expect(confirmed.json().inventory.find((item: { id: string }) => item.id === fixture.inventoryItem.id)).toMatchObject({ cantidad: 0 });
     expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toBeTruthy();
     expect(confirmed.json().inventory.find((item: { price: number }) => item.price === 0)).toMatchObject({ model: "iPhone 11 Confirmed", cost: 600, condition: "USADO", grade: "", batteryHealth: "", status: "EN_REVISION" });
     expect(confirmed.json().notifications).toHaveLength(4);
@@ -56,6 +57,7 @@ describe("integrated operation API", () => {
     const repeated = await app.inject({ method: "POST", url: `/api/operations/tradeins/trades/${tradeId}/confirm`, headers, payload: confirmInput });
     expect(repeated.statusCode).toBe(200);
     expect(repeated.json().sale.id).toBe(confirmed.json().sale.id);
+    expect(repeated.json().sale.stockDeducted).toBe(true);
     expect(repeated.json().inventory).toHaveLength(2);
     expect(repeated.json().clients).toHaveLength(1);
     expect(await prisma.sale.count({ where: { storeId: context.store!.id } })).toBe(1);
@@ -69,6 +71,33 @@ describe("integrated operation API", () => {
     expect((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).pendingBalance.toNumber()).toBe(0);
     expect((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).totalSpent.toNumber()).toBe(0);
     expect(await prisma.inventoryItem.count({ where: { storeId: context.store!.id, archivedAt: null } })).toBe(1);
+  });
+
+  it("returns saved stock deduction and remaining quantities for stocked and free-text sales", async () => {
+    const app = getApp();
+    const context = await seedStoreContext();
+    const fixture = await seedCatalogFixture(context.store!.id);
+    await prisma.inventoryItem.update({ where: { id: fixture.inventoryItem.id }, data: { imei: null, cantidad: 8 } });
+    const headers = { "content-type": "application/json", ...buildAuthHeaders({ uid: context.user.firebaseUid }) };
+
+    const stocked = await app.inject({ method: "POST", url: "/api/operations/sales", headers, payload: {
+      productId: fixture.inventoryItem.id, cantidad: 5, amount: 4000, currency: "USD", status: "COMPLETADA",
+    } });
+    expect(stocked.statusCode).toBe(201);
+    expect(stocked.json().sale).toMatchObject({ cantidad: 5, amount: 4000, amountCurrency: "USD", stockDeducted: true });
+    expect(stocked.json().inventory.find((item: { id: string }) => item.id === fixture.inventoryItem.id)).toMatchObject({ cantidad: 3 });
+    expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: fixture.inventoryItem.id } })).cantidad).toBe(3);
+    const fetched = await app.inject({ method: "GET", url: `/api/operations/sales/sales/${stocked.json().sale.id}`, headers });
+    expect(fetched.statusCode).toBe(200);
+    expect(fetched.json().sale.stockDeducted).toBe(true);
+
+    const unstocked = await app.inject({ method: "POST", url: "/api/operations/sales", headers, payload: {
+      deviceLabel: "Equipo fuera de stock", amount: 800, currency: "USD", status: "COMPLETADA",
+    } });
+    expect(unstocked.statusCode).toBe(201);
+    expect(unstocked.json().sale).toMatchObject({ cantidad: 1, amount: 800, stockDeducted: false });
+    expect(unstocked.json().inventory).toEqual([]);
+    expect((await prisma.sale.findUniqueOrThrow({ where: { id: unstocked.json().sale.id } })).stockDeducted).toBe(false);
   });
 
   it("marks a manual sold status for one sale registration and blocks an unrelated section", async () => {
@@ -455,7 +484,7 @@ describe("integrated operation API", () => {
     } });
     expect(confirmed.statusCode).toBe(200);
     expect(confirmed.json()).toMatchObject({
-      sale: { productId: "", deviceLabel: "Equipo libre", categoryId: null, date: "07/10/2026", clientId: fixture.client.id },
+      sale: { productId: "", deviceLabel: "Equipo libre", categoryId: null, date: "07/10/2026", clientId: fixture.client.id, stockDeducted: false },
       tradeIn: { categoryId: null, date: "07/10/2026" },
     });
 
