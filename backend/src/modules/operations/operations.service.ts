@@ -1031,7 +1031,12 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
 }
 
 export async function updateSaleOperation(storeId: string, saleId: string, input: OperationInput, actor?: Actor) {
-  return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
+  return withSerializableRetry((tx: Prisma.TransactionClient) => updateSaleOperationInTx(tx, storeId, saleId, input, actor));
+}
+
+/** Same edit as updateSaleOperation, inside a transaction owned by the caller (used by the admin sale correction). */
+export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, storeId: string, saleId: string, input: OperationInput, actor?: Actor) {
+  {
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
     if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError("Sale not found", 404);
@@ -1283,7 +1288,7 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
       ]) },
     }));
     return { sale: serializeSale(updatedSale), ...(updatedTrade ? { tradeIn: serializeTrade({ ...updatedTrade, saleId: sale.id }) } : removedTrade ? { tradeIn: serializeTrade(removedTrade) } : {}), inventory: [output, released, incoming, archivedIncoming].filter(present).map(serializeProduct), clients: updatedClients.map(serializeClient), notifications, summary: `${operationSummary({ trade: hasTrade, amount: nextAmount, takeValue: hasTrade ? nextTakeValue : undefined, depositApplied: Number(sale.depositAppliedAmount), status: nextStatus, hasInventory: !!nextProduct, received: hasTrade, receivedStatus: updatedTrade?.status, currency: labelCurrency, unpaid: rise.reopen ? rise.extra : undefined })} · operación actualizada` };
-  });
+  }
 }
 
 export async function updateTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
