@@ -48,6 +48,7 @@ import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressT
 import type { Sale } from '../../types';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
+import { summarizeSaleProfit } from '../sale-profit';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -106,12 +107,11 @@ export function SalesScreen() {
   const units = periodSales.reduce((sum, sale) => sum + saleQuantity(sale), 0);
   const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
   const avg = total != null && periodSales.length ? Math.round(total / periodSales.length) : null;
-  const cost = money.sum(periodSales.map((sale) => {
-    const item = inventory.find((row) => row.id === sale.productId);
-    return { amount: item?.cost ?? 0, currency: item?.currency };
-  }));
-  const hasCost = periodSales.some((sale) => (inventory.find((item) => item.id === sale.productId)?.cost ?? 0) > 0);
-  const margin = total != null && cost != null ? total - cost : null;
+  const { grossProfit: margin, marginPct, costedSales, salesWithoutCost } = summarizeSaleProfit(periodSales, inventory, money.active, money.rate);
+  const hasCost = costedSales > 0;
+  const marginNote = !hasCost ? 'Cargá el costo en el equipo'
+    : salesWithoutCost > 0 ? `${salesWithoutCost} ${salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}`
+    : marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`;
   const delta = total != null && prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -156,7 +156,6 @@ export function SalesScreen() {
     setOnlyUnassigned(false);
   };
   const quiet = !query.trim() && !saleFiltersActive(columns) && !statusOn;
-  const marginPct = hasCost && margin != null && total ? Math.round((margin / total) * 100) : null;
 
   return (
     <div className={`dscreen mobile-list-screen sales-screen${phone ? ' has-dock' : ''}`} data-testid="sales-screen">
@@ -205,7 +204,7 @@ export function SalesScreen() {
           units={units}
           average={avg == null ? '—' : money.showActive(avg)}
           margin={hasCost && margin != null ? money.showActive(margin) : '—'}
-          marginNote={hasCost ? (marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`) : 'Cargá el costo en el equipo'}
+          marginNote={marginNote}
           delta={delta}
         />
       ) : phone ? null : (
@@ -215,9 +214,9 @@ export function SalesScreen() {
         <div className="dstat"><div className="eb">Ticket promedio</div><div data-ph-mask className="big">{avg == null ? '—' : money.showActive(avg)}</div></div>
         {seeFinancials ? (
           <div className="dstat">
-            <div className="eb">Margen bruto est.</div>
+            <div className="eb">Ganancia total</div>
             <div data-ph-mask className="big">{hasCost && margin != null ? money.showActive(margin) : '—'}</div>
-            <small className="mut">{hasCost ? 'precio menos costo' : 'Cargá el costo en el equipo'}</small>
+            <small className="mut">{marginNote}</small>
           </div>
         ) : null}
         <div className="dstat">
@@ -404,7 +403,7 @@ function SalesHero({ seeFinancials, total, approx, staleClock, count, units, ave
         </div>
         {seeFinancials ? (
           <div className="sale-hero-margin">
-            <div className="eb">Margen bruto est.</div>
+            <div className="eb">Ganancia total</div>
             <div data-ph-mask className="mid">{margin}</div>
             <small>{marginNote}</small>
           </div>

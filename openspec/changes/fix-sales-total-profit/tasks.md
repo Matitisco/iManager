@@ -1,0 +1,3 @@
+- [x] Extraer cálculo puro e integrarlo en Ventas y sus textos existentes.
+- [x] Probar cantidad, moneda, exclusiones, render móvil/escritorio y paridad con reports sin DB.
+- [x] Ejecutar TypeScript/lint front y backend y tests relacionados (máximo dos workers), sin build.
