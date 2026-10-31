@@ -121,7 +121,8 @@ describe('issue #71 — invitations and section permissions', () => {
       expect((await getApp().inject({ method: 'GET', url: path, headers: headers('empleado') })).statusCode, path).toBe(200);
     }
     expect((await getApp().inject({ method: 'GET', url: '/api/cash', headers: headers('empleado') })).statusCode).toBe(403);
-    expect((await getApp().inject({ method: 'GET', url: '/api/reports/overview', headers: headers('empleado') })).statusCode).toBe(403);
+    // TEMPORAL: los empleados ven finanzas, por eso el resumen de Reportes responde 200.
+    expect((await getApp().inject({ method: 'GET', url: '/api/reports/overview', headers: headers('empleado') })).statusCode).toBe(200);
   });
 
   it('filters catalog kinds on GET and PUT responses and requires both role and section to edit', async () => {
