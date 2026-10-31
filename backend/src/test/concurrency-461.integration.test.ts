@@ -4,12 +4,15 @@ import type { Prisma } from '@prisma/client';
 // Background analytics must not intercept barriers intended for a business transaction.
 vi.mock('../modules/analytics/first-sale.js', () => ({ trackFirstSale: vi.fn(async () => {}) }));
 
-const probe = vi.hoisted(() => ({ before: null as null | ((model: string, operation: string) => Promise<void>), after: null as null | ((model: string, operation: string) => Promise<void>), reads: 0 }));
+const probe = vi.hoisted(() => ({ before: null as null | ((model: string, operation: string) => Promise<void>), after: null as null | ((model: string, operation: string) => Promise<void>), reads: 0, flushed: null as null | (() => void) }));
 vi.mock('../plugins/prisma.js', async () => {
   const { PrismaClient } = await import('@prisma/client');
   const client = new PrismaClient({ log: [{ emit: 'event', level: 'query' }] });
-  // Query text only; fixture queries are excluded by resetting the counter. Never retain parameters.
-  client.$on('query', event => { if (/^SELECT/i.test(event.query)) probe.reads++; });
+  // Query text only; never retain parameters. The marker itself is not a report read.
+  client.$on('query', event => {
+    if (event.query.includes('/* flush-read-probe */')) probe.flushed?.();
+    else if (/^SELECT/i.test(event.query)) probe.reads++;
+  });
   return { prisma: client.$extends({ query: { async $allOperations({ model, operation, args, query }) {
     await probe.before?.(model ?? '', operation);
     const result = await query(args);
@@ -39,6 +42,26 @@ import { archiveSupplier, restoreSupplier, updateSupplier } from '../modules/sup
 beforeAll(ensureTestDatabase);
 beforeEach(async () => { vi.restoreAllMocks(); probe.before = null; probe.after = null; await resetDatabase(); });
 afterAll(() => prisma.$disconnect());
+
+// Prisma query events can arrive after the operation resolves. Wait for an ordered
+// log marker before resetting/sampling, so reads cannot spill between measurements.
+// These barriers run only in the test harness, never in the measured service.
+async function flushReadProbe() {
+  const logged = new Promise<void>(resolve => { probe.flushed = resolve; });
+  try {
+    await prisma.$queryRaw`SELECT 1 /* flush-read-probe */`;
+    await logged;
+  } finally {
+    probe.flushed = null;
+  }
+}
+async function countReads(work: () => Promise<unknown>) {
+  await flushReadProbe();
+  probe.reads = 0;
+  await work();
+  await flushReadProbe();
+  return probe.reads;
+}
 
 function deferred() {
   let resolve!: () => void;
@@ -285,14 +308,10 @@ describe('atomic stock adjustment #461', () => {
   });
   it('bounds eligibility read queries independently of selection size', async () => {
     const f = await countFixture(1);
-    probe.reads = 0;
-    await f.adjust();
-    const small = probe.reads;
+    const small = await countReads(() => f.adjust());
     await resetDatabase();
     const large = await countFixture(30);
-    probe.reads = 0;
-    await large.adjust();
-    expect(probe.reads).toBeLessThanOrEqual(small + 2);
+    expect(await countReads(() => large.adjust())).toBeLessThanOrEqual(small + 2);
     expect(await prisma.auditEvent.count({ where: { action: 'inventory.archived' } })).toBe(30);
   });
 });
@@ -398,14 +417,10 @@ describe('batched commissions #461', () => {
   });
   it('bounds seller-assignment read queries for 1 and 30 sales', async () => {
     const f = await commissionFixture(1);
-    probe.reads = 0;
-    await bulkAssignSeller(f.storeId, f.actor, f.sales.map(sale => sale.id), f.seller.id);
-    const small = probe.reads;
+    const small = await countReads(() => bulkAssignSeller(f.storeId, f.actor, f.sales.map(sale => sale.id), f.seller.id));
     await resetDatabase();
     const large = await commissionFixture(30);
-    probe.reads = 0;
-    await bulkAssignSeller(large.storeId, large.actor, large.sales.map(sale => sale.id), large.seller.id);
-    expect(probe.reads).toBeLessThanOrEqual(small + 2);
+    expect(await countReads(() => bulkAssignSeller(large.storeId, large.actor, large.sales.map(sale => sale.id), large.seller.id))).toBeLessThanOrEqual(small + 2);
     expect(await prisma.auditEvent.count({ where: { action: 'sale.seller.changed' } })).toBe(29);
   });
   it('preserves period cutoffs, FIFO, cancellations, carryovers and mixed currency adjustments', async () => {
@@ -425,9 +440,7 @@ describe('batched commissions #461', () => {
     const f = await commissionFixture();
     const counts = [];
     for (const to of ['2026-01', '2026-12', '2035-12']) {
-      probe.reads = 0;
-      await getCommissionReport(f.storeId, '2026-01', to);
-      counts.push(probe.reads);
+      counts.push(await countReads(() => getCommissionReport(f.storeId, '2026-01', to)));
     }
     expect(counts[1]).toBeLessThanOrEqual(counts[0] + 1);
     expect(counts[2]).toBeLessThanOrEqual(counts[0] + 1);
