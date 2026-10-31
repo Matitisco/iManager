@@ -250,3 +250,13 @@ it('retains loaded lists and repair/notification data when background reads fail
   expect(result.current.repairOrdersError).toBeNull();
   warn.mockRestore();
 });
+
+describe('costos del inventario para empleados', () => {
+  // TEMPORAL: los empleados ven finanzas, así que conservan el costo del equipo.
+  it('un empleado conserva el costo de los equipos', async () => {
+    const staff = { ...session, membership: { role: 'STAFF', isDefault: true } } as AppSession;
+    vi.mocked(fetchBackendInventory).mockResolvedValue([{ id: 'item-1', model: 'iPhone 14', cost: 500, currency: 'USD' }] as never);
+    const { result } = renderHook(() => useStoreRecords({ user, appSession: staff, backendStatus: 'ready' }));
+    await waitFor(() => expect(result.current.inventory.map((item) => item.cost)).toEqual([500]));
+  });
+});

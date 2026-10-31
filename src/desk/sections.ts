@@ -39,6 +39,8 @@ export function grantedSections(stored: string[] | null | undefined, role?: stri
 
 /** Facturación, margen y costo usan el mismo permiso que Reportes. */
 export function canSeeFinancials(stored: string[] | null | undefined, role?: string | null) {
+  // TEMPORAL: empleados ven finanzas; revertir con git revert de este commit
+  if (role === 'STAFF') return true;
   return canOpenSection('reports', stored, role);
 }
 

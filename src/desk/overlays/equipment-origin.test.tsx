@@ -61,8 +61,8 @@ it('usa el nombre del lote y respeta el permiso financiero al abrir la compra', 
   mount();
   await userEvent.click(screen.getByRole('button', { name: 'Ingreso septiembre' }));
   const purchase = await screen.findByTestId('supplier-purchase-detail');
-  expect(purchase).not.toHaveTextContent(/500|5\.000/);
-  expect(screen.getByRole('dialog', { name: 'Ingreso septiembre' })).not.toHaveTextContent(/5\.000/);
+  expect(purchase).toHaveTextContent('$ 500');
+  expect(screen.getByRole('dialog', { name: 'Ingreso septiembre' })).toHaveTextContent('$ 5.000');
 });
 it.each([0, null])('omite el aviso cuando problems=%s y conserva las filas de origen', async problems => {
   vi.mocked(fetchBackendInventoryItem).mockResolvedValue({ ...item, purchaseSummary: problems === null ? null : { problems, devices: 11 } });
@@ -138,11 +138,7 @@ it.each([{ sections: undefined }, { sections: ['inventory'] }, { sections: ['inv
   ctx.appSession.membership = { role: 'STAFF', sections };
   mount();
   await screen.findByTestId('equipment-purchase-problems');
-  if (sections?.includes('reports')) expect(screen.getByText('Costo').closest('.kv')).toHaveTextContent('$ 1.200.000');
-  else {
-    expect(screen.queryByText('Costo')).not.toBeInTheDocument();
-    expect(screen.queryByText('$ 1.200.000')).not.toBeInTheDocument();
-  }
+  expect(screen.getByText('Costo').closest('.kv')).toHaveTextContent('$ 1.200.000');
 });
 it('muestra la fila IMEI aunque falte el dato', async () => {
   ctx.inventory = [{ ...item, imei: '' }];

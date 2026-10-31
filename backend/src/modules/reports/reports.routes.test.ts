@@ -129,19 +129,19 @@ describe("reportsRoutes", () => {
     await listed.close();
   });
 
-  it("rejects the overview when the employee has no saved sections", async () => {
+  it("temporarily accepts the overview when the employee has no saved sections", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: null };
     });
     const open = buildApp();
     await open.register(reportsRoutes);
     const openResponse = await open.inject({ method: "GET", url: "/overview" });
-    expect(openResponse.statusCode).toBe(403);
-    expect(getReportsOverviewMock).not.toHaveBeenCalled();
+    expect(openResponse.statusCode).toBe(200);
+    expect(getReportsOverviewMock).toHaveBeenCalled();
     await open.close();
   });
 
-  it("rejects the overview when the member cannot open reports", async () => {
+  it("temporarily accepts the overview when the employee cannot open reports", async () => {
     resolveAppUserMock.mockImplementation(async (request: { appUser?: unknown }) => {
       request.appUser = { storeId: "store-1", role: "STAFF", sections: ["inventory"] };
     });
@@ -150,9 +150,9 @@ describe("reportsRoutes", () => {
 
     const response = await app.inject({ method: "GET", url: "/overview" });
 
-    expect(response.statusCode).toBe(403);
-    expect(response.json()).toEqual({ error: "No tenés acceso a Reportes" });
-    expect(getReportsOverviewMock).not.toHaveBeenCalled();
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ overview: { summary: { revenue: 0, grossProfit: 0 } } });
+    expect(getReportsOverviewMock).toHaveBeenCalled();
     await app.close();
   });
 

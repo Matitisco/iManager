@@ -237,7 +237,7 @@ describe('Fallas', () => {
     expect(await screen.findByTestId('supplier-purchase-detail')).toBeInTheDocument();
     expect(api.fetchSupplierPurchase).toHaveBeenCalledWith(ctx.user, 'supplier', 'purchase');
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
-    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
+    expect(screen.getAllByText('US$ 900').length).toBeGreaterThan(0);
   });
 
   it('opens the linked group even outside the top five and can reopen the same supplier link', async () => {

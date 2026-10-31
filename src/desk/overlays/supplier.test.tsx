@@ -248,14 +248,14 @@ describe('ficha de proveedor', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Editar' }));
     expect(open).toHaveBeenCalledWith({ type: 'edit-supplier', id: 'supplier' });
   });
-  it.each([true, false])('gates purchase totals and item costs with financial access (%s)', async allowed => {
+  it.each([true, false])('temporarily shows purchase totals and item costs also to staff (owner=%s)', async allowed => {
     if (!allowed) ctx.appSession.membership = { role: 'STAFF', sections: ['inventory'] };
     mount(<SupplierDetail id="supplier" />);
     await screen.findByTestId('supplier-detail');
-    expect(screen.queryAllByText('US$ 1600').length > 0).toBe(allowed);
+    expect(screen.queryAllByText('US$ 1600').length > 0).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: /14\/10\/2026/ }));
     await screen.findByTestId('supplier-purchase-detail');
-    expect(!!screen.queryByText('US$ 900')).toBe(allowed);
+    expect(!!screen.queryByText('US$ 900')).toBe(true);
     expect(screen.getByText(textContent('IMEI 356789104523871'))).toBeInTheDocument();
     expect(screen.queryByText('Sin IMEI')).not.toBeInTheDocument();
   });

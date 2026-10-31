@@ -88,7 +88,7 @@ describe("proveedores, gastos y ganancia neta", () => {
     const staffDetail = await app.inject({ method: "GET", url: `/api/suppliers/${supplierId}`, headers: staffHeaders });
     expect(staffDetail.statusCode).toBe(200);
     const staffItems = staffDetail.json().supplier.purchases.flatMap((purchase: { items: { cost?: number }[] }) => purchase.items);
-    expect(staffItems.every((row: { cost?: number }) => row.cost == null)).toBe(true);
+    expect(staffItems.some((row: { cost?: number }) => row.cost === 40000)).toBe(true);
 
     const archived = await app.inject({ method: "DELETE", url: `/api/suppliers/${supplierId}`, headers, payload: { reason: "  Duplicado  " } });
     expect(archived.statusCode).toBe(204);

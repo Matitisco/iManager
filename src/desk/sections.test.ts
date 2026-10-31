@@ -36,13 +36,13 @@ describe('desk sections', () => {
     expect(canOpenHistory(['sales'], 'STAFF')).toBe(false);
   });
 
-  it('hides billing, margin and cost unless reports is granted', () => {
+  it('temporarily shows staff billing, margin and cost regardless of reports access', () => {
     expect(canSeeFinancials(null, 'OWNER')).toBe(true);
     expect(canSeeFinancials(null, 'MANAGER')).toBe(true);
     expect(canSeeFinancials(['sales', 'reports'], 'MANAGER')).toBe(true);
     expect(canSeeFinancials(['sales'], 'MANAGER')).toBe(false);
-    expect(canSeeFinancials(null, 'STAFF')).toBe(false);
-    expect(canSeeFinancials(['sales'], 'STAFF')).toBe(false);
+    expect(canSeeFinancials(null, 'STAFF')).toBe(true);
+    expect(canSeeFinancials(['sales'], 'STAFF')).toBe(true);
     expect(canSeeFinancials(['reports', 'sales'], 'STAFF')).toBe(true);
   });
 

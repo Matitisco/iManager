@@ -6,7 +6,7 @@ import { useIntegrationApp } from "./integration-helpers.js";
 const { getApp } = useIntegrationApp();
 
 describe("QA 03: costos de reclamos según Reportes", () => {
-  it.each(["ARS", "USD"])("omite costos en lecturas y escrituras sin Reportes (%s)", async currency => {
+  it.each(["ARS", "USD"])("temporalmente muestra costos al empleado sin Reportes (%s)", async currency => {
     const owner = await seedStoreContext();
     const storeId = owner.store!.id;
     const catalog = await seedCatalogFixture(storeId);
@@ -26,28 +26,28 @@ describe("QA 03: costos de reclamos según Reportes", () => {
       expect(response.statusCode, response.body).toBe(200);
       return response.json().returns[0];
     };
-    const hidden = (row: object) => {
-      expect(row).not.toHaveProperty("itemCost");
-      expect(row).not.toHaveProperty("itemCurrency");
+    const visible = (row: object) => {
+      expect(row).toHaveProperty("itemCost", 501000);
+      expect(row).toHaveProperty("itemCurrency", currency);
       expect(row).toHaveProperty("saleAmount", 701000);
     };
-    hidden(await list());
-    hidden(created.json().return);
+    visible(await list());
+    visible(created.json().return);
     expect(await list(buildAuthHeaders())).toMatchObject({ itemCost: 501000, itemCurrency: currency });
     await prisma.storeMember.update({ where: { id: member.id }, data: { sections: ["sales", "reports"], sensitiveAccess: false } });
     expect(await list()).toMatchObject({ itemCost: 501000, itemCurrency: currency });
     await prisma.storeMember.update({ where: { id: member.id }, data: { sections: ["sales"], sensitiveAccess: true } });
     const edited = await app.inject({ method: "PATCH", url: `/api/returns/${id}`, headers: auth, payload: { diagnosis: "Revisar batería" } });
     expect(edited.statusCode, edited.body).toBe(200);
-    hidden(edited.json().return);
+    visible(edited.json().return);
     const resolved = await app.inject({ method: "POST", url: `/api/returns/${id}/resolve`, headers: auth, payload: { resolution: "CAMBIO", settlement: "NOTA_CREDITO", amount: 701000, destination: "PROVEEDOR" } });
     expect(resolved.statusCode, resolved.body).toBe(200);
-    hidden(resolved.json().return);
+    visible(resolved.json().return);
     const rma = await app.inject({ method: "POST", url: `/api/returns/${id}/rma`, headers: auth, payload: { status: "RECHAZADO" } });
     expect(rma.statusCode, rma.body).toBe(200);
-    hidden(rma.json().return);
+    visible(rma.json().return);
     expect((await app.inject({ method: "DELETE", url: `/api/returns/${id}`, headers: auth })).statusCode).toBe(204);
-    hidden(await list(auth, true));
+    visible(await list(auth, true));
     expect(await list(buildAuthHeaders(), true)).toMatchObject({ itemCost: 501000, itemCurrency: currency });
   });
 });

@@ -33,6 +33,8 @@ export function canAccessSection(section: SectionId, member: { role: string; sec
 
 /** Cost, margin and store billing follow the same gate as Reportes. */
 export function canSeeFinancials(member: { role: string; sections?: unknown }): boolean {
+  // TEMPORAL: empleados ven finanzas; revertir con git revert de este commit
+  if (member.role === "STAFF") return true;
   return canAccessSection("reports", member);
 }
 
