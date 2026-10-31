@@ -43,6 +43,13 @@ function renderScreen() {
   );
 }
 
+// El período «Mes» son los últimos 30 días: sin fecha fija, estas pruebas dependen del día en que corren.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 9, 18, 12));
+});
+afterEach(() => { vi.useRealTimers(); });
+
 describe.each([390, 1440])('sale quantities at %ipx', width => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
