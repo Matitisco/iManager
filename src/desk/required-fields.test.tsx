@@ -233,6 +233,51 @@ describe('desk required fields', () => {
     })));
   });
 
+  it.each([null, 200])('shows unit price and total for five units (list price: %s)', async price => {
+    const user = userEvent.setup();
+    ctx.inventory = [{ ...product(), cantidad: 10, price }];
+    render(<DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <DeskOverlays overlay={{ type: 'new-sale', productId: 'prod-1', source: 'inventory' }} />
+    </DeskProvider>);
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '5');
+    expect(screen.queryByLabelText('Precio completo de salida')).not.toBeInTheDocument();
+    const unit = screen.getByLabelText('Precio por unidad');
+    if (price != null) expect(unit).toHaveValue('200');
+    else await user.type(unit, '200');
+    expect(screen.getByLabelText('Total')).toHaveTextContent('$ 1.000');
+    expect(screen.getByText('Total a cobrar: $ 1.000')).toBeInTheDocument();
+    await user.clear(unit);
+    await user.type(unit, '250');
+    expect(screen.getByLabelText('Total')).toHaveTextContent('$ 1.250');
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '3');
+    expect(screen.getByLabelText('Total')).toHaveTextContent('$ 750');
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '5');
+    await user.click(screen.getByRole('button', { name: 'Confirmar venta' }));
+    await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('inventory', expect.objectContaining({ cantidad: 5, amount: 1250, unitPrice: 250 })));
+  });
+
+  it('keeps the single-unit label, price and payload when returning from multiple units', async () => {
+    const user = userEvent.setup();
+    ctx.inventory = [{ ...product(), cantidad: 10 }];
+    render(<DeskProvider value={{ tab: 'inventory', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+      <DeskOverlays overlay={{ type: 'new-sale', productId: 'prod-1', source: 'inventory' }} />
+    </DeskProvider>);
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '5');
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '1');
+    expect(screen.getByLabelText('Precio completo de salida')).toHaveValue('200');
+    expect(screen.queryByLabelText('Total')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirmar venta' }));
+    await waitFor(() => expect(ctx.createOperation).toHaveBeenCalled());
+    const payload = ctx.createOperation.mock.calls[0][1];
+    expect(payload).toMatchObject({ cantidad: 1, amount: 200 });
+    expect(payload).not.toHaveProperty('unitPrice');
+  });
+
   it('asks for the sale price instead of a negative trade difference and creates the missing device', async () => {
     const user = userEvent.setup();
     renderOverlay('new-cj');

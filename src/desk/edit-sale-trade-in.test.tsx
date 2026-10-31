@@ -59,6 +59,28 @@ describe('editing sale trade-in', () => {
     await waitFor(() => expect(close).toHaveBeenCalled());
   });
 
+  it.each([1500, 1000.01])('derives the unit price and preserves an untouched bulk sale total (%s)', async amount => {
+    ctx.sales = [{ ...sale, cantidad: 5, amount }];
+    const user = userEvent.setup(); mount();
+    expect(screen.getByLabelText('Precio por unidad')).toHaveValue(amount === 1500 ? '300' : '200');
+    expect(screen.getByLabelText('Total')).toHaveTextContent(amount === 1500 ? '$ 1.500' : '$ 1.000,01');
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith(sale.id, expect.objectContaining({ cantidad: 5, amount, unitPrice: amount / 5 })));
+  });
+
+  it('recalculates a bulk sale and its trade difference when changing quantity', async () => {
+    ctx.sales = [{ ...sale, cantidad: 5, tradeInId: trade.id }];
+    ctx.tradeIns = [{ ...trade }];
+    const user = userEvent.setup(); mount();
+    expect(screen.getByLabelText('Precio por unidad')).toHaveValue('300');
+    await user.clear(screen.getByLabelText('Cantidad'));
+    await user.type(screen.getByLabelText('Cantidad'), '3');
+    expect(screen.getByLabelText('Total')).toHaveTextContent('$ 900');
+    expect(screen.getByLabelText('Diferencia')).toHaveValue('$ 400');
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
+    await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith(sale.id, expect.objectContaining({ cantidad: 3, amount: 900, unitPrice: 300 })));
+  });
+
   it('removes a linked trade-in explicitly without validating hidden trade fields', async () => {
     ctx.sales = [{ ...sale, tradeInId: trade.id }]; ctx.tradeIns = [{ ...trade }];
     const user = userEvent.setup(); mount();

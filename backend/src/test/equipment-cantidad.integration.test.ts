@@ -113,3 +113,56 @@ it('completa el precio unitario de un equipo sin precio al vender varias unidade
   expect(sale.statusCode, sale.body).toBe(201);
   expect(sale.json().inventory[0]).toMatchObject({ cantidad: 5, price: 650 });
 });
+
+
+it.each([
+  { cantidad: 5, price: null, unitPrice: 650, amount: 3250, expectedPrice: 650 },
+  { cantidad: 5, price: 700, unitPrice: 650, amount: 3250, expectedPrice: 700 },
+  { cantidad: 1, price: null, unitPrice: undefined, amount: 650, expectedPrice: 650 },
+  { cantidad: 5, price: null, unitPrice: undefined, amount: 3250, expectedPrice: 650 },
+  { cantidad: 5, price: null, unitPrice: 700, amount: 3250, expectedPrice: 700 },
+])('separates sale total and inventory price: %j', async ({ cantidad, price, unitPrice, amount, expectedPrice }) => {
+  const { id } = await stock(8);
+  await prisma.inventoryItem.update({ where: { id }, data: { price } });
+  const sale = await request('POST', '/api/operations/sales', {
+    productId: id, cantidad, amount, unitPrice, currency: 'USD', status: 'COMPLETADA', paymentMethod: 'EFECTIVO',
+  });
+  expect(sale.statusCode, sale.body).toBe(201);
+  expect(sale.json().sale).toMatchObject({ cantidad, amount });
+  const item = await stored(id);
+  expect(item.price?.toNumber()).toBe(expectedPrice);
+  expect(item.cantidad).toBe(8 - cantidad);
+});
+
+it.each([0, -1])('rejects a nonpositive unit price (%s)', async unitPrice => {
+  const { id } = await stock(8);
+  const sale = await request('POST', '/api/operations/sales', { productId: id, cantidad: 5, amount: 3250, unitPrice });
+  expect(sale.statusCode, sale.body).toBe(400);
+  expect((await stored(id)).cantidad).toBe(8);
+});
+
+it.each([undefined, 700])('confirms a bulk trade draft using explicit unit price or legacy division (%s)', async unitPrice => {
+  const { id } = await stock(8);
+  await prisma.inventoryItem.update({ where: { id }, data: { price: null } });
+  const draft = await request('POST', '/api/operations/sales', {
+    draft: true, productId: id, cantidad: 5, clientName: 'Comprador ficticio', amount: 3250, currency: 'USD',
+    tradeIn: { deviceReceived: '12 Pro', takeValue: 200 },
+  });
+  expect(draft.statusCode, draft.body).toBe(201);
+  const confirm = await request('POST', `/api/operations/sales/trades/${draft.json().tradeIn.id}/confirm`, { unitPrice });
+  expect(confirm.statusCode, confirm.body).toBe(200);
+  expect(confirm.json().sale).toMatchObject({ cantidad: 5, amount: 3250 });
+  expect(confirm.json().tradeIn.differencePaid).toBe(3050);
+  expect((await stored(id)).price?.toNumber()).toBe(unitPrice ?? 650);
+});
+
+it('uses explicit unit price when editing a bulk sale whose inventory price is missing', async () => {
+  const { id } = await stock(8);
+  const sale = await sell(id, 5);
+  expect(sale.statusCode, sale.body).toBe(201);
+  await prisma.inventoryItem.update({ where: { id }, data: { price: null } });
+  const edited = await request('PATCH', `/api/operations/sales/sales/${sale.json().sale.id}`, { amount: 3250, unitPrice: 700 });
+  expect(edited.statusCode, edited.body).toBe(200);
+  expect(edited.json().sale).toMatchObject({ cantidad: 5, amount: 3250 });
+  expect((await stored(id)).price?.toNumber()).toBe(700);
+});

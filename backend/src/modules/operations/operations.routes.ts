@@ -53,6 +53,7 @@ const inputSchema = z.object({
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: z.number().nonnegative().optional(),
+  unitPrice: z.number().finite().positive().optional(),
   paymentMethod: z.string().trim().max(50).optional(),
   status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
   categoryId: z.string().nullable().optional(),
