@@ -86,14 +86,24 @@ describe('client purchases', () => {
       </ExchangeProvider>);
       const preview = screen.getByTestId('client-purchases');
       expect(within(preview).getByTestId('purchase-sale-bulk')).toHaveTextContent('iPhone 15 Pro 256GB x5');
+      expect(within(preview).getByTestId('purchase-sale-bulk').querySelector('.sale-quantity')).toHaveTextContent(/^x5$/);
+      expect(within(preview).getByTestId('purchase-sale-bulk').querySelector('.buy-title > span:first-child')).toHaveTextContent(/^iPhone 15 Pro 256GB$/);
+      expect(within(preview).getByTestId('purchase-sale-single').querySelector('.sale-quantity')).toBeNull();
+      expect(within(preview).getByTestId('purchase-sale-legacy').querySelector('.sale-quantity')).toBeNull();
       expect(within(preview).getByTestId('purchase-sale-single')).not.toHaveTextContent(/x\d/);
       expect(within(preview).getByTestId('purchase-sale-legacy')).not.toHaveTextContent(/x\d/);
       await userEvent.setup({ advanceTimers: vi.advanceTimersByTime }).click(screen.getByTestId('purchases-more'));
       const dialog = screen.getByRole('dialog', { name: phone ? 'Compras' : 'Compras · Cliente ejemplo' });
       expect(within(dialog).getByTestId('purchase-sale-bulk')).toHaveTextContent('iPhone 15 Pro 256GB x5');
       expect(within(dialog).getByTestId('purchase-sale-bulk-import')).toHaveTextContent('Equipo importado x2');
+      expect(within(dialog).getByTestId('purchase-sale-bulk-import').querySelector('.sale-quantity')).toHaveTextContent(/^x2$/);
       expect(within(dialog).getByTestId('purchase-sale-single')).not.toHaveTextContent(/x\d/);
     } finally { window.matchMedia = originalMedia; }
+  });
+
+  it.each([undefined, 1, 0, -2, 1.5, NaN, Infinity])('omits the history badge for a single or invalid quantity: %s', cantidad => {
+    const purchases = clientPurchases({ clientId: 'c1', sales: [sale('single', { cantidad })], tradeIns: [], repairs: [], inventory: [], sellers: [] });
+    expect(purchases[0]).toMatchObject({ title: 'Equipo', quantityLabel: '' });
   });
 
   it('shows three rows with full IMEI, keeps annulled records and opens a separate full list', async () => {

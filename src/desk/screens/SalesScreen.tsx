@@ -258,7 +258,7 @@ export function SalesScreen() {
                       onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[[saleEquipment(sale, inventory), saleQuantityLabel(sale)].filter(Boolean).join(' '), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
                     </PhoneRecord>
                   </div>
                 );
@@ -301,6 +301,7 @@ export function SalesScreen() {
                     <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
+                <th className="sale-quantity-cell" scope="col">Cant.</th>
                 <th><span className="thf">Vendedor
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
@@ -349,7 +350,8 @@ export function SalesScreen() {
                     <td><b className="keep">#{saleCode(sale)}</b><NoticeTag reason={notices.reasonFor(sale.id)} /></td>
                     <td>{formatShortDate(sale.date)}</td>
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
-                    <td>{saleEquipment(sale, inventory)}{saleQuantityLabel(sale) ? <> <span className="sale-quantity">{saleQuantityLabel(sale)}</span></> : null}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
+                    <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
+                    <td className="sale-quantity-cell">{saleQuantity(sale)}</td>
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
@@ -439,7 +441,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />
         <span>
           <b data-ph-mask>{buyer}</b>
-          <small>{equipment}</small>
+          <small className="sale-equipment"><span>{equipment}</span>{saleQuantityLabel(sale) ? <> <span className="sale-quantity">{saleQuantityLabel(sale)}</span></> : null}</small>
         </span>
       </span>
       <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b>{approx ? <small data-ph-mask>{approx}</small> : null}</span></span>

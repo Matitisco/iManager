@@ -63,14 +63,28 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
 
   afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
-  it('shows quantity beside equipment and sums units in the same period as the other cards', async () => {
+  it('shows a desktop quantity column or mobile badges and preserves the period summary', async () => {
     renderScreen();
     const row = (buyer: string) => screen.getByText(buyer).closest(width === 390 ? '.sale-card' : 'tr')!;
-    expect(row('Cliente 1')).toHaveTextContent('Equipo 1 x5');
     expect(row('Cliente 2')).toHaveTextContent('Equipo 2');
-    expect(row('Cliente 2')).not.toHaveTextContent(/x\d/);
-    expect(row('Cliente 3')).toHaveTextContent('Equipo 3 x2');
-    expect(row('Cliente 4')).toHaveTextContent('Equipo 4 x20');
+    if (width === 390) {
+      expect(row('Cliente 1').querySelector('.sale-quantity')).toHaveTextContent('x5');
+      expect(row('Cliente 2').querySelector('.sale-quantity')).toBeNull();
+      expect(row('Cliente 3').querySelector('.sale-quantity')).toHaveTextContent('x2');
+      expect(row('Cliente 4').querySelector('.sale-quantity')).toHaveTextContent('x20');
+      expect(row('Cliente 1').querySelector('.sale-equipment > span:first-child')).toHaveTextContent(/^Equipo 1$/);
+      expect(screen.queryByRole('columnheader', { name: 'Cant.' })).not.toBeInTheDocument();
+    } else {
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers.map(header => header.textContent)).toEqual(['', 'Venta', 'Fecha', 'Cliente', 'Equipo', 'Cant.', 'Vendedor', 'Pago', 'Total', 'Estado']);
+      for (const [buyer, equipment, quantity] of [['Cliente 1', 'Equipo 1', '5'], ['Cliente 2', 'Equipo 2', '1'], ['Cliente 3', 'Equipo 3', '2'], ['Cliente 4', 'Equipo 4', '20']]) {
+        const cells = within(row(buyer) as HTMLElement).getAllByRole('cell');
+        expect(cells).toHaveLength(headers.length);
+        expect(cells[4]).toHaveTextContent(new RegExp(`^${equipment}$`));
+        expect(cells[5]).toHaveTextContent(new RegExp(`^${quantity}$`));
+      }
+      expect(document.querySelector('.sale-quantity')).toBeNull();
+    }
     expect(screen.queryByText('Cliente 5')).not.toBeInTheDocument();
     const units = screen.getByText('Unidades vendidas').parentElement!;
     expect(within(units).getByText('8')).toBeInTheDocument();
@@ -120,6 +134,9 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     renderScreen();
     expect(within(screen.getByText('Unidades vendidas').parentElement!).getByText('3')).toBeInTheDocument();
     expect(screen.queryByText(/^x\d+$/)).not.toBeInTheDocument();
+    if (width === 1440) {
+      expect([...document.querySelectorAll('tbody .sale-quantity-cell')].map(cell => cell.textContent)).toEqual(['1', '1', '1']);
+    }
   });
 });
 
