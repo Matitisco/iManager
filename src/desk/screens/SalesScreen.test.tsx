@@ -3,6 +3,7 @@ import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
+import { ExchangeProvider } from '../exchange';
 import { SalesScreen } from './SalesScreen';
 
 const context = vi.hoisted(() => ({
@@ -81,6 +82,37 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     await user.type(screen.getByPlaceholderText('Buscar cliente, equipo o número'), 'Cliente 1');
     expect(screen.queryByText('Cliente 3')).not.toBeInTheDocument();
     expect(within(units).getByText('8')).toBeInTheDocument();
+  });
+
+  it('shows total profit for five units with the active currency and excludes unknown costs', () => {
+    context.sales = [
+      sale(1, { cantidad: 5, productId: 'usd', amount: 800, amountCurrency: 'USD', status: 'COMPLETADA' }),
+      sale(2, { cantidad: 5, productId: 'ars', amount: 1000, amountCurrency: 'USD' }),
+      sale(3, { amount: 9000, amountCurrency: 'USD' }),
+      sale(4, { cantidad: 5, productId: 'usd', status: 'ANULADA' }),
+      sale(5, { cantidad: 5, productId: 'usd', date: '2026-01-01' }),
+    ];
+    context.inventory = [
+      { id: 'usd', cost: 100, currency: 'USD' },
+      { id: 'ars', cost: 120000, currency: 'ARS' },
+    ] as Product[];
+    render(
+      <ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}>
+        <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+          <SalesScreen />
+        </DeskProvider>
+      </ExchangeProvider>,
+    );
+    const profit = screen.getByText('Ganancia total').parentElement!;
+    expect(within(profit).getByText('US$ 700')).toBeInTheDocument();
+    expect(within(profit).getByText('1 venta sin costo no incluida')).toBeInTheDocument();
+  });
+
+  it('asks for equipment costs when no sale has a known cost', () => {
+    renderScreen();
+    const profit = screen.getByText('Ganancia total').parentElement!;
+    expect(within(profit).getByText('—')).toBeInTheDocument();
+    expect(within(profit).getByText('Cargá el costo en el equipo')).toBeInTheDocument();
   });
 
   it('counts absent or invalid quantities as one unit', () => {
@@ -177,24 +209,24 @@ describe('Sales column filters', () => {
     context.appSession = { membership: { role: 'OWNER', sections: null } };
     const owner = renderScreen();
     expect(screen.getByText('Facturación total')).toBeInTheDocument();
-    expect(screen.getByText('Margen bruto est.')).toBeInTheDocument();
-    expect(screen.getByText('precio menos costo')).toBeInTheDocument();
+    expect(screen.getByText('Ganancia total')).toBeInTheDocument();
+    expect(screen.getByText('≈ 60%')).toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     owner.unmount();
 
     context.appSession = { membership: { role: 'STAFF', sections: ['sales', 'reports'] } };
     const granted = renderScreen();
     expect(screen.getByText('Facturación total')).toBeInTheDocument();
-    expect(screen.getByText('Margen bruto est.')).toBeInTheDocument();
-    expect(screen.getByText('precio menos costo')).toBeInTheDocument();
+    expect(screen.getByText('Ganancia total')).toBeInTheDocument();
+    expect(screen.getByText('≈ 60%')).toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     granted.unmount();
 
     context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
     const staff = renderScreen();
     expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
-    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
-    expect(screen.queryByText('precio menos costo')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
+    expect(screen.queryByText('≈ 60%')).not.toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     expect(screen.getByText('Cliente 1')).toBeInTheDocument();
     staff.unmount();
@@ -202,7 +234,7 @@ describe('Sales column filters', () => {
     context.appSession = { membership: { role: 'MANAGER', sections: ['sales'] } };
     renderScreen();
     expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
-    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
   });
 });
 
@@ -237,7 +269,7 @@ describe('Sales on a phone', () => {
     renderScreen();
     expect(screen.getByTestId('sales-hero')).toHaveTextContent('Facturación total');
     expect(screen.getByTestId('sales-hero')).toHaveTextContent('Ticket promedio');
-    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Margen bruto est.');
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Ganancia total');
     const timeline = screen.getByTestId('sales-timeline');
     expect(timeline).toHaveTextContent('#V-0002');
     expect(timeline).toHaveTextContent('Ana Pérez');
@@ -255,14 +287,14 @@ describe('Sales on a phone', () => {
     context.appSession = { membership: { role: 'STAFF', sections: ['sales', 'reports'] } };
     renderScreen();
     expect(screen.getByTestId('sales-hero')).toHaveTextContent('Facturación total');
-    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Margen bruto est.');
+    expect(screen.getByTestId('sales-hero')).toHaveTextContent('Ganancia total');
   });
 
   it('hides billing and margin when the member cannot open reports', () => {
     context.appSession = { membership: { role: 'STAFF', sections: ['sales'] } };
     renderScreen();
     expect(screen.queryByText('Facturación total')).not.toBeInTheDocument();
-    expect(screen.queryByText('Margen bruto est.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ganancia total')).not.toBeInTheDocument();
     expect(screen.getByText('Ticket promedio')).toBeInTheDocument();
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
   });
