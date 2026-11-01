@@ -1,3 +1,4 @@
+import { inventoryImportBody, adminInventoryImport, InventoryImportDuplicatesError } from './inventory-import.service.js';
 import { listTacMisses } from '../imei-tac-misses/service.js';
 import { getFunnel, getTimeline } from './funnel.service.js';
 import type { FastifyInstance } from "fastify";
@@ -26,6 +27,14 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   app.post('/inventory-duplicates/restore', { bodyLimit: 16 * 1024 * 1024, preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     return restoreInventoryDuplicates(inventoryDuplicatesRestoreBody.parse(request.body));
+  });
+  app.post('/inventory-import', { bodyLimit: 16 * 1024 * 1024, preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+    try {
+      return await adminInventoryImport(inventoryImportBody.parse(request.body), { email: request.auth!.email! });
+    } catch (error) {
+      if (error instanceof InventoryImportDuplicatesError) return reply.code(409).send({ error: error.message, possibleDuplicates: error.possibleDuplicates });
+      throw error;
+    }
   });
   app.post('/sale-corrections', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     return correctSales(saleCorrectionsBody.parse(request.body), { email: request.auth!.email! });

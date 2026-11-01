@@ -71,7 +71,7 @@ function expectEqual(field: string, expected: unknown, actual: unknown): void {
 const num = (v: { toString(): string } | null | undefined) => (v == null ? null : Number(v.toString()));
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-async function resolveStore(tx: Tx, body: SaleCorrectionsBody) {
+export async function resolveStore(tx: Tx, body: Pick<SaleCorrectionsBody, 'storeEmail' | 'expectStoreName' | 'expectStoreCurrency'>) {
   const stores = await tx.$queryRaw<{ id: string; name: string; currency: string; ownerId: string }[]>(Prisma.sql`
     SELECT DISTINCT s."id", s."name", s."currency", u."id" AS "ownerId" FROM "Store" s
     JOIN "StoreMember" m ON m."storeId" = s."id" AND m."removedAt" IS NULL AND m."role"::text = 'OWNER'
