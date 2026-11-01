@@ -1,11 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Test store business reset
-El endpoint POST /admin/store-reset SHALL admitir exclusivamente platform admins y ambientes cuyo RAILWAY_ENVIRONMENT_NAME coincida con /test/i, validando storeId, email del OWNER activo y nombre exacto.
+El endpoint POST /admin/store-reset SHALL admitir exclusivamente platform admins y tiendas de pruebas incluidas explícitamente en STORE_RESET_ALLOWED_STORE_IDS, validando storeId, email del OWNER activo y nombre exacto. SHALL rechazar RAILWAY_ENVIRONMENT_NAME=production y NODE_ENV=production cuando no se define el ambiente de Railway.
 
 #### Scenario: Ambiente no permitido
-- **WHEN** falta el ambiente o no coincide, incluso con dryRun
+- **WHEN** Railway indica production, o no tiene nombre y NODE_ENV es production, incluso con dryRun
 - **THEN** responde 403 antes de acceder a la base
+
+#### Scenario: Allowlist obligatoria
+- **WHEN** STORE_RESET_ALLOWED_STORE_IDS está ausente, vacía o no incluye el storeId exacto
+- **THEN** responde 403 antes de acceder a la base, también en dryRun
 
 #### Scenario: Preview y confirmación
 - **WHEN** el admin solicita dryRun
