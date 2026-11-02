@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createClientViaApi } from './utils';
+import { expectSingleSelectChevrons } from './select-assertions';
 const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
+const shots = process.env.RETURN_SALES_SHOTS?.trim();
 for (const phone of [false, true]) {
   test.describe(`return sales ${phone ? 'mobile' : 'desktop'}`, () => {
     test.use({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 }, isMobile: phone, hasTouch: phone });
@@ -31,6 +33,13 @@ for (const phone of [false, true]) {
       await page.getByRole('option', { name: /Cliente mayorista.*iPhone 13.*30\/10\/2026/ }).click();
       await form.getByRole('spinbutton', { name: 'Cantidad a devolver' }).fill('1');
       await form.getByLabel('Motivo', { exact: true }).fill('Una unidad no enciende');
+      await expect(form.getByRole('combobox', { name: 'Venta', exact: true }).locator('svg.lucide-chevron-down')).toBeVisible();
+      if (shots) {
+        await page.mouse.move(0, 0);
+        await form.evaluate(async node => { await Promise.all(node.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => undefined))); });
+        await page.screenshot({ path: `${shots}/nuevo-reclamo-${phone ? '390' : '1440'}.png` });
+      }
+      await expectSingleSelectChevrons(form);
       await form.getByRole('button', { name: 'Abrir reclamo', exact: true }).click();
       await expect(form).toBeHidden();
       const saved = await (await request.get(`${api}/api/returns`, { headers })).json();

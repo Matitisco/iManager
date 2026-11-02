@@ -46,3 +46,5 @@ Validación posterior a integrar `992a06a`: TypeScript frontend/backend aprobado
 Entrega: [PR #711 contra test](https://github.com/Matitisco/iManager/pull/711). No se mergeó ni se tocó main.
 
 Sincronización final con `test` en `a618cfb` (#707/#709): conflicto resuelto únicamente en el registro de estado del proyecto, conservando ambas entradas. TypeScript frontend/backend aprobado; 132 pruebas frontend y 24 integraciones de reclamos, compras de cliente y ganancia de devoluciones parciales aprobadas sobre esta base.
+
+Seguimiento visual PR #711: eliminado el chevron CSS heredado que se superponía al SVG de DeskSelect. Regresión roja/verde en desktop/mobile, revisión de selectores en las 22 rutas de la app y capturas antes/después en [QA de selectores](qa-reclamo-selects/README.md). `origin/test` sigue contenido íntegramente en la rama.

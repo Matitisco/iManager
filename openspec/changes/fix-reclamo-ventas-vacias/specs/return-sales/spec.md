@@ -1,5 +1,12 @@
 ## ADDED Requirements
 
+### Requirement: Un solo indicador de desplegable
+Los selectores del modal de reclamos SHALL mostrar un único chevron, conservando selección, validación y navegación por teclado de DeskSelect.
+
+#### Scenario: Selector de venta en desktop y móvil
+- **WHEN** se abre Nuevo reclamo y se selecciona una venta
+- **THEN** se muestra un solo chevron, sin decoración heredada del campo ni select nativo visible
+
 ### Requirement: Selección independiente de ventas activas
 El sistema SHALL consultar ventas elegibles al abrir un reclamo con aislamiento por tienda y permiso de ventas, sin depender de la caché ni de filtros/paginación de Ventas.
 

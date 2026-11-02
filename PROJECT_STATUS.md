@@ -519,6 +519,8 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 
 ## Estado actual
 
+- PR #711 · Nuevo reclamo (02/11/2026): retiradas las reglas de select nativo que duplicaban el chevron de DeskSelect; selección y persistencia conservadas. Lint frontend/backend, 211 pruebas frontend, 40 unitarias y 24 integraciones backend y tres recorridos Playwright aprobados, incluidos selectores visibles en 22 rutas a 1440/390. Capturas antes/después en `docs/qa-reclamo-selects/`. Seguimiento en `fix/reclamo-ventas-vacias`, con `origin/test` incluido y sin nuevos conflictos.
+
 - Core estable con datos reales en Railway (Postgres + Firebase Auth)
 - Inventory es el modulo mas maduro: categorias, import XLSX, inline edit, bulk actions, paginacion, sort
 - Trade-ins ya usa TableEngine para el historial, alineado con Inventory, Clients y Sales

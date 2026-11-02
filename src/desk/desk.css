@@ -2614,7 +2614,6 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   .return-sheet .sheet-h h3, .return-delete .sheet-h h3 { margin: 0; }
   .return-sheet .sheet-h { align-items: center; }
   .return-sheet textarea, .return-sheet .fl input { font-size: 16px; }
-  .return-sheet .fl select { font-size: 14px; }
   .return-sheet .dp-calendar.dp-inline { margin-top: 18px; }
   .return-sheet .return-summary { padding-inline: 18px; }
   .ledger-list .return-row { flex-wrap: wrap; text-align: left; padding-right: 52px; }
@@ -2634,9 +2633,6 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 @keyframes return-placeholder { from { opacity: 0; } to { opacity: 1; } }
 
 .return-sheet .dp-control input { font-weight: 400; }
-.return-sheet .fl:has(select) { position: relative; }
-.return-sheet .fl select { padding-right: 40px; }
-.return-sheet .fl:has(select)::after { content: ''; position: absolute; right: 22px; bottom: 22px; width: 8px; height: 8px; border: solid var(--secondary); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); pointer-events: none; }
 
 .returns-screen .gfilters { margin-bottom: 18px; }
 .returns-screen .gchip { height: 32px; font-size: 12px; background: transparent; border-color: transparent; }
