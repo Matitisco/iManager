@@ -23,6 +23,7 @@ export function ReturnDetailContent({ current, historyButton }: { current: Retur
     </div>
     <div className="rcl-rows" data-testid="return-detail">
       <Row label="Estado"><Pill status={state} /></Row>
+      {current.cantidad != null && current.cantidad > 1 ? <Row label="Cantidad">{current.cantidad}</Row> : null}
       <Row label="Fecha">{formatShortDate(current.openedOn)}</Row>
       {current.imei ? <Row label="IMEI">{current.imei}</Row> : null}
       {current.supplierName ? <Row label="Proveedor" testId="return-supplier">{current.supplierName}</Row> : null}

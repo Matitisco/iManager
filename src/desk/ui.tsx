@@ -473,12 +473,13 @@ export function Segs({ options, value, onChange, onEdit, allowClear }: { options
   );
 }
 
-export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, danger, more, busyLabel = 'Guardando…' }: {
+export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondary, busy, disabled, danger, more, busyLabel = 'Guardando…' }: {
   primary: string;
   onPrimary: () => void;
   secondary?: string;
   onSecondary: () => void;
   busy?: boolean;
+  disabled?: boolean;
   danger?: boolean;
   more?: React.ReactNode;
   busyLabel?: string;
@@ -487,7 +488,7 @@ export function Actions({ primary, onPrimary, secondary = 'Cancelar', onSecondar
     <div className="sacts sheet-actions">
       <button type="button" className="btn2 s sheet-secondary" onClick={onSecondary} disabled={busy}>{secondary}</button>
       {more ? <SheetActionMenu>{more}</SheetActionMenu> : null}
-      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'} sheet-primary`} onClick={onPrimary} disabled={busy}>{busy ? busyLabel : primary}</button>
+      <button type="button" className={`btn2 ${danger ? 'danger' : 'p'} sheet-primary`} onClick={onPrimary} disabled={busy || disabled}>{busy ? busyLabel : primary}</button>
     </div>
   );
 }

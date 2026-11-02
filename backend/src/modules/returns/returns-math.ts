@@ -68,8 +68,8 @@ export function stockStatusForReturn(current: string, previous: string | null, n
 }
 
 export function refundableAmount(sale: { status: string; amount: number; openBalance: number | null } | null) {
-  if (!sale || sale.status !== "COMPLETADA") return 0;
-  if (sale.openBalance == null) return roundMoney(Math.max(0, sale.amount));
+  if (!sale || !["COMPLETADA", "PENDIENTE"].includes(sale.status)) return 0;
+  if (sale.openBalance == null) return sale.status === "COMPLETADA" ? roundMoney(Math.max(0, sale.amount)) : 0;
   return roundMoney(Math.max(0, sale.amount - sale.openBalance));
 }
 

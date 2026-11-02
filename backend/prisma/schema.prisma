@@ -880,6 +880,8 @@ model Expense {
 
 // A claim opened from a completed sale. Soft-deleted rows stay. Uniqueness lives only on this new table.
 model ReturnCase {
+  // Null preserves historical claims for the whole sale.
+  cantidad        Int?
   id              String    @id @default(cuid())
   storeId         String
   caseNumber      Int

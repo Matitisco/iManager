@@ -19,10 +19,13 @@ export async function takeStock(tx: Prisma.TransactionClient, item: InventoryIte
 }
 
 /** Old sales never decremented stock. Preserve their cancellation behavior. */
-export async function releaseStock(tx: Prisma.TransactionClient, storeId: string, sale: { inventoryItemId: string | null; cantidad?: number; stockDeducted?: boolean; previousInventoryStatus?: string | null; previousPendingSaleRegistration?: boolean | null }) {
+export async function releaseStock(tx: Prisma.TransactionClient, storeId: string, sale: { id?: string; inventoryItemId: string | null; cantidad?: number; stockDeducted?: boolean; previousInventoryStatus?: string | null; previousPendingSaleRegistration?: boolean | null }) {
   if (!sale.inventoryItemId) return;
   let status = sale.previousInventoryStatus ?? 'DISPONIBLE';
   if (sale.stockDeducted) {
+    if (sale.id && await tx.returnCase.findFirst({ where: { storeId, saleId: sale.id, OR: [
+      { destination: { in: ['STOCK', 'PROVEEDOR'] } }, { settlement: { in: ['REINTEGRO', 'NOTA_CREDITO'] } },
+    ] }, select: { id: true } })) throw new DomainError('Esta venta tiene devoluciones resueltas. No se puede anular ni cambiar el equipo.', 409);
     await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${sale.inventoryItemId} AND "storeId" = ${storeId} FOR UPDATE`;
     const current = await tx.inventoryItem.findFirstOrThrow({ where: { id: sale.inventoryItemId, storeId } });
     status = current.reservedDepositId ? 'RESERVADO' : 'DISPONIBLE';

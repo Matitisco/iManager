@@ -7,6 +7,7 @@ import {
   createReturn as createReturnApi,
   fetchCreditNotes,
   fetchReturns,
+  fetchReturnSales,
   resolveReturn as resolveReturnApi,
   restoreReturn as restoreReturnApi,
   updateReturnDiagnosis as updateDiagnosisApi,
@@ -73,7 +74,13 @@ export function useReturnsState(user: AuthUserLike | null, session: AppSession |
     return user;
   };
 
+  const loadReturnSales = useCallback(async () => {
+    if (!user || !ready || !canReturns) throw new Error('El backend todavía no está listo o no tenés acceso a ventas.');
+    return fetchReturnSales(user);
+  }, [user?.uid, ready, scope, canReturns]);
+
   return {
+    loadReturnSales,
     returns: ready ? returns : (canReturns ? null : []),
     creditNotes: ready ? creditNotes : (canReturns ? null : []),
     returnsError,
