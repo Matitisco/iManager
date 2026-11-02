@@ -21,7 +21,7 @@ const ctx = vi.hoisted(() => ({
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../../services/history-api', () => ({ fetchHistory: vi.fn() }));
-vi.mock('../../services/clients-api', () => ({ fetchClientPayments: vi.fn(async () => []) }));
+vi.mock('../../services/clients-api', () => ({ fetchClientPayments: vi.fn(async () => []), fetchClientSales: vi.fn(async () => []) }));
 vi.mock('../../services/sales-api', () => ({ fetchVoidedSales: vi.fn(async () => []) }));
 vi.mock('../../services/trade-ins-api', () => ({ fetchVoidedTradeIns: vi.fn(async () => []) }));
 vi.mock('../../services/inventory-api', () => ({ fetchArchivedInventory: vi.fn(async () => []) }));

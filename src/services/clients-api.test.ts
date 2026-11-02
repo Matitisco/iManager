@@ -5,6 +5,7 @@ import {
   deleteBackendClient,
   fetchBackendClients,
   fetchClientCategoriesApi,
+  fetchClientSales,
   registerBackendClientPayment,
   updateBackendClient,
 } from './clients-api';
@@ -51,6 +52,15 @@ describe('clients-api', () => {
     vi.mocked(fetchWithTimeout).mockReset();
     mockUser.getIdToken.mockResolvedValue('token-123');
     setApiBaseUrl('https://api.imanager.test/');
+  });
+
+  it('loads complete client sales without caching, limits or currency filters and rejects incomplete responses', async () => {
+    const sales = Array.from({ length: 7 }, (_, id) => ({ id: `sale-${id}`, clientId: clientFixture.id, cantidad: id % 3 + 1, amountCurrency: 'USD' }));
+    vi.mocked(fetchWithTimeout).mockResolvedValueOnce(jsonResponse({ sales })).mockResolvedValueOnce(jsonResponse({})).mockResolvedValueOnce(jsonResponse({ error: 'offline' }, 503));
+    await expect(fetchClientSales(mockUser, clientFixture.id)).resolves.toEqual(sales);
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/clients/client-1/sales', expect.objectContaining({ cache: 'no-store', method: 'GET' }));
+    await expect(fetchClientSales(mockUser, clientFixture.id)).rejects.toThrow('Respuesta inválida');
+    await expect(fetchClientSales(mockUser, clientFixture.id)).rejects.toThrow('Ocurrió un error en el servidor');
   });
 
   it('loads clients using the trimmed backend url and auth headers', async () => {
