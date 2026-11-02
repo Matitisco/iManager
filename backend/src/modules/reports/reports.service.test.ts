@@ -260,6 +260,7 @@ describe("getReportsOverview", () => {
     expect(result.summary.grossProfit).toBe(340 * factor);
     expect(result.summary.marginRate).toBeCloseTo(340 / 900 * 100);
     expect(result.summary.revenue).toBe(900 * factor);
+    expect(result.comparison.revenue).toBe(980 * factor);
     expect(result.comparison.grossProfit).toBe(388 * factor);
     expect(result.comparison.grossProfitChange).toBeCloseTo((340 - 388) / 388 * 100);
   });

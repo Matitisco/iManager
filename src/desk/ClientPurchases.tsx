@@ -9,6 +9,7 @@ import type { Client, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { CommissionSeller } from '../types/commissions';
 import { useMoney, type MoneyApi } from './exchange';
 import { ClientSpending } from './ClientSpending';
+import type { ReturnCaseView } from '../services/returns-api';
 import {
   clientPurchases,
   filterPurchases,
@@ -89,7 +90,7 @@ function PurchasesModal({ clientName, rows, money, initialFilter, onClose }: {
   </ModalLayerContext.Provider>, document.querySelector('.desk-app') ?? document.body);
 }
 
-export function ClientPurchases({ client, clientId, clientName, sales, tradeIns, repairs, inventory, sellers }: {
+export function ClientPurchases({ client, clientId, clientName, sales, tradeIns, repairs, inventory, sellers, returns = [] }: {
   client?: Client;
   clientId: string;
   clientName: string;
@@ -98,13 +99,14 @@ export function ClientPurchases({ client, clientId, clientName, sales, tradeIns,
   repairs: RepairOrder[];
   inventory: Product[];
   sellers: CommissionSeller[];
+  returns?: readonly ReturnCaseView[];
 }) {
   const money = useMoney();
   const [filter, setFilter] = useState<PurchaseFilter>('all');
   const [expanded, setExpanded] = useState(false);
   const rows = useMemo(
-    () => clientPurchases({ clientId, sales, tradeIns, repairs, inventory, sellers }),
-    [clientId, sales, tradeIns, repairs, inventory, sellers],
+    () => clientPurchases({ clientId, sales, tradeIns, repairs, inventory, sellers, returns }),
+    [clientId, sales, tradeIns, repairs, inventory, sellers, returns],
   );
   const totals = purchaseTotals(rows, money.active);
   const filtered = filterPurchases(rows, filter);

@@ -3,9 +3,10 @@ import { clientPurchases, purchaseTotals } from './client-purchases';
 import type { MoneyApi } from './exchange';
 import { formatMoney } from './format';
 import { recordCurrency, type MoneyCurrency, type StoredAmount } from './money';
+import type { ReturnCaseView } from '../services/returns-api';
 
 /** Same purchase definition as the detail, grouped once for the client list. */
-export function clientSpendingById(sales: Sale[], repairs: RepairOrder[], active: MoneyCurrency) {
+export function clientSpendingById(sales: Sale[], repairs: RepairOrder[], active: MoneyCurrency, returns: readonly ReturnCaseView[] = []) {
   const groups = new Map<string, { sales: Sale[]; repairs: RepairOrder[] }>();
   const group = (id: string) => {
     let rows = groups.get(id);
@@ -15,7 +16,7 @@ export function clientSpendingById(sales: Sale[], repairs: RepairOrder[], active
   for (const sale of sales) group(sale.clientId).sales.push(sale);
   for (const repair of repairs) if (repair.clientId) group(repair.clientId).repairs.push(repair);
   return new Map([...groups].map(([clientId, rows]) => [clientId, purchaseTotals(clientPurchases({
-    clientId, ...rows, tradeIns: [], inventory: [], sellers: [],
+    clientId, ...rows, tradeIns: [], inventory: [], sellers: [], returns,
   }), active).spent]));
 }
 
