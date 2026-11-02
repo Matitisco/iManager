@@ -4,14 +4,14 @@ import { ListSkeleton } from '../list-skeleton';
 import { DatePicker } from '../date-picker';
 import { isDateValue } from '../date-value';
 import { archivedReturn } from '../archive-cache';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { HistoryIconButton } from '../RecordHistoryButton';
 import { usePhoneLayout } from '../section-notices';
 import { useAppContext } from '../../context/AppContext';
 import { saleWarrantyView } from '../../lib/warranty';
 import { getFriendlyErrorMessage } from '../../lib/utils';
-import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus, ReturnCaseView } from '../../services/returns-api';
+import type { ResolveReturnInput, ReturnDestination, ReturnResolution, ReturnSettlement, RmaStatus, ReturnCaseView, ReturnSaleView } from '../../services/returns-api';
 import { formatInputMoney, formatMoney, formatShortDate, parseMoney, statusLabel, isVoidRow, saleBuyer } from '../format';
 import { Actions, Field, Pill, Sheet, useDesk } from '../ui';
 import { ReturnDetailContent } from './return-detail';
@@ -37,10 +37,27 @@ function today() {
 }
 
 export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
-  const { sales = [], clients = [], inventory = [], returns, createReturn, updateReturn } = useAppContext();
+  const { clients = [], inventory = [], returns, createReturn, updateReturn, loadReturnSales, user, appSession } = useAppContext();
   const { close, toast } = useDesk();
   const phone = usePhoneLayout();
-  const completed = sales.filter((sale) => sale.status === 'COMPLETADA' && !sale.voidedAt);
+  const [completed, setCompleted] = useState<ReturnSaleView[]>([]);
+  const [salesLoading, setSalesLoading] = useState(!id);
+  const [salesError, setSalesError] = useState('');
+  const [retry, setRetry] = useState(0);
+  const [cantidad, setCantidad] = useState('1');
+  useEffect(() => {
+    if (id) return;
+    let active = true;
+    setSalesLoading(true);
+    setSalesError('');
+    setCompleted([]);
+    void loadReturnSales().then(rows => {
+      if (active) setCompleted(rows);
+    }).catch(cause => {
+      if (active) setSalesError(getFriendlyErrorMessage(cause, 'No se pudieron cargar las ventas para el reclamo.'));
+    }).finally(() => { if (active) setSalesLoading(false); });
+    return () => { active = false; };
+  }, [id, loadReturnSales, user?.uid, appSession?.store?.id, retry]);
   const current = id ? returns?.find(row => row.id === id) ?? archivedReturn(id) : null;
   const [selected, setSelected] = useState(current?.saleId ?? saleId ?? '');
   const [reason, setReason] = useState(current?.reason ?? '');
@@ -55,7 +72,9 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
 
   const save = async () => {
     const next: Record<string, string> = {};
-    if (!sale && !current) next.sale = 'Elegí una venta cobrada.';
+    if (!current && (salesLoading || salesError)) return;
+    if (!sale && !current) next.sale = 'Elegí una venta.';
+    if (!current && sale && (!Number.isInteger(Number(cantidad)) || Number(cantidad) < 1 || Number(cantidad) > sale.remainingQuantity)) next.cantidad = 'Elegí una cantidad entre 1 y ' + sale.remainingQuantity + '.';
     if (!reason.trim()) next.reason = 'Completá el motivo.';
     if (!isDateValue(openedOn)) next.date = 'Elegí una fecha.';
     setBad(next);
@@ -72,6 +91,7 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
         if (Object.keys(changed).length) await updateReturn(id, changed);
       } else await createReturn({
         saleId: sale!.id,
+        cantidad: Number(cantidad),
         reason: reason.trim(),
         openedOn,
         diagnosis: null,
@@ -89,17 +109,23 @@ export function ReturnForm({ saleId, id }: { saleId?: string; id?: string }) {
   if (id && !current) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">No encontramos ese reclamo.</p></Sheet>;
   if (current && isVoidRow(current)) return <Sheet title="Editar reclamo" onClose={close}><p className="ferr" role="alert">Este reclamo está anulado.</p></Sheet>;
   return (
-    <Sheet title={id ? 'Editar reclamo' : 'Nuevo reclamo'} onClose={close} busy={busy} className="return-sheet ret-new" footer={<Actions busy={busy} busyLabel={id ? 'Guardar' : 'Abrir reclamo'} primary={id ? 'Guardar' : 'Abrir reclamo'} onSecondary={close} onPrimary={() => { void save(); }} />}>
+    <Sheet title={id ? 'Editar reclamo' : 'Nuevo reclamo'} onClose={close} busy={busy} className="return-sheet ret-new" footer={<Actions busy={busy} disabled={!id && (salesLoading || Boolean(salesError) || completed.length === 0)} busyLabel={id ? 'Guardar' : 'Abrir reclamo'} primary={id ? 'Guardar' : 'Abrir reclamo'} onSecondary={close} onPrimary={() => { void save(); }} />}>
       {error ? <div className="ferr" role="alert">{error}</div> : null}
       <DatePicker label="Fecha" ariaLabel="Fecha del reclamo" value={openedOn} onChange={setOpenedOn} error={bad.date} required disabled={busy} panel={phone ? 'inline' : 'float'} />
       {current ? <ReturnSummary current={current} /> : <Field label="Venta" error={bad.sale}>
-        <DeskSelect label="Venta" value={selected} disabled={Boolean(saleId) || busy} onChange={setSelected} invalid={Boolean(bad.sale)}
+        <DeskSelect label="Venta" value={selected} disabled={Boolean(saleId) || busy || salesLoading || Boolean(salesError)} onChange={value => { setSelected(value); setCantidad('1'); setBad({}); }} invalid={Boolean(bad.sale)}
           options={[{ value: '', label: 'Elegí una venta' }, ...completed.map(row => ({ value: row.id, label: `${saleBuyer(row, clients)} · ${row.deviceLabel || 'Equipo'} · ${formatShortDate(row.date)}` }))]} />
       </Field>}
+      {!current && salesError ? <div><p className="ferr" role="alert">{salesError}</p><button type="button" className="btn2 s" onClick={() => setRetry(value => value + 1)}>Reintentar</button></div> : null}
+      {!current && !salesLoading && !salesError && completed.length === 0 ? <p role="status">No hay ventas con unidades disponibles para reclamar.</p> : null}
+      {!current && sale && (sale.cantidad ?? 1) > 1 ? <Field label="Cantidad a devolver" error={bad.cantidad}>
+        <input type="number" aria-label="Cantidad a devolver" min={1} max={sale.remainingQuantity} step={1} value={cantidad} disabled={busy} onChange={event => setCantidad(event.target.value)} />
+        <small>{sale.remainingQuantity} de {sale.cantidad} unidades disponibles para reclamar</small>
+      </Field> : null}
       {!current && sale ? (
         <div className="return-summary return-sale-summary" data-testid="return-sale">
           <b data-ph-mask>{item?.imei ? `IMEI ${item.imei}` : 'Sin IMEI'}</b>
-          <small data-ph-mask>{[coverage?.phrase || 'Sin garantía', formatMoney(sale.amount, sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}</small>
+          <small data-ph-mask>{[coverage?.phrase || 'Sin garantía', formatMoney(sale.amount * (Number(cantidad) || 1) / (sale.cantidad ?? 1), sale.amountCurrency === 'USD' ? 'USD' : 'ARS')].join(' · ')}</small>
         </div>
       ) : null}
       <Field label="Motivo" error={bad.reason}><textarea aria-label="Motivo" maxLength={500} disabled={busy} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Qué pasó con el equipo" /></Field>
@@ -154,7 +180,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
   const [note, setNote] = useState('');
   const [resolution, setResolution] = useState<ReturnResolution>('REPARACION');
   const [settlement, setSettlement] = useState<ReturnSettlement>('REINTEGRO');
-  const [amount, setAmount] = useState(current ? formatInputMoney(current.refundable || current.saleAmount) : '');
+  const [amount, setAmount] = useState(current ? formatInputMoney(current.refundable) : '');
   const [destination, setDestination] = useState<ReturnDestination>('CLIENTE');
   const [stockStatus, setStockStatus] = useState('EN_REVISION');
   const [error, setError] = useState('');

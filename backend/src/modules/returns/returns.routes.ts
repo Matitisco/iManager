@@ -14,6 +14,7 @@ import {
   archiveReturnCase,
   createReturnCase,
   listCreditNotes,
+  listReturnSales,
   listReturnCases,
   resolveReturnCase,
   restoreReturnCase,
@@ -36,6 +37,11 @@ function visibleReturn(claim: ReturnCaseView, member: AppUserContext) {
 
 export async function returnRoutes(app: FastifyInstance) {
   const guard = [authenticate, resolveAppUser, requireSectionAccess("sales")];
+
+  app.get("/eligible-sales", { preHandler: guard }, async request => {
+    requireMember(request);
+    return { sales: await listReturnSales(request.appUser.storeId) };
+  });
 
   app.get("/patterns", { preHandler: guard }, async (request) => {
     requireMember(request);
@@ -60,12 +66,14 @@ export async function returnRoutes(app: FastifyInstance) {
     requireMember(request);
     const body = z.object({
       saleId: z.string().min(1),
+      cantidad: z.number().int().min(1).max(2147483647).optional(),
       reason: z.string().trim().min(1, "Completá el motivo.").max(500, "El motivo es demasiado largo."),
       openedOn,
       diagnosis: z.string().trim().max(2000, "El diagnóstico es demasiado largo.").nullable().optional(),
       imei: z.string().trim().max(100).nullable().optional(),
     }).parse(request.body) as {
       saleId: string;
+      cantidad?: number;
       reason: string;
       openedOn: string;
       diagnosis?: string | null;

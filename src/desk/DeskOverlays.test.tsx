@@ -47,7 +47,7 @@ beforeEach(() => {
 afterEach(() => { rememberVoidedSales([]); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('measured context menu placement', () => {
-  it.each(['COMPLETADA', 'CANCELADA'])('places a %s sale menu using its real dimensions before showing it', status => {
+  it.each(['COMPLETADA', 'PENDIENTE', 'CANCELADA'])('places a %s sale menu using its real dimensions before showing it', status => {
     ctx.sales[0].status = status;
     measuredHeight = status === 'CANCELADA' ? 100 : 187;
     mount();
@@ -58,7 +58,7 @@ describe('measured context menu placement', () => {
     if (status === 'CANCELADA') {
       expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Devolver' })).not.toBeInTheDocument();
-    }
+    } else expect(screen.getByRole('button', { name: 'Devolver' })).toBeInTheDocument();
   });
 
   it('keeps a button menu above the entire button at the bottom edge', () => {

@@ -1,3 +1,4 @@
+import type { Sale } from '../types';
 import type { AuthUserLike } from '../types/auth-user';
 import { apiRequest } from './api-client';
 
@@ -67,6 +68,7 @@ export interface CreditNoteView {
 }
 
 export interface ReturnCaseView {
+  cantidad?: number;
   id: string;
   code: string;
   caseNumber: number;
@@ -106,6 +108,7 @@ export interface ReturnCaseView {
 }
 
 export interface ReturnInput {
+  cantidad?: number;
   saleId: string;
   reason: string;
   openedOn: string;
@@ -203,4 +206,14 @@ export function restoreReturn(user: AuthUserLike, id: string) {
     fallback: 'No se pudo restaurar el reclamo',
     errorFrom: 'friendly',
   }).then((data) => data.return);
+}
+
+export interface ReturnSaleView extends Sale {
+  remainingQuantity: number;
+}
+
+export function fetchReturnSales(user: AuthUserLike) {
+  return apiRequest<{ sales: ReturnSaleView[] }>(user, '/api/returns/eligible-sales', {
+    fallback: 'No se pudieron cargar las ventas para el reclamo',
+  }).then(data => data.sales);
 }

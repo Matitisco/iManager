@@ -1,3 +1,5 @@
+- Devoluciones · selector mayorista (2026-11-02, `fix/reclamo-ventas-vacias`, base `test`): reclamos sobre ventas completadas o pendientes de cuenta corriente/corrección admin; consulta independiente con error/reintento, cantidad parcial persistida y stock por unidades. Compensaciones limitadas a lo cobrado y permisos sensibles intactos. Regresiones rojo→verde, TypeScript frontend/backend, 196 pruebas frontend relacionadas, 1.021 unitarias backend, 119 integraciones en PostgreSQL local exclusivo y dos recorridos reales 1440/390 aprobados. Sin producción ni build; entrega mediante PR contra `test`. PR #711 contra `test`; causa y evidencia en `docs/qa-reclamo-ventas-vacias.md`.
+
 - Integración de PR #710 en #709 (2026-11-02): merge de origin/test; preserva ventas PENDIENTE y COMPLETADA, conteo de compras/garantías y devolución parcial 10→8 con facturación 800 y ganancia 320. Unifica helpers de devoluciones y conserva compra neta, resguardos de carga y CSV. Regresión conjunta con venta pendiente: facturación 1.800 y ganancia 720. Lint frontend/backend y 1.021 unitarias backend OK; 2.631 pruebas frontend completadas entre suite y reintentos de dos archivos por timeouts; 66 integraciones relacionadas OK, con repetición de 4 por conexión local transitoria. PostgreSQL nuevo exclusivo en 127.0.0.1:55449 con datos sintéticos, sin build ni acceso a producción.
 
 - Devolución parcial · ganancia y facturación (2026-11-02, `fix/devolucion-parcial-ganancia`, base `test`): Ventas descuenta compensaciones emitidas en KPIs y ganancia por venta; Dashboard netea facturación, margen, comparación y desgloses; ficha/lista de clientes usa compra neta; Reportes aplica cantidad al costo y netea facturación/gráficos/CSV. DTO de devoluciones conserva costo unitario y agrega cantidad vendida, con default histórico 1. Caso 10 × 100 con costo 60 y devolución de 200: facturación 800 y ganancia 320. Lint frontend/backend, 211 pruebas frontend, 1.021 unitarias backend y 49 integraciones locales (4 nuevas, ARS/USD, reintegro/nota, períodos) aprobadas. PostgreSQL local exclusivo con datos sintéticos; sin build, main ni producción. Entrega mediante PR contra `test`.
@@ -516,6 +518,8 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 ---
 
 ## Estado actual
+
+- PR #711 · Nuevo reclamo (02/11/2026): retiradas las reglas de select nativo que duplicaban el chevron de DeskSelect; selección y persistencia conservadas. Lint frontend/backend, 211 pruebas frontend, 40 unitarias y 24 integraciones backend y tres recorridos Playwright aprobados, incluidos selectores visibles en 22 rutas a 1440/390. Capturas antes/después en `docs/qa-reclamo-selects/`. Seguimiento en `fix/reclamo-ventas-vacias`, con `origin/test` incluido y sin nuevos conflictos.
 
 - Core estable con datos reales en Railway (Postgres + Firebase Auth)
 - Inventory es el modulo mas maduro: categorias, import XLSX, inline edit, bulk actions, paginacion, sort
