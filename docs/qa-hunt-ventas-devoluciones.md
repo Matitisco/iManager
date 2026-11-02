@@ -2,7 +2,7 @@
 
 Base: `origin/test` (`e4fa2a9`), rama `qa/hunt-ventas-devoluciones`. Fecha: 2026-11-02. Todos los datos son ficticios; no se usaron cuentas reales de Natan, Juan ni iPh Concordia.
 
-PR a `test`: pendiente de publicación.
+PR a `test`: [#714](https://github.com/Matitisco/iManager/pull/714) — fixes HVD-01/02/03 y documentación de HVD-04.
 
 | Bug confirmado | Severidad | Cómo reproducir sobre la base | Estado |
 |---|---|---|---|

@@ -6,4 +6,5 @@
 ## Frontend / QA
 - [x] Recorrer ventas, devoluciones, permisos y onboarding en desktop/mobile.
 - [x] Verificar TypeScript frontend/backend y documentar hallazgos pendientes.
-- [ ] Publicar PR a test y verificar CI. Sin cambios de AppContext.
+- [x] Publicar PR #714 a test. Sin cambios de AppContext.
+- [ ] Verificar CI del PR.
