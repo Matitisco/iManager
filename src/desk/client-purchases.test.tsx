@@ -72,6 +72,57 @@ describe('client purchases', () => {
   });
   afterEach(() => vi.useRealTimers());
 
+  it('counts four operations and seven covered units for quantities x2, x3, x1 and x1', () => {
+    const purchases = clientPurchases({
+      clientId: 'c1', sales: [2, 3, 1, 1].map((cantidad, index) => sale(`operation-${index}`, { cantidad })),
+      tradeIns: [], repairs: [], inventory: [], sellers: [],
+    });
+    expect(purchaseTotals(purchases)).toEqual({ count: 4, activeWarranties: 7, spent: [{ currency: 'USD', amount: 400 }] });
+  });
+
+  it('keeps seven same-product same-day operations and unit warranties independent of preview and filters', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const sales = [2, 3, 1, 1, 1, 1, 1].map((cantidad, index) => sale(`operation-${index}`, { cantidad, productId: 'p1' }));
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}>
+      <ClientPurchases clientName="Cliente ejemplo" clientId="c1" sales={sales} tradeIns={[]} repairs={[]} inventory={inventory} sellers={sellers} />
+    </ExchangeProvider>);
+    const stats = screen.getByTestId('client-purchase-stats');
+    const expectTotals = () => {
+      expect(within(stats).getByText('Compras').parentElement).toHaveTextContent(/^Compras7$/);
+      expect(within(stats).getByText('Garantías').parentElement).toHaveTextContent(/^Garantías10 vigentes$/);
+      expect(stats).toHaveTextContent('US$ 700');
+    };
+    expect(screen.getByTestId('client-purchase-count')).toHaveTextContent(/^7$/);
+    expect(within(screen.getByTestId('client-purchases')).getAllByTestId(/^purchase-sale-/)).toHaveLength(3);
+    expectTotals();
+    await user.click(screen.getByTestId('purchases-more'));
+    const dialog = screen.getByRole('dialog', { name: 'Compras · Cliente ejemplo' });
+    expect(within(dialog).getAllByTestId(/^purchase-sale-/)).toHaveLength(7);
+    for (const record of sales) expect(within(dialog).getByTestId(`purchase-sale-${record.id}`)).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Reparaciones' }));
+    expect(screen.getByTestId('client-purchase-count')).toHaveTextContent(/^0$/);
+    expectTotals();
+  });
+
+  it('sums only covered units, with historical sales and delivered repairs contributing one', () => {
+    const purchases = clientPurchases({
+      clientId: 'c1', sales: [
+        sale('active', { cantidad: 2, warrantyDays: 60 }),
+        sale('expires-today', { cantidad: 3, date: '18/09/2026', warrantyDays: 30 }),
+        sale('legacy', {}),
+        sale('expired', { cantidad: 20, date: '17/09/2026', warrantyDays: 30 }),
+        sale('no-warranty', { cantidad: 30, warrantyDays: 0 }),
+        sale('voided', { cantidad: 40, voidedAt: '2026-10-18' }),
+        sale('cancelled', { cantidad: 50, status: 'CANCELADA' }),
+        sale('other-client', { cantidad: 60, clientId: 'other' }),
+      ],
+      repairs: [repair('delivered', {}), repair('pending', { status: 'RECIBIDO', events: [] })],
+      tradeIns: rows.tradeIns, inventory: [], sellers: [],
+    });
+    expect(purchaseTotals(purchases)).toEqual({ count: 7, activeWarranties: 7, spent: [{ currency: 'USD', amount: 620 }] });
+  });
+
   it.each([false, true])('shows sale quantities in preview and full history (phone=%s)', async phone => {
     const originalMedia = window.matchMedia;
     window.matchMedia = vi.fn(query => ({ matches: phone && query.includes('max-width'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
@@ -104,6 +155,7 @@ describe('client purchases', () => {
   it.each([undefined, 1, 0, -2, 1.5, NaN, Infinity])('omits the history badge for a single or invalid quantity: %s', cantidad => {
     const purchases = clientPurchases({ clientId: 'c1', sales: [sale('single', { cantidad })], tradeIns: [], repairs: [], inventory: [], sellers: [] });
     expect(purchases[0]).toMatchObject({ title: 'Equipo', quantityLabel: '' });
+    expect(purchaseTotals(purchases).activeWarranties).toBe(1);
   });
 
   it('shows three rows with full IMEI, keeps annulled records and opens a separate full list', async () => {

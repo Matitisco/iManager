@@ -1,0 +1,5 @@
+- [x] Rastrear API, carga de estado, combinación de archivo, filas y vista previa sin acceder a producción.
+- [x] Agregar regresiones y comprobar fallo con el código anterior (tres fallos por contar filas en Garantías).
+- [x] Conservar cantidad en las filas y sumar unidades con garantía vigente.
+- [x] Ejecutar lint frontend/backend y tests relacionados sin build ni BD (95 frontend, 1.021 unitarias backend).
+- [x] Documentar causa comprobada y límite de investigación de Compras para revisión.
