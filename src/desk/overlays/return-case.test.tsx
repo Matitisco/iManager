@@ -10,7 +10,9 @@ import { ReturnDelete, ReturnDetail, ReturnForm } from './return-case';
 
 const ctx = vi.hoisted(() => ({
   returns: [] as ReturnCaseView[], sales: [] as Sale[], clients: [] as Client[], inventory: [],
+  loadReturnSales: vi.fn(),
   updateReturn: vi.fn(), resolveReturn: vi.fn(), advanceRma: vi.fn(), archiveReturn: vi.fn(),
+  createReturn: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 const close = vi.fn();
@@ -27,8 +29,46 @@ function mount(node: ReactNode, sensitive = true) {
   return render(<div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: !sensitive, canManageSensitive: sensitive }}>{node}</DeskProvider></div>);
 }
 beforeEach(() => {
+  ctx.loadReturnSales.mockImplementation(async () => ctx.sales.filter(row => ['COMPLETADA', 'PENDIENTE'].includes(row.status) && !row.voidedAt).map(row => ({ ...row, remainingQuantity: row.cantidad ?? 1 })));
   vi.clearAllMocks(); ctx.returns = [{ ...claim }]; ctx.sales = []; ctx.clients = [];
   for (const fn of [ctx.updateReturn, ctx.resolveReturn, ctx.advanceRma, ctx.archiveReturn]) fn.mockResolvedValue(claim);
+  ctx.createReturn.mockResolvedValue(claim);
+});
+describe('ventas elegibles para reclamos mayoristas', () => {
+  it.each([false, true])('ofrece variantes de datos a dueño y empleado en mobile=%s', async phone => {
+    const media = window.matchMedia;
+    window.matchMedia = query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() });
+    try {
+      ctx.sales = [
+        { id: 'paid', status: 'COMPLETADA', cantidad: 5, amountCurrency: 'USD', paymentMethod: '', clientId: '', date: '2026-10-30', deviceLabel: 'Completada USD' },
+        { id: 'corrected', status: 'PENDIENTE', cantidad: 5, amount: 2025, openBalance: 1620, amountCurrency: 'USD', date: '2026-11-02', deviceLabel: 'Corregida' },
+        { id: 'account', status: 'PENDIENTE', cantidad: 1, amountCurrency: 'ARS', paymentMethod: 'CUENTA_CORRIENTE', date: '2026-10-30', deviceLabel: 'Cuenta corriente' },
+        { id: 'imported', status: 'COMPLETADA', cantidad: 1, amountCurrency: 'USD', customFields: { importFingerprint: 'synthetic' }, date: '2026-10-30', deviceLabel: 'Importada' },
+        { id: 'cancelled', status: 'CANCELADA', deviceLabel: 'Cancelada' },
+        { id: 'voided', status: 'COMPLETADA', voidedAt: '2026-11-02', deviceLabel: 'Anulada' },
+      ] as Sale[];
+      for (const sensitive of [true, false]) {
+        const view = mount(<ReturnForm />, sensitive);
+        await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
+        await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
+        for (const label of ['Completada USD', 'Corregida', 'Cuenta corriente', 'Importada']) expect(screen.getByRole('option', { name: new RegExp(label) })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: /Cancelada|Anulada/ })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('option', { name: /Corregida/ }));
+        fireEvent.change(screen.getByLabelText('Cantidad a devolver'), { target: { value: '2' } });
+        fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Dos unidades fallan' } });
+        await userEvent.click(screen.getByRole('button', { name: 'Abrir reclamo' }));
+        await waitFor(() => expect(ctx.createReturn).toHaveBeenLastCalledWith(expect.objectContaining({ saleId: 'corrected', cantidad: 2 })));
+        view.unmount();
+      }
+    } finally { window.matchMedia = media; }
+  });
+  it('permite elegir una venta más allá de las primeras páginas', async () => {
+    ctx.sales = Array.from({ length: 125 }, (_, i) => ({ id: `s${i}`, status: 'COMPLETADA', deviceLabel: `Equipo ${i}`, date: '2026-10-30' } as Sale));
+    mount(<ReturnForm />);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
+    expect(screen.getByRole('option', { name: /Equipo 124 ·/ })).toBeInTheDocument();
+  });
 });
 describe('cambio de estado de reclamo', () => {
   it('permite recibir un RMA rechazado sin reabrir la resolución', async () => {
@@ -233,6 +273,7 @@ describe('rediseño aprobado de reclamos', () => {
       { id: 'snapshot', clientId: 'client', clientName: 'Nombre histórico', deviceLabel: 'iPhone 14', date: '2026-10-23', status: 'COMPLETADA' },
     ] as Sale[];
     mount(<ReturnForm />);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
     await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
     expect(screen.getByRole('option', { name: 'Lucía Fernández · iPhone 13 · 24/10/2026' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Nombre histórico · iPhone 14 · 23/10/2026' })).toBeInTheDocument();

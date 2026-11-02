@@ -114,7 +114,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
         {equipment && isInStock(equipment.status) && !equipment.archivedAt ? <button type="button" onClick={() => open({ type: 'new-sale', productId: equipment.id, source: 'inventory' })}><DeskIcon name="cart" size={18} />Vender</button> : null}
         {overlay.kind === 'sale' && (() => {
           const sale = sales.find((row) => row.id === overlay.id);
-          return sale && sale.status === 'COMPLETADA' && !sale.voidedAt;
+          return sale && ['COMPLETADA', 'PENDIENTE'].includes(sale.status) && !sale.voidedAt;
         })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
         {canManageSensitive && cancelledSale ? <button type="button" onClick={() => open({ type: 'restore-sale', id: overlay.id, label: overlay.label })}><DeskIcon name="swap" size={18} />Revertir anulación</button> : null}

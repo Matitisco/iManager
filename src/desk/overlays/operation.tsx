@@ -710,10 +710,11 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       isVoidRow(sale) ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-          {canManageSensitive || integrated ? <SheetActionMenu>
+          <SheetActionMenu>
+            <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button>
             {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
             {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
-          </SheetActionMenu> : null}
+          </SheetActionMenu>
           <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
         </SheetActions>
       ) : (

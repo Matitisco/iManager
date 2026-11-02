@@ -12,6 +12,7 @@ import type { Client, Sale } from '../../types';
 
 const context = vi.hoisted(() => ({
   clients: [] as Client[], sales: [] as Sale[], inventory: [], expenses: [],
+  loadReturnSales: vi.fn(),
   addClient: vi.fn(), updateClient: vi.fn(), createReturn: vi.fn(), saveExpense: vi.fn(),
   commissionRules: [], commissionSellers: [], loadCommissionSellers: vi.fn(), saveCommissionRule: vi.fn(), loadCommissions: vi.fn(),
 }));
@@ -32,6 +33,7 @@ async function select(label: string, day: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   context.clients = [];
+  context.loadReturnSales.mockImplementation(async () => context.sales.map(row => ({ ...row, remainingQuantity: 1 })));
   context.sales = [{ id: 'sale', clientId: 'client', paymentMethod: 'EFECTIVO', productId: 'device', clientName: 'Cliente de prueba', deviceLabel: 'iPhone 13', date: '22/10/2026', amount: 100, amountCurrency: 'ARS', status: 'COMPLETADA' }];
   for (const fn of [context.addClient, context.createReturn, context.saveExpense, context.loadCommissionSellers, context.saveCommissionRule, context.loadCommissions]) fn.mockResolvedValue(undefined);
 });
@@ -73,7 +75,7 @@ it('selects claim dates, blocks invalid/empty dates, and preserves the payload a
   await select('Fecha', 'viernes, 23 de octubre de 2026');
   expect(close).not.toHaveBeenCalled();
   await userEvent.click(screen.getByRole('button', { name: 'Abrir reclamo' }));
-  await waitFor(() => expect(context.createReturn).toHaveBeenCalledWith({ saleId: 'sale', reason: 'Falla de prueba', openedOn: '2026-10-23', diagnosis: null, imei: null }));
+  await waitFor(() => expect(context.createReturn).toHaveBeenCalledWith({ saleId: 'sale', cantidad: 1, reason: 'Falla de prueba', openedOn: '2026-10-23', diagnosis: null, imei: null }));
   expect(screen.getByRole('dialog', { name: 'Nuevo reclamo' })).toBeInTheDocument();
   expect(screen.getByLabelText('Fecha del reclamo')).toHaveValue('23/10/2026');
   expect(close).not.toHaveBeenCalled();

@@ -1,4 +1,6 @@
-import { Prisma } from "@prisma/client";
+import { listSales } from "../sales/sales.service.js";
+import { lockInventory } from "../deposits/deposits.service.js";
+import { Prisma, type InventoryItem } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { lockTransactionKey } from "../../lib/advisory-lock.js";
 import { formatArMoney } from "../../lib/ar-money.js";
@@ -30,13 +32,14 @@ const caseInclude = {
   events: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
   creditNote: true,
   supplier: { select: { name: true } },
-  sale: { select: { cantidad: true, amount: true, amountCurrency: true, openBalance: true, status: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
+  sale: { select: { amount: true, amountCurrency: true, openBalance: true, status: true, cantidad: true, stockDeducted: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
   inventoryItem: { select: { cost: true, currency: true, status: true } },
 } satisfies Prisma.ReturnCaseInclude;
 
 type CaseRow = Prisma.ReturnCaseGetPayload<{ include: typeof caseInclude }>;
 
 export interface ReturnCaseView {
+  cantidad: number;
   id: string;
   code: string;
   caseNumber: number;
@@ -105,6 +108,7 @@ function present(row: CaseRow): ReturnCaseView {
   const sale = row.sale;
   const compensatedAt = returnCompensatedAt(row);
   return {
+    cantidad: row.cantidad ?? sale?.cantidad ?? 1,
     id: row.id,
     code: returnCode(row.caseNumber),
     caseNumber: row.caseNumber,
@@ -131,7 +135,7 @@ function present(row: CaseRow): ReturnCaseView {
     resolvedOn: row.resolvedAt ? calendarDay(row.resolvedAt, ZONE) : null,
     compensatedOn: compensatedAt ? calendarDay(compensatedAt, ZONE) : null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
-    refundable: refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null),
+    refundable: roundMoney((row.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1) * refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null)),
     saleAmount: money(sale?.amount),
     saleQuantity: sale?.cantidad ?? 1,
     saleCurrency: sale?.amountCurrency ?? null,
@@ -198,8 +202,28 @@ export async function listCreditNotes(storeId: string, clientId?: string): Promi
   }));
 }
 
+// Cancelled claims with financial or physical effects still consume units.
+const consumingClaim = { OR: [
+  { deletedAt: null, status: { not: "ANULADO" } },
+  { settlement: { in: ["REINTEGRO", "NOTA_CREDITO"] } },
+  { destination: { in: ["STOCK", "PROVEEDOR"] } },
+] } satisfies Prisma.ReturnCaseWhereInput;
+
+export async function listReturnSales(storeId: string) {
+  const [sales, claims] = await Promise.all([
+    listSales(storeId),
+    prisma.returnCase.findMany({ where: { storeId, ...consumingClaim }, select: { saleId: true, cantidad: true } }),
+  ]);
+  const used = new Map<string, number>();
+  for (const claim of claims) if (claim.saleId) used.set(claim.saleId, (used.get(claim.saleId) ?? 0) + (claim.cantidad ?? Infinity));
+  return sales.filter(sale => ["COMPLETADA", "PENDIENTE"].includes(sale.status) && !sale.voidedAt).map(sale => ({
+    ...sale, remainingQuantity: Math.max(0, sale.cantidad - (used.get(sale.id) ?? 0)),
+  })).filter(sale => sale.remainingQuantity > 0);
+}
+
 export async function createReturnCase(storeId: string, input: {
   saleId: string;
+  cantidad?: number;
   reason: string;
   openedOn: string;
   diagnosis?: string | null;
@@ -218,9 +242,12 @@ export async function createReturnCase(storeId: string, input: {
     if (!sale) throw new DomainError("No encontramos esa venta.", 404);
     if (sale.voidedAt) throw new DomainError("No se puede devolver una venta anulada.");
     if (sale.status === "CANCELADA") throw new DomainError("No se puede devolver una venta cancelada.");
-    if (sale.status !== "COMPLETADA") throw new DomainError("La venta tiene que estar cobrada para abrir el reclamo.");
-    const existing = await tx.returnCase.findFirst({ where: { storeId, saleId: sale.id, deletedAt: null, status: { not: "ANULADO" } }, select: { id: true } });
-    if (existing) throw new DomainError("Esta venta ya tiene un reclamo.", 409);
+    if (!["COMPLETADA", "PENDIENTE"].includes(sale.status)) throw new DomainError("Esta venta no permite abrir un reclamo.");
+    const cantidad = input.cantidad ?? sale.cantidad;
+    if (!Number.isInteger(cantidad) || cantidad < 1) throw new DomainError("La cantidad debe ser un entero positivo.");
+    const existing = await tx.returnCase.findMany({ where: { storeId, saleId: sale.id, ...consumingClaim }, select: { cantidad: true } });
+    const used = existing.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
+    if (cantidad > sale.cantidad - used) throw new DomainError("La cantidad supera las unidades disponibles para reclamar.", 409);
     const item = sale.inventoryItem;
     const imei = (input.imei?.trim() || item?.imei || "").slice(0, 100);
     const deviceLabel = (sale.deviceLabel || [item?.model, item?.capacity].filter(Boolean).join(" ")).slice(0, 160);
@@ -228,6 +255,7 @@ export async function createReturnCase(storeId: string, input: {
       data: {
         storeId,
         caseNumber: await nextNumber(tx, storeId),
+        cantidad,
         saleId: sale.id,
         clientId: sale.clientId,
         clientName: sale.client?.name || sale.clientName || "",
@@ -327,6 +355,26 @@ async function moveStock(tx: Tx, itemId: string, status: string) {
   });
 }
 
+async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { stockDeducted: boolean; cantidad: number } | null, item: InventoryItem) {
+  if (!sale || (!sale.stockDeducted && sale.cantidad === 1)) return item;
+  await lockInventory(tx, storeId, item.id);
+  const fresh = await tx.inventoryItem.findFirstOrThrow({ where: { id: item.id, storeId } });
+  const cantidad = current.cantidad ?? sale.cantidad;
+  if (!fresh.imei && (sale.cantidad > 1 || fresh.cantidad > 0)) {
+    const returned = await tx.inventoryItem.create({ data: {
+      storeId, categoryId: fresh.categoryId, supplierId: fresh.supplierId, stockPurchaseId: fresh.stockPurchaseId,
+      model: fresh.model, capacity: fresh.capacity, color: fresh.color, condition: fresh.condition,
+      grade: fresh.grade, batteryHealth: fresh.batteryHealth, batteryNote: fresh.batteryNote,
+      cost: fresh.cost, price: fresh.price, currency: fresh.currency, cantidad,
+      status: "VENDIDO", entryDate: new Date(), customFields: fresh.customFields ?? Prisma.JsonNull,
+    } });
+    await tx.returnCase.update({ where: { id: current.id }, data: { inventoryItemId: returned.id } });
+    return returned;
+  }
+  if (fresh.reservedDepositId || fresh.cantidad > 0) throw new DomainError("El equipo ya volvió al stock o está reservado.", 409);
+  return tx.inventoryItem.update({ where: { id: fresh.id }, data: { cantidad: { increment: cantidad } } });
+}
+
 export async function resolveReturnCase(storeId: string, id: string, input: {
   resolution: Resolution;
   settlement: Settlement;
@@ -346,7 +394,8 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       throw new DomainError("Este reclamo ya está resuelto.", 409);
     }
     const sale = current.saleId ? await tx.sale.findFirst({ where: { id: current.saleId, storeId } }) : null;
-    const item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
+    if (sale && (sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(sale.status))) throw new DomainError("La venta está anulada o cancelada.", 409);
+    let item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
     // Cancelar el reclamo conserva sus movimientos: también consumen el límite.
     const previous = current.saleId ? await tx.returnCase.aggregate({
       where: {
@@ -355,7 +404,9 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       },
       _sum: { moneyAmount: true },
     }) : null;
-    const cap = Math.max(0, roundMoney(refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null) - money(previous?._sum.moneyAmount)));
+    const collected = refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null);
+    const unitCap = roundMoney(collected * (current.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1));
+    const cap = Math.max(0, Math.min(unitCap, roundMoney(collected - money(previous?._sum.moneyAmount))));
     const amount = roundMoney(input.amount);
     if (input.settlement !== "NINGUNO" && amount > cap + 0.001) {
       throw new DomainError("El importe supera lo que se cobró en esa venta.");
@@ -367,6 +418,9 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     let stockStatus: string | null = null;
     let rmaStatus: string | null = null;
     let status = "RESUELTO";
+    if (item && (input.destination === "STOCK" || input.destination === "PROVEEDOR")) {
+      item = await returnedItem(tx, storeId, current, sale, item);
+    }
     if (input.destination === "STOCK") {
       if (!item) throw new DomainError("Esta venta no tiene un equipo en stock para devolver.");
       const chosen = stockStatusForReturn(item.status, current.previousStatus, input.stockStatus ?? "");
@@ -496,6 +550,7 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
       if (!item) throw new DomainError("No encontramos el equipo de este reclamo.", 404);
       if (current.resolution === "REPARACION") {
         await moveStock(tx, item.id, "VENDIDO");
+        if (current.sale?.stockDeducted) await tx.inventoryItem.update({ where: { id: item.id }, data: { cantidad: 0 } });
         stockStatus = "VENDIDO";
       } else {
         const chosen = stockStatusForReturn(item.status, current.previousStatus, input.stockStatus ?? "");

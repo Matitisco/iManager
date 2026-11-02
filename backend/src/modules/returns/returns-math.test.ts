@@ -26,10 +26,12 @@ describe("devoluciones", () => {
     expect(stockStatusForReturn("EN_RMA", "DISPONIBLE", "devuelto")).toEqual({ ok: true, status: "DEVUELTO" });
   });
 
-  it("toma como reintegrable solo lo cobrado de una venta completada", () => {
+  it("toma como reintegrable solo lo cobrado, incluso con deuda pendiente", () => {
     expect(refundableAmount({ status: "COMPLETADA", amount: 1000, openBalance: null })).toBe(1000);
     expect(refundableAmount({ status: "COMPLETADA", amount: 1000, openBalance: 400 })).toBe(600);
     expect(refundableAmount({ status: "PENDIENTE", amount: 1000, openBalance: null })).toBe(0);
+    expect(refundableAmount({ status: "PENDIENTE", amount: 1000, openBalance: 400 })).toBe(600);
+    expect(refundableAmount({ status: "CANCELADA", amount: 1000, openBalance: 0 })).toBe(0);
     expect(refundableAmount(null)).toBe(0);
   });
 
