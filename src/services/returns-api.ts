@@ -125,6 +125,7 @@ export interface UpdateReturnInput {
 }
 
 export interface ResolveReturnInput {
+  cantidad?: number;
   diagnosis?: string | null;
   note?: string | null;
   resolution: ReturnResolution;

@@ -183,6 +183,8 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
   const [amount, setAmount] = useState(current ? formatInputMoney(current.refundable) : '');
   const [destination, setDestination] = useState<ReturnDestination>('CLIENTE');
   const [stockStatus, setStockStatus] = useState('EN_REVISION');
+  const maxQuantity = current.cantidad ?? current.saleQuantity ?? 1;
+  const [quantity, setQuantity] = useState(String(maxQuantity));
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const voided = current ? isVoidRow(current) : false;
@@ -201,7 +203,11 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
     setError('');
     try {
       if (resolving) {
+        if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1 || Number(quantity) > maxQuantity) {
+          throw new Error(`Elegí una cantidad entre 1 y ${maxQuantity}.`);
+        }
         const input: ResolveReturnInput = {
+          ...(maxQuantity > 1 ? { cantidad: Number(quantity) } : {}),
           resolution, settlement: resolution === 'REPARACION' ? 'NINGUNO' : settlement,
           amount: resolution === 'REPARACION' ? 0 : parseMoney(amount), destination: chosenDestination,
           stockStatus: chosenDestination === 'STOCK' ? stockStatus : null,
@@ -255,6 +261,7 @@ function LoadedReturnDetail({ current, onClose: close, overlayClassName }: { cur
     {unresolved && (status === 'EN_DIAGNOSTICO' || diagnosis || resolving) ? <Field label="Diagnóstico"><textarea aria-label="Diagnóstico" value={diagnosis} maxLength={2000} disabled={busy} onChange={event => setDiagnosis(event.target.value)} /></Field> : null}
     {!unresolved && current.diagnosis ? <div className="return-reason"><b>Diagnóstico</b><p>{current.diagnosis}</p></div> : null}
     {resolving ? <div className="return-resolution" data-testid="return-resolve">
+      {maxQuantity > 1 ? <Field label="Unidades del reclamo"><input aria-label="Unidades del reclamo" type="number" min={1} max={maxQuantity} step={1} value={quantity} disabled={busy} onChange={event => setQuantity(event.target.value)} /></Field> : null}
       <Choices label="Resolución" options={RESOLUTIONS} value={resolution} onChange={value => setResolution(value as ReturnResolution)} disabled={busy} />
       {resolution !== 'REPARACION' ? <>
         <Choices label="Devolución" options={SETTLEMENTS} value={settlement} onChange={value => setSettlement(value as ReturnSettlement)} disabled={busy} />

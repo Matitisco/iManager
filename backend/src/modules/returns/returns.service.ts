@@ -376,6 +376,7 @@ async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { s
 }
 
 export async function resolveReturnCase(storeId: string, id: string, input: {
+  cantidad?: number;
   resolution: Resolution;
   settlement: Settlement;
   amount: number;
@@ -395,6 +396,11 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     }
     const sale = current.saleId ? await tx.sale.findFirst({ where: { id: current.saleId, storeId } }) : null;
     if (sale && (sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(sale.status))) throw new DomainError("La venta está anulada o cancelada.", 409);
+    if (sale && sale.inventoryItemId !== current.inventoryItemId) throw new DomainError("El equipo de la venta cambió. Revisá el reclamo antes de resolverlo.", 409);
+    const cantidad = input.cantidad ?? current.cantidad ?? sale?.cantidad ?? 1;
+    if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > (current.cantidad ?? sale?.cantidad ?? 1) || (sale && cantidad > sale.cantidad)) {
+      throw new DomainError("La cantidad debe ser un entero positivo que no supere las unidades del reclamo.");
+    }
     let item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
     // Cancelar el reclamo conserva sus movimientos: también consumen el límite.
     const previous = current.saleId ? await tx.returnCase.aggregate({
@@ -405,7 +411,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       _sum: { moneyAmount: true },
     }) : null;
     const collected = refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null);
-    const unitCap = roundMoney(collected * (current.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1));
+    const unitCap = roundMoney(collected * cantidad / (sale?.cantidad ?? 1));
     const cap = Math.max(0, Math.min(unitCap, roundMoney(collected - money(previous?._sum.moneyAmount))));
     const amount = roundMoney(input.amount);
     if (input.settlement !== "NINGUNO" && amount > cap + 0.001) {
@@ -419,7 +425,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     let rmaStatus: string | null = null;
     let status = "RESUELTO";
     if (item && (input.destination === "STOCK" || input.destination === "PROVEEDOR")) {
-      item = await returnedItem(tx, storeId, current, sale, item);
+      item = await returnedItem(tx, storeId, { ...current, cantidad }, sale, item);
     }
     if (input.destination === "STOCK") {
       if (!item) throw new DomainError("Esta venta no tiene un equipo en stock para devolver.");
@@ -489,6 +495,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       where: { id },
       data: {
         ...(input.diagnosis !== undefined ? { diagnosis: input.diagnosis?.trim() || null } : {}),
+        cantidad,
         resolution: input.resolution,
         settlement: input.settlement,
         moneyAmount: new Decimal(amount),
