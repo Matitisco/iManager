@@ -64,7 +64,7 @@ type ExchangeValue = {
   delta: number | null;
   label: string;
   title: string;
-  refresh: () => void;
+  refresh: () => Promise<void>;
   money: MoneyApi;
 };
 
@@ -248,7 +248,7 @@ export function ExchangeProvider({ settings = DEFAULT_SETTINGS, children }: { se
     delta: quote ? sellDelta(quote.sell, days) : null,
     label: settings.exchangeMode === 'manual' ? 'Manual' : `DolarApi · ${exchangeHouseLabel(source)}`,
     title: settings.exchangeMode === 'manual' ? 'Dólar' : source === 'mep' ? 'Dólar MEP' : `Dólar ${exchangeHouseLabel(source).toLowerCase()}`,
-    refresh: () => { void load('visible'); },
+    refresh: () => load('visible'),
     money,
   }), [settings, phase, quote, days, source, load, money]);
 

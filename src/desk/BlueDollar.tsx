@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { formatMoney } from './format';
 import { ImanagerIcon } from './icons';
@@ -65,8 +65,20 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' | '
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<'sell' | 'buy'>('sell');
   const [usd, setUsd] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshRequest = useRef(0);
   const manual = settings.exchangeMode === 'manual';
   const compact = variant === 'chip';
+
+  const handleSidebarRefresh = async () => {
+    const request = ++refreshRequest.current;
+    setRefreshing(true);
+    try {
+      await refresh();
+    } finally {
+      if (refreshRequest.current === request) setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -222,9 +234,9 @@ export function BlueDollar({ variant = 'full' }: { variant?: 'full' | 'chip' | '
             aria-label="Actualizar cotización"
             data-testid="blue-refresh"
             disabled={phase === 'loading'}
-            onClick={() => refresh()}
+            onClick={handleSidebarRefresh}
           >
-            <RefreshCw size={15} />
+            <RefreshCw size={15} className={refreshing ? 'dolar-refresh-spinning' : undefined} />
           </button>
         )}
         {phase === 'error' && manual && !sidebarCompact ? <p className="dolar-foot">Cargá la cotización en Configuración.</p> : null}
