@@ -28,3 +28,17 @@ test('failures are counted but cannot create an apparent runtime improvement', (
   const failed = { name: 'unit', conclusion: 'failure' };
   assert.match(report([{ jobs: [failed] }]), /unit \| 0\/1 \| —/);
 });
+
+test('failed runtime is available separately with an explicit outcome label', () => {
+  const failed = {
+    name: 'integration',
+    conclusion: 'failure',
+    created_at: at(0),
+    started_at: at(2),
+    completed_at: at(15),
+    steps: [step('Test integration', 5, 14, 'failure')],
+  };
+  const table = report([{ jobs: [failed] }], 'failure');
+  assert.match(table, /failure \/ total/);
+  assert.match(table, /integration \| 1\/1 \| 2.0 s \| 4.0 s \| 9.0 s/);
+});

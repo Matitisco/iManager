@@ -34,7 +34,7 @@ const median = (xs) => {
   const mid = Math.floor(xs.length / 2);
   return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
 };
-export function report(data) {
+export function report(data, conclusion = 'success') {
   const groups = new Map();
   for (const { jobs } of data)
     for (const job of jobs) {
@@ -43,11 +43,12 @@ export function report(data) {
       groups.set(job.name, group);
     }
   const rows = [
-    '| Job | OK / total | Queue | Setup | Execution | Cleanup | Job total |',
+    `| Job | ${conclusion === 'success' ? 'OK' : conclusion} / total | Queue | Setup | Execution | Cleanup | Job total |`,
     '| --- | ---: | ---: | ---: | ---: | ---: | ---: |',
   ];
   for (const [name, jobs] of groups) {
-    const ok = jobs.filter((j) => j.conclusion === 'success').map(timing);
+    const ok = jobs.filter((j) => j.conclusion === conclusion).map(timing);
+    if (conclusion !== 'success' && !ok.length) continue;
     rows.push(
       `| ${name} | ${ok.length}/${jobs.length} | ${['queue', 'setup', 'execute', 'cleanup', 'total'].map((k) => (ok.length ? `${median(ok.map((t) => t[k])).toFixed(1)} s` : '—')).join(' | ')} |`,
     );
@@ -57,7 +58,9 @@ export function report(data) {
 if (process.argv[1]?.endsWith('/ci-timings.mjs')) {
   const [mode, output, ...ids] = process.argv.slice(2);
   if (mode === 'report')
-    console.log(report(JSON.parse(readFileSync(output, 'utf8'))));
+    console.log(
+      report(JSON.parse(readFileSync(output, 'utf8')), ids[0] ?? 'success'),
+    );
   else if (mode === 'collect') {
     const repo = gh('repo', 'view', '--json', 'nameWithOwner').nameWithOwner;
     const runs = ids.length
@@ -73,7 +76,7 @@ if (process.argv[1]?.endsWith('/ci-timings.mjs')) {
           'databaseId,event,headBranch,headSha,conclusion,createdAt,url',
         );
     const data = [];
-    // Bounded concurrency avoids bursts against the API rate limit.
+    // Sequential requests avoid bursts against the API rate limit.
     for (const run of runs) {
       const full = gh('api', `repos/${repo}/actions/runs/${run.databaseId}`);
       const jobs = gh(

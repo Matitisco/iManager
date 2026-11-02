@@ -1,5 +1,5 @@
 name: Dependencies
-description: Restore one npm download cache across jobs and base/PR branches
+description: Restore branch-visible npm download caches
 inputs:
   projects:
     description: frontend, backend or both
@@ -13,7 +13,7 @@ runs:
     - uses: actions/cache@v4
       if: inputs.projects != 'backend'
       with:
-        # Relative paths share cache versions between host/container jobs.
+        # Stable relative paths avoid differences between host/container HOME.
         path: .npm-cache/frontend
         key: npm-v1-${{ runner.os }}-${{ runner.arch }}-node22-frontend-${{ hashFiles('package-lock.json') }}
         restore-keys: |

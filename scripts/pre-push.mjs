@@ -25,8 +25,9 @@ export function pushedFiles(input, runGit = git) {
     }
     const names = runGit(
       'diff',
+      '--no-renames',
       '--name-only',
-      '--diff-filter=ACMR',
+      '--diff-filter=ACMRD',
       '-z',
       base,
       local,
@@ -85,8 +86,9 @@ if (
     }
     files = git(
       'diff',
+      '--no-renames',
       '--name-only',
-      '--diff-filter=ACMR',
+      '--diff-filter=ACMRD',
       '-z',
       git('merge-base', base, 'HEAD'),
       'HEAD',
@@ -94,18 +96,18 @@ if (
       .split('\0')
       .filter(Boolean);
   }
-  files = files.filter(existsSync);
   if (!files.length) {
     console.log('pre-push: no changed files');
     process.exit(0);
   }
   const format = process.argv.includes('--format');
-  const formatted = files.filter(
+  const existing = files.filter(existsSync);
+  const formatted = existing.filter(
     (p) =>
       /\.(?:[cm]?[jt]sx?|json|ya?ml|md|css|html)$/.test(p) &&
       !p.endsWith('package-lock.json'),
   );
-  const source = files.filter((p) => /\.[cm]?[jt]sx?$/.test(p));
+  const source = existing.filter((p) => /\.[cm]?[jt]sx?$/.test(p));
   const projects = affectedProjects(files);
   const tasks = [];
   if (formatted.length)

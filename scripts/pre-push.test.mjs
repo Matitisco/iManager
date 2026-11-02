@@ -13,7 +13,15 @@ test('outgoing diff uses pushed SHAs, literal filenames and skips deleted refs',
   );
   assert.deepEqual(files, ['src/a b.ts', 'src/$(literal).ts']);
   assert.deepEqual(calls, [
-    ['diff', '--name-only', '--diff-filter=ACMR', '-z', 'def', 'abc'],
+    [
+      'diff',
+      '--no-renames',
+      '--name-only',
+      '--diff-filter=ACMRD',
+      '-z',
+      'def',
+      'abc',
+    ],
   ]);
 });
 test('new branch compares with merge base; all refs contribute and paths deduplicate', () => {
@@ -49,4 +57,13 @@ test('typechecks retain project context and backend-to-frontend dependencies', (
     frontend: true,
     backend: true,
   });
+});
+
+test('deleted source files still select their TypeScript project graph', () => {
+  const files = pushedFiles(
+    'refs/heads/a abc refs/heads/a def',
+    () => 'src/deleted.ts\0',
+  );
+  assert.deepEqual(files, ['src/deleted.ts']);
+  assert.deepEqual(affectedProjects(files), { frontend: true, backend: false });
 });
