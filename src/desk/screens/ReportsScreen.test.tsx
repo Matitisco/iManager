@@ -516,7 +516,7 @@ describe('Reports breakdown and new sections', () => {
     expect(card).toHaveTextContent('$ 510');
   });
 
-  it('resta facturación y margen de dos unidades devueltas de diez', () => {
+  it('resta facturación y margen de dos unidades devueltas de diez, también en CSV', async () => {
     context.appSession = { membership: { role: 'OWNER' } };
     context.sales = [{ ...sale('s', '2026-10-01', 1000), cantidad: 10, productId: 'p', amountCurrency: 'ARS' }];
     context.inventory = [{ ...product('p'), cost: 60, currency: 'ARS' }];
@@ -525,6 +525,10 @@ describe('Reports breakdown and new sections', () => {
     expect(total()).toContain('$ 800');
     expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia bruta$ 320');
     expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia neta$ 320');
+    const csv = await exportedCsv();
+    expect(csv.split('\n')).toHaveLength(3);
+    expect(csv).toContain('Devolución');
+    expect(csv).toContain('-200');
   });
 
   it('espera con un esqueleto y no muestra una ganancia vacía', () => {
@@ -567,4 +571,18 @@ it('exports equipment entry date, battery detail and typed custom values', async
   expect(csv).toContain('01/04/2026');
   expect(csv).toContain('Batería cambiada');
   expect(csv).toContain('"Batería cambiada","0"');
+});
+
+it.each(['REINTEGRO', 'NOTA_CREDITO'])('Reportes: facturación y ganancia descuentan dos de diez unidades (%s)', async settlement => {
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.sales = [{ ...sale('1', '2026-04-02', 6500), productId: 'p', cantidad: 10, amountCurrency: 'USD' }];
+  context.inventory = [{ ...product('p'), cost: 450, currency: 'USD' }];
+  context.expenses = [];
+  context.returns = [{ id: 'r', saleId: '1', status: 'EN_PROVEEDOR', resolution: 'REINTEGRO', settlement, compensatedOn: '2026-04-03', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><ReportsScreen /></ExchangeProvider>);
+  await applyRange();
+  expect(total()).toContain('5.200');
+  expect(screen.getByText('Ganancia bruta').parentElement).toHaveTextContent('US$ 1.600');
+  expect(screen.getByText('Ganancia neta').parentElement).toHaveTextContent('US$ 1.600');
+  expect(screen.getByTestId('net-profit-returns')).toHaveTextContent('US$ 1.300');
 });

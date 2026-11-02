@@ -56,4 +56,38 @@ describe('10 unidades vendidas, devolución parcial de 2', () => {
     const clients = (await request('GET', '/api/clients')).clients;
     expect(clients.find((row: { id: string }) => row.id === catalog.client.id).totalSpent).toBe(800 * factor);
   });
+
+  it('incluye la venta pendiente junto a la venta completada con devolución parcial', async () => {
+    const { store } = await seedStoreContext();
+    const storeId = store!.id;
+    await prisma.store.update({ where: { id: storeId }, data: { currency: 'USD', exchangeMode: 'manual', manualSell: 1000 } });
+    const { inventoryItem, client } = await seedCatalogFixture(storeId);
+    await prisma.inventoryItem.update({ where: { id: inventoryItem.id }, data: { imei: '', cantidad: 20, cost: 60, currency: 'USD' } });
+    const app = getApp();
+    const request = async (method: 'GET' | 'POST', url: string, payload?: object) => {
+      const response = await app.inject({ method, url, headers, payload });
+      expect(response.statusCode, response.body).toBe(method === 'POST' && !url.endsWith('/resolve') ? 201 : 200);
+      return response.json();
+    };
+    const sales: Array<{ id: string }> = [];
+    for (const status of ['PENDIENTE', 'COMPLETADA']) {
+      const result = await request('POST', '/api/operations/sales', {
+        productId: inventoryItem.id, clientId: client.id, cantidad: 10,
+        amount: 1000, currency: 'USD', status, paymentMethod: 'EFECTIVO',
+      });
+      sales.push(result.sale);
+    }
+    const opened = (await request('POST', '/api/returns', { saleId: sales[1].id, reason: 'Dos unidades devueltas', openedOn: '2026-11-02' })).return;
+    await request('POST', `/api/returns/${opened.id}/resolve`, {
+      resolution: 'REINTEGRO', settlement: 'REINTEGRO', amount: 200, destination: 'STOCK', stockStatus: 'EN_REVISION',
+    });
+    const { overview } = await request('GET', '/api/reports/overview?rangeKey=all_time');
+    // Pending 1,000 + completed net 800; profit 400 + 320.
+    expect(overview.summary).toMatchObject({ revenue: 1800, grossProfit: 720, marginRate: 40, pendingSales: 1, pendingAmount: 1000, returnsAmount: 200 });
+    for (const group of ['salesSeries', 'paymentMethods', 'topProducts', 'categories', 'topClients']) {
+      expect(overview[group].reduce((sum: number, row: { revenue: number }) => sum + row.revenue, 0), group).toBe(1800);
+    }
+    const { clients } = await request('GET', '/api/clients');
+    expect(clients.find((row: { id: string }) => row.id === client.id).totalSpent).toBe(1800);
+  });
 });

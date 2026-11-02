@@ -131,7 +131,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const [dimensionByTab, setDimensionByTab] = useState<Partial<Record<ReportTab, string>>>({});
   const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
   const periodData = useMemo(() => ({
-    sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
+    sales: sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.start, bounds.end)),
     inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
     repairs: repairOrders.filter((order) => inReportPeriod(order.receivedAt, bounds.start, bounds.end)),
@@ -574,7 +574,7 @@ function buildReport(
   const title = breakdownTitle(tab, dimension, dimensions);
   if (tab === 'Ventas') {
     const current = data.sales;
-    const previous = allSales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
+    const previous = allSales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
     const total = current.reduce((sum, sale) => sum + sale.amount, 0);
     const prev = previous.reduce((sum, sale) => sum + sale.amount, 0);
     for (const sale of current) addToReportBucket(buckets, sale.date, sale.amount);

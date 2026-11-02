@@ -54,7 +54,7 @@ import { compensatedReturns, compensationDate } from '../return-financials';
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, returns, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
+  const { sales, clients, inventory, returns = [], deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
@@ -117,7 +117,7 @@ export function SalesScreen() {
   const hasCost = costedSales > 0 || costedReturns > 0;
   const marginNote = !hasCost ? 'Cargá el costo en el equipo'
     : salesWithoutCost > 0 ? `${salesWithoutCost} ${salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}`
-    : marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`;
+    : marginPct == null || (figures.marginRevenue ?? 0) <= 0 ? 'precio menos costo' : `≈ ${marginPct}%`;
   const delta = total != null && prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));

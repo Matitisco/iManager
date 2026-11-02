@@ -33,8 +33,8 @@ const report: ReportsOverview = {
   salesSeries: [1, 8, 15, 22].map((day, i) => ({ start: `2026-10-${String(day).padStart(2, '0')}`, label: '', revenue: [2600000, 3200000, 2800000, 4090000][i], unitsSold: 1 })),
   paymentMethods: [{ label: 'Efectivo', revenue: 5837400, share: 46, count: 8 }, { label: 'Transferencia', revenue: 3933900, share: 31, count: 4 }],
 };
-function dashboardView() {
-  return (<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}><DeskProvider value={{ tab: 'dashboard', go, open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: context.appSession.membership.role === 'STAFF' }}><DashboardScreen /></DeskProvider></ExchangeProvider>);
+function dashboardView(currency: 'ARS' | 'USD' = 'ARS') {
+  return (<ExchangeProvider settings={{ currency, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}><DeskProvider value={{ tab: 'dashboard', go, open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: context.appSession.membership.role === 'STAFF' }}><DashboardScreen /></DeskProvider></ExchangeProvider>);
 }
 function renderScreen() {
   return render(dashboardView());
@@ -75,6 +75,52 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([false, true])('conserva ventas USD y cantidades al aplicar cada preset (móvil=%s)', async phone => {
+    if (phone) phoneMedia();
+    vi.setSystemTime(new Date('2026-11-02T15:00:00Z'));
+    const user = userEvent.setup();
+    const periods = [
+      { label: 'Últimos 7 días', start: '2026-10-27', end: '2026-11-02', units: 9 },
+      { label: 'Hoy', start: '2026-11-02', end: '2026-11-02', units: 3 },
+      { label: 'Este mes', start: '2026-11-01', end: '2026-11-02', units: 5 },
+      { label: 'Mes anterior', start: '2026-10-01', end: '2026-10-31', units: 22 },
+      { label: 'Total', start: undefined, end: undefined, units: 44 },
+    ];
+    context.sales = [
+      { ...makeSale('today', '2026-11-02', 'Mayorista hoy'), status: 'PENDIENTE', cantidad: 3, amount: 1950, amountCurrency: 'USD' },
+      { ...makeSale('october', '2026-10-31', 'Mayorista octubre'), status: 'PENDIENTE', cantidad: 4, amount: 2600, amountCurrency: 'USD' },
+    ];
+    api.fetchReportsOverview.mockImplementation(async (_user, start, end): Promise<ReportsOverview> => {
+      const period = periods.find(item => item.start === start && item.end === end);
+      if (!period) throw new Error(`Unexpected range: ${start} / ${end}`);
+      const revenue = period.units * 650;
+      return {
+        currency: 'USD', summary: { revenue, grossProfit: period.units * 200, marginRate: 200 / 650 * 100, unitsSold: period.units },
+        comparison: { available: false, revenueChange: null, grossProfitChange: null, unitsChange: null },
+        salesSeries: [{ start: start ?? '2025-01-01', label: '', revenue, unitsSold: period.units }],
+        paymentMethods: [{ label: 'Efectivo', revenue, share: 100, count: 1 }],
+      };
+    });
+    render(dashboardView('USD'));
+    for (const [index, period] of periods.entries()) {
+      if (index) {
+        const trigger = phone ? document.querySelector<HTMLButtonElement>('.dashboard-month-nav button:nth-child(2)')! : screen.getByRole('button', { name: /Elegir período/ });
+        await user.click(trigger);
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: period.label }));
+        await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+      }
+      await waitFor(() => expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent(String(period.units)));
+      expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, period.start, period.end, expect.any(AbortSignal));
+      expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent(`US$ ${(period.units * 650).toLocaleString('es-AR')}`);
+      expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent(`US$ ${(period.units * 200).toLocaleString('es-AR')}`);
+      expect(screen.getByRole('img', { name: 'Ventas del período' })).toBeVisible();
+      expect(within(document.querySelector<HTMLElement>('.dashboard-payments')!).getByText('Efectivo')).toBeVisible();
+      expect(screen.queryByText(/Todavía no hay ventas/)).toBeNull();
+      expect(screen.queryByText('Mayorista hoy') !== null).toBe(period.label !== 'Mes anterior');
+      expect(screen.queryByText('Mayorista octubre') !== null).toBe(['Últimos 7 días', 'Mes anterior', 'Total'].includes(period.label));
+    }
+  });
+
   it.each([false, true])('muestra la nota de ventas sin costo solo cuando hay exclusiones (móvil=%s)', async phone => {
     if (phone) phoneMedia();
     api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, salesWithoutCost: 2 } });
@@ -698,4 +744,19 @@ describe('Acceso mobile al equipo', () => {
     renderScreen(); await waitFor(() => expect(api.listInvitations).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull();
   });
+});
+
+it('cuenta las unidades pendientes de cobro también para quien no ve importes', async () => {
+  context.appSession.membership = { role: 'MANAGER', sections: ['sales', 'inventory'] };
+  context.sales = [{ ...makeSale('bulk', '2026-10-22', 'Mayorista'), status: 'PENDIENTE', cantidad: 5 }];
+  renderScreen();
+  const metric = await screen.findByRole('button', { name: /Equipos vendidos/ });
+  await waitFor(() => expect(metric.querySelector('.dashboard-kpi-value')).toHaveTextContent('5'));
+  expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+});
+it('muestra tendencia de una devolución compensada aun sin ventas nuevas', async () => {
+  api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: -1300, unitsSold: 0 }, salesSeries: [{ start: '2026-10-22', label: '', revenue: -1300, unitsSold: 0 }] });
+  renderScreen();
+  await waitFor(() => expect(document.querySelector('.dashboard-trend .dashboard-chart-empty')).toBeNull());
+  expect(screen.queryByText('Todavía no hay ventas en los últimos 7 días')).not.toBeInTheDocument();
 });
