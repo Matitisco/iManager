@@ -225,10 +225,10 @@ describe("getReportsOverview", () => {
       { ...common, amount: 900, inventoryItem: null },
     ]);
     const result = await getReportsOverview('store-1', { rangeKey: 'custom', startDate: new Date('2026-04-01'), endDate: new Date('2026-04-30') });
-    expect(result.summary).toMatchObject({ revenue: 1000, grossProfit: 40, marginRate: 40, unitsSold: 4, salesWithoutCost: 3, pendingSales: 1 });
+    expect(result.summary).toMatchObject({ revenue: 1500, grossProfit: 40, marginRate: 40, unitsSold: 5, salesWithoutCost: 4, pendingSales: 1 });
     expect(result.comparison).toMatchObject({ grossProfit: 20, grossProfitChange: 100 });
-    expect(result.salesSeries.reduce((total, point) => total + point.revenue, 0)).toBe(1000);
-    expect(result.paymentMethods[0]).toMatchObject({ revenue: 1000, count: 4 });
+    expect(result.salesSeries.reduce((total, point) => total + point.revenue, 0)).toBe(1500);
+    expect(result.paymentMethods[0]).toMatchObject({ revenue: 1500, count: 5 });
   });
 
   it('returns zero margin when every sale lacks cost and ignores their return reversals', async () => {
@@ -289,7 +289,7 @@ describe("getReportsOverview", () => {
     await expect(getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null })).rejects.toMatchObject({ statusCode: 503 });
   });
 
-  it("returns valuation and topProducts using completed sales only", async () => {
+  it("returns valuation and topProducts recognizing paid and pending sales", async () => {
     const overview = await getReportsOverview("store-1", {
       rangeKey: "custom",
       startDate: new Date("2026-04-01T00:00:00.000Z"),
@@ -305,14 +305,20 @@ describe("getReportsOverview", () => {
         product: "iPhone 14 128GB Negro",
         unitsSold: 2,
         revenue: 900,
-        share: 100,
+        share: (2 / 3) * 100,
+      },
+      {
+        product: "Galaxy S24 256GB Azul",
+        unitsSold: 1,
+        revenue: 900,
+        share: (1 / 3) * 100,
       },
     ]);
     expect(overview.summary.pendingSales).toBe(1);
     expect(overview.summary.pendingAmount).toBe(900);
-    expect(overview.summary.unitsSold).toBe(2);
-    expect(overview.summary.marginRate).toBeCloseTo((350 / 900) * 100);
-    expect(overview.paymentMethods.map((method) => method.label)).toEqual(["Tarjeta", "Efectivo"]);
+    expect(overview.summary.unitsSold).toBe(3);
+    expect(overview.summary.marginRate).toBeCloseTo((550 / 1800) * 100);
+    expect(overview.paymentMethods.map((method) => method.label)).toEqual(["Efectivo", "Tarjeta"]);
     expect(overview.tradeIns.openInRange).toBe(1);
     expect(overview.tradeIns.cashGenerated).toBe(120);
     expect(overview.tradeIns.openCash).toBe(30);
@@ -414,7 +420,7 @@ describe("getReportsOverview", () => {
     });
     expect(saleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: {
-        storeId: "store-1", status: "COMPLETADA", voidedAt: null,
+        storeId: "store-1", status: { in: ["COMPLETADA", "PENDIENTE"] }, voidedAt: null, cancelledAt: null,
         soldAt: { gte: new Date(`${previousStart}T00:00:00-03:00`), lte: new Date(`${previousEnd}T23:59:59.999-03:00`) },
       },
     }));
@@ -443,14 +449,15 @@ describe("getReportsOverview", () => {
     ]);
     const overview = await getReportsOverview("store-1", normalizeReportsOverviewInput({ rangeKey: "all_time" }));
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
-    expect(saleFindManyMock.mock.calls[0][0].where).toEqual({ storeId: "store-1", voidedAt: null });
-    expect(overview.summary).toMatchObject({ revenue: 300, grossProfit: 240, unitsSold: 2, marginRate: 80 });
+    expect(saleFindManyMock.mock.calls[0][0].where).toEqual({ storeId: "store-1", voidedAt: null, cancelledAt: null, status: { in: ["COMPLETADA", "PENDIENTE"] } });
+    expect(overview.summary).toMatchObject({ revenue: 1200, grossProfit: 240, unitsSold: 3, marginRate: 80 });
     expect(overview.salesSeries).toEqual([
       { start: "2025-11-01", label: "01/11/2025", revenue: 100, unitsSold: 1 },
       { start: "2025-12-01", label: "01/12/2025", revenue: 0, unitsSold: 0 },
       { start: "2026-01-01", label: "01/01/2026", revenue: 200, unitsSold: 1 },
+      { start: "2026-02-01", label: "01/02/2026", revenue: 900, unitsSold: 1 },
     ]);
-    expect(overview.paymentMethods.reduce((sum, method) => sum + method.revenue, 0)).toBe(300);
+    expect(overview.paymentMethods.reduce((sum, method) => sum + method.revenue, 0)).toBe(1200);
     expect(overview.comparison).toMatchObject({ available: false, revenueChange: null, grossProfitChange: null, unitsChange: null });
     expect(overview.filters).toEqual({ rangeKey: "all_time", startDate: null, endDate: null });
   });

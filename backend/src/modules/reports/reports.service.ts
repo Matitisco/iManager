@@ -198,7 +198,7 @@ function buildProductLabel(input?: {
   return label || "Producto sin referencia";
 }
 
-type CompletedSale = {
+type RecognizedSale = {
   isReturn?: boolean;
   cantidad?: number;
   amount: number;
@@ -272,7 +272,7 @@ export function buildInventoryAging(
   });
 }
 
-function summarizeCompleted(sales: Array<{ amount: number; cost: number | null; cantidad?: number }>) {
+function summarizeSales(sales: Array<{ amount: number; cost: number | null; cantidad?: number }>) {
   const revenue = sales.reduce((accumulator, sale) => accumulator + sale.amount, 0);
   const costedSales = sales.filter((sale): sale is { amount: number; cost: number } => sale.cost !== null);
   const marginRevenue = costedSales.reduce((total, sale) => total + sale.amount, 0);
@@ -293,7 +293,7 @@ type ReportsQueryInput = {
 };
 
 function buildSalesSeries(
-  sales: CompletedSale[],
+  sales: RecognizedSale[],
   startDate: Date | null,
   endDate: Date | null
 ): ReportsSeriesPoint[] {
@@ -350,6 +350,9 @@ export async function getReportsOverview(
   const salesWhere = {
     storeId,
     voidedAt: null,
+    cancelledAt: null,
+    // PENDIENTE describes collection, not whether the equipment was sold.
+    status: { in: ["COMPLETADA", "PENDIENTE"] },
     ...buildDateRangeWhere("soldAt", input.startDate, input.endDate),
   };
   const tradeInsWhere = {
@@ -409,9 +412,7 @@ export async function getReportsOverview(
     previousWindow
       ? prisma.sale.findMany({
           where: {
-            storeId,
-            voidedAt: null,
-            status: "COMPLETADA",
+            ...salesWhere,
             soldAt: {
               gte: previousWindow.startDate,
               lte: previousWindow.endDate,
@@ -419,7 +420,7 @@ export async function getReportsOverview(
           },
           select: {
             cantidad: true,
-        amount: true,
+            amount: true,
             amountCurrency: true,
             inventoryItem: {
               select: { cost: true, currency: true },
@@ -516,8 +517,8 @@ export async function getReportsOverview(
   const knownCost = (item: { cost: unknown; currency?: string | null } | null) =>
     item && toNumber(item.cost) > 0 ? convert(item.cost, item.currency) : null;
 
-  const completedSales: CompletedSale[] = sales
-    .filter((sale) => sale.status === "COMPLETADA")
+  const recognizedSales: RecognizedSale[] = sales
+    .filter((sale) => sale.status === "COMPLETADA" || sale.status === "PENDIENTE")
     .map((sale) => ({
       amount: convert(sale.amount, sale.amountCurrency),
       paymentMethod: sale.paymentMethod,
@@ -537,8 +538,8 @@ export async function getReportsOverview(
     (accumulator, sale) => accumulator + convert(sale.amount, sale.amountCurrency),
     0
   );
-  const currentMetrics = summarizeCompleted(completedSales);
-  const previousMetrics = summarizeCompleted(
+  const currentMetrics = summarizeSales(recognizedSales);
+  const previousMetrics = summarizeSales(
     previousSales.map((sale) => ({
       amount: convert(sale.amount, sale.amountCurrency),
       cantidad: sale.cantidad ?? 1,
@@ -570,12 +571,12 @@ export async function getReportsOverview(
   const marginRate = currentMetrics.marginRevenue > 0 ? (grossProfit / currentMetrics.marginRevenue) * 100 : 0;
   const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
-    completedSales
+    recognizedSales
       .map((sale) => sale.clientId)
       .filter((clientId): clientId is string => Boolean(clientId))
   ).size;
 
-  const billingRows: CompletedSale[] = [...completedSales, ...compensatedReturns.map(row => ({
+  const billingRows: RecognizedSale[] = [...recognizedSales, ...compensatedReturns.map(row => ({
     isReturn: true,
     cantidad: 0,
     amount: -convert(row.moneyAmount, row.moneyCurrency),
