@@ -2,13 +2,13 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useModalLayer } from './modal-layer';
-import { dashboardDay, dashboardMonth, dashboardMonthLabel, dashboardRangeLabel, dayDate, shiftDashboardMonth, shiftDay, type DashboardPeriod } from './dashboard-period';
+import { dashboardDay, dashboardLast7Days, dashboardMonth, dashboardMonthLabel, dashboardRangeLabel, dayDate, shiftDashboardMonth, shiftDay, type DashboardPeriod } from './dashboard-period';
 
-const PRESETS = ['Hoy', '7 días', 'Este mes', 'Mes anterior', 'Total'] as const;
+const PRESETS = ['Hoy', 'Últimos 7 días', 'Este mes', 'Mes anterior', 'Total'] as const;
 function presetRange(label: typeof PRESETS[number], today: string): DashboardPeriod {
   if (label === 'Total') return null;
   if (label === 'Hoy') return { start: today, end: today };
-  if (label === '7 días') return { start: shiftDay(today, -6), end: today };
+  if (label === 'Últimos 7 días') return dashboardLast7Days(today);
   return label === 'Este mes' ? dashboardMonth(today.slice(0, 7), today) : shiftDashboardMonth(dashboardMonth(today.slice(0, 7), today), -1, today);
 }
 

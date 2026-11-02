@@ -1,7 +1,25 @@
-import { describe, expect, it } from 'vitest';
-import { dashboardDay, dashboardMonth, dashboardTrend, shiftDashboardMonth } from './dashboard-period';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { dashboardDay, dashboardLast7Days, dashboardMonth, dashboardTrend, shiftDashboardMonth } from './dashboard-period';
 const point = (start: string, revenue: number) => ({ start, revenue, unitsSold: 1, label: '' });
+afterEach(() => vi.useRealTimers());
 describe('períodos Dashboard', () => {
+  it.each([
+    ['2026-10-22', '2026-10-16'],
+    ['2026-11-01', '2026-10-26'],
+    ['2026-01-01', '2025-12-26'],
+    ['2024-03-01', '2024-02-24'],
+  ])('incluye hoy y los seis días anteriores al %s', (today, start) => {
+    const range = dashboardLast7Days(today);
+    expect(range).toEqual({ start, end: today });
+    expect(dashboardTrend([], range).buckets).toHaveLength(7);
+  });
+  it('calcula por defecto hoy en Argentina a ambos lados de medianoche', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-01T02:59:59Z'));
+    expect(dashboardLast7Days()).toEqual({ start: '2026-10-25', end: '2026-10-31' });
+    vi.setSystemTime(new Date('2026-11-01T03:00:00Z'));
+    expect(dashboardLast7Days()).toEqual({ start: '2026-10-26', end: '2026-11-01' });
+  });
   it('usa la fecha argentina cerca de medianoche UTC', () => {
     expect(dashboardDay(new Date('2026-10-23T02:59:59Z'))).toBe('2026-10-22');
     expect(dashboardDay(new Date('2026-10-23T03:00:00Z'))).toBe('2026-10-23');

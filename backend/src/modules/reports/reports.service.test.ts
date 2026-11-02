@@ -402,16 +402,19 @@ describe("getReportsOverview", () => {
     expect(overview.inventory.aging.map((bucket) => bucket.count)).toEqual([1, 0, 0, 1]);
   });
 
-  it("queries the same-duration previous window without voided sales", async () => {
+  it.each([
+    ["2026-10-01", "2026-10-22", "2026-09-09", "2026-09-30"],
+    ["2026-10-26", "2026-11-01", "2026-10-19", "2026-10-25"],
+  ])("queries the same-duration previous window without voided sales: %s to %s", async (start, end, previousStart, previousEnd) => {
     await getReportsOverview("store-1", {
       rangeKey: "custom",
-      startDate: new Date("2026-10-01T00:00:00-03:00"),
-      endDate: new Date("2026-10-22T23:59:59.999-03:00"),
+      startDate: new Date(`${start}T00:00:00-03:00`),
+      endDate: new Date(`${end}T23:59:59.999-03:00`),
     });
     expect(saleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: {
         storeId: "store-1", status: "COMPLETADA", voidedAt: null,
-        soldAt: { gte: new Date("2026-09-09T00:00:00-03:00"), lte: new Date("2026-09-30T23:59:59.999-03:00") },
+        soldAt: { gte: new Date(`${previousStart}T00:00:00-03:00`), lte: new Date(`${previousEnd}T23:59:59.999-03:00`) },
       },
     }));
   });

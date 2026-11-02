@@ -90,7 +90,7 @@ describe('Dashboard aprobado', () => {
 
   it.each([new Error('500'), new TypeError('Failed to fetch')])('avisa si falla un cambio de período y reintenta las mismas fechas: %s', async cause => {
     const user = userEvent.setup();
-    context.sales = [makeSale('old', '2026-10-02', 'Venta anterior')];
+    context.sales = [makeSale('old', '2026-10-16', 'Venta anterior')];
     renderScreen();
     await screen.findByText('$ 12,69M');
     api.fetchReportsOverview.mockRejectedValueOnce(cause);
@@ -124,9 +124,9 @@ describe('Dashboard aprobado', () => {
     expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
   });
 
-  it.each(['7 días', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
+  it.each(['Hoy', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
     const user = userEvent.setup();
-    context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-02', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
+    context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-16', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
     renderScreen();
     await screen.findByText('$ 12,69M');
     const oldLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label');
@@ -200,7 +200,7 @@ describe('Dashboard aprobado', () => {
     const old = deferred<ReportsOverview>();
     const latest = deferred<ReportsOverview>();
     api.fetchReportsOverview.mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
-    for (const preset of ['7 días', 'Total']) {
+    for (const preset of ['Hoy', 'Total']) {
       await user.click(screen.getByRole('button', { name: /Elegir período/ }));
       await user.click(screen.getByRole('button', { name: preset }));
       await user.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -214,11 +214,11 @@ describe('Dashboard aprobado', () => {
     expectNoSkeleton();
   });
 
-  it.each(['7 días', 'Total'])('remonta en el mes actual cacheado después de elegir %s, sin skeleton mientras revalida', async preset => {
+  it.each(['Este mes', 'Total'])('remonta en los últimos siete días cacheados después de elegir %s, sin skeleton mientras revalida', async preset => {
     const user = userEvent.setup();
     api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez', email: 'ana@test.com' } }]);
     const view = renderScreen(); await screen.findByText('$ 12,69M');
-    const monthLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label')!;
+    const initialLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label')!;
     api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: 2000 } });
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     await user.click(screen.getByRole('button', { name: preset }));
@@ -231,17 +231,17 @@ describe('Dashboard aprobado', () => {
     renderScreen();
     expect(screen.getByText('$ 12,69M')).toBeVisible();
     expect(screen.getByTitle(/Ana Gómez/)).toBeVisible();
-    expect(screen.getByRole('button', { name: monthLabel })).toBeVisible();
-    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
+    expect(screen.getByRole('button', { name: initialLabel })).toBeVisible();
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
     expectNoSkeleton();
     await act(async () => next.resolve({ ...report, summary: { ...report.summary, revenue: 3000 } }));
     expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 3.000');
   });
 
   it.each([
-    ['2026-10-23', '2026-10-01'],
-    ['2026-11-01', '2026-11-01'],
-  ])('remonta con skeleton del reporte si la clave del mes actual no existe al llegar %s', async (today, start) => {
+    ['2026-10-23', '2026-10-17'],
+    ['2026-11-01', '2026-10-26'],
+  ])('remonta con skeleton del reporte si la clave de los últimos siete días no existe al llegar %s', async (today, start) => {
     api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez' } }]);
     const view = renderScreen(); await screen.findByText('$ 12,69M');
     const scope = JSON.stringify([context.appSession.store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections]);
@@ -294,7 +294,7 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByText('Flujo sugerido')).toBeNull();
     expect(document.querySelectorAll('.dstat')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: 'Mes anterior' })).toBeNull();
-    expect(api.fetchReportsOverview).toHaveBeenCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
+    expect(api.fetchReportsOverview).toHaveBeenCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
     expect(api.listMembers).toHaveBeenCalledWith(context.user, 'store-1');
   });
 
@@ -407,11 +407,11 @@ describe('Dashboard aprobado', () => {
     renderScreen();
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     const dialog = screen.getByRole('dialog', { name: 'Elegir período' });
-    await user.click(within(dialog).getByRole('button', { name: '7 días' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Este mes' }));
     expect(api.fetchReportsOverview).toHaveBeenCalledTimes(1);
     await user.click(within(dialog).getByRole('button', { name: 'Aplicar' }));
     await screen.findByText('$ 12,69M');
-    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
     await act(async () => resolveOld({ ...report, summary: { ...report.summary, revenue: 999 } }));
     expect(screen.queryByText('$ 999')).toBeNull();
   });
@@ -431,15 +431,15 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByText('$ 12,69M')).toBeNull();
   });
 
-  it('en celular conserva CTA, mes y ventas clicables con accesos reales', async () => {
+  it('en celular conserva CTA, rango y ventas clicables con accesos reales', async () => {
     phoneMedia();
     const user = userEvent.setup();
     context.operationNotifications = [{ section: 'sales', readAt: null }];
     context.sales = [{ id: 'sale-1', saleNumber: 4, date: '2026-10-22', clientId: '', clientName: 'Ana Pérez', productId: '', deviceLabel: 'Pixel 8 128GB', amount: 650000, amountCurrency: 'ARS', paymentMethod: 'EFECTIVO', status: 'COMPLETADA' }];
     renderScreen();
     await screen.findByText('$ 12,69M');
-    expect(screen.getByRole('heading', { name: 'Ventas por semana' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Octubre 2026' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Ventas por día' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '16 oct – 22 oct' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Mes siguiente' })).toBeDisabled();
     await user.click(within(screen.getByTestId('dashboard-register-sale')).getByRole('button', { name: 'Registrar venta' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-sale' });
@@ -525,8 +525,8 @@ describe('Dashboard aprobado', () => {
   it('filtra ventas recientes por días argentinos inclusivos, ordena y conserva apertura y menú', async () => {
     const user = userEvent.setup();
     context.sales = [
-      makeSale('before', '2026-10-01T02:59:59Z', 'Fuera antes'),
-      makeSale('first', '2026-10-01T03:00:00Z', 'Primera'),
+      makeSale('before', '2026-10-16T02:59:59Z', 'Fuera antes'),
+      makeSale('first', '2026-10-16T03:00:00Z', 'Primera'),
       makeSale('last', '2026-10-23T02:59:59Z', 'Última'),
       makeSale('after', '2026-10-23T03:00:00Z', 'Fuera después'),
       { ...makeSale('pending', '2026-10-21', 'Pendiente'), status: 'PENDIENTE' },
@@ -571,6 +571,10 @@ describe('Dashboard aprobado', () => {
     context.clients = [{ id: 'c', pendingBalance: 300, creditBalance: 50, balanceCurrency: 'ARS' }, { id: 'credit', pendingBalance: 0, creditBalance: 100, balanceCurrency: 'ARS' }] as Client[];
     context.sales = [makeSale('today', '2026-10-22', 'Hoy'), makeSale('old', '2026-10-02', 'Antes')];
     renderScreen(); await screen.findByText('$ 12,69M');
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: 'Este mes' }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    await screen.findByText('Antes');
     const stock = screen.getByRole('button', { name: /Stock disponible/ });
     const trades = screen.getByTestId('dashboard-trades');
     const balances = screen.getByRole('button', { name: /Saldos a cobrar/ });
@@ -579,7 +583,7 @@ describe('Dashboard aprobado', () => {
     let resolve!: (data: ReportsOverview) => void;
     api.fetchReportsOverview.mockReturnValueOnce(new Promise(done => { resolve = done; }));
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '7 días' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Últimos 7 días' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect([stock, trades, balances].map(card => card.textContent)).toEqual(stable);
     for (const card of [stock, trades, balances]) {

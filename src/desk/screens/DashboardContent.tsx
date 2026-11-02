@@ -11,7 +11,7 @@ import { fetchReportsOverview } from '../../services/reports-api';
 import { clientNet } from '../client-balance';
 import { DashboardDateRange } from '../dashboard-date-range';
 import { dashboardCacheVersion, readDashboardCache, readLatestDashboardCache, writeDashboardCache, type DashboardReport } from '../dashboard-cache';
-import { dashboardDay, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
+import { dashboardDay, dashboardLast7Days, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
 import { DashboardTrend } from '../dashboard-trend';
 import { useMoney } from '../exchange';
 import { formatShortDate, paymentLabel, initials, isInProgressTrade, isInStock, isVoidRow, parseAppDate, saleBuyer, saleCode, saleEquipment } from '../format';
@@ -56,7 +56,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const money = useMoney();
   const { go, open } = useDesk();
   const phone = usePhoneLayout();
-  const [range, setRange] = useState<DashboardPeriod>(dashboardMonth);
+  const [range, setRange] = useState<DashboardPeriod>(dashboardLast7Days);
   const [failedPeriodKey, setFailedPeriodKey] = useState<string | null>(null);
   const [periodRetry, setPeriodRetry] = useState(0);
   const queryKey = `${scope}:${range?.start}:${range?.end}`;
@@ -144,7 +144,9 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const avatars = <div className="avatars">{initialLoading ? <Skeleton style={{ width: 100, height: 34 }} /> : people.map((person, index) => <div key={index} className="av" style={{ background: index % 2 ? 'var(--lime)' : 'var(--primary)', color: index % 2 ? 'var(--theme-on-accent, var(--primary))' : 'var(--theme-on-action, #fff)', fontSize: 12 }} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>)}{canViewTeam(role) ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}</div>;
   const currentMonth = dashboardMonth();
   const thisMonth = displayedRange?.start === currentMonth.start && displayedRange?.end === currentMonth.end;
-  const emptyPeriod = !displayedRange ? 'en el historial' : thisMonth ? 'este mes' : 'en este período';
+  const last7Days = dashboardLast7Days();
+  const isLast7Days = displayedRange?.start === last7Days.start && displayedRange?.end === last7Days.end;
+  const emptyPeriod = !displayedRange ? 'en el historial' : isLast7Days ? 'en los últimos 7 días' : thisMonth ? 'este mes' : 'en este período';
   const periodFailed = !overview && (current?.failed || !ready);
   const pendingText = periodFailed ? 'No se pudo consultar el período' : `Todavía no hay ventas ${emptyPeriod}`;
   const trendTitle = { day: 'Ventas por día', week: 'Ventas por semana', month: 'Ventas por mes' }[dashboardTrendUnit(displayedRange)];
