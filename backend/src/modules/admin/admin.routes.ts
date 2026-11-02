@@ -12,6 +12,7 @@ import {
   inventoryDuplicatesRestoreBody, restoreInventoryDuplicates,
 } from "./inventory-duplicates.service.js";
 import { saleCorrectionsBody, correctSales } from "./sale-corrections.service.js";
+import { storeResetBody, resetStore } from './store-reset.service.js';
 
 const querySchema = z.object({
   range: z.enum(["7d", "30d", "all"]).optional(),
@@ -38,6 +39,9 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   app.post('/sale-corrections', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     return correctSales(saleCorrectionsBody.parse(request.body), { email: request.auth!.email! });
+  });
+  app.post('/store-reset', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+    return resetStore(storeResetBody.parse(request.body), { email: request.auth!.email! });
   });
   app.get('/imei-tac-misses', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).strict().parse(request.query);
