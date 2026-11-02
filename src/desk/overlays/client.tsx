@@ -43,7 +43,7 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], loadCommissionSellers, appSession, reloadClients, creditNotes = [] } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], loadCommissionSellers, appSession, reloadClients, returns, creditNotes = [] } = useAppContext();
   const clientSales = useClientSales(id, sales);
   const voidedTrades = useArchivedRows(tradeIns, fetchVoidedTradeIns);
   const archivedInventory = useArchivedRows(inventory, fetchArchivedInventory);
@@ -171,9 +171,9 @@ export function ClientDetail({ id }: { id: string }) {
       {(creditNotes ?? []).filter((note) => note.clientId === client.id && note.remaining > 0 && !note.deletedAt).map((note) => (
         <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b data-ph-mask>{money.show(note.remaining, note.currency, 2)}</b></div>
       ))}
-      {clientSales.loading || voidedTrades.loading || archivedInventory.loading ? <ListSkeleton variant="lines" rows={3} /> : null}
+      {clientSales.loading || voidedTrades.loading || archivedInventory.loading || returns === null ? <ListSkeleton variant="lines" rows={3} /> : null}
       {clientSales.error ? <div className="ferr" role="alert">{clientSales.error} <button type="button" className="btn2 s" onClick={clientSales.retry}>Reintentar compras</button></div> : null}
-      {!clientSales.loading && !clientSales.error ? <ClientPurchases key={client.id} client={client} clientId={client.id} clientName={client.name} sales={clientSales.rows} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} /> : null}
+      {!clientSales.loading && !clientSales.error && returns !== null ? <ClientPurchases key={client.id} client={client} clientId={client.id} clientName={client.name} sales={clientSales.rows} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} returns={returns ?? []} /> : null}
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <ListSkeleton variant="lines" rows={2} /> : null}

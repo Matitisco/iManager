@@ -5,9 +5,12 @@ import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ExchangeProvider } from '../exchange';
 import { SalesScreen } from './SalesScreen';
+import { partialReturn } from '../../test/return-fixtures';
+import type { ReturnCaseView } from '../../services/returns-api';
 
 const context = vi.hoisted(() => ({
   sales: [] as Sale[],
+  returns: [] as ReturnCaseView[],
   clients: [] as never[],
   inventory: [] as Product[],
   appSession: null as { membership?: { role?: string; sections?: string[] | null }; store?: { id: string } } | null,
@@ -45,6 +48,7 @@ function renderScreen() {
 
 // El período «Mes» son los últimos 30 días: sin fecha fija, estas pruebas dependen del día en que corren.
 beforeEach(() => {
+  context.returns = [];
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 18, 12));
 });
@@ -141,6 +145,16 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     const profit = screen.getByText('Ganancia total').parentElement!;
     expect(within(profit).getByText('—')).toBeInTheDocument();
     expect(within(profit).getByText('Cargá el costo en el equipo')).toBeInTheDocument();
+  });
+
+  it('descuenta dos de diez unidades en facturación y ganancia', () => {
+    context.sales = [sale(1, { cantidad: 10, amount: 1000, productId: 'p', status: 'COMPLETADA', amountCurrency: 'ARS' })];
+    context.inventory = [{ id: 'p', cost: 60, currency: 'ARS' }] as Product[];
+    context.returns = [partialReturn({ saleId: '1', moneyCurrency: 'ARS', itemCurrency: 'ARS' })];
+    renderScreen();
+    expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('$ 800');
+    expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('$ 320');
+    if (width === 1440) expect(within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell')[9]).toHaveTextContent('$ 320');
   });
 
   it('counts absent or invalid quantities as one unit', () => {
@@ -594,4 +608,29 @@ describe.each([false, true])('annulled sales order (phone: %s)', phone => {
     expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0022', 'V-0024', 'V-0026', 'V-0021', 'V-0023', 'V-0025']);
     view.unmount(); window.matchMedia = media;
   });
+});
+
+it('Ventas descuenta dos de diez unidades en facturación y ganancia sin alterar Total de la fila', () => {
+  window.matchMedia = vi.fn(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  context.sales = [sale(1, { cantidad: 10, productId: 'p', amount: 6500, amountCurrency: 'USD', status: 'COMPLETADA' })];
+  context.inventory = [{ id: 'p', cost: 450, currency: 'USD' }] as Product[];
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.returns = [{ id: 'r', saleId: '1', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO', compensatedOn: '2026-10-02', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider></ExchangeProvider>);
+  expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('US$ 5.200');
+  expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('US$ 1.600');
+  const cells = within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell');
+  expect(cells[8]).toHaveTextContent('US$ 6.500');
+  expect(cells[9]).toHaveTextContent('US$ 1.600');
+});
+
+it('Ventas muestra el ajuste cuando sólo hay una devolución de una venta anterior en el período', () => {
+  window.matchMedia = vi.fn(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  context.sales = [];
+  context.inventory = [];
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.returns = [{ id: 'r', saleId: 'old', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO', compensatedOn: '2026-10-02', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider></ExchangeProvider>);
+  expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('US$ -1.300');
+  expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('US$ -400');
 });

@@ -4,6 +4,8 @@ import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate, saleQuantity,
 import { parseArDate } from '../lib/ar-date';
 import { repairWarrantyView, saleWarrantyView, type WarrantyState } from '../lib/warranty';
 import { recordCurrency, type MoneyCurrency } from './money';
+import type { ReturnCaseView } from '../services/returns-api';
+import { compensatedReturns } from './return-financials';
 
 export type PurchaseFilter = 'all' | 'sale' | 'trade' | 'repair';
 
@@ -67,9 +69,14 @@ export function clientPurchases(input: {
   repairs: RepairOrder[];
   inventory: Product[];
   sellers: CommissionSeller[];
+  returns?: readonly ReturnCaseView[];
   now?: Date;
 }): ClientPurchase[] {
   const now = input.now ?? new Date();
+  const refunds = new Map<string, number>();
+  for (const row of compensatedReturns(input.returns ?? [])) {
+    if (row.saleId) refunds.set(row.saleId, (refunds.get(row.saleId) ?? 0) + row.moneyAmount);
+  }
   const sales = input.sales
     .filter((sale) => sale.clientId === input.clientId)
     .map((sale): ClientPurchase => {
@@ -87,7 +94,7 @@ export function clientPurchases(input: {
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),
         detail: sellerName(sale.sellerMemberId, input.sellers),
-        amount: sale.amount,
+        amount: sale.amount - (annulled ? 0 : refunds.get(sale.id) ?? 0),
         currency: sale.amountCurrency ?? null,
         negative: false,
         countsInTotals: !annulled,
@@ -102,8 +109,8 @@ export function clientPurchases(input: {
       return {
         id: `trade-${trade.id}`,
         kind: 'trade',
-        title: (trade.deviceReceived?.trim() || 'Canje').replace(/\s*·\s*/g, ' '),
         quantity: 1,
+        title: (trade.deviceReceived?.trim() || 'Canje').replace(/\s*·\s*/g, ' '),
         imei,
         dateLabel: formatShortDate(trade.date),
         sortKey: sortKey(trade.date),
@@ -125,8 +132,8 @@ export function clientPurchases(input: {
       return {
         id: `repair-${order.id}`,
         kind: 'repair',
-        title: [order.device?.trim() || 'Reparación', order.fault?.trim()].filter(Boolean).join(' · '),
         quantity: 1,
+        title: [order.device?.trim() || 'Reparación', order.fault?.trim()].filter(Boolean).join(' · '),
         imei,
         dateLabel: formatShortDate(order.receivedAt),
         sortKey: sortKey(order.receivedAt) || sortKey(order.events.at(-1)?.createdAt),
@@ -161,9 +168,9 @@ export function purchaseTotals(rows: ClientPurchase[], active: MoneyCurrency = '
     spent.set(key, current);
   }
   return {
-    // Purchases count operations; warranty coverage counts the units in each one.
-    count: counted.length,
-    activeWarranties: rows.reduce((total, row) => total + (!row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer') ? row.quantity : 0), 0),
+    // Trade receipts count as operations without adding to spending.
+    count: rows.filter(row => !row.annulled).length,
+    activeWarranties: rows.filter((row) => !row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer')).reduce((sum, row) => sum + row.quantity, 0),
     spent: [...spent.values()].sort((left, right) => (left.currency ?? '').localeCompare(right.currency ?? '')),
   };
 }
