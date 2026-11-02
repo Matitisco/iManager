@@ -12,6 +12,7 @@ import {
   deleteClient,
   restoreClient,
   listClientPayments,
+  listClientSales,
   registerClientPayment,
   importClients,
   listClients,
@@ -89,6 +90,18 @@ export async function clientsRoutes(app: FastifyInstance) {
       }
 
       return { client };
+    }
+  );
+
+  app.get(
+    "/:id/sales",
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
+    async (request, reply) => {
+      requireMember(request);
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const sales = await listClientSales(request.appUser.storeId, id);
+      if (!sales) return reply.code(404).send({ error: "Client not found" });
+      return { sales };
     }
   );
 

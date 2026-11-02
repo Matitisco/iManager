@@ -12,6 +12,7 @@ import { archivedMatch, cleanReason, type ArchiveMeta } from "../audit/archive.j
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { clientsRepository } from "./clients.repository.js";
+import { listSales } from "../sales/sales.service.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { blankFieldsToFill, decideClientLink } from "../import/link-imported-sale.js";
 import { normalizeImportedDni, normalizeImportedEmail, normalizeImportedInstagram, normalizeImportedPhone } from "../import/normalize-import.js";
@@ -168,6 +169,11 @@ export async function listClients(storeId: string, options?: { archived?: boolea
   }
 
   return clients.map((client) => serializeClient(client, creditAmount(byClient.get(client.id) ?? [], client.balanceCurrency ?? null)));
+}
+
+export async function listClientSales(storeId: string, clientId: string) {
+  if (!await clientsRepository.findInStore(storeId, clientId)) return null;
+  return listSales(storeId, { clientId, includeVoided: true });
 }
 
 function normalizeDni(value?: string | null) {

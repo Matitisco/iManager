@@ -516,7 +516,7 @@ describe('Reports breakdown and new sections', () => {
     expect(card).toHaveTextContent('$ 510');
   });
 
-  it('resta facturación y margen de dos unidades devueltas de diez', () => {
+  it('resta facturación y margen de dos unidades devueltas de diez, también en CSV', async () => {
     context.appSession = { membership: { role: 'OWNER' } };
     context.sales = [{ ...sale('s', '2026-10-01', 1000), cantidad: 10, productId: 'p', amountCurrency: 'ARS' }];
     context.inventory = [{ ...product('p'), cost: 60, currency: 'ARS' }];
@@ -525,6 +525,10 @@ describe('Reports breakdown and new sections', () => {
     expect(total()).toContain('$ 800');
     expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia bruta$ 320');
     expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia neta$ 320');
+    const csv = await exportedCsv();
+    expect(csv.split('\n')).toHaveLength(3);
+    expect(csv).toContain('Devolución');
+    expect(csv).toContain('-200');
   });
 
   it('espera con un esqueleto y no muestra una ganancia vacía', () => {

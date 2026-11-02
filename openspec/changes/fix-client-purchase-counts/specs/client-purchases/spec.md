@@ -11,6 +11,14 @@ Compras MUST contar cada operación activa una vez, aunque coincida modelo, prod
 - **WHEN** cuatro ventas vigentes tienen cantidades 2, 3, 1 y 1
 - **THEN** Compras muestra 4 y Garantías muestra 7
 
+#### Scenario: Ficha con caché incompleta
+- **WHEN** la sesión conserva cuatro ventas y existen siete ventas del cliente en la tienda, registradas el 02/11/2026 en USD con cantidades mayores a uno
+- **THEN** abrir la ficha mobile o desktop MUST consultar todas las ventas por clientId y mostrar Compras=7, tres filas de preview y siete al abrir Ver todas
+
+#### Scenario: Identidades y errores
+- **WHEN** hay homónimos, ventas sin clientId o una lectura falla o pertenece a otra sesión/tienda/cliente
+- **THEN** la ficha MUST NOT atribuir ventas por nombre ni mostrar un conteo parcial como completo; MUST descartar lecturas ajenas y permitir reintentar errores visibles
+
 #### Scenario: Exclusiones y compatibilidad
 - **WHEN** hay ventas anuladas, vencidas, sin cobertura, históricas sin cantidad y reparaciones pendientes/entregadas
 - **THEN** solo las unidades con cobertura vigente suman garantías, cada histórico vigente aporta una unidad y los importes conservan su valor registrado

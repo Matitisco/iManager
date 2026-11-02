@@ -19,8 +19,8 @@ export type ClientPurchase = {
   id: string;
   kind: 'sale' | 'trade' | 'repair';
   title: string;
-  quantityLabel?: string;
   quantity: number;
+  quantityLabel?: string;
   imei: string | null;
   dateLabel: string;
   sortKey: number;
@@ -88,8 +88,8 @@ export function clientPurchases(input: {
         id: `sale-${sale.id}`,
         kind: 'sale',
         title: product ? equipmentTitle(product.model, product.capacity).replace(/\s*·\s*/g, ' ') : (sale.deviceLabel?.trim() || 'Equipo vendido').replace(/\s*·\s*/g, ' '),
-        quantityLabel: saleQuantityLabel(sale),
         quantity: saleQuantity(sale),
+        quantityLabel: saleQuantityLabel(sale),
         imei,
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),

@@ -1,5 +1,5 @@
 import type { AuthUserLike } from '../types/auth-user';
-import type { Client } from '../types';
+import type { Client, Sale } from '../types';
 import { apiRequest } from './api-client';
 
 type BackendClientResponse = {
@@ -12,6 +12,16 @@ export async function fetchBackendClients(user: AuthUserLike): Promise<Client[]>
     fallback: (status) => `No se pudieron cargar los clientes (${status})`,
   });
   return data.clients ?? [];
+}
+
+/** Complete client history, independent of the session's cached sales list. */
+export async function fetchClientSales(user: AuthUserLike, clientId: string): Promise<Sale[]> {
+  const data = await apiRequest<{ sales: Sale[] }>(user, `/api/clients/${encodeURIComponent(clientId)}/sales`, {
+    fallback: 'No se pudieron cargar las compras',
+    errorFrom: 'fallback',
+  });
+  if (!Array.isArray(data.sales)) throw new Error('Respuesta inválida al cargar las compras');
+  return data.sales;
 }
 
 export async function createBackendClient(user: AuthUserLike, client: Omit<Client, 'id'>): Promise<Client> {
