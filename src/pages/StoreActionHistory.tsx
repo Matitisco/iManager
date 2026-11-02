@@ -54,7 +54,7 @@ export function StoreActionHistory({ storeId }: { storeId: string }) {
         <time dateTime={action.at}>{formatArDateTime(action.at)}</time>
         <div><b>{action.text}</b><div className="history-actor">{action.actor.name}{action.actor.role ? ` · ${action.actor.role}` : ''}</div></div>
       </li>)}</ol>
-      {loading && <p className="activity-note" role="status">Cargando acciones…</p>}
+      {loading && <div role="status" aria-label="Cargando acciones"><span className="sr-only">Cargando acciones</span></div>}
       {nextCursor && !error && <button type="button" className="dbtn s" disabled={loading} onClick={() => setFilters(f => ({ ...f, cursor: nextCursor }))}>Cargar más acciones</button>}
     </>}
   </section>;
