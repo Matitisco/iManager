@@ -14,7 +14,7 @@ import { dashboardCacheVersion, readDashboardCache, readLatestDashboardCache, wr
 import { dashboardDay, dashboardLast7Days, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
 import { DashboardTrend } from '../dashboard-trend';
 import { useMoney } from '../exchange';
-import { formatShortDate, paymentLabel, initials, isInProgressTrade, isInStock, isVoidRow, parseAppDate, saleBuyer, saleCode, saleEquipment } from '../format';
+import { formatShortDate, paymentLabel, initials, isInProgressTrade, isInStock, isVoidRow, parseAppDate, saleBuyer, saleCode, saleEquipment, saleQuantity } from '../format';
 import { listsAreLoading } from '../list-skeleton';
 import { canOpenSection, canSeeFinancials, canViewTeam } from '../sections';
 import { usePhoneLayout } from '../section-notices';
@@ -125,6 +125,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   }, [scope, range, queryKey, report, members, initialScope, cacheTicket]);
   const periodLoading = initialLoading || reportLoading;
   const hideLoadMessage = !overview && (backendStatus === 'offline' || current?.networkFailure);
+  const hasActivity = !!overview && (overview.summary.unitsSold > 0 || overview.salesSeries.some(point => point.revenue !== 0));
   const comparable = !!displayedRange && !!overview?.comparison.available;
   const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, overview?.currency ?? appSession?.store?.currency) : money.show(amount, overview?.currency ?? appSession?.store?.currency);
   const stockTotal = inventory.reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
@@ -137,7 +138,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     const key = typeof date === 'string' ? date : date ? dashboardDay(date) : '';
     return key >= displayedRange.start && key <= displayedRange.end;
   };
-  const units = sales.filter(sale => !isVoidRow(sale) && sale.status === 'COMPLETADA' && inRange(sale.date)).length;
+  const units = sales.filter(sale => !isVoidRow(sale) && (sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE') && inRange(sale.date)).reduce((sum, sale) => sum + saleQuantity(sale), 0);
   const recent = useMemo(() => displayedSales.filter(sale => inRange(sale.date)).sort((a, b) => (parseAppDate(b.date)?.getTime() ?? 0) - (parseAppDate(a.date)?.getTime() ?? 0) || (b.saleNumber ?? 0) - (a.saleNumber ?? 0)).slice(0, phone ? 4 : 5), [displayedSales, displayedRange, phone]);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const people = members.length ? members.map(member => ({ name: member.user.displayName?.trim() || member.user.email || 'Usuario', role: member.role })) : [{ name, role }];
@@ -173,7 +174,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     {seeFinancials ? <div className={`dgrid${phone ? '' : ' two v3-stretch'}`}>
       <section className="dcard dashboard-trend">
         <div className="dch"><h3>{phone ? trendTitle : 'Tendencia de ventas'}</h3>{comparable && !periodLoading && overview && overview.summary.unitsSold > 0 ? <Delta value={overview.comparison.revenueChange} /> : null}</div>
-        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={displayedRange} phone={phone} format={amount => reportMoney(amount, true)} />}
+        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !hasActivity ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={displayedRange} phone={phone} format={amount => reportMoney(amount, true)} />}
       </section>
       <section className="dcard dashboard-payments"><div className="dch"><h3>Medios de pago</h3></div>
         {hideLoadMessage ? null : periodLoading ? <div className="dashboard-payment-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: phone ? 64 : 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{periodFailed ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>

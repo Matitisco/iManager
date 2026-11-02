@@ -1,0 +1,3 @@
+- [x] Reproducir ceros con ventas a cuenta y controles cobrados por período en PostgreSQL local.
+- [x] Corregir reconocimiento de ventas activas y comparación, conservando moneda y cantidad.
+- [x] Agregar regresión del selector y verificar lint/tests sin build.
