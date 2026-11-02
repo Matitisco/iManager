@@ -35,7 +35,7 @@ it.each([
     sales: [{ id: 'sale', date: '2026-10-21', amount: 1200, amountCurrency: 'ARS', productId: 'device', status: 'COMPLETADA' }] as Sale[],
     inventory: [{ id: 'device', cost: 800, currency: 'ARS' }] as Product[],
   };
-  const claim = { id: 'claim', status: 'RESUELTO', resolution: 'REINTEGRO', resolvedOn: '2026-10-22', moneyAmount: 1200, moneyCurrency: 'ARS', saleAmount: 1200, itemCost: 800, itemCurrency: 'ARS', deletedAt: null } as ReturnCaseView;
+  const claim = { id: 'claim', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO', resolvedOn: '2026-10-22', moneyAmount: 1200, moneyCurrency: 'ARS', saleAmount: 1200, itemCost: 800, itemCurrency: 'ARS', deletedAt: null } as ReturnCaseView;
   const { rerender } = render(<NetProfitCard {...props} returns={[claim]} />);
   expect(screen.getByTestId('net-profit-returns')).toHaveTextContent('$ 1200');
   expect(screen.getByText('Ganancia neta').parentElement).toHaveTextContent('$ 0');

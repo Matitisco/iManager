@@ -173,7 +173,7 @@ describe('client purchases', () => {
     const preview = screen.getByTestId('client-purchases');
     const stats = screen.getByTestId('client-purchase-stats');
     expect(stats).toHaveTextContent('US$ 2.585');
-    expect(within(stats).getByText('7')).toBeInTheDocument();
+    expect(within(stats).getByText('8')).toBeInTheDocument();
     expect(stats).toHaveTextContent('2 vigentes');
     expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('8');
     expect(within(preview).getAllByTestId(/^purchase-(sale|trade|repair)-/)).toHaveLength(3);
@@ -281,4 +281,35 @@ describe('client purchases', () => {
     ]);
     expect(purchaseTotals(purchases).count).toBe(2);
   });
+});
+
+it.each([false, true])('siete operaciones iguales: Compras 7, Garantías 11, historial completo (móvil=%s)', async phone => {
+  const media = window.matchMedia;
+  window.matchMedia = vi.fn(query => ({ matches: phone && query.includes('max-width'), media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-18T12:00:00-03:00'));
+  try {
+    const sales = [1, 1, 1, 1, 2, 2, 3].map((cantidad, i) => sale(`same-${i}`, { cantidad, productId: 'p1' }));
+    const purchases = clientPurchases({ clientId: 'c1', sales, tradeIns: [], repairs: [], inventory, sellers });
+    expect(purchaseTotals(purchases)).toMatchObject({ count: 7, activeWarranties: 11 });
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><ClientPurchases clientId="c1" clientName="Mayorista ficticio" sales={sales} tradeIns={[]} repairs={[]} inventory={inventory} sellers={sellers} /></ExchangeProvider>);
+    expect(screen.getByText('11 vigentes')).toBeVisible();
+    expect(within(screen.getByTestId('client-purchase-stats')).getByText('7')).toBeVisible();
+    expect(screen.getAllByTestId(/^purchase-sale-/)).toHaveLength(3);
+    await userEvent.setup().click(screen.getByTestId('purchases-more'));
+    const dialog = screen.getByRole('dialog', { name: phone ? 'Compras' : 'Compras · Mayorista ficticio' });
+    expect(within(dialog).getAllByTestId(/^purchase-sale-/)).toHaveLength(7);
+    expect(within(dialog).getAllByText('x2')).toHaveLength(2);
+    expect(within(dialog).getByText('x3')).toBeVisible();
+  } finally { window.matchMedia = media; vi.useRealTimers(); }
+});
+
+it('cuenta canjes activos sin sumarlos al gasto y mantiene operaciones de reparación', () => {
+  const purchases = clientPurchases({ clientId: 'c1', sales: rows.sales, tradeIns: rows.tradeIns, repairs: rows.repairs, inventory, sellers, now: new Date('2026-10-18T12:00:00Z') });
+  expect(purchaseTotals(purchases)).toMatchObject({ count: 8, spent: [{ currency: 'USD', amount: 2585 }] });
+});
+
+it('cuatro comprobantes con siete unidades son cuatro Compras y siete Garantías', () => {
+  const purchases = clientPurchases({ clientId: 'c1', sales: [1, 1, 2, 3].map((cantidad, i) => sale(`bulk-${i}`, { cantidad })), tradeIns: [], repairs: [], inventory, sellers, now: new Date('2026-10-18T12:00:00Z') });
+  expect(purchaseTotals(purchases)).toMatchObject({ count: 4, activeWarranties: 7 });
 });

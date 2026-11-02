@@ -1,3 +1,4 @@
+import { netProfit } from "./net-profit.js";
 import { returnReversal } from "../returns/returns-math.js";
 import { reportSellRate } from "./net-profit.service.js";
 import { projectAmount, type MoneyCurrency } from "../periodic-reports/report-math.js";
@@ -199,7 +200,6 @@ function buildProductLabel(input?: {
 }
 
 type RecognizedSale = {
-  isReturn?: boolean;
   cantidad?: number;
   amount: number;
   paymentMethod: string;
@@ -283,7 +283,7 @@ function summarizeSales(sales: Array<{ amount: number; cost: number | null; cant
   const unitsSold = sales.reduce((sum, sale) => sum + (sale.cantidad ?? 1), 0);
   const averageTicket = sales.length > 0 ? revenue / sales.length : 0;
 
-  return { revenue, grossProfit, marginRevenue, salesWithoutCost: sales.length - costedSales.length, unitsSold, averageTicket, salesCount: sales.length };
+  return { revenue, grossProfit, marginRevenue, salesWithoutCost: sales.length - costedSales.length, unitsSold, averageTicket };
 }
 
 type ReportsQueryInput = {
@@ -412,7 +412,10 @@ export async function getReportsOverview(
     previousWindow
       ? prisma.sale.findMany({
           where: {
-            ...salesWhere,
+            storeId,
+            voidedAt: null,
+            cancelledAt: null,
+            status: { in: ["COMPLETADA", "PENDIENTE"] },
             soldAt: {
               gte: previousWindow.startDate,
               lte: previousWindow.endDate,
@@ -491,9 +494,14 @@ export async function getReportsOverview(
     },
     select: {
       ...returnRecognitionSelect, moneyAmount: true, moneyCurrency: true,
-      sale: { select: { cantidad: true, amount: true, paymentMethod: true, clientId: true,
-        client: { select: { name: true } }, category: { select: { name: true } },
-        inventoryItem: { select: { cost: true, currency: true, model: true, capacity: true, color: true } } } },
+      sale: {
+        select: {
+          cantidad: true, amount: true, paymentMethod: true, clientId: true,
+          category: { select: { name: true } },
+          client: { select: { name: true } },
+          inventoryItem: { select: { model: true, capacity: true, color: true, cost: true, currency: true } },
+        },
+      },
     },
   });
   const compensatedReturns = commercialReturns.filter(row => {
@@ -546,28 +554,49 @@ export async function getReportsOverview(
       cost: knownCost(sale.inventoryItem) == null ? null : knownCost(sale.inventoryItem)! * (sale.cantidad ?? 1),
     }))
   );
-  const adjustReturns = (metrics: typeof currentMetrics, from: Date | null, to: Date | null) => {
-    for (const row of commercialReturns) {
+  const adjustedProfit = (metrics: typeof currentMetrics, from: Date | null, to: Date | null) => {
+    const returns = commercialReturns.flatMap(row => {
       const at = returnCompensatedAt(row);
-      if (!at || (from && at < from) || (to && at > to)) continue;
-      const amount = convert(row.moneyAmount, row.moneyCurrency);
-      metrics.revenue -= amount;
-      // Unknown costs still reduce billing, but never create a fictitious margin.
-      if (!row.sale?.inventoryItem || toNumber(row.sale.inventoryItem.cost) <= 0) continue;
+      if (!at || (from && at < from) || (to && at > to)) return [];
+      if (!row.sale?.inventoryItem || toNumber(row.sale.inventoryItem.cost) <= 0) return [];
       const reversal = returnReversal({
         saleAmount: toNumber(row.sale?.amount ?? row.moneyAmount),
         moneyAmount: toNumber(row.moneyAmount),
         itemCost: toNumber(row.sale?.inventoryItem?.cost) * (row.sale?.cantidad ?? 1),
       });
-      metrics.grossProfit -= amount - convert(reversal.cost, row.sale.inventoryItem.currency);
-      metrics.marginRevenue -= amount;
-    }
-    metrics.averageTicket = metrics.salesCount > 0 ? metrics.revenue / metrics.salesCount : 0;
+      return [{ ...reversal, currency: row.moneyCurrency ?? currency,
+        costCurrency: row.sale?.inventoryItem?.currency ?? row.moneyCurrency ?? currency }];
+    });
+    const figures = netProfit({ currency, sellRate: rate,
+      sales: [{ amount: metrics.revenue, cost: metrics.revenue - metrics.grossProfit, currency, costCurrency: currency }],
+      expenses: [], returns });
+    if (!figures) throw new ReportsError('No se pudo convertir el reporte. Revisá la cotización del local.', 503);
+    return figures.grossProfit;
   };
-  adjustReturns(currentMetrics, input.startDate, input.endDate);
-  if (previousWindow) adjustReturns(previousMetrics, previousWindow.startDate, previousWindow.endDate);
-  const { revenue, unitsSold, averageTicket } = currentMetrics;
-  const { grossProfit } = currentMetrics;
+  const adjustRevenue = (metrics: typeof currentMetrics, from: Date | null, to: Date | null, operations: number) => {
+    for (const row of commercialReturns) {
+      const at = returnCompensatedAt(row);
+      if (!at || (from && at < from) || (to && at > to)) continue;
+      const amount = convert(row.moneyAmount, row.moneyCurrency);
+      metrics.revenue -= amount;
+      if (toNumber(row.sale?.inventoryItem?.cost) > 0) metrics.marginRevenue -= amount;
+    }
+    metrics.averageTicket = operations > 0 ? metrics.revenue / operations : 0;
+  };
+  // Profit uses the original revenue/cost before the separate revenue reversal.
+  const { unitsSold } = currentMetrics;
+  const grossProfit = adjustedProfit(currentMetrics, input.startDate, input.endDate);
+  if (previousWindow) previousMetrics.grossProfit = adjustedProfit(previousMetrics, previousWindow.startDate, previousWindow.endDate);
+  adjustRevenue(currentMetrics, input.startDate, input.endDate, recognizedSales.length);
+  if (previousWindow) adjustRevenue(previousMetrics, previousWindow.startDate, previousWindow.endDate, previousSales.length);
+  const { revenue, averageTicket } = currentMetrics;
+  const reportSales: RecognizedSale[] = [...recognizedSales, ...compensatedReturns.map(row => ({
+    cantidad: 0, amount: -convert(row.moneyAmount, row.moneyCurrency), cost: null,
+    soldAt: returnCompensatedAt(row)!, paymentMethod: row.sale?.paymentMethod ?? "",
+    clientId: row.sale?.clientId ?? null, product: buildProductLabel(row.sale?.inventoryItem),
+    category: row.sale?.category?.name?.trim() || "Sin categoría",
+    clientName: row.sale?.client?.name?.trim() || "Sin cliente",
+  }))];
   const marginRate = currentMetrics.marginRevenue > 0 ? (grossProfit / currentMetrics.marginRevenue) * 100 : 0;
   const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
@@ -576,20 +605,8 @@ export async function getReportsOverview(
       .filter((clientId): clientId is string => Boolean(clientId))
   ).size;
 
-  const billingRows: RecognizedSale[] = [...recognizedSales, ...compensatedReturns.map(row => ({
-    isReturn: true,
-    cantidad: 0,
-    amount: -convert(row.moneyAmount, row.moneyCurrency),
-    paymentMethod: row.sale?.paymentMethod ?? 'DEVOLUCION',
-    soldAt: returnCompensatedAt(row)!,
-    clientId: row.sale?.clientId ?? null,
-    product: buildProductLabel(row.sale?.inventoryItem),
-    category: row.sale?.category?.name?.trim() || 'Sin categoría',
-    clientName: row.sale?.client?.name?.trim() || 'Sin cliente',
-    cost: null,
-  }))];
   const topProductsMap = new Map<string, { unitsSold: number; revenue: number }>();
-  for (const sale of billingRows) {
+  for (const sale of reportSales) {
     const current = topProductsMap.get(sale.product) ?? { unitsSold: 0, revenue: 0 };
     current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
@@ -607,10 +624,10 @@ export async function getReportsOverview(
     .slice(0, 6);
 
   const paymentMethodMap = new Map<string, { revenue: number; count: number }>();
-  for (const sale of billingRows) {
+  for (const sale of reportSales) {
     const current = paymentMethodMap.get(sale.paymentMethod) ?? { revenue: 0, count: 0 };
     current.revenue += sale.amount;
-    current.count += sale.isReturn ? 0 : 1;
+    current.count += sale.cantidad === 0 ? 0 : 1;
     paymentMethodMap.set(sale.paymentMethod, current);
   }
 
@@ -624,7 +641,7 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue);
 
   const categoryMap = new Map<string, { unitsSold: number; revenue: number }>();
-  for (const sale of billingRows) {
+  for (const sale of reportSales) {
     const current = categoryMap.get(sale.category) ?? { unitsSold: 0, revenue: 0 };
     current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
@@ -641,9 +658,9 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue || right.unitsSold - left.unitsSold);
 
   const clientMap = new Map<string, { purchases: number; revenue: number }>();
-  for (const sale of billingRows) {
+  for (const sale of reportSales) {
     const current = clientMap.get(sale.clientName) ?? { purchases: 0, revenue: 0 };
-    current.purchases += sale.isReturn ? 0 : 1;
+    current.purchases += sale.cantidad === 0 ? 0 : 1;
     current.revenue += sale.amount;
     clientMap.set(sale.clientName, current);
   }
@@ -705,7 +722,7 @@ export async function getReportsOverview(
         ? changePercent(averageTicket, previousMetrics.averageTicket)
         : null,
     },
-    salesSeries: buildSalesSeries(billingRows, input.startDate, input.endDate),
+    salesSeries: buildSalesSeries(reportSales, input.startDate, input.endDate),
     topProducts,
     categories,
     topClients,

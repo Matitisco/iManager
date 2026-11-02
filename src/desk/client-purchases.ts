@@ -19,8 +19,8 @@ export type ClientPurchase = {
   id: string;
   kind: 'sale' | 'trade' | 'repair';
   title: string;
-  quantity: number;
   quantityLabel?: string;
+  quantity: number;
   imei: string | null;
   dateLabel: string;
   sortKey: number;
@@ -88,8 +88,8 @@ export function clientPurchases(input: {
         id: `sale-${sale.id}`,
         kind: 'sale',
         title: product ? equipmentTitle(product.model, product.capacity).replace(/\s*·\s*/g, ' ') : (sale.deviceLabel?.trim() || 'Equipo vendido').replace(/\s*·\s*/g, ' '),
-        quantity: saleQuantity(sale),
         quantityLabel: saleQuantityLabel(sale),
+        quantity: saleQuantity(sale),
         imei,
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),
@@ -109,8 +109,8 @@ export function clientPurchases(input: {
       return {
         id: `trade-${trade.id}`,
         kind: 'trade',
-        title: (trade.deviceReceived?.trim() || 'Canje').replace(/\s*·\s*/g, ' '),
         quantity: 1,
+        title: (trade.deviceReceived?.trim() || 'Canje').replace(/\s*·\s*/g, ' '),
         imei,
         dateLabel: formatShortDate(trade.date),
         sortKey: sortKey(trade.date),
@@ -132,8 +132,8 @@ export function clientPurchases(input: {
       return {
         id: `repair-${order.id}`,
         kind: 'repair',
-        title: [order.device?.trim() || 'Reparación', order.fault?.trim()].filter(Boolean).join(' · '),
         quantity: 1,
+        title: [order.device?.trim() || 'Reparación', order.fault?.trim()].filter(Boolean).join(' · '),
         imei,
         dateLabel: formatShortDate(order.receivedAt),
         sortKey: sortKey(order.receivedAt) || sortKey(order.events.at(-1)?.createdAt),
@@ -168,9 +168,9 @@ export function purchaseTotals(rows: ClientPurchase[], active: MoneyCurrency = '
     spent.set(key, current);
   }
   return {
-    // Purchases count operations; warranty coverage counts the units in each one.
-    count: counted.length,
-    activeWarranties: rows.reduce((total, row) => total + (!row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer') ? row.quantity : 0), 0),
+    // Trade receipts count as operations without adding to spending.
+    count: rows.filter(row => !row.annulled).length,
+    activeWarranties: rows.filter((row) => !row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer')).reduce((sum, row) => sum + row.quantity, 0),
     spent: [...spent.values()].sort((left, right) => (left.currency ?? '').localeCompare(right.currency ?? '')),
   };
 }

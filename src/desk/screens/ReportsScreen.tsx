@@ -1,3 +1,4 @@
+import { compensatedReturns, saleRevenueEntries } from '../sale-returns';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -13,12 +14,12 @@ import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { netProfit, returnReversal } from '../net-profit';
 import { combineAmounts } from '../money';
-import { billingEntries, compensatedReturns, compensationDate } from '../return-financials';
 import type { ReturnCaseView } from '../../services/returns-api';
 import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
   saleBuyer,
+  saleQuantity,
   formatShortDate,
   conditionLabel,
   equipmentTitle,
@@ -28,7 +29,6 @@ import {
   saleEquipment,
   isVoidRow,
   saleCode,
-  saleQuantity,
   statusLabel,
   tradeClientLabel,
   tradeCode,
@@ -131,20 +131,20 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const [dimensionByTab, setDimensionByTab] = useState<Partial<Record<ReportTab, string>>>({});
   const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
   const periodData = useMemo(() => ({
-    sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
+    sales: sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.start, bounds.end)),
     inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
     repairs: repairOrders.filter((order) => inReportPeriod(order.receivedAt, bounds.start, bounds.end)),
   }), [sales, inventory, tradeIns, repairOrders, bounds]);
 
-  const billingHistory = billingEntries(sales, returns ?? []);
-  const periodBilling = billingHistory.filter(sale => inReportPeriod(sale.date, bounds.start, bounds.end));
-  const salesValue = returns === null ? null : money.sum(periodBilling.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
-  const projectedSales = periodBilling.map((sale) => ({
+  const revenueEntries = saleRevenueEntries(sales, returns ?? []);
+  const periodRevenue = revenueEntries.filter(row => inReportPeriod(row.date, bounds.start, bounds.end));
+  const salesValue = money.sum(periodRevenue.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const projectedSales = periodRevenue.map((sale) => ({
     ...sale,
     amount: salesValue == null ? 0 : (money.number(sale.amount, sale.amountCurrency) ?? 0),
   }));
-  const projectedHistory = billingHistory.map((sale) => ({
+  const projectedHistory = revenueEntries.map((sale) => ({
     ...sale,
     amount: money.number(sale.amount, sale.amountCurrency) ?? 0,
   }));
@@ -250,9 +250,6 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
     if (activeTab === 'Ventas') {
       saleRows.forEach((sale) => {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
-      });
-      periodBilling.filter(sale => sale.id.startsWith('return-') && matchesBreakdown(saleLabel(sale), cat, model.otherLabels)).forEach(sale => {
-        rows.push([`Devolución ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), 'Devolución']);
       });
     } else if (activeTab === 'Stock') {
       rows[0].splice(3, 0, 'Cantidad');
@@ -732,7 +729,7 @@ export function NetProfitCard({
   }
   const periodSales = sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
-  const periodReturns = compensatedReturns(returns).filter(row => inReportPeriod(compensationDate(row), start, end));
+  const periodReturns = compensatedReturns(returns, start, end);
   const reversals = periodReturns.map((row) => returnReversal(row));
   const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({
