@@ -301,7 +301,6 @@ export function SalesScreen() {
                   </ColumnFilter>
                 </span></th>
                 <th className="sale-quantity-cell" scope="col">Cant.</th>
-                <th className="r" scope="col">Precio unit.</th>
                 <th><span className="thf">Vendedor
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
@@ -311,6 +310,7 @@ export function SalesScreen() {
                     </div>
                   </ColumnFilter>
                 </span></th>
+                <th className="r" scope="col">Precio unit.</th>
                 <th className="r"><span className="thf">Total
                   <ColumnFilter label="total" align="right" {...menu('total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
                     <MoneyRange min={columns.amountMin} max={columns.amountMax} onMin={(amountMin) => setColumn({ amountMin })} onMax={(amountMax) => setColumn({ amountMax })} />
@@ -345,8 +345,8 @@ export function SalesScreen() {
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td className="sale-quantity-cell">{saleQuantity(sale)}</td>
-                    <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
+                    <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && profit.costedSales > 0 && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
                     <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
