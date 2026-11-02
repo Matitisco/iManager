@@ -235,7 +235,7 @@ describe("getReportsOverview", () => {
     saleFindManyMock.mockResolvedValue([{ status: 'COMPLETADA', amount: 100, paymentMethod: 'EFECTIVO', soldAt: new Date('2026-04-10'), inventoryItem: { cost: 0 } }]);
     returnCaseFindManyMock.mockResolvedValue([{ settlement: 'REINTEGRO', resolvedAt: new Date('2026-04-15'), creditNote: null, events: [], moneyAmount: 100, sale: { amount: 100, inventoryItem: { cost: 0 } } }]);
     const result = await getReportsOverview('store-1', { rangeKey: 'all_time', startDate: null, endDate: null });
-    expect(result.summary).toMatchObject({ revenue: 100, grossProfit: 0, marginRate: 0, salesWithoutCost: 1, returnsCount: 1, returnsAmount: 100 });
+    expect(result.summary).toMatchObject({ revenue: 0, grossProfit: 0, marginRate: 0, salesWithoutCost: 1, returnsCount: 1, returnsAmount: 100 });
   });
 
   it('rejects cross-currency totals when the quote is missing', async () => {
@@ -258,8 +258,9 @@ describe("getReportsOverview", () => {
     const result = await getReportsOverview('store-1', { rangeKey: 'custom', startDate: new Date('2026-04-01T03:00:00Z'), endDate: new Date('2026-05-01T02:59:59.999Z') });
     const factor = currency === 'ARS' ? 1250 : 1;
     expect(result.summary.grossProfit).toBe(340 * factor);
-    expect(result.summary.marginRate).toBe(34);
-    expect(result.summary.revenue).toBe(1000 * factor);
+    expect(result.summary.marginRate).toBeCloseTo(340 / 900 * 100);
+    expect(result.summary.revenue).toBe(900 * factor);
+    expect(result.comparison.revenue).toBe(980 * factor);
     expect(result.comparison.grossProfit).toBe(388 * factor);
     expect(result.comparison.grossProfitChange).toBeCloseTo((340 - 388) / 388 * 100);
   });
