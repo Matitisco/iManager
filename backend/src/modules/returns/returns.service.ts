@@ -30,7 +30,7 @@ const caseInclude = {
   events: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
   creditNote: true,
   supplier: { select: { name: true } },
-  sale: { select: { amount: true, amountCurrency: true, openBalance: true, status: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
+  sale: { select: { cantidad: true, amount: true, amountCurrency: true, openBalance: true, status: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
   inventoryItem: { select: { cost: true, currency: true, status: true } },
 } satisfies Prisma.ReturnCaseInclude;
 
@@ -65,6 +65,7 @@ export interface ReturnCaseView {
   deletedAt: string | null;
   refundable: number;
   saleAmount: number;
+  saleQuantity: number;
   saleCurrency: string | null;
   saleDate: string | null;
   warrantyDays: number | null;
@@ -132,6 +133,7 @@ function present(row: CaseRow): ReturnCaseView {
     deletedAt: row.deletedAt?.toISOString() ?? null,
     refundable: refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null),
     saleAmount: money(sale?.amount),
+    saleQuantity: sale?.cantidad ?? 1,
     saleCurrency: sale?.amountCurrency ?? null,
     saleDate: sale?.dateLabel ?? null,
     warrantyDays: sale?.warrantyDays ?? null,

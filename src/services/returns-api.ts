@@ -95,6 +95,7 @@ export interface ReturnCaseView {
   deletedAt: string | null;
   refundable: number;
   saleAmount: number;
+  saleQuantity?: number;
   saleCurrency: string | null;
   saleDate: string | null;
   warrantyDays: number | null;

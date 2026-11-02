@@ -43,7 +43,7 @@ function paymentCaption(payment: ClientPaymentRecord) {
 }
 
 export function ClientDetail({ id }: { id: string }) {
-  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], loadCommissionSellers, appSession, reloadClients, creditNotes = [] } = useAppContext();
+  const { clients, user, registerClientPayment, sales = [], repairOrders = [], tradeIns = [], inventory = [], commissionSellers = [], loadCommissionSellers, appSession, reloadClients, returns, creditNotes = [] } = useAppContext();
   const voidedSales = useArchivedRows(sales, fetchVoidedSales);
   const voidedTrades = useArchivedRows(tradeIns, fetchVoidedTradeIns);
   const archivedInventory = useArchivedRows(inventory, fetchArchivedInventory);
@@ -172,7 +172,7 @@ export function ClientDetail({ id }: { id: string }) {
         <div className="kv" key={note.id} data-testid="client-credit-note"><span>Nota de crédito {note.code}</span><b data-ph-mask>{money.show(note.remaining, note.currency, 2)}</b></div>
       ))}
       {voidedSales.loading || voidedTrades.loading || archivedInventory.loading ? <ListSkeleton variant="lines" rows={3} /> : null}
-      <ClientPurchases key={client.id} client={client} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} />
+      {returns === null ? <ListSkeleton variant="lines" rows={3} /> : <ClientPurchases key={client.id} client={client} clientId={client.id} clientName={client.name} sales={mergeRecordRows(sales, voidedSales.rows)} tradeIns={mergeRecordRows(tradeIns, voidedTrades.rows)} repairs={repairOrders} inventory={mergeRecordRows(inventory, archivedInventory.rows)} sellers={commissionSellers} returns={returns ?? []} />}
       <section className="deposit-list" aria-label="Historial de señas">
         <h4>Señas y saldo a favor</h4>
         {deposits.loading ? <ListSkeleton variant="lines" rows={2} /> : null}

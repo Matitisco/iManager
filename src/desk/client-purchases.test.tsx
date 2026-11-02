@@ -5,6 +5,7 @@ import type { Product, RepairOrder, Sale, TradeIn } from '../types';
 import { ExchangeProvider } from './exchange';
 import { ClientPurchases } from './ClientPurchases';
 import { clientPurchases, purchaseTotals, purchaseWarranty } from './client-purchases';
+import { partialReturn } from '../test/return-fixtures';
 
 const sellers = [{ id: 'lucia', name: 'Lucía', role: 'STAFF' as const }];
 const inventory: Product[] = [{
@@ -66,6 +67,14 @@ function renderPurchases() {
 }
 
 describe('client purchases', () => {
+  it('muestra gasto neto después de devolver dos de diez unidades', () => {
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1000, manualSell: 1000 }}>
+      <ClientPurchases clientName="Cliente ficticio" clientId="c1" sales={[sale('s', { cantidad: 10, amount: 1000 })]} returns={[partialReturn()]}
+        tradeIns={[]} repairs={[]} inventory={[]} sellers={[]} />
+    </ExchangeProvider>);
+    expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('US$ 800');
+    expect(screen.getByTestId('purchase-sale-s')).toHaveTextContent('US$ 800');
+  });
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 9, 18, 12));

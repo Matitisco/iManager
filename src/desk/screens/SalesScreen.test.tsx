@@ -5,9 +5,12 @@ import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ExchangeProvider } from '../exchange';
 import { SalesScreen } from './SalesScreen';
+import { partialReturn } from '../../test/return-fixtures';
+import type { ReturnCaseView } from '../../services/returns-api';
 
 const context = vi.hoisted(() => ({
   sales: [] as Sale[],
+  returns: [] as ReturnCaseView[],
   clients: [] as never[],
   inventory: [] as Product[],
   appSession: null as { membership?: { role?: string; sections?: string[] | null }; store?: { id: string } } | null,
@@ -45,6 +48,7 @@ function renderScreen() {
 
 // El período «Mes» son los últimos 30 días: sin fecha fija, estas pruebas dependen del día en que corren.
 beforeEach(() => {
+  context.returns = [];
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 18, 12));
 });
@@ -141,6 +145,16 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     const profit = screen.getByText('Ganancia total').parentElement!;
     expect(within(profit).getByText('—')).toBeInTheDocument();
     expect(within(profit).getByText('Cargá el costo en el equipo')).toBeInTheDocument();
+  });
+
+  it('descuenta dos de diez unidades en facturación y ganancia', () => {
+    context.sales = [sale(1, { cantidad: 10, amount: 1000, productId: 'p', status: 'COMPLETADA', amountCurrency: 'ARS' })];
+    context.inventory = [{ id: 'p', cost: 60, currency: 'ARS' }] as Product[];
+    context.returns = [partialReturn({ saleId: '1', moneyCurrency: 'ARS', itemCurrency: 'ARS' })];
+    renderScreen();
+    expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('$ 800');
+    expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('$ 320');
+    if (width === 1440) expect(within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell')[9]).toHaveTextContent('$ 320');
   });
 
   it('counts absent or invalid quantities as one unit', () => {
