@@ -2,4 +2,4 @@
 - [x] Corregir elegibilidad, estados de carga y cantidad en formulario compartido.
 - [x] Persistir cantidad y proteger límites, stock y permisos backend.
 - [x] Ejecutar regresiones, lint y recorridos mobile/desktop en base local ficticia.
-- [ ] Commit, push de rama y PR contra test; documentar causa y evidencia.
+- [x] Commit, push de rama y PR contra test; documentar causa y evidencia.

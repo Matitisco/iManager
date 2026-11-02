@@ -35,3 +35,12 @@ Antes del cambio, `return-sales.test.tsx`: 4 fallos (no consultaba ventas, no bl
 Las integraciones usan PostgreSQL exclusivo de esta tarea en `127.0.0.1:5545/imanager_reclamo_test`. Playwright usa otra BD, `imanager_reclamo_e2e`, para evitar interferencia con las integraciones. Todos los datos son ficticios. Playwright recorre 1440×900 y 390×844, provoca fallo de la lista global y de la consulta del selector, reintenta, elige una venta pendiente USD de tres unidades, abre el reclamo por una y verifica persistencia tras recargar, dos unidades restantes y stock original sin cambios.
 
 Verificación: TypeScript frontend/backend; tests relacionados frontend; 113 unitarias backend; 64 integraciones backend (devoluciones, cantidades, correcciones admin, importación, permisos y restauración de ventas); 2 recorridos Playwright aprobados.
+
+Validación complementaria: la matriz `returns-eligibility.integration.test.ts` prueba ambos valores de `collectDifference` mediante el endpoint administrativo real. Contra `866ff3b`, las regresiones de interfaz fallan en las dos resoluciones (venta pendiente ausente); las de API fallan por el rechazo de pendientes y por cantidad ignorada. Con el fix pasan. La ejecución complementaria usa exclusivamente `127.0.0.1:55439/imanager_returns_test`; 1.021 unitarias backend y 72 integraciones relacionadas aprobadas antes de sincronizar la base.
+
+Compatibilidad con `test` actualizado a `992a06a`: conservar `itemCost` unitario junto con `saleQuantity`, porque el consumidor de margen ya multiplica por las unidades vendidas. El test de devolución parcial verifica costo unitario USD 800 y cantidad vendida 5 para evitar duplicar el costo en el merge.
+
+
+Validación posterior a integrar `992a06a`: TypeScript frontend/backend aprobado; 196 pruebas frontend relacionadas y 56 de revalidación de archivos afectados por carga del entorno, 1.021 unitarias backend, 119 integraciones y dos recorridos Playwright aprobados. Frontend se verificó con un worker y límites de 30 s: una ejecución anterior sufrió timeouts y otra había cruzado la actualización de la base; todos los archivos con fallos se revalidaron sobre el estado integrado.
+
+Entrega: [PR #711 contra test](https://github.com/Matitisco/iManager/pull/711). No se mergeó ni se tocó main.
