@@ -1,9 +1,12 @@
 import react from '@vitejs/plugin-react';
+import { availableParallelism } from 'node:os';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    // jsdom/Chromium share runner memory; avoid spawning one worker per host core.
+    maxWorkers: Math.min(2, availableParallelism()),
     env: {
       TZ: 'America/Argentina/Buenos_Aires',
     },
@@ -21,10 +24,7 @@ export default defineConfig({
         'src/services/**/*.{ts,tsx}',
         'src/utils/**/*.{ts,tsx}',
       ],
-      exclude: [
-        'src/**/*.test.{ts,tsx}',
-        'src/test/**/*',
-      ],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**/*'],
     },
   },
 });

@@ -1,12 +1,18 @@
 import path from 'node:path';
+import { availableParallelism } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig } from '@playwright/test';
 
-const DEFAULT_FRONTEND_URL = process.env.PLAYWRIGHT_APP_BASE_URL?.trim() || 'http://127.0.0.1:4173';
-const DEFAULT_BACKEND_URL = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
-const DEFAULT_DATABASE_URL = process.env.DATABASE_URL?.trim() || 'postgresql://postgres:postgres@127.0.0.1:5432/imanager_test';
-const DEFAULT_E2E_PASSWORD = process.env.VITE_E2E_TEST_PASSWORD?.trim() || 'test123456';
+const DEFAULT_FRONTEND_URL =
+  process.env.PLAYWRIGHT_APP_BASE_URL?.trim() || 'http://127.0.0.1:4173';
+const DEFAULT_BACKEND_URL =
+  process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100';
+const DEFAULT_DATABASE_URL =
+  process.env.DATABASE_URL?.trim() ||
+  'postgresql://postgres:postgres@127.0.0.1:5432/imanager_test';
+const DEFAULT_E2E_PASSWORD =
+  process.env.VITE_E2E_TEST_PASSWORD?.trim() || 'test123456';
 
 const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const backendDir = path.resolve(repoRoot, 'backend');
@@ -17,14 +23,29 @@ function resolveBin(bin: string) {
 
 export default defineConfig({
   testDir: './e2e',
-  testIgnore: ['**/pwa/**', '**/395b-shots.spec.ts', '**/post395-shots.spec.ts', '**/374-shots.spec.ts', '**/308-shots.spec.ts', '**/316-shots.spec.ts', '**/318-shots.spec.ts', '**/425-shots.spec.ts', '**/nav-v2-shots.spec.ts', '**/433-shots.spec.ts'],
+  testIgnore: [
+    '**/pwa/**',
+    '**/395b-shots.spec.ts',
+    '**/post395-shots.spec.ts',
+    '**/374-shots.spec.ts',
+    '**/308-shots.spec.ts',
+    '**/316-shots.spec.ts',
+    '**/318-shots.spec.ts',
+    '**/425-shots.spec.ts',
+    '**/nav-v2-shots.spec.ts',
+    '**/433-shots.spec.ts',
+  ],
   timeout: 60_000,
   expect: {
     timeout: 10_000,
   },
   fullyParallel: true,
+  // Leave CPU for Vite and Fastify in each browser runner.
+  workers: process.env.CI ? Math.max(1, availableParallelism() - 1) : undefined,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [['list'], ['github'], ['html', { open: 'never' }]] : [['list']],
+  reporter: process.env.CI
+    ? [['list'], ['github'], ['html', { open: 'never' }]]
+    : [['list']],
   globalSetup: path.resolve(repoRoot, 'e2e/global-setup.ts'),
   use: {
     baseURL: DEFAULT_FRONTEND_URL,

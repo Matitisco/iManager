@@ -1,0 +1,52 @@
+name: Dependencies
+description: Restore one npm download cache across jobs and base/PR branches
+inputs:
+  projects:
+    description: frontend, backend or both
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - uses: actions/cache@v4
+      if: inputs.projects != 'backend'
+      with:
+        # Relative paths share cache versions between host/container jobs.
+        path: .npm-cache/frontend
+        key: npm-v1-${{ runner.os }}-${{ runner.arch }}-node22-frontend-${{ hashFiles('package-lock.json') }}
+        restore-keys: |
+          npm-v1-${{ runner.os }}-${{ runner.arch }}-node22-frontend-
+    - uses: actions/cache@v4
+      if: inputs.projects != 'frontend'
+      with:
+        path: .npm-cache/backend
+        key: npm-v1-${{ runner.os }}-${{ runner.arch }}-node22-backend-${{ hashFiles('backend/package-lock.json') }}
+        restore-keys: |
+          npm-v1-${{ runner.os }}-${{ runner.arch }}-node22-backend-
+    - name: Install dependencies
+      shell: bash
+      env:
+        PROJECTS: ${{ inputs.projects }}
+        HUSKY: '0'
+        PRISMA_SKIP_POSTINSTALL_GENERATE: 'true'
+      run: |
+        npm_flags=(--prefer-offline --no-audit --no-fund)
+        frontend_flags=("${npm_flags[@]}" --cache "$GITHUB_WORKSPACE/.npm-cache/frontend")
+        backend_flags=("${npm_flags[@]}" --cache "$GITHUB_WORKSPACE/.npm-cache/backend")
+        case "$PROJECTS" in
+          frontend) npm ci "${frontend_flags[@]}" ;;
+          backend) npm --prefix backend ci "${backend_flags[@]}" ;;
+          both)
+            npm ci "${frontend_flags[@]}" &
+            frontend_install=$!
+            npm --prefix backend ci "${backend_flags[@]}" &
+            backend_install=$!
+            failed=0
+            wait "$frontend_install" || failed=1
+            wait "$backend_install" || failed=1
+            exit "$failed"
+            ;;
+          *) echo "Unknown dependency project: $PROJECTS" >&2; exit 1 ;;
+        esac
