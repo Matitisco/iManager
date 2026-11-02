@@ -224,7 +224,7 @@ export function ClientsScreen() {
       ) : view === 'lista' ? (
       <div className="dcard flush">
         <div className="dch pad"><h3>Clientes</h3><span className="mut">{listed.length} de {clientSource.length}</span>{clientFiltersActive(columns) ? <button className="wlink" type="button" onClick={() => setColumns(EMPTY_CLIENT_FILTERS)}>Limpiar filtros</button> : null}</div>
-        <table className="dtable">
+        <div className="dtable-scroll desktop-table-scroll"><table className="dtable">
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={ordered.length} /></th>
@@ -288,7 +288,7 @@ export function ClientsScreen() {
                 </PressTarget>
               ))}
             </tbody>
-          </table>
+          </table></div>
         {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="clients-loading" /> : listed.length === 0 ? <div className="table-empty">{clients.length === 0 && !clientFiltersActive(columns) ? 'No encontré clientes.' : 'No hay clientes con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>

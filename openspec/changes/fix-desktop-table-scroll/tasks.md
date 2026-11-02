@@ -1,0 +1,3 @@
+- [x] Unificar scroll de escritorio en Ventas, Inventario, Clientes y Canjes; revisar Devoluciones.
+- [x] Verificar scroll real a 470 px, escritorio amplio y presentación móvil con datos ficticios (5 pruebas Playwright, 25 registros por tabla, 470/1024/1440 px en escritorio y 390/470 px en móvil).
+- [x] Correr lint frontend/backend y tests relacionados sin build.

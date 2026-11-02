@@ -179,6 +179,9 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 
 .dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
 .dtable-scroll { overflow-x: auto; }
+/* Only desktop table branches opt in, including at narrow viewport widths. */
+.dtable-scroll.desktop-table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.dtable-scroll.desktop-table-scroll > .dtable { min-width: 980px; }
 .dtable.trade-table { min-width: 980px; }
 .trade-table .trade-device { min-width: 150px; max-width: 230px; overflow-wrap: anywhere; }
 .trade-table .trade-nowrap { white-space: nowrap; }

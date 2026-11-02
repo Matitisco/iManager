@@ -276,7 +276,7 @@ export function SalesScreen() {
             {filtersOn ? <button className="wlink" type="button" onClick={clearFilters}>Limpiar filtros</button> : null}
           </span>
         </div>
-        <table className="dtable">
+        <div className="dtable-scroll desktop-table-scroll"><table className="dtable">
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={shown.length} /></th>
@@ -354,7 +354,7 @@ export function SalesScreen() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="table-empty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>

@@ -193,7 +193,7 @@ export function TradeInsScreen() {
       ) : (
       <div className="dcard flush">
         <div className="dch pad"><h3>Canjes</h3><span className="mut">{listed.length} de {tradeSource.length}</span>{tradeFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}</div>
-        <div className="dtable-scroll">
+        <div className="dtable-scroll desktop-table-scroll">
           <table className="dtable trade-table" aria-label="Canjes">
             <thead>
               <tr>

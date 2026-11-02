@@ -375,7 +375,7 @@ export function InventoryScreen() {
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
-        <div className="dtable-scroll"><table className="dtable inv-stock-table">
+        <div className="dtable-scroll desktop-table-scroll"><table className="dtable inv-stock-table">
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
