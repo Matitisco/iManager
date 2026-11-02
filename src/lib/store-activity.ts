@@ -20,6 +20,7 @@ export type StoreActivityRow = {
   onboardingStage: string | null;
   counts: StoreActivityCounts;
   lastActivityAt: string | null;
+  lastAction?: { text: string; at: string } | null;
   stuckAt?: string | null;
   activeDays30?: number;
 };
@@ -27,6 +28,7 @@ export type StoreActivityRow = {
 export type StoreActivityResponse = {
   range: StoreActivityRange;
   generatedAt: string;
+  warning?: string | null;
   stores: StoreActivityRow[];
 };
 

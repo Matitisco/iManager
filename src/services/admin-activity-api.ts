@@ -1,3 +1,4 @@
+import type { HistoryFilters, HistoryResponse } from '../lib/store-history';
 import type { AuthUserLike } from '../types/auth-user';
 import type { StoreActivityRange, StoreActivityResponse } from '../lib/store-activity';
 import type { FunnelResponse, TimelineResponse } from '../lib/admin-panel';
@@ -30,5 +31,13 @@ export function fetchFunnel(user: AuthUserLike, range: StoreActivityRange, hideT
 export function fetchStoreTimeline(user: AuthUserLike, id: string): Promise<TimelineResponse> {
   return apiRequest(user, `/admin/stores/${encodeURIComponent(id)}/timeline`, {
     fallback: 'No pudimos cargar el recorrido.', errorFrom: 'fallback',
+  });
+}
+
+export function fetchStoreHistory(user: AuthUserLike, id: string, filters: HistoryFilters = {}): Promise<HistoryResponse> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+  return apiRequest(user, `/admin/stores/${encodeURIComponent(id)}/history?${query}`, {
+    fallback: 'No pudimos cargar el historial de acciones.', errorFrom: 'fallback',
   });
 }
