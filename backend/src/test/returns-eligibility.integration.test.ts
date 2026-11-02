@@ -85,6 +85,7 @@ describe('reclamos: cobro, origen y permisos', () => {
     const resolved = await resolve(1000);
     expect(resolved.statusCode, resolved.body).toBe(200);
     const returned = resolved.json().return;
+    expect(returned).toMatchObject({ itemCost: 800, saleQuantity: 5 });
     expect(returned.inventoryItemId).not.toBe(f.inventoryItem.id);
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: returned.inventoryItemId } })).toMatchObject({ cantidad: 2, status: 'EN_REVISION', currency: 'USD' });
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } })).toMatchObject({ cantidad: 5, status: 'DISPONIBLE' });
