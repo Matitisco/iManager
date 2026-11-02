@@ -793,6 +793,10 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .dolar-refresh:hover { background: var(--theme-surface, #fff); color: var(--primary); }
 .dolar.error .dolar-refresh { color: var(--err); }
 .dolar-refresh:disabled { opacity: .45; }
+@keyframes dolar-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: no-preference) {
+  .dolar-refresh svg.dolar-refresh-spinning { animation: dolar-refresh-spin 1s linear infinite; }
+}
 .dolar-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
 .dolar-cols > span { display: block; min-width: 0; }
 .dolar-cols small { display: block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }

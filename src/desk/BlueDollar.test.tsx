@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlueDollar } from './BlueDollar';
@@ -55,6 +55,54 @@ afterEach(() => {
 });
 
 describe('blue dollar widget', () => {
+  it.each(['success', 'error'] as const)('spins only the sidebar refresh icon until a cached refresh settles with %s', async (result) => {
+    const user = userEvent.setup();
+    seedFresh();
+    let settle!: (response: ReturnType<typeof json>) => void;
+    const fetchMock = vi.fn(() => new Promise<ReturnType<typeof json>>(resolve => { settle = resolve; }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderWidget('compact');
+    const widget = screen.getByTestId('blue-widget');
+    const button = screen.getByRole('button', { name: 'Actualizar cotización' });
+    const icon = button.querySelector('svg')!;
+    expect(icon).not.toHaveClass('dolar-refresh-spinning');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    for (const ok of [result === 'success', true]) {
+      await user.click(button);
+      expect(icon).toHaveClass('dolar-refresh-spinning');
+      expect(button).not.toHaveClass('dolar-refresh-spinning');
+      expect(widget).toHaveAttribute('data-state', 'ready');
+      expect(widget).toHaveTextContent(formatMoney(1280));
+      expect(widget).toHaveTextContent(formatMoney(1300));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      await act(async () => { settle(json(dolar, ok)); });
+      await waitFor(() => expect(icon).not.toHaveClass('dolar-refresh-spinning'));
+      expect(widget).toHaveAttribute('data-state', 'ready');
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps spinning when a newer sidebar refresh supersedes the pending request', async () => {
+    const user = userEvent.setup();
+    seedFresh();
+    const pending: Array<(response: ReturnType<typeof json>) => void> = [];
+    const fetchMock = vi.fn(() => new Promise<ReturnType<typeof json>>(resolve => { pending.push(resolve); }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderWidget('compact');
+    const button = screen.getByRole('button', { name: 'Actualizar cotización' });
+    const icon = button.querySelector('svg')!;
+
+    await user.click(button);
+    await user.click(button);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => { pending[0](json(dolar)); });
+    expect(icon).toHaveClass('dolar-refresh-spinning');
+    await act(async () => { pending[1](json(dolar)); });
+    await waitFor(() => expect(icon).not.toHaveClass('dolar-refresh-spinning'));
+  });
+
   it('keeps sidebar prices compact with metadata in the tooltip, refresh and calculator', async () => {
     const user = userEvent.setup();
     seedFresh();
