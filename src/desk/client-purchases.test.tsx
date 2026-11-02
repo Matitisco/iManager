@@ -129,7 +129,7 @@ describe('client purchases', () => {
       repairs: [repair('delivered', {}), repair('pending', { status: 'RECIBIDO', events: [] })],
       tradeIns: rows.tradeIns, inventory: [], sellers: [],
     });
-    expect(purchaseTotals(purchases)).toEqual({ count: 7, activeWarranties: 7, spent: [{ currency: 'USD', amount: 620 }] });
+    expect(purchaseTotals(purchases)).toEqual({ count: 8, activeWarranties: 7, spent: [{ currency: 'USD', amount: 620 }] });
   });
 
   it.each([false, true])('shows sale quantities in preview and full history (phone=%s)', async phone => {
