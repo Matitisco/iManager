@@ -1,33 +1,42 @@
-# Historial de acciones para marketing
+# Historial de acciones por tienda
 
-En `/admin/actividad`, **Última acción** muestra el último movimiento o visita conocido por tienda. En `/admin/actividad/tienda/:id`, **Historial de acciones** permite elegir tipo, fechas inclusivas y cargar más. Todas las fechas/horas se muestran en Buenos Aires. **Actualizar** reinicia el historial y vuelve a intentar las fuentes externas. El recorrido y los primeros pasos existentes se conservan.
+En `/admin/actividad`, **Última acción** muestra la última operación o conexión diaria conocida. En `/admin/actividad/tienda/:id`, **Historial de acciones** muestra fecha/hora argentina, quién y qué cambió. Permite elegir tipo, fechas inclusivas y cargar más. **Actualizar** reinicia el historial y reintenta las fuentes externas. El recorrido y los primeros pasos existentes conservan su propia información.
 
-El acceso es el mismo del panel: Firebase con email verificado e incluido en `ADMIN_EMAILS`. Las rutas son de lectura y responden `Cache-Control: no-store`.
+El acceso sigue exigiendo Firebase con email verificado e incluido en `ADMIN_EMAILS`. Las rutas son de lectura y responden `Cache-Control: no-store`.
+
+## Alcance
+
+- **Cargas**: altas e importaciones guardadas de equipos, ventas, clientes, canjes, devoluciones, reparaciones y empleados.
+- **Bajas**: anulaciones, borrados, archivados y remoción de empleados o cancelación de invitaciones.
+- **Modificaciones**: ediciones, cambios de estado, restauraciones, roles/permisos y configuración. Si la auditoría conserva campos modificados, se muestran sus nombres: «Editó un cliente · Campos: Nombre, Teléfono».
+- **Conexiones**: «Se conectó», como máximo una por usuario, tienda y día calendario de Buenos Aires. No se muestra cada login o sesión.
+
+No se incluyen visitas, navegación, aperturas de pantallas, clics, instalaciones, hitos de onboarding, primeras ventas/equipos duplicados, abandonos, cargas fallidas ni movimientos de módulos fuera del alcance (cajas, gastos, proveedores, comisiones o controles de stock).
 
 ## Fuentes y privacidad
 
-- BD: AuditEvent y eventos de producto registrados por tienda. No se consultan nombres, teléfonos, notas, diferencias ni importes de clientes para construir el historial; solo metadatos de la acción y actor. Los títulos se construyen con un catálogo de textos.
-- PostHog: consulta HogQL desde backend, con `POSTHOG_PERSONAL_API_KEY`, proyecto `POSTHOG_PROJECT_ID` (default 689030, proyecto US existente) y `POSTHOG_REGION=us|eu`. Nunca usar una variable `VITE_` para esta clave. Contrato basado en la [API SQL oficial](https://posthog.com/docs/sql).
-- Solo se consultan eventos permitidos: visitas a pantallas, cargas por Excel, ventas, canjes, invitaciones y algunos hitos. URLs y propiedades arbitrarias nunca se envían al navegador. Las pantallas se traducen usando rutas conocidas.
-- El usuario de PostHog se resuelve por ID interno/Firebase contra miembros de esa tienda. Si ya no pertenece al equipo o no se puede reconocer, se muestra «Usuario sin identificar»; no se confía en nombres de propiedades externas. La auditoría conserva el nombre/rol histórico y completa el rol con la membresía si faltaba.
-- «Entró a la app» es la actividad diaria registrada. Solo un evento explícito `user_logged_in` se traduce como «Inició sesión»; la instrumentación actual no garantiza ese evento para todos los accesos.
-- Fallos, timeout (4,5 s), falta de clave o respuesta inválida de PostHog dejan disponible la BD y muestran un aviso discreto. No se devuelven ni registran errores/cuerpos externos o credenciales.
+- BD: catálogo permitido de AuditEvent y ProductEvent. Para las ediciones solo se proyectan claves de campos de `changes`, traducidas mediante un catálogo fijo. No se transmiten valores anteriores/nuevos, etiquetas libres, notas, importes ni datos de clientes.
+- PostHog: consulta HogQL desde backend con `POSTHOG_PERSONAL_API_KEY`, `POSTHOG_PROJECT_ID` (default 689030) y `POSTHOG_REGION=us|eu`. La clave nunca va en variables `VITE_`. No se consultan URLs ni propiedades completas.
+- El actor externo se muestra con nombre/rol solo si pertenece a la tienda. Para deduplicar se resuelve su ID interno/Firebase incluso si dejó de ser empleado; no se usan nombres externos. La auditoría conserva nombre/rol históricos.
+- Las conexiones locales toman la primera `active_day` del día. Las externas toman el primer `user_logged_in` por identidad/día argentino mediante ranking **antes** del cursor. Una conexión local del usuario/día prevalece sobre PostHog, buscándola fuera de la página actual. Las consultas de última acción excluyen esas conexiones externas antes de elegir la última operación.
+- Fallos, timeout (4,5 s), falta de clave o respuesta inválida de PostHog dejan disponible la BD con aviso discreto. No se devuelven ni registran cuerpos externos o credenciales.
 
 ## API
 
-`GET /admin/stores/:id/history?type=sales&from=2026-10-01&to=2026-10-31&limit=40`
+`GET /admin/stores/:id/history?type=update&from=2026-10-01&to=2026-10-31&limit=40`
 
-Tipos: `inventory`, `sales`, `team`, `session`, `navigation`, `other`. Fechas `YYYY-MM-DD`; `to` incluye todo el día argentino. Límite 1–100 (default 40). Devuelve `actions`, `nextCursor`, `warning`. Cada acción contiene ID opaco, fecha ISO, tipo, texto y actor (nombre/rol), sin datos del registro de negocio.
+Tipos: `create` (Cargas), `delete` (Bajas), `update` (Modificaciones), `connection` (Conexiones). Fechas `YYYY-MM-DD`; `to` incluye todo el día argentino. Límite 1–100 (default 40). Devuelve `actions`, `nextCursor`, `warning`. Cada acción contiene ID opaco, fecha ISO, tipo, texto y actor (nombre/rol).
 
-El cursor fija un instante máximo y avanza por fecha/ID de la última fila escaneada. Puede haber páginas sin acciones visibles si todas fueron duplicadas: se conserva `nextCursor` para seguir. Se prioriza BD sobre PostHog; ventas se correlacionan por ID de venta, invitaciones/cargas por actor, operación y proximidad de hasta 5 segundos entre fuentes. No se colapsan operaciones de una misma fuente. Los contrapuntos de BD se buscan independientemente del cursor para evitar repetidos entre páginas. Sin un ID común no se intenta adivinar la equivalencia de dos ventas.
+El cursor fija un instante máximo y avanza por fecha/ID de la última fila escaneada. Las páginas compuestas solo por duplicados conservan `nextCursor`. Se prioriza BD sobre PostHog; ventas por ID de venta, invitaciones/cargas por actor, operación y proximidad de hasta 5 segundos entre fuentes. Las conexiones se consolidan por día, sin esa ventana temporal. No se fusionan dos operaciones reales de una misma fuente.
 
-Si PostHog falla durante una lectura, el resto de sus páginas sigue usando BD y conserva el aviso. **Actualizar** vuelve a consultar ambas fuentes desde el principio, para recuperar también visitas omitidas durante el fallo.
+Si PostHog falla durante una lectura, las páginas siguientes siguen usando BD y conservan el aviso. **Actualizar** vuelve a consultar ambas fuentes.
 
-`GET /admin/store-activity` agrega `lastAction: { text, at } | null` por tienda y `warning`. Consulta la última acción en lotes (una consulta externa para todas las tiendas), conservando el resto del contrato.
+`GET /admin/store-activity` agrega `lastAction: { text, at } | null` por tienda y `warning`, con el mismo alcance. Consulta externa en lote para todas las tiendas.
 
-## Validación
+## Validación del ajuste
 
 - Lint TypeScript frontend/backend, sin build.
-- 34 unitarias backend de admin/analítica, incluyendo textos y adaptador PostHog (auth por header, errores, payload inválido, límite y scope).
-- 26 integraciones de admin/analítica, incluyendo 9 nuevas de historial: 401/403, no-store, aislamiento, privacidad, fechas argentinas, cursores con empates/snapshot, deduplicación entre páginas y fallback. PostgreSQL local exclusivo con datos ficticios y sesión en zona argentina.
-- 24 pruebas frontend relacionadas y 2 recorridos Chromium en 1440/390 px (filtros, carga adicional, aviso, navegación y ausencia de desborde). Capturas locales en `/tmp/admin-store-history-{1440,390}.png`.
+- 56 unitarias backend relacionadas de admin/analítica; catálogo y adaptador: alcance, tipos, campos seguros, exclusión de navegación/fallos, conexiones agrupadas antes del cursor y última acción.
+- 30 integraciones admin/analítica en PostgreSQL local nuevo y exclusivo con datos ficticios y timezone argentino: permisos, privacidad, aislamiento, filtros, fechas, cursores/snapshot, duplicados entre fuentes/páginas, usuarios/días distintos y ex empleados.
+- 24 pruebas frontend de las cuatro opciones y cambio de filtros, más 2 recorridos Chromium a 1440/390 px con APIs interceptadas.
+- Ambas consultas HogQL nuevas aceptadas por la API real para un ID de tienda sintético inexistente, sin leer eventos de tiendas reales.
