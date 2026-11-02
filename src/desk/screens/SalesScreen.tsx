@@ -49,11 +49,12 @@ import type { Sale } from '../../types';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
 import { summarizeSaleProfit } from '../sale-profit';
+import { compensatedReturns } from '../sale-returns';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
+  const { sales, clients, inventory, returns = [], deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
@@ -103,15 +104,17 @@ export function SalesScreen() {
   const salePool = mergeRecordRows(sales, voidedSales);
   const listed = useMemo(() => salePool.filter((sale) => inWindow(sale)), [salePool, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => !isVoidRow(sale) && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
-  const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const periodReturns = compensatedReturns(returns ?? []).filter(row => inWindow({ date: row.compensatedOn ?? row.resolvedOn! }));
+  const financials = summarizeSaleProfit(periodSales, inventory, money.active, money.rate, periodReturns);
+  const total = financials.revenue;
   const units = periodSales.reduce((sum, sale) => sum + saleQuantity(sale), 0);
-  const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const prevTotal = summarizeSaleProfit(previous, inventory, money.active, money.rate, compensatedReturns(returns ?? [], bounds.prevStart, bounds.prevEnd)).revenue;
   const avg = total != null && periodSales.length ? Math.round(total / periodSales.length) : null;
-  const { grossProfit: margin, marginPct, costedSales, salesWithoutCost } = summarizeSaleProfit(periodSales, inventory, money.active, money.rate);
-  const hasCost = costedSales > 0;
+  const { grossProfit: margin, marginPct, costedSales, costedReturns, salesWithoutCost } = financials;
+  const hasCost = costedSales > 0 || costedReturns > 0;
   const marginNote = !hasCost ? 'Cargá el costo en el equipo'
     : salesWithoutCost > 0 ? `${salesWithoutCost} ${salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}`
-    : marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`;
+    : marginPct == null || (financials.marginRevenue ?? 0) <= 0 ? 'precio menos costo' : `≈ ${marginPct}%`;
   const delta = total != null && prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -330,7 +333,7 @@ export function SalesScreen() {
             </thead>
             <tbody>
               {page.visible.map((sale) => {
-                const profit = seeFinancials ? summarizeSaleProfit([sale], inventory, money.active, money.rate) : null;
+                const profit = seeFinancials ? summarizeSaleProfit([sale], inventory, money.active, money.rate, compensatedReturns(returns ?? []).filter(row => row.saleId === sale.id)) : null;
                 return (
                   <PressTarget
                     selection={selection.row(sale.id, saleCode(sale))}

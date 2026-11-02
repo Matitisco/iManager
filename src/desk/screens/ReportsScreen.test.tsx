@@ -1,3 +1,4 @@
+import type { ReturnCaseView } from '../../services/returns-api';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +12,7 @@ const api = vi.hoisted(() => ({ fetchCommissionReport: vi.fn() }));
 const context = vi.hoisted(() => ({
   user: null as { uid: string } | null,
   sales: [] as Sale[],
+  returns: [] as ReturnCaseView[],
   inventory: [] as Product[],
   tradeIns: [] as TradeIn[],
   clients: [] as Client[],
@@ -69,6 +71,7 @@ async function exportedCsv() {
 }
 
 beforeEach(() => {
+  context.returns = [];
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-07T12:00:00-03:00'));
   context.sales = [
@@ -552,4 +555,18 @@ it('exports equipment entry date, battery detail and typed custom values', async
   expect(csv).toContain('01/04/2026');
   expect(csv).toContain('Batería cambiada');
   expect(csv).toContain('"Batería cambiada","0"');
+});
+
+it.each(['REINTEGRO', 'NOTA_CREDITO'])('Reportes: facturación y ganancia descuentan dos de diez unidades (%s)', async settlement => {
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.sales = [{ ...sale('1', '2026-04-02', 6500), productId: 'p', cantidad: 10, amountCurrency: 'USD' }];
+  context.inventory = [{ ...product('p'), cost: 450, currency: 'USD' }];
+  context.expenses = [];
+  context.returns = [{ id: 'r', saleId: '1', status: 'EN_PROVEEDOR', resolution: 'REINTEGRO', settlement, compensatedOn: '2026-04-03', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><ReportsScreen /></ExchangeProvider>);
+  await applyRange();
+  expect(total()).toContain('5.200');
+  expect(screen.getByText('Ganancia bruta').parentElement).toHaveTextContent('US$ 1.600');
+  expect(screen.getByText('Ganancia neta').parentElement).toHaveTextContent('US$ 1.600');
+  expect(screen.getByTestId('net-profit-returns')).toHaveTextContent('US$ 1.300');
 });

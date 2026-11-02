@@ -119,7 +119,7 @@ describe("devoluciones, notas de crédito y RMA", () => {
     expect(profit.json()).toMatchObject({ grossProfit: 0, revenue: 0, cost: 0 });
     const overview = await inject("GET", "/api/reports/overview?rangeKey=all_time");
     expect(overview.statusCode, overview.body).toBe(200);
-    expect(overview.json().overview.summary).toMatchObject({ revenue: 1200, returnsCount: 1, returnsAmount: 1200 });
+    expect(overview.json().overview.summary).toMatchObject({ revenue: 0, returnsCount: 1, returnsAmount: 1200 });
   });
 
   it("aplica una nota de crédito a una venta posterior y no la deja usar en otra tienda", async () => {

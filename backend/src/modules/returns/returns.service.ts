@@ -68,6 +68,7 @@ export interface ReturnCaseView {
   deletedAt: string | null;
   refundable: number;
   saleAmount: number;
+  saleQuantity: number;
   saleCurrency: string | null;
   saleDate: string | null;
   warrantyDays: number | null;
@@ -136,10 +137,11 @@ function present(row: CaseRow): ReturnCaseView {
     deletedAt: row.deletedAt?.toISOString() ?? null,
     refundable: roundMoney((row.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1) * refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null)),
     saleAmount: money(sale?.amount),
+    saleQuantity: sale?.cantidad ?? 1,
     saleCurrency: sale?.amountCurrency ?? null,
     saleDate: sale?.dateLabel ?? null,
     warrantyDays: sale?.warrantyDays ?? null,
-    itemCost: roundMoney(money(row.inventoryItem?.cost) * (sale?.cantidad ?? 1)),
+    itemCost: money(row.inventoryItem?.cost),
     itemCurrency: row.inventoryItem?.currency ?? null,
     creditNote: row.creditNote && !row.creditNote.deletedAt ? {
       id: row.creditNote.id,

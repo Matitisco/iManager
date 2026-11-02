@@ -1,3 +1,4 @@
+import { compensatedReturns, saleRevenueEntries } from '../sale-returns';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -18,6 +19,7 @@ import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
 import {
   saleBuyer,
+  saleQuantity,
   formatShortDate,
   conditionLabel,
   equipmentTitle,
@@ -129,18 +131,20 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const [dimensionByTab, setDimensionByTab] = useState<Partial<Record<ReportTab, string>>>({});
   const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
   const periodData = useMemo(() => ({
-    sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
+    sales: sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.start, bounds.end)),
     inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
     repairs: repairOrders.filter((order) => inReportPeriod(order.receivedAt, bounds.start, bounds.end)),
   }), [sales, inventory, tradeIns, repairOrders, bounds]);
 
-  const salesValue = money.sum(periodData.sales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
-  const projectedSales = periodData.sales.map((sale) => ({
+  const revenueEntries = saleRevenueEntries(sales, returns ?? []);
+  const periodRevenue = revenueEntries.filter(row => inReportPeriod(row.date, bounds.start, bounds.end));
+  const salesValue = money.sum(periodRevenue.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const projectedSales = periodRevenue.map((sale) => ({
     ...sale,
     amount: salesValue == null ? 0 : (money.number(sale.amount, sale.amountCurrency) ?? 0),
   }));
-  const projectedHistory = sales.map((sale) => ({
+  const projectedHistory = revenueEntries.map((sale) => ({
     ...sale,
     amount: money.number(sale.amount, sale.amountCurrency) ?? 0,
   }));
@@ -723,9 +727,9 @@ export function NetProfitCard({
       </div>
     );
   }
-  const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
+  const periodSales = sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
-  const periodReturns = returns.filter((row) => !isVoidRow(row) && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.compensatedOn ?? row.resolvedOn ?? undefined, start, end));
+  const periodReturns = compensatedReturns(returns, start, end);
   const reversals = periodReturns.map((row) => returnReversal(row));
   const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({
@@ -736,7 +740,7 @@ export function NetProfitCard({
       return {
         amount: sale.amount,
         currency: sale.amountCurrency,
-        cost: item?.cost ?? 0,
+        cost: (item?.cost ?? 0) * saleQuantity(sale),
         costCurrency: item?.currency ?? sale.amountCurrency,
       };
     }),
