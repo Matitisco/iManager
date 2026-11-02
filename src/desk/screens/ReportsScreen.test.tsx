@@ -1,4 +1,3 @@
-import type { ReturnCaseView } from '../../services/returns-api';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +6,8 @@ import type { Client, ClientCategory, CustomColumn, Product, RepairOrder, Sale, 
 import { ExchangeProvider } from '../exchange';
 import { ReportsScreen } from './ReportsScreen';
 import { NETWORK_ERROR_MESSAGE } from '../../lib/user-message';
+import { partialReturn } from '../../test/return-fixtures';
+import type { ReturnCaseView } from '../../services/returns-api';
 
 const api = vi.hoisted(() => ({ fetchCommissionReport: vi.fn() }));
 const context = vi.hoisted(() => ({
@@ -513,6 +514,21 @@ describe('Reports breakdown and new sections', () => {
     expect(card).toHaveTextContent('$ 560');
     expect(card).toHaveTextContent('$ 50');
     expect(card).toHaveTextContent('$ 510');
+  });
+
+  it('resta facturación y margen de dos unidades devueltas de diez, también en CSV', async () => {
+    context.appSession = { membership: { role: 'OWNER' } };
+    context.sales = [{ ...sale('s', '2026-10-01', 1000), cantidad: 10, productId: 'p', amountCurrency: 'ARS' }];
+    context.inventory = [{ ...product('p'), cost: 60, currency: 'ARS' }];
+    context.returns = [partialReturn({ moneyCurrency: 'ARS', itemCurrency: 'ARS' })];
+    render(<ReportsScreen />);
+    expect(total()).toContain('$ 800');
+    expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia bruta$ 320');
+    expect(screen.getByTestId('net-profit')).toHaveTextContent('Ganancia neta$ 320');
+    const csv = await exportedCsv();
+    expect(csv.split('\n')).toHaveLength(3);
+    expect(csv).toContain('Devolución');
+    expect(csv).toContain('-200');
   });
 
   it('espera con un esqueleto y no muestra una ganancia vacía', () => {

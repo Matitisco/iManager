@@ -1,4 +1,3 @@
-import type { ReturnCaseView } from '../../services/returns-api';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +5,8 @@ import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ExchangeProvider } from '../exchange';
 import { SalesScreen } from './SalesScreen';
+import { partialReturn } from '../../test/return-fixtures';
+import type { ReturnCaseView } from '../../services/returns-api';
 
 const context = vi.hoisted(() => ({
   sales: [] as Sale[],
@@ -144,6 +145,16 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     const profit = screen.getByText('Ganancia total').parentElement!;
     expect(within(profit).getByText('—')).toBeInTheDocument();
     expect(within(profit).getByText('Cargá el costo en el equipo')).toBeInTheDocument();
+  });
+
+  it('descuenta dos de diez unidades en facturación y ganancia', () => {
+    context.sales = [sale(1, { cantidad: 10, amount: 1000, productId: 'p', status: 'COMPLETADA', amountCurrency: 'ARS' })];
+    context.inventory = [{ id: 'p', cost: 60, currency: 'ARS' }] as Product[];
+    context.returns = [partialReturn({ saleId: '1', moneyCurrency: 'ARS', itemCurrency: 'ARS' })];
+    renderScreen();
+    expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('$ 800');
+    expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('$ 320');
+    if (width === 1440) expect(within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell')[9]).toHaveTextContent('$ 320');
   });
 
   it('counts absent or invalid quantities as one unit', () => {

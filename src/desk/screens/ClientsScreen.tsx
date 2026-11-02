@@ -83,10 +83,10 @@ function sortClients(rows: Client[], sort: string, spent: (client: Client) => nu
 }
 
 export function ClientsScreen() {
-  const { clients, sales = [], repairOrders = [], deleteClient, operationDrafts = [], listsLoaded } = useAppContext();
-  const loadingLists = listsAreLoading(listsLoaded);
+  const { clients, sales = [], repairOrders = [], returns, deleteClient, operationDrafts = [], listsLoaded } = useAppContext();
+  const loadingLists = listsAreLoading(listsLoaded) || returns === null;
   const money = useMoney();
-  const spending = useMemo(() => clientSpendingById(sales, repairOrders, money.active), [sales, repairOrders, money.active]);
+  const spending = useMemo(() => clientSpendingById(sales, repairOrders, money.active, returns ?? []), [sales, repairOrders, money.active, returns]);
   const spent = (client: Client) => money.sum(combinedClientSpending(spending.get(client.id) ?? [], client));
   const { open, back } = useDesk();
   const phone = usePhoneLayout();
