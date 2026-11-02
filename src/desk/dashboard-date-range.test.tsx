@@ -7,6 +7,19 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new 
 afterEach(() => vi.useRealTimers());
 const setup = () => render(<DashboardDateRange range={{ start: '2026-10-01', end: '2026-10-22' }} onApply={apply} phone={false} />);
 describe('selector de rango Dashboard', () => {
+  it.each([false, true])('marca y aplica Últimos 7 días en escritorio y móvil (celular: %s)', async phone => {
+    const user = userEvent.setup();
+    vi.setSystemTime(new Date('2026-11-01T12:00:00-03:00'));
+    render(<DashboardDateRange range={{ start: '2026-10-26', end: '2026-11-01' }} onApply={apply} phone={phone} />);
+    await user.click(screen.getByRole('button', { name: phone ? '26 oct – 1 nov' : /Elegir período/ }));
+    expect(screen.getByRole('button', { name: 'Últimos 7 días' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Este mes' }));
+    expect(screen.getByRole('button', { name: 'Últimos 7 días' })).toHaveAttribute('aria-pressed', 'false');
+    await user.click(screen.getByRole('button', { name: 'Últimos 7 días' }));
+    expect(apply).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    expect(apply).toHaveBeenCalledWith({ start: '2026-10-26', end: '2026-11-01' });
+  });
   it('selecciona extremos invertidos, confirma explícitamente y deshabilita futuro', async () => {
     const user = userEvent.setup(); setup();
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
@@ -65,7 +78,7 @@ describe('selector de rango Dashboard', () => {
     const dialog = screen.getByRole('dialog', { name: 'Elegir período' });
     expect(dialog.classList.contains('phone')).toBe(phone);
     const chips = Array.from(dialog.querySelectorAll('.dashboard-presets button'));
-    expect(chips.map(chip => chip.textContent)).toEqual(['Hoy', '7 días', 'Este mes', 'Mes anterior', 'Total']);
+    expect(chips.map(chip => chip.textContent)).toEqual(['Hoy', 'Últimos 7 días', 'Este mes', 'Mes anterior', 'Total']);
     expect(within(dialog).getByRole('button', { name: 'Total' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(within(dialog).getByRole('button', { name: 'Hoy' }));
     expect(apply).not.toHaveBeenCalled();
