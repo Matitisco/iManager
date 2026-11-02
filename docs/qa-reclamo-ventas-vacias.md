@@ -44,3 +44,5 @@ Compatibilidad con `test` actualizado a `992a06a`: conservar `itemCost` unitario
 Validación posterior a integrar `992a06a`: TypeScript frontend/backend aprobado; 196 pruebas frontend relacionadas y 56 de revalidación de archivos afectados por carga del entorno, 1.021 unitarias backend, 119 integraciones y dos recorridos Playwright aprobados. Frontend se verificó con un worker y límites de 30 s: una ejecución anterior sufrió timeouts y otra había cruzado la actualización de la base; todos los archivos con fallos se revalidaron sobre el estado integrado.
 
 Entrega: [PR #711 contra test](https://github.com/Matitisco/iManager/pull/711). No se mergeó ni se tocó main.
+
+Sincronización final con `test` en `a618cfb` (#707/#709): conflicto resuelto únicamente en el registro de estado del proyecto, conservando ambas entradas. TypeScript frontend/backend aprobado; 132 pruebas frontend y 24 integraciones de reclamos, compras de cliente y ganancia de devoluciones parciales aprobadas sobre esta base.
