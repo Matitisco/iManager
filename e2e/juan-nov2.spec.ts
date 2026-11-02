@@ -182,9 +182,9 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     for (let i = 0; i < 3; i++) await call(request, fixture.email, 'GET', '/api/me');
     const history = await call(request, adminEmail, 'GET', `/admin/stores/${fixture.store.id}/history?limit=100`);
     await info.attach('real-history', { body: JSON.stringify(history, null, 2), contentType: 'application/json' });
-    expect(history.actions.filter((action: { text: string; actor: { name: string } }) => action.text === 'Entró a la app' && action.actor.name.toLowerCase().includes('qa wholesale')).length).toBe(1);
+    expect(history.actions.filter((action: { text: string; actor: { name: string } }) => action.text === 'Se conectó' && action.actor.name.toLowerCase().includes('qa wholesale')).length).toBe(1);
     for (const word of ['equipo', 'venta']) expect(history.actions.some((action: { text: string }) => action.text.toLowerCase().includes(word))).toBe(true);
-    for (const text of ['Registró un equipo', 'Cambió el precio', 'Archivó un equipo']) {
+    for (const text of ['Registró un equipo', 'Cambió el precio de un equipo · Campos: Precio', 'Archivó un equipo']) {
       expect(history.actions.some((action: { text: string }) => action.text === text), text).toBe(true);
     }
     await signIn(page, adminEmail, '/admin/actividad');
@@ -199,7 +199,7 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     await expect(page.getByRole('heading', { name: 'Historial de acciones' })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Acciones de la tienda' }).locator('li').first()).toBeVisible();
     await shot(page, info, 'admin-historial');
-    await page.getByLabel('Tipo de acción').selectOption('inventory');
+    await page.getByLabel('Tipo de acción').selectOption('create');
     await expect(page.getByRole('list', { name: 'Acciones de la tienda' })).not.toHaveAttribute('aria-busy', 'true');
     await expect(page.locator('.history-list')).toContainText('equipo');
     await page.getByLabel('Desde').fill(today);
@@ -228,12 +228,14 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     const sale = page.getByRole('dialog');
     await (await sheetAction(sale, 'Devolver')).click();
     const form = page.getByRole('dialog', { name: 'Nuevo reclamo' });
+    await form.getByLabel('Cantidad a devolver', { exact: true }).fill('2');
     await form.getByLabel('Motivo').fill('Devolución de dos unidades de diez, importe parcial US$ 200');
     await form.getByRole('button', { name: 'Abrir reclamo', exact: true }).click();
     await expect(form).toBeHidden();
     const claims = (await call(request, fixture.email, 'GET', '/api/returns')).returns;
     const claim = claims.find((row: { saleId: string }) => row.saleId === fixture.partialSale.id);
     expect(claim).toBeTruthy();
+    const originalStock = (await call(request, fixture.email, 'GET', '/api/inventory')).inventory.find((row: { id: string }) => row.id === fixture.product.id);
     await openDeskSection(page, 'returns');
     await page.getByTestId(`return-${claim.id}`).click();
     const detail = page.getByRole('dialog');
@@ -242,9 +244,15 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     await detail.getByRole('button', { name: 'Reintegro', exact: true }).click();
     await detail.getByRole('button', { name: 'Reintegro en caja', exact: true }).click();
     await detail.getByLabel('Importe', { exact: true }).fill('200');
+    await detail.getByLabel('Unidades del reclamo', { exact: true }).fill('2');
     await shot(page, info, 'devolucion-parcial-formulario');
     await detail.getByRole('button', { name: 'Guardar', exact: true }).click();
     await expect(detail).toBeHidden();
+    const resolved = (await call(request, fixture.email, 'GET', '/api/returns')).returns.find((row: { id: string }) => row.id === claim.id);
+    expect(resolved.cantidad).toBe(2);
+    const stock = (await call(request, fixture.email, 'GET', '/api/inventory')).inventory;
+    expect(stock.find((row: { id: string }) => row.id === resolved.inventoryItemId)).toMatchObject({ cantidad: 2, status: 'EN_REVISION' });
+    expect(stock.find((row: { id: string }) => row.id === originalStock.id)).toMatchObject({ cantidad: originalStock.cantidad, status: originalStock.status });
     const query = new URLSearchParams({ rangeKey: 'custom', startDate: `${today}T00:00:00.000-03:00`, endDate: `${today}T23:59:59.999-03:00` });
     const overview = (await call(request, fixture.email, 'GET', `/api/reports/overview?${query}`)).overview;
     expect.soft(overview.summary).toMatchObject({ revenue: 3000, grossProfit: 1200, marginRate: 40, returnsAmount: 200 });
@@ -282,7 +290,7 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     await shot(page, info, 'devolucion-parcial-reportes-ganancia');
   });
 
-  test('Devolución de unidades: devolver dos de diez repone exactamente dos al stock', { tag: '@known-bug' }, async ({ page, request }, info) => {
+  test('Devolución de unidades: devolver dos de diez repone exactamente dos al stock', async ({ page, request }, info) => {
     const { inventoryItem } = await call(request, fixture.email, 'POST', '/api/inventory', {
       model: 'Lote devolución física QA', capacity: '64GB', color: 'Negro', condition: 'NUEVO', grade: 'A+', batteryHealth: '100%',
       cantidad: 10, cost: 60, price: 100, currency: 'USD', status: 'DISPONIBLE',
@@ -290,11 +298,11 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     const { sale } = await call(request, fixture.email, 'POST', '/api/operations/sales', {
       clientId: fixture.returnClient.id, productId: inventoryItem.id, date: today, cantidad: 10, amount: 1000, unitPrice: 100, currency: 'USD', status: 'COMPLETADA',
     });
-    // API currently accepts the payload but silently discards the returned-unit count.
     const opened = await call(request, fixture.email, 'POST', '/api/returns', { saleId: sale.id, reason: 'Devolver dos unidades de diez', openedOn: today, cantidad: 2 });
-    await call(request, fixture.email, 'POST', `/api/returns/${opened.return.id}/resolve`, { resolution: 'REINTEGRO', settlement: 'REINTEGRO', amount: 200, destination: 'STOCK', stockStatus: 'EN_REVISION', cantidad: 2 });
+    const resolved = await call(request, fixture.email, 'POST', `/api/returns/${opened.return.id}/resolve`, { resolution: 'REINTEGRO', settlement: 'REINTEGRO', amount: 200, destination: 'STOCK', stockStatus: 'EN_REVISION', cantidad: 2 });
     const { inventory } = await call(request, fixture.email, 'GET', '/api/inventory');
-    const returned = inventory.find((row: { id: string }) => row.id === inventoryItem.id);
+    const returned = inventory.find((row: { id: string }) => row.id === resolved.return.inventoryItemId);
+    expect(inventory.find((row: { id: string }) => row.id === inventoryItem.id)?.cantidad).toBe(0);
     await info.attach('returned-stock', { body: JSON.stringify(returned, null, 2), contentType: 'application/json' });
     await signIn(page, fixture.email);
     await openDeskSection(page, 'inventory');
@@ -314,17 +322,25 @@ for (const width of [1440, 390]) test.describe(`QA mayorista ${width}`, () => {
     await shot(page, info, 'propietario-admin-denegado');
   });
 
-  test('permisos: empleado sin acceso financiero no ve montos ni ganancias', { tag: '@known-bug' }, async ({ page, request }, info) => {
+  test('permisos: STAFF conserva costos y ganancias temporales de #691 sin acceso a Reportes', async ({ page, request }, info) => {
     const report = await request.get(`${api}/api/reports/overview`, { headers: authHeaders(fixture.staffEmail) });
-    expect.soft(report.status(), 'Staff without reports permission must not read financial reports').toBe(403);
+    // #691 intentionally grants financial data, while Reportes navigation stays restricted.
+    expect(report.status()).toBe(200);
+    expect((await report.json()).overview.summary.grossProfit).toBeGreaterThan(0);
+    const inventory = (await call(request, fixture.staffEmail, 'GET', '/api/inventory')).inventory;
+    expect(inventory.find((row: { id: string }) => row.id === fixture.product.id)?.cost).toBe(60);
     await signIn(page, fixture.staffEmail);
     await expect(page.locator('.dashboard-screen .dstats')).toBeVisible();
     await expect(page.getByTestId('dashboard-initial-loading')).toHaveCount(0);
     await expect(page.locator('.dashboard-screen .dstat[aria-busy="true"]')).toHaveCount(0);
-    expect.soft(await stat(page, 'Margen bruto').count()).toBe(0);
+    await expect(stat(page, 'Margen bruto')).toBeVisible();
+    expect(amount(await stat(page, 'Margen bruto').innerText())).toBeGreaterThan(0);
+    await expect(page.getByRole('button', { name: 'Reportes', exact: true })).toHaveCount(0);
     await shot(page, info, 'empleado-dashboard');
     await openDeskSection(page, 'sales');
-    expect.soft(await page.getByText('Ganancia total', { exact: true }).count()).toBe(0);
+    const profit = width === 1440 ? stat(page, 'Ganancia total') : page.locator('.sale-hero-margin .mid');
+    await expect(profit).toBeVisible();
+    expect(amount(await profit.innerText())).toBeGreaterThan(0);
     await shot(page, info, 'empleado-ventas');
   });
 

@@ -106,6 +106,7 @@ export async function returnRoutes(app: FastifyInstance) {
     if (!actor) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = z.object({
+      cantidad: z.number().int().min(1).max(2147483647).optional(),
       resolution: z.enum(RESOLUTIONS),
       settlement: z.enum(SETTLEMENTS),
       amount: z.number().min(0).max(100_000_000),

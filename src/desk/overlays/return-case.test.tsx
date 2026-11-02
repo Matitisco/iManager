@@ -71,6 +71,24 @@ describe('ventas elegibles para reclamos mayoristas', () => {
   });
 });
 describe('cambio de estado de reclamo', () => {
+  it('envía unidades físicas explícitas y conserva el formulario ante una cantidad inválida', async () => {
+    ctx.returns = [{ ...claim, imei: '', cantidad: 10, saleQuantity: 10 }];
+    mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Resuelto' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reintegro' }));
+    fireEvent.change(screen.getByLabelText('Unidades del reclamo'), { target: { value: '11' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Elegí una cantidad entre 1 y 10.');
+    expect(ctx.resolveReturn).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Unidades del reclamo'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Importe'), { target: { value: '200' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(ctx.resolveReturn).toHaveBeenCalledWith('claim', expect.objectContaining({ cantidad: 2, amount: 200 })));
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it('permite recibir un RMA rechazado sin reabrir la resolución', async () => {
     ctx.returns = [{ ...claim, status: 'RESUELTO', destination: 'PROVEEDOR', rmaStatus: 'RECHAZADO', resolution: 'CAMBIO' }];
     mount(<ReturnDetail id="claim" />);

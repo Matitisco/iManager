@@ -36,6 +36,7 @@ const prismaMock = vi.hoisted(() => ({
     count: vi.fn(),
     create: vi.fn(),
   },
+  returnCase: { findFirst: vi.fn() },
   commissionAccrual: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   sale: {
     findFirst: vi.fn(),
@@ -80,6 +81,7 @@ describe("sales.service", () => {
     prismaMock.storeMember.findMany.mockResolvedValue([]);
     prismaMock.tradeIn.findMany.mockResolvedValue([]);
     prismaMock.sale.findFirst.mockResolvedValue(null);
+    prismaMock.returnCase.findFirst.mockResolvedValue(null);
     prismaMock.sale.create.mockResolvedValue({ id: "sale-1" });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
@@ -133,6 +135,14 @@ describe("sales.service", () => {
     });
     expect(prismaMock.inventoryItem.update).toHaveBeenCalledWith({ where: { id: "item-1", storeId: "store-1" }, data: { status: "DISPONIBLE", pendingSaleRegistration: false } });
     expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(500), lastPurchaseAt: null } });
+  });
+
+  it("rejects deletion after a physical return even for a historical sale", async () => {
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", inventoryItemId: "item-1", clientId: "client-1" });
+    prismaMock.returnCase.findFirst.mockResolvedValue({ id: "return-1" });
+    await expect(deleteSale("store-1", "sale-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.client.updateMany).not.toHaveBeenCalled();
   });
 
   it("fails when the inventory item is not available", async () => {
