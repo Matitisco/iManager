@@ -13,6 +13,7 @@ const user = vi.hoisted(() => ({
   getIdToken: async () => 'token',
 }));
 
+const fetchStoreHistory = vi.hoisted(() => vi.fn());
 const fetchFunnel = vi.hoisted(() => vi.fn());
 const fetchStoreTimeline = vi.hoisted(() => vi.fn());
 const fetchAdminAccess = vi.hoisted(() => vi.fn());
@@ -23,6 +24,7 @@ vi.mock('../context/AppContext', () => ({
 }));
 
 vi.mock('../services/admin-activity-api', () => ({
+  fetchStoreHistory,
   fetchStoreActivity,
   fetchAdminAccess,
   fetchFunnel,
@@ -71,6 +73,7 @@ const funnelPayload: FunnelResponse = { range: '30d', generatedAt: payload.gener
 describe('StoreActivityPage', () => {
   afterEach(() => vi.useRealTimers());
   beforeEach(() => {
+    fetchStoreHistory.mockReset().mockResolvedValue({ actions: [], nextCursor: null, warning: null });
     fetchAdminAccess.mockReset().mockResolvedValue({ isAdmin: true });
     fetchStoreActivity.mockReset();
     fetchStoreActivity.mockImplementation(async (_user: unknown, range: '30d' | 'all') => ({ ...payload, range }));
@@ -144,7 +147,7 @@ describe('StoreActivityPage', () => {
     fetchAdminAccess.mockResolvedValue({ isAdmin: false });
     render(<StoreActivityPage />);
     expect(await screen.findByTestId('activity-not-found')).toBeVisible();
-    expect(fetchStoreActivity).not.toHaveBeenCalled(); expect(fetchFunnel).not.toHaveBeenCalled(); expect(fetchStoreTimeline).not.toHaveBeenCalled();
+    expect(fetchStoreHistory).not.toHaveBeenCalled(); expect(fetchStoreActivity).not.toHaveBeenCalled(); expect(fetchFunnel).not.toHaveBeenCalled(); expect(fetchStoreTimeline).not.toHaveBeenCalled();
   });
 
   it('renders twelve noninteractive steps, positive KPI percentages and one largest drop', async () => {
@@ -244,4 +247,54 @@ describe('StoreActivityPage', () => {
     expect(screen.queryByTestId('activity-table')).not.toBeInTheDocument();
     expect(screen.queryByText('QA-caja')).not.toBeInTheDocument();
   });
+  it('shows the latest action and Argentine time in the store list', async () => {
+    fetchStoreActivity.mockResolvedValue({ ...payload, stores: [{ ...payload.stores[0], lastAction: { text: 'Editó un cliente · Campos: Teléfono', at: '2026-10-18T02:20:00Z' } }] });
+    render(<StoreActivityPage />);
+    expect(await screen.findByRole('columnheader', { name: 'Última acción' })).toBeVisible();
+    expect(screen.getByText('Editó un cliente · Campos: Teléfono')).toBeVisible();
+    expect(screen.getByText('17/10/2026 23:20')).toBeVisible();
+  });
+
+  it('loads action history, filters dates/types, loads more and resets the cursor on filter change', async () => {
+    const u = userEvent.setup();
+    window.history.replaceState(null, '', '/admin/actividad/tienda/club');
+    const action = { id: 'a:1', at: '2026-10-18T02:20:00Z', type: 'create', text: 'Registró una venta', actor: { name: 'Lucía', role: 'Dueña' }, source: 'database' };
+    fetchStoreHistory.mockResolvedValue({ actions: [action], nextCursor: 'page-two', warning: 'Te mostramos las acciones guardadas en la app.' });
+    render(<StoreActivityPage />);
+    expect(await screen.findByText('Registró una venta')).toBeVisible();
+    expect(screen.getByText('Lucía · Dueña')).toBeVisible();
+    expect(screen.getByText('17/10/2026 23:20')).toBeVisible();
+    expect(screen.getByText('Te mostramos las acciones guardadas en la app.')).toBeVisible();
+    fetchStoreHistory.mockResolvedValueOnce({ actions: [{ ...action, id: 'a:2', text: 'Cargó 12 equipos por Excel' }], nextCursor: null, warning: null });
+    await u.click(screen.getByRole('button', { name: 'Cargar más acciones' }));
+    expect(await screen.findByText('Cargó 12 equipos por Excel')).toBeVisible();
+    expect(screen.getByText('Registró una venta')).toBeVisible();
+    expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { cursor: 'page-two' });
+    expect(Array.from(screen.getByLabelText<HTMLSelectElement>('Tipo de acción').options).map(o => o.text)).toEqual(['Todas las acciones', 'Cargas', 'Bajas', 'Modificaciones', 'Conexiones']);
+    for (const type of ['delete', 'update', 'connection']) {
+      await u.selectOptions(screen.getByLabelText('Tipo de acción'), type);
+      await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type, cursor: undefined }));
+    }
+    await u.selectOptions(screen.getByLabelText('Tipo de acción'), 'create');
+    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'create', cursor: undefined }));
+    await u.type(screen.getByLabelText('Desde'), '2026-10-01');
+    await u.type(screen.getByLabelText('Hasta'), '2026-10-31');
+    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'create', from: '2026-10-01', to: '2026-10-31', cursor: undefined }));
+  });
+
+  it('can retry history failures and hides actions on revoked history access', async () => {
+    const u = userEvent.setup();
+    window.history.replaceState(null, '', '/admin/actividad/tienda/club');
+    fetchStoreHistory.mockRejectedValueOnce(new Error('private upstream details'));
+    render(<StoreActivityPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('No pudimos cargar el historial');
+    expect(screen.queryByText('private upstream details')).not.toBeInTheDocument();
+    fetchStoreHistory.mockResolvedValueOnce({ actions: [], nextCursor: null, warning: null });
+    await u.click(screen.getByRole('button', { name: 'Reintentar historial' }));
+    expect(await screen.findByText('No hay acciones registradas para estos filtros.')).toBeVisible();
+    fetchStoreHistory.mockRejectedValueOnce(new ApiError(403, 'Forbidden'));
+    await u.click(screen.getByRole('button', { name: 'Actualizar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('ya no está disponible para esta cuenta');
+  });
+
 });

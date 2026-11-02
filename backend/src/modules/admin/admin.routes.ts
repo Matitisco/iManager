@@ -1,5 +1,6 @@
 import { inventoryImportBody, adminInventoryImport, InventoryImportDuplicatesError } from './inventory-import.service.js';
 import { listTacMisses } from '../imei-tac-misses/service.js';
+import { getStoreHistory, historyQuery } from './store-history.service.js';
 import { getFunnel, getTimeline } from './funnel.service.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -51,6 +52,11 @@ export async function adminRoutes(app: FastifyInstance) {
     reply.header('cache-control', 'no-store');
     const query = z.object({ range: z.enum(['7d', '30d', 'all']).default('30d'), tests: z.enum(['hide', 'show']).default('hide') }).strict().parse(request.query);
     return getFunnel(query.range, query.tests);
+  });
+  app.get('/stores/:id/history', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+    const { id } = z.object({ id: z.string().min(1).max(160) }).parse(request.params);
+    const result = await getStoreHistory(id, historyQuery.parse(request.query));
+    return result ?? reply.code(404).send({ error: 'Not found' });
   });
   app.get('/stores/:id/timeline', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
     reply.header('cache-control', 'no-store');

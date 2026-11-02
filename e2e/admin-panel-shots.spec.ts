@@ -45,6 +45,7 @@ for (const width of [1440, 1024, 390]) {
       if (url.pathname === '/api/me/admin') return route.fulfill({ json: { isAdmin: true } });
       if (url.pathname === '/admin/store-activity') return route.fulfill({ json: { range: '30d', generatedAt: now, stores: [...stores, ...tests] } });
       if (url.pathname === '/admin/funnel') return route.fulfill({ json: { range: '30d', generatedAt: now, steps: PANEL_STEPS.map(([id, label], i) => ({ id, label, count: [25,21,20,17,9,15,8,3,2,4,1,8][i], pctOfStart: 0, dropFromPrev: 0 })), stockMethods: ['excel','paste','manual','sample','skip'].map((method, i) => ({ method, chosen: [9,4,3,3,4][i], finishedOk: [5,3,1,3,0][i], abandoned: [4,1,2,0,0][i] })), retention: { cohort: 22, nextDay: 8, week1Active: 9 }, medianHours: { signupToStore: 2/60, storeToRealStock: 24, storeToFirstSale: 72 } } });
+      if (url.pathname === '/admin/stores/palermo/history') return route.fulfill({ json: { actions: [], nextCursor: null, warning: null } });
       if (url.pathname === '/admin/stores/palermo/timeline') return route.fulfill({ json: { store: adminStores[0], events } });
       if (url.pathname === '/api/events') return route.fulfill({ status: 204 });
       throw new Error(`Unexpected API request: ${url.pathname}`);
