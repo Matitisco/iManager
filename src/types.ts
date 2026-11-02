@@ -65,6 +65,7 @@ export interface Sale {
   productId: string;
   deviceLabel?: string;
   amount: number;
+  unitPrice?: number | null;
   amountCurrency?: string | null;
   paymentMethod: string;
   status: string;

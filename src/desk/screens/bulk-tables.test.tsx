@@ -197,7 +197,7 @@ describe('bulk table wiring', () => {
     );
     const salesView = desk('sales', <SalesScreen />);
     expect(screen.getByText('US$ 744')).toBeInTheDocument();
-    expect(screen.getByText('US$ 350')).toBeInTheDocument();
+    expect(screen.getByText('US$ 350', { selector: 'b' })).toBeInTheDocument();
     expect(screen.getByText('#V-0189')).toHaveClass('keep');
     expect(screen.getByText('US$ 744').closest('b')).toHaveClass('keep');
     salesView.unmount();

@@ -83,7 +83,7 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
       expect(screen.queryByRole('columnheader', { name: 'Cant.' })).not.toBeInTheDocument();
     } else {
       const headers = screen.getAllByRole('columnheader');
-      expect(headers.map(header => header.textContent)).toEqual(['', 'Venta', 'Fecha', 'Cliente', 'Equipo', 'Cant.', 'Vendedor', 'Pago', 'Total', 'Estado']);
+      expect(headers.map(header => header.textContent)).toEqual(['', 'Venta', 'Fecha', 'Cliente', 'Equipo', 'Cant.', 'Precio unit.', 'Vendedor', 'Total', 'Ganancia', 'Estado']);
       for (const [buyer, equipment, quantity] of [['Cliente 1', 'Equipo 1', '5'], ['Cliente 2', 'Equipo 2', '1'], ['Cliente 3', 'Equipo 3', '2'], ['Cliente 4', 'Equipo 4', '20']]) {
         const cells = within(row(buyer) as HTMLElement).getAllByRole('cell');
         expect(cells).toHaveLength(headers.length);
@@ -127,6 +127,13 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     const profit = screen.getByText('Ganancia total').parentElement!;
     expect(within(profit).getByText('US$ 700')).toBeInTheDocument();
     expect(within(profit).getByText('1 venta sin costo no incluida')).toBeInTheDocument();
+    if (width === 1440) {
+      const cell = (buyer: string) => within(screen.getByText(buyer).closest('tr')!).getAllByRole('cell')[9];
+      expect(cell('Cliente 1')).toHaveTextContent(/^US\$ 300$/);
+      expect(cell('Cliente 2')).toHaveTextContent(/^US\$ 400$/);
+      expect(cell('Cliente 3')).toHaveTextContent(/^—$/);
+      expect(cell('Cliente 4')).toHaveTextContent(/^—$/);
+    }
   });
 
   it('asks for equipment costs when no sale has a known cost', () => {
@@ -144,6 +151,74 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     if (width === 1440) {
       expect([...document.querySelectorAll('tbody .sale-quantity-cell')].map(cell => cell.textContent)).toEqual(['1', '1', '1']);
     }
+  });
+});
+
+describe('Sales desktop unit price and profit', () => {
+  beforeEach(() => {
+    context.clients = [];
+    context.commissionSellers = [];
+    context.appSession = { membership: { role: 'OWNER', sections: null } };
+    context.inventory = [{ id: 'eq', cost: 20, currency: 'ARS' }] as Product[];
+    context.sales = [sale(1, { productId: 'eq', amount: 100, cantidad: 3 })];
+  });
+
+  const cells = () => within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell');
+
+  it.each([
+    [{}, '$ 33,33'],
+    [{ cantidad: undefined }, '$ 100'],
+    [{ cantidad: 0 }, '$ 100'],
+    [{ unitPrice: null }, '$ 33,33'],
+    [{ unitPrice: 12.345 }, '$ 12,35'],
+    [{ unitPrice: 0 }, '$ 0'],
+  ] as const)('shows the stored unit price or total divided by quantity (%j)', (overrides, expected) => {
+    context.sales[0] = { ...context.sales[0], ...overrides };
+    renderScreen();
+    expect(cells()[6].textContent).toBe(expected);
+    expect(cells()[9]).toHaveTextContent(context.sales[0].cantidad ? /^\$ 40$/ : /^\$ 80$/);
+    expect(screen.getByRole('columnheader', { name: /Vendedor/ })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Pago/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filtrar pago' })).not.toBeInTheDocument();
+  });
+
+  it.each([undefined, 0, -1, NaN])('shows a dash for missing or unknown equipment cost (%s)', cost => {
+    context.inventory = cost === undefined ? [] : [{ id: 'eq', cost }] as Product[];
+    renderScreen();
+    expect(cells()[9]).toHaveTextContent(/^—$/);
+  });
+
+  it('preserves negative profit', () => {
+    context.sales[0].amount = 30;
+    renderScreen();
+    expect(cells()[9]).toHaveTextContent(/^\$ -30$/);
+  });
+
+  it.each([
+    ['OWNER', null, true],
+    ['STAFF', ['sales'], true],
+    ['MANAGER', ['sales', 'reports'], true],
+    ['MANAGER', ['sales'], false],
+  ] as const)('uses the summary financial permission for %s with sections %j', (role, sections, permitted) => {
+    context.appSession = { membership: { role, sections: sections ? [...sections] : null } };
+    renderScreen();
+    expect(Boolean(screen.queryByText('Ganancia total'))).toBe(permitted);
+    expect(Boolean(screen.queryByRole('columnheader', { name: 'Ganancia' }))).toBe(permitted);
+    expect(cells()).toHaveLength(permitted ? 11 : 10);
+    if (!permitted) expect(cells()[9]).toHaveTextContent('Pendiente');
+  });
+
+  it.each(['ARS', 'USD'] as const)('formats the unit price in the same active currency as Total (%s)', currency => {
+    context.sales[0] = { ...context.sales[0], amount: 100000, amountCurrency: 'ARS' };
+    render(
+      <ExchangeProvider settings={{ currency, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}>
+        <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}>
+          <SalesScreen />
+        </DeskProvider>
+      </ExchangeProvider>,
+    );
+    expect(cells()[6]).toHaveTextContent(currency === 'ARS' ? /^\$ 33\.333,33$/ : /^US\$ 33,33$/);
+    expect(cells()[8]).toHaveTextContent(currency === 'ARS' ? /^\$ 100\.000$/ : /^US\$ 100$/);
   });
 });
 
@@ -208,8 +283,8 @@ describe('Sales column filters', () => {
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
     await user.clear(screen.getByPlaceholderText('Buscar cliente, equipo o número'));
 
-    await user.click(screen.getByRole('button', { name: 'Filtrar pago' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Efectivo' }));
+    await user.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Pendiente' }));
     expect(screen.getByText('No hay ventas con ese filtro.')).toHaveClass('table-empty');
     expect(screen.getByRole('button', { name: 'Filtrar cliente' })).toBeInTheDocument();
     expect(screen.getByText('12 ventas')).toBeInTheDocument();

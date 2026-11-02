@@ -141,7 +141,6 @@ export function SalesScreen() {
   const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
-  const payments = ['Transferencia', 'Efectivo', 'Tarjeta', 'Cripto'];
   const statuses = [...new Set([...listed.map((sale) => isVoidRow(sale) ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'ANULADA'])].filter(Boolean);
 
   const filtersOn = Boolean(query.trim()) || saleFiltersActive(columns) || statusOn || onlyUnassigned;
@@ -302,6 +301,7 @@ export function SalesScreen() {
                   </ColumnFilter>
                 </span></th>
                 <th className="sale-quantity-cell" scope="col">Cant.</th>
+                <th className="r" scope="col">Precio unit.</th>
                 <th><span className="thf">Vendedor
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
@@ -311,20 +311,12 @@ export function SalesScreen() {
                     </div>
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Pago
-                  <ColumnFilter label="pago" {...menu('pago')} active={saleColumnActive(columns, 'payments')} onClear={() => setColumn({ payments: [] })}>
-                    <div className="opts">
-                      {payments.map((label) => (
-                        <label key={label} className="chk"><input type="checkbox" checked={columns.payments.includes(label)} onChange={() => toggleList('payments', label)} /><span>{label}</span></label>
-                      ))}
-                    </div>
-                  </ColumnFilter>
-                </span></th>
                 <th className="r"><span className="thf">Total
                   <ColumnFilter label="total" align="right" {...menu('total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
                     <MoneyRange min={columns.amountMin} max={columns.amountMax} onMin={(amountMin) => setColumn({ amountMin })} onMax={(amountMax) => setColumn({ amountMax })} />
                   </ColumnFilter>
                 </span></th>
+                {seeFinancials ? <th className="r" scope="col">Ganancia</th> : null}
                 <th><span className="thf">Estado
                   <ColumnFilter label="estado" align="right" {...menu('estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                     <div className="opts">
@@ -338,6 +330,7 @@ export function SalesScreen() {
             </thead>
             <tbody>
               {page.visible.map((sale) => {
+                const profit = seeFinancials ? summarizeSaleProfit([sale], inventory, money.active, money.rate) : null;
                 return (
                   <PressTarget
                     selection={selection.row(sale.id, saleCode(sale))}
@@ -352,9 +345,10 @@ export function SalesScreen() {
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td className="sale-quantity-cell">{saleQuantity(sale)}</td>
+                    <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
                     <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
-                    <td>{paymentLabel(sale.paymentMethod)}</td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
+                    {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && profit.costedSales > 0 && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
                     <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
                   </PressTarget>
                 );
