@@ -214,9 +214,13 @@ function serializeSale(sale: SaleRecord): SaleResponse {
   };
 }
 
-export async function listSales(storeId: string, options?: { voided?: boolean }) {
+export async function listSales(storeId: string, options?: { voided?: boolean; clientId?: string; includeVoided?: boolean }) {
   const sales = await prisma.sale.findMany({
-    where: { storeId, voidedAt: options?.voided ? { not: null } : null },
+    where: {
+      storeId,
+      ...(options?.clientId ? { clientId: options.clientId } : {}),
+      ...(!options?.includeVoided ? { voidedAt: options?.voided ? { not: null } : null } : {}),
+    },
     orderBy: { soldAt: "desc" },
     include: { inventoryItem: { select: { model: true, capacity: true } } },
   });
