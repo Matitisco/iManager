@@ -1,3 +1,4 @@
+import { latestStoreActions } from './store-history.service.js';
 import { analyticsSnapshot, type FunnelStepId } from './funnel.service.js';
 import { prisma } from "../../plugins/prisma.js";
 import { maskEmail } from "./access.js";
@@ -21,6 +22,7 @@ export type StoreActivityRow = {
     repairOrders: number;
   };
   lastActivityAt: string | null;
+  lastAction: { text: string; at: string } | null;
   stuckAt: FunnelStepId | null;
   activeDays30: number;
 };
@@ -28,6 +30,7 @@ export type StoreActivityRow = {
 export type StoreActivityResponse = {
   range: StoreActivityRange;
   generatedAt: string;
+  warning: string | null;
   stores: StoreActivityRow[];
 };
 
@@ -96,7 +99,8 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
       prisma.auditEvent.groupBy({ by: ["storeId"], where, _max: { createdAt: true } }),
     ]);
 
-  const analytics = new Map((await analyticsSnapshot(ids, now)).map(s => [s.id, s]));
+  const [snapshot, latest] = await Promise.all([analyticsSnapshot(ids, now), latestStoreActions(ids, now)]);
+  const analytics = new Map(snapshot.map(s => [s.id, s]));
   const memberCounts = countsOf(members);
   const inventoryCounts = countsOf(inventory);
   const saleCounts = countsOf(sales);
@@ -109,6 +113,7 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
 
   return {
     range,
+    warning: latest.warning,
     generatedAt: now.toISOString(),
     stores: stores.map((store) => ({
       stuckAt: analytics.get(store.id)?.stuckAt ?? null,
@@ -128,7 +133,9 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
         clients: clientCounts.get(store.id) ?? 0,
         repairOrders: repairCounts.get(store.id) ?? 0,
       },
+      lastAction: latest.actions.get(store.id) ?? null,
       lastActivityAt: latestIso([
+        latest.actions.get(store.id) ? new Date(latest.actions.get(store.id)!.at) : null,
         inventoryAt.get(store.id),
         salesAt.get(store.id),
         clientsAt.get(store.id),
