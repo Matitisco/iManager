@@ -56,13 +56,13 @@ export function netProfit(input: {
   return { revenue, cost, grossProfit, expenses, netProfit: grossProfit - expenses };
 }
 
-export function returnReversal(row: { moneyAmount: number; moneyCurrency?: string | null; saleAmount: number; itemCost: number; itemCurrency?: string | null }): ProfitSale {
+export function returnReversal(row: { moneyAmount: number; moneyCurrency?: string | null; saleAmount: number; saleQuantity?: number; itemCost: number; itemCurrency?: string | null }): ProfitSale {
   const base = row.saleAmount > 0 ? row.saleAmount : row.moneyAmount;
   const ratio = base > 0 ? Math.min(1, row.moneyAmount / base) : 0;
   return {
     amount: row.moneyAmount,
     currency: row.moneyCurrency,
-    cost: Math.round(row.itemCost * ratio * 100) / 100,
+    cost: Math.round(row.itemCost * (row.saleQuantity ?? 1) * ratio * 100) / 100,
     costCurrency: row.itemCurrency ?? row.moneyCurrency,
   };
 }

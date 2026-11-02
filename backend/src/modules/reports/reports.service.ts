@@ -412,7 +412,10 @@ export async function getReportsOverview(
     previousWindow
       ? prisma.sale.findMany({
           where: {
-            ...salesWhere,
+            storeId,
+            voidedAt: null,
+            cancelledAt: null,
+            status: { in: ["COMPLETADA", "PENDIENTE"] },
             soldAt: {
               gte: previousWindow.startDate,
               lte: previousWindow.endDate,
@@ -491,7 +494,14 @@ export async function getReportsOverview(
     },
     select: {
       ...returnRecognitionSelect, moneyAmount: true, moneyCurrency: true,
-      sale: { select: { cantidad: true, amount: true, inventoryItem: { select: { cost: true, currency: true } } } },
+      sale: {
+        select: {
+          cantidad: true, amount: true, paymentMethod: true, clientId: true,
+          category: { select: { name: true } },
+          client: { select: { name: true } },
+          inventoryItem: { select: { model: true, capacity: true, color: true, cost: true, currency: true } },
+        },
+      },
     },
   });
   const compensatedReturns = commercialReturns.filter(row => {
@@ -563,9 +573,30 @@ export async function getReportsOverview(
     if (!figures) throw new ReportsError('No se pudo convertir el reporte. Revisá la cotización del local.', 503);
     return figures.grossProfit;
   };
-  const { revenue, unitsSold, averageTicket } = currentMetrics;
+  const adjustRevenue = (metrics: typeof currentMetrics, from: Date | null, to: Date | null, operations: number) => {
+    for (const row of commercialReturns) {
+      const at = returnCompensatedAt(row);
+      if (!at || (from && at < from) || (to && at > to)) continue;
+      const amount = convert(row.moneyAmount, row.moneyCurrency);
+      metrics.revenue -= amount;
+      if (toNumber(row.sale?.inventoryItem?.cost) > 0) metrics.marginRevenue -= amount;
+    }
+    metrics.averageTicket = operations > 0 ? metrics.revenue / operations : 0;
+  };
+  // Profit uses the original revenue/cost before the separate revenue reversal.
+  const { unitsSold } = currentMetrics;
   const grossProfit = adjustedProfit(currentMetrics, input.startDate, input.endDate);
   if (previousWindow) previousMetrics.grossProfit = adjustedProfit(previousMetrics, previousWindow.startDate, previousWindow.endDate);
+  adjustRevenue(currentMetrics, input.startDate, input.endDate, recognizedSales.length);
+  if (previousWindow) adjustRevenue(previousMetrics, previousWindow.startDate, previousWindow.endDate, previousSales.length);
+  const { revenue, averageTicket } = currentMetrics;
+  const reportSales: RecognizedSale[] = [...recognizedSales, ...compensatedReturns.map(row => ({
+    cantidad: 0, amount: -convert(row.moneyAmount, row.moneyCurrency), cost: null,
+    soldAt: returnCompensatedAt(row)!, paymentMethod: row.sale?.paymentMethod ?? "",
+    clientId: row.sale?.clientId ?? null, product: buildProductLabel(row.sale?.inventoryItem),
+    category: row.sale?.category?.name?.trim() || "Sin categoría",
+    clientName: row.sale?.client?.name?.trim() || "Sin cliente",
+  }))];
   const marginRate = currentMetrics.marginRevenue > 0 ? (grossProfit / currentMetrics.marginRevenue) * 100 : 0;
   const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
   const activeClients = new Set(
@@ -575,7 +606,7 @@ export async function getReportsOverview(
   ).size;
 
   const topProductsMap = new Map<string, { unitsSold: number; revenue: number }>();
-  for (const sale of recognizedSales) {
+  for (const sale of reportSales) {
     const current = topProductsMap.get(sale.product) ?? { unitsSold: 0, revenue: 0 };
     current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
@@ -593,10 +624,10 @@ export async function getReportsOverview(
     .slice(0, 6);
 
   const paymentMethodMap = new Map<string, { revenue: number; count: number }>();
-  for (const sale of recognizedSales) {
+  for (const sale of reportSales) {
     const current = paymentMethodMap.get(sale.paymentMethod) ?? { revenue: 0, count: 0 };
     current.revenue += sale.amount;
-    current.count += 1;
+    current.count += sale.cantidad === 0 ? 0 : 1;
     paymentMethodMap.set(sale.paymentMethod, current);
   }
 
@@ -610,7 +641,7 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue);
 
   const categoryMap = new Map<string, { unitsSold: number; revenue: number }>();
-  for (const sale of recognizedSales) {
+  for (const sale of reportSales) {
     const current = categoryMap.get(sale.category) ?? { unitsSold: 0, revenue: 0 };
     current.unitsSold += sale.cantidad ?? 1;
     current.revenue += sale.amount;
@@ -627,9 +658,9 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue || right.unitsSold - left.unitsSold);
 
   const clientMap = new Map<string, { purchases: number; revenue: number }>();
-  for (const sale of recognizedSales) {
+  for (const sale of reportSales) {
     const current = clientMap.get(sale.clientName) ?? { purchases: 0, revenue: 0 };
-    current.purchases += 1;
+    current.purchases += sale.cantidad === 0 ? 0 : 1;
     current.revenue += sale.amount;
     clientMap.set(sale.clientName, current);
   }
@@ -691,7 +722,7 @@ export async function getReportsOverview(
         ? changePercent(averageTicket, previousMetrics.averageTicket)
         : null,
     },
-    salesSeries: buildSalesSeries(recognizedSales, input.startDate, input.endDate),
+    salesSeries: buildSalesSeries(reportSales, input.startDate, input.endDate),
     topProducts,
     categories,
     topClients,

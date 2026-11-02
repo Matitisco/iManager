@@ -745,3 +745,18 @@ describe('Acceso mobile al equipo', () => {
     expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull();
   });
 });
+
+it('cuenta las unidades pendientes de cobro también para quien no ve importes', async () => {
+  context.appSession.membership = { role: 'MANAGER', sections: ['sales', 'inventory'] };
+  context.sales = [{ ...makeSale('bulk', '2026-10-22', 'Mayorista'), status: 'PENDIENTE', cantidad: 5 }];
+  renderScreen();
+  const metric = await screen.findByRole('button', { name: /Equipos vendidos/ });
+  await waitFor(() => expect(metric.querySelector('.dashboard-kpi-value')).toHaveTextContent('5'));
+  expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+});
+it('muestra tendencia de una devolución compensada aun sin ventas nuevas', async () => {
+  api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: -1300, unitsSold: 0 }, salesSeries: [{ start: '2026-10-22', label: '', revenue: -1300, unitsSold: 0 }] });
+  renderScreen();
+  await waitFor(() => expect(document.querySelector('.dashboard-trend .dashboard-chart-empty')).toBeNull());
+  expect(screen.queryByText('Todavía no hay ventas en los últimos 7 días')).not.toBeInTheDocument();
+});

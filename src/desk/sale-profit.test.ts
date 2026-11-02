@@ -1,3 +1,4 @@
+import type { ReturnCaseView } from '../services/returns-api';
 import { describe, expect, it } from 'vitest';
 import type { Sale } from '../types';
 import { summarizeSaleProfit } from './sale-profit';
@@ -66,4 +67,28 @@ describe('summarizeSaleProfit', () => {
   it('rounds the converted unit cost before multiplying, like reports', () => {
     expect(summarizeSaleProfit([sale()], [{ id: 'p', cost: 100499, currency: 'ARS' }], 'USD', 1000).grossProfit).toBe(300);
   });
+});
+
+const partialReturn = (overrides: Partial<ReturnCaseView> = {}): ReturnCaseView => ({
+  id: 'r', saleId: 's', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO',
+  compensatedOn: '2026-10-02', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500,
+  saleQuantity: 10, itemCost: 450, itemCurrency: 'USD', ...overrides,
+} as ReturnCaseView);
+it.each(['REINTEGRO', 'NOTA_CREDITO'])('descuenta dos de diez unidades y conserva el comprobante (%s)', settlement => {
+  const original = sale({ amount: 6500, cantidad: 10 });
+  expect(summarizeSaleProfit([original], [{ id: 'p', cost: 450, currency: 'USD' }], 'USD', null, [partialReturn({ settlement })]))
+    .toMatchObject({ revenue: 5200, grossProfit: 1600, marginRevenue: 5200, costedSales: 1 });
+  expect(original.amount).toBe(6500);
+});
+it('reconoce una devolución de venta anterior y excluye anulados, abiertos y reparaciones', () => {
+  expect(summarizeSaleProfit([], [], 'USD', null, [partialReturn()]))
+    .toMatchObject({ revenue: -1300, grossProfit: -400 });
+  for (const flags of [{ status: 'ANULADO' }, { resolution: 'REPARACION' }, { compensatedOn: null }, { settlement: 'NINGUNO' }]) {
+    expect(summarizeSaleProfit([], [], 'USD', null, [partialReturn(flags)]))
+      .toMatchObject({ revenue: 0, grossProfit: 0 });
+  }
+});
+it('convierte el costo proporcional de una devolución con moneda de costo distinta', () => {
+  expect(summarizeSaleProfit([sale({ amount: 6500, cantidad: 10 })], [{ id: 'p', cost: 450000, currency: 'ARS' }], 'USD', 1000, [partialReturn({ itemCost: 450000, itemCurrency: 'ARS' })]))
+    .toMatchObject({ revenue: 5200, grossProfit: 1600 });
 });
