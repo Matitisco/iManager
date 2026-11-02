@@ -248,17 +248,17 @@ describe('StoreActivityPage', () => {
     expect(screen.queryByText('QA-caja')).not.toBeInTheDocument();
   });
   it('shows the latest action and Argentine time in the store list', async () => {
-    fetchStoreActivity.mockResolvedValue({ ...payload, stores: [{ ...payload.stores[0], lastAction: { text: 'Abrió Dashboard', at: '2026-10-18T02:20:00Z' } }] });
+    fetchStoreActivity.mockResolvedValue({ ...payload, stores: [{ ...payload.stores[0], lastAction: { text: 'Editó un cliente · Campos: Teléfono', at: '2026-10-18T02:20:00Z' } }] });
     render(<StoreActivityPage />);
     expect(await screen.findByRole('columnheader', { name: 'Última acción' })).toBeVisible();
-    expect(screen.getByText('Abrió Dashboard')).toBeVisible();
+    expect(screen.getByText('Editó un cliente · Campos: Teléfono')).toBeVisible();
     expect(screen.getByText('17/10/2026 23:20')).toBeVisible();
   });
 
   it('loads action history, filters dates/types, loads more and resets the cursor on filter change', async () => {
     const u = userEvent.setup();
     window.history.replaceState(null, '', '/admin/actividad/tienda/club');
-    const action = { id: 'a:1', at: '2026-10-18T02:20:00Z', type: 'sales', text: 'Registró una venta', actor: { name: 'Lucía', role: 'Dueña' }, source: 'database' };
+    const action = { id: 'a:1', at: '2026-10-18T02:20:00Z', type: 'create', text: 'Registró una venta', actor: { name: 'Lucía', role: 'Dueña' }, source: 'database' };
     fetchStoreHistory.mockResolvedValue({ actions: [action], nextCursor: 'page-two', warning: 'Te mostramos las acciones guardadas en la app.' });
     render(<StoreActivityPage />);
     expect(await screen.findByText('Registró una venta')).toBeVisible();
@@ -270,11 +270,16 @@ describe('StoreActivityPage', () => {
     expect(await screen.findByText('Cargó 12 equipos por Excel')).toBeVisible();
     expect(screen.getByText('Registró una venta')).toBeVisible();
     expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { cursor: 'page-two' });
-    await u.selectOptions(screen.getByLabelText('Tipo de acción'), 'inventory');
-    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'inventory', cursor: undefined }));
+    expect(Array.from(screen.getByLabelText<HTMLSelectElement>('Tipo de acción').options).map(o => o.text)).toEqual(['Todas las acciones', 'Cargas', 'Bajas', 'Modificaciones', 'Conexiones']);
+    for (const type of ['delete', 'update', 'connection']) {
+      await u.selectOptions(screen.getByLabelText('Tipo de acción'), type);
+      await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type, cursor: undefined }));
+    }
+    await u.selectOptions(screen.getByLabelText('Tipo de acción'), 'create');
+    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'create', cursor: undefined }));
     await u.type(screen.getByLabelText('Desde'), '2026-10-01');
     await u.type(screen.getByLabelText('Hasta'), '2026-10-31');
-    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'inventory', from: '2026-10-01', to: '2026-10-31', cursor: undefined }));
+    await waitFor(() => expect(fetchStoreHistory).toHaveBeenLastCalledWith(user, 'club', { type: 'create', from: '2026-10-01', to: '2026-10-31', cursor: undefined }));
   });
 
   it('can retry history failures and hides actions on revoked history access', async () => {
