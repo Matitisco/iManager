@@ -5,6 +5,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { lockTransactionKey } from "../../lib/advisory-lock.js";
 import { formatArMoney } from "../../lib/ar-money.js";
 import { DomainError } from "../../lib/domain-error.js";
+import { positiveRate, storeCurrency } from "../../lib/money-currency.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
@@ -401,6 +402,13 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > (current.cantidad ?? sale?.cantidad ?? 1) || (sale && cantidad > sale.cantidad)) {
       throw new DomainError("La cantidad debe ser un entero positivo que no supere las unidades del reclamo.");
     }
+    if (sale) {
+      const others = await tx.returnCase.findMany({
+        where: { storeId, saleId: sale.id, id: { not: id }, ...consumingClaim }, select: { cantidad: true },
+      });
+      const used = others.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
+      if (cantidad + used > sale.cantidad) throw new DomainError("Los reclamos superan las unidades de la venta. Revisá las cantidades de los otros reclamos.", 409);
+    }
     let item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
     // Cancelar el reclamo conserva sus movimientos: también consumen el límite.
     const previous = current.saleId ? await tx.returnCase.aggregate({
@@ -484,9 +492,16 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       });
     }
     if (current.clientId && amount > 0 && input.settlement !== "NINGUNO") {
-      const client = await tx.client.findFirst({ where: { id: current.clientId, storeId }, select: { totalSpent: true } });
+      const client = await tx.client.findFirst({ where: { id: current.clientId, storeId }, select: { totalSpent: true, balanceCurrency: true } });
       if (client) {
-        const next = Math.max(0, money(client.totalSpent) - amount);
+        const target = client.balanceCurrency ?? await storeCurrency(storeId, tx);
+        let deduction = new Decimal(amount);
+        if (target !== currency) {
+          const rate = positiveRate(sale?.exchangeRate);
+          if (rate == null) throw new DomainError("Falta la cotización de la venta para actualizar la cuenta del cliente.");
+          deduction = (currency === "USD" ? deduction.mul(rate) : deduction.div(rate)).toDecimalPlaces(2);
+        }
+        const next = Decimal.max(0, new Decimal(client.totalSpent).sub(deduction));
         await tx.client.update({ where: { id: current.clientId }, data: { totalSpent: new Decimal(next) } });
       }
     }
@@ -674,7 +689,7 @@ export async function coverSaleWithCredits(tx: Tx, input: {
     throw new DomainError("Esa nota de crédito ya no tiene saldo.");
   }
   const byId = new Map(notes.map((note) => [note.id, note]));
-  const ordered = input.noteIds.map((id) => byId.get(id)!);
+  const ordered = [...new Set(input.noteIds)].map((id) => byId.get(id)!);
   const plan = planCreditApplication({
     due: input.due,
     currency: currencyOf(input.currency),

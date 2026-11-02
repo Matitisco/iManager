@@ -264,7 +264,11 @@ export function onboardingCases(phone: boolean) {
       page.getByRole("heading", { name: "Inventario", exact: true }),
     ).toBeVisible();
     const saved = (await fetchInventory(request, email)).inventory;
-    expect(saved).toHaveLength(3);
+    expect(saved).toHaveLength(2);
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model: 'iPhone 13', cantidad: 2 }),
+      expect.objectContaining({ model: 'iPhone 14', cantidad: 1 }),
+    ]));
     expect(
       saved.some(
         (row) => row.customFields?.onboardingReview === "Falta capacidad",
@@ -378,7 +382,12 @@ export function onboardingCases(phone: boolean) {
     await expect(
       page.getByRole("heading", { name: "Inventario", exact: true }),
     ).toBeVisible();
-    expect((await fetchInventory(request, email)).inventory).toHaveLength(3);
+    const saved = (await fetchInventory(request, email)).inventory;
+    expect(saved).toHaveLength(2);
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model: 'iPhone 13', cantidad: 2 }),
+      expect.objectContaining({ model: 'iPhone 14', cantidad: 1 }),
+    ]));
   });
   test("texto inválido muestra formato y alternativas, sin persistir", async ({
     page,
