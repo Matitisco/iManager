@@ -41,6 +41,6 @@ Validación complementaria: la matriz `returns-eligibility.integration.test.ts` 
 Compatibilidad con `test` actualizado a `992a06a`: conservar `itemCost` unitario junto con `saleQuantity`, porque el consumidor de margen ya multiplica por las unidades vendidas. El test de devolución parcial verifica costo unitario USD 800 y cantidad vendida 5 para evitar duplicar el costo en el merge.
 
 
-Verificación posterior al merge de `test`: TypeScript frontend/backend sin errores; 196 pruebas frontend relacionadas en 11 archivos y otras 56 en tres archivos revalidados; 1.021 unitarias backend; 119 integraciones en 12 archivos; 2 recorridos Playwright (390/1440) aprobados. Los archivos que fallaron por timeouts, worker sin recursos o mezcla de código antes/después del merge en la ejecución amplia se volvieron a ejecutar sobre el estado integrado con un worker y pasaron. No se modificaron los timeouts del repositorio.
+Validación posterior a integrar `992a06a`: TypeScript frontend/backend aprobado; 196 pruebas frontend relacionadas y 56 de revalidación de archivos afectados por carga del entorno, 1.021 unitarias backend, 119 integraciones y dos recorridos Playwright aprobados. Frontend se verificó con un worker y límites de 30 s: una ejecución anterior sufrió timeouts y otra había cruzado la actualización de la base; todos los archivos con fallos se revalidaron sobre el estado integrado.
 
-Entrega: [PR #711 contra test](https://github.com/Matitisco/iManager/pull/711), sin merge.
+Entrega: [PR #711 contra test](https://github.com/Matitisco/iManager/pull/711). No se mergeó ni se tocó main.
