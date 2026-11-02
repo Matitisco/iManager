@@ -3,15 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../../plugins/prisma.js';
 import { buildAuthHeaders, seedCatalogFixture, seedStoreContext } from '../../test/db.js';
 import { useIntegrationApp } from '../../test/integration-helpers.js';
-import { allocateDocumentNumber } from '../../lib/store-sequence.js';
+import { createTestAuthToken } from '../../testing/test-auth.js';
 import { STORE_RESET_DELETE_MODELS, STORE_RESET_KEEP_MODELS } from './store-reset.service.js';
 
 const { getApp } = useIntegrationApp();
 const adminEmail = 'admin@internal.test';
 beforeEach(() => {
   vi.stubEnv('ADMIN_EMAILS', adminEmail);
-  vi.stubEnv('RAILWAY_ENVIRONMENT_NAME', 'test');
-  vi.stubEnv('STORE_RESET_ALLOWED_STORE_IDS', '');
+  vi.stubEnv('RAILWAY_ENVIRONMENT_NAME', 'production');
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -31,7 +30,6 @@ async function fixture(suffix = 'one') {
   const context = await seedStoreContext({ firebaseUid: `owner-${suffix}`, email: `owner-${suffix}@example.com` });
   const { store, user, membership } = context;
   const storeId = store!.id;
-  vi.stubEnv('STORE_RESET_ALLOWED_STORE_IDS', `${process.env.STORE_RESET_ALLOWED_STORE_IDS ?? ''}, ${storeId} , does-not-exist`);
   const now = new Date('2026-10-01T12:00:00Z');
   const catalog = await seedCatalogFixture(storeId);
   const clientId = catalog.client.id;
@@ -53,13 +51,13 @@ async function fixture(suffix = 'one') {
   const supplier = await prisma.supplier.create({ data: { storeId, name: 'Proveedor ficticio', deletedAt: now } });
   const purchase = await prisma.stockPurchase.create({ data: { storeId, supplierId: supplier.id, purchasedAt: now, deletedAt: now } });
   await prisma.inventoryItem.update({ where: { id: itemId }, data: { supplierId: supplier.id, stockPurchaseId: purchase.id, archivedAt: now } });
-  await prisma.client.update({ where: { id: clientId }, data: { archivedAt: now } });
+  await prisma.client.update({ where: { id: clientId }, data: { archivedAt: now, totalSpent: 100, pendingBalance: 60, lastPurchaseAt: now, importedSpent: 500, importedSpentCurrency: 'USD' } });
   const trade = await prisma.tradeIn.create({ data: { storeId, clientId, categoryId: catalog.tradeInCategory.id, dateLabel: '01/10', deviceReceived: 'Ficticio', receivedInventoryItemId: itemId, takeValue: 10, differencePaid: 90, status: 'COMPLETADO', tradeAt: now, tradeNumber: 43 } });
-  const sale = await prisma.sale.create({ data: { storeId, clientId, sellerMemberId: membership!.id, categoryId: catalog.saleCategory.id, inventoryItemId: itemId, tradeInId: trade.id, dateLabel: '01/10', amount: 100, paymentMethod: 'EFECTIVO', status: 'COMPLETADA', soldAt: now, saleNumber: 42 } });
+  const sale = await prisma.sale.create({ data: { storeId, clientId, sellerMemberId: membership!.id, categoryId: catalog.saleCategory.id, inventoryItemId: itemId, tradeInId: trade.id, dateLabel: '01/10', amount: 100, paymentMethod: 'EFECTIVO', status: 'PENDIENTE', openBalance: 60, soldAt: now, saleNumber: 42 } });
   const repair = await prisma.repairOrder.create({ data: { storeId, clientId, device: 'Ficticio', orderNumber: 44 } });
   await prisma.repairStatusEvent.create({ data: { storeId, orderId: repair.id, status: 'RECIBIDO' } });
-  await prisma.clientPayment.create({ data: { storeId, clientId, saleId: sale.id, repairOrderId: repair.id, amount: 10, method: 'EFECTIVO' } });
-  await prisma.clientDeposit.create({ data: { storeId, clientId, requestKey: 'reset-test', amount: 10, currency: 'ARS', exchangeRate: 1, usdAmount: 10, method: 'EFECTIVO', saleId: sale.id, repairId: repair.id, productId: itemId } });
+  await prisma.clientPayment.create({ data: { storeId, clientId, saleId: sale.id, amount: 10, method: 'EFECTIVO' } });
+  await prisma.clientDeposit.create({ data: { storeId, clientId, requestKey: 'reset-test', amount: 10, currency: 'ARS', exchangeRate: 1, usdAmount: 10, method: 'EFECTIVO', saleId: sale.id, productId: itemId } });
   await prisma.saleTender.create({ data: { storeId, saleId: sale.id, clientId, amount: 10, currency: 'ARS', method: 'EFECTIVO' } });
   const plan = await prisma.saleInstallmentPlan.create({ data: { storeId, saleId: sale.id, clientId, count: 1, frequency: 'MONTHLY', firstDueDate: now, financedAmount: 10 } });
   await prisma.saleInstallment.create({ data: { storeId, saleId: sale.id, clientId, planId: plan.id, sequence: 1, dueDate: now, amount: 10 } });
@@ -82,11 +80,11 @@ async function fixture(suffix = 'one') {
   await prisma.notificationRead.create({ data: { notificationId: notification.id, userId: user.id } });
   await prisma.productEvent.create({ data: { storeId, userId: user.id, name: 'test', source: 'server' } });
   await prisma.periodicReportDelivery.create({ data: { storeId, periodKey: '2026-10', recipient: user.email!, subject: 'Prueba', html: '<p>Prueba</p>', text: 'Prueba' } });
-  return { store: store!, user, sale, client: catalog.client, item: catalog.inventoryItem, notification, register };
+  return { store: store!, user, sale, client: catalog.client, item: catalog.inventoryItem, notification, register, repair, purchase, supplier };
 }
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 function body(f: Fixture, extra: Record<string, unknown> = {}) {
-  return { storeId: f.store.id, storeEmail: f.user.email!, expectStoreName: f.store.name, dryRun: true, ...extra };
+  return { expectStoreId: f.store.id, storeEmail: f.user.email!, expectStoreName: f.store.name, dryRun: true, ...extra };
 }
 function post(payload: object, headers: Record<string, string> = buildAuthHeaders({ uid: 'platform-admin', email: adminEmail })) {
   return getApp().inject({ method: 'POST', url: '/admin/store-reset', headers, payload });
@@ -94,7 +92,7 @@ function post(payload: object, headers: Record<string, string> = buildAuthHeader
 async function preview(f: Fixture) {
   const res = await post(body(f));
   expect(res.statusCode, res.body).toBe(200);
-  return res.json<{ willDelete: Record<string, number>; willKeep: Record<string, number>; confirmToken: string }>();
+  return res.json<{ willDelete: Record<string, number>; willKeep: Record<string, number> }>();
 }
 
 describe('POST /admin/store-reset', () => {
@@ -115,6 +113,7 @@ describe('POST /admin/store-reset', () => {
     ['missing token', {}, 401],
     ['store OWNER', buildAuthHeaders({ uid: 'owner-one', email: 'owner-one@example.com' }), 403],
     ['other user', buildAuthHeaders({ uid: 'other', email: 'other@example.com' }), 403],
+    ['unverified admin', { Authorization: `Bearer ${createTestAuthToken({ uid: 'platform-admin', email: adminEmail, emailVerified: false })}` }, 403],
   ])('rejects %s without any writes', async (_label, headers, status) => {
     const f = await fixture();
     const before = await snapshot();
@@ -123,162 +122,312 @@ describe('POST /admin/store-reset', () => {
     expect(await snapshot()).toEqual(before);
   });
 
-  it.each(['production', ' PRODUCTION ', undefined])('rejects environment %s before any DB access, even for dryRun', async env => {
+  it('does not depend on environment or a store allowlist', async () => {
     const f = await fixture();
     const before = await snapshot();
-    vi.stubEnv('RAILWAY_ENVIRONMENT_NAME', env);
     vi.stubEnv('NODE_ENV', 'production');
-    const transaction = vi.spyOn(prisma, '$transaction');
-    try {
-      for (const dryRun of [true, false]) {
-        const res = await post(body(f, { dryRun }));
-        expect(res.statusCode).toBe(403);
-        expect(res.json()).toEqual({ error: 'Solo disponible en ambientes de prueba' });
-      }
-      expect(transaction).not.toHaveBeenCalled();
-    } finally { transaction.mockRestore(); }
-    expect(await snapshot()).toEqual(before);
-  });
-
-  it('requires an exact allowlist entry before database access for preview and apply', async () => {
-    const f = await fixture();
-    const before = await snapshot();
-    const transaction = vi.spyOn(prisma, '$transaction');
-    try {
-      for (const allowed of ['', ' , , ', 'another-store', `${f.store.id}-suffix`, undefined]) {
-        vi.stubEnv('STORE_RESET_ALLOWED_STORE_IDS', allowed);
-        for (const dryRun of [true, false]) expect((await post(body(f, { dryRun }))).statusCode).toBe(403);
-      }
-      expect(transaction).not.toHaveBeenCalled();
-    } finally { transaction.mockRestore(); }
+    for (const env of ['production', 'test', undefined]) {
+      vi.stubEnv('RAILWAY_ENVIRONMENT_NAME', env);
+      vi.stubEnv('STORE_RESET_ALLOWED_STORE_IDS', 'another-store');
+      await preview(f);
+    }
     expect(await snapshot()).toEqual(before);
   });
 
   it.each([
-    ['unknown store', { storeId: 'does-not-exist' }, 404],
+    ['unknown owner', { storeEmail: 'missing@example.com' }, 409],
     ['wrong owner email', { storeEmail: 'other@example.com' }, 409],
     ['wrong name', { expectStoreName: 'Test Store ' }, 409],
+    ['wrong ID', { expectStoreId: 'another-store' }, 409],
     ['unknown body key', { unexpected: true }, 400],
+    ['legacy storeId', { storeId: 'anything' }, 400],
+    ['missing ID', { expectStoreId: undefined }, 400],
     ['missing dryRun', { dryRun: undefined }, 400],
     ['invalid email', { storeEmail: 'invalid' }, 400],
   ])('rejects %s with no writes', async (_label, extra, status) => {
     const f = await fixture();
     const before = await snapshot();
-    const res = await post(body(f, extra));
-    expect(res.statusCode, res.body).toBe(status);
-    expect(await snapshot()).toEqual(before);
+    for (const dryRun of [true, false]) {
+      const res = await post(body(f, { dryRun, ...extra }));
+      expect(res.statusCode, res.body).toBe(status);
+      expect(await snapshot()).toEqual(before);
+    }
   });
 
-  it('does not accept a staff email, removed OWNER, or the OWNER of another store', async () => {
+  it('rejects staff, removed OWNER, another owner and an ambiguous owner email', async () => {
     const f = await fixture();
     const other = await fixture('two');
     const staff = await prisma.user.findUniqueOrThrow({ where: { firebaseUid: 'staff-one' } });
+    for (const storeEmail of [staff.email, other.user.email]) {
+      expect((await post(body(f, { storeEmail }))).statusCode).toBe(409);
+    }
     await prisma.storeMember.update({ where: { storeId_userId: { storeId: f.store.id, userId: staff.id } }, data: { role: 'OWNER', removedAt: new Date() } });
     const before = await snapshot();
-    for (const storeEmail of [staff.email, other.user.email]) {
-      const res = await post(body(f, { storeEmail }));
-      expect(res.statusCode).toBe(409);
-    }
+    expect((await post(body(f, { storeEmail: staff.email }))).statusCode).toBe(409);
     expect(await snapshot()).toEqual(before);
+    await prisma.storeMember.create({ data: { storeId: other.store.id, userId: f.user.id, role: 'OWNER' } });
+    const ambiguous = await snapshot();
+    expect((await post(body(f))).statusCode).toBe(409);
+    expect(await snapshot()).toEqual(ambiguous);
   });
 
-  it('previews correct counts for every table and rolls back all effects', async () => {
+  it('previews counts by table in Serializable and rolls back every effect including audit', async () => {
     const f = await fixture();
     await fixture('two');
     const before = await snapshot();
+    const transaction = vi.spyOn(prisma, '$transaction');
     const out = await preview(f);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({ isolationLevel: 'Serializable' }));
+    transaction.mockRestore();
     expect(out.willDelete).toEqual(Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model, 1])));
-    expect(out.willKeep).toEqual(Object.fromEntries(STORE_RESET_KEEP_MODELS.map(model => [model, model === 'User' || model === 'StoreMember' ? 2 : 1])));
-    expect(out.confirmToken).toBe(`VACIAR ${f.store.id} ${STORE_RESET_DELETE_MODELS.length}`);
+    expect(out.willKeep.Client).toBe(1);
+    expect(out.willKeep.RepairOrder).toBe(1);
+    expect(out.willKeep.Sale).toBe(0);
     expect(await snapshot()).toEqual(before);
-    expect((await preview(f)).confirmToken).toBe(out.confirmToken);
+    expect(await preview(f)).toEqual(out);
   });
 
-  it('requires exact confirmation and the complete, fresh count map', async () => {
+  it('requires the complete, exact and fresh count map, including Sale and InventoryItem', async () => {
     const f = await fixture();
     const out = await preview(f);
-    const { Client: _client, ...missingKey } = out.willDelete;
+    const { Sale: _sale, ...missingSale } = out.willDelete;
+    const { InventoryItem: _inventory, ...missingInventory } = out.willDelete;
     const before = await snapshot();
-    for (const extra of [
-      { expect: out.willDelete },
-      { confirm: 'wrong', expect: out.willDelete },
-      { confirm: out.confirmToken },
-      { confirm: out.confirmToken, expect: missingKey },
-      { confirm: out.confirmToken, expect: { ...out.willDelete, Client: 2 } },
-      { confirm: out.confirmToken, expect: { ...out.willDelete, Unknown: 0 } },
+    for (const expected of [undefined, missingSale, missingInventory,
+      { ...out.willDelete, Sale: 2 }, { ...out.willDelete, InventoryItem: 0 },
+      { ...out.willDelete, Unknown: 0 }, { ...out.willDelete, ClientPayment: 2 },
     ]) {
-      const res = await post(body(f, { dryRun: false, ...extra }));
+      const res = await post(body(f, { dryRun: false, expect: expected }));
       expect(res.statusCode, res.body).toBe(409);
       expect(await snapshot()).toEqual(before);
     }
-    // Same total and token, different per-table distribution: expect still blocks.
-    await prisma.expense.deleteMany({ where: { storeId: f.store.id } });
-    await prisma.productEvent.create({ data: { storeId: f.store.id, name: 'extra', source: 'server' } });
+    await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, saleId: f.sale.id, amount: 1, method: 'EFECTIVO' } });
     const changed = await snapshot();
-    const stale = await post(body(f, { dryRun: false, confirm: out.confirmToken, expect: out.willDelete }));
-    expect(stale.statusCode).toBe(409);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(409);
     expect(await snapshot()).toEqual(changed);
   });
 
-  it('deletes all business rows, preserves identities/config/audit and the entire other store, then resets again', async () => {
+  it('deletes only scoped rows, preserves independent modules and the whole other store, and records audit', async () => {
     const f = await fixture();
     await fixture('two');
-    // Also retain analytics without a tenant and users without a membership.
     await prisma.productEvent.create({ data: { name: 'global', source: 'server' } });
     await prisma.user.create({ data: { firebaseUid: 'without-store' } });
+    // Every eligible table has exactly one selected fixture row before adding
+    // unrelated rows of the same store. Capture identities independently of plan.
+    const base = await snapshot();
+    const removed = Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model,
+      (base[model] as Row[]).filter(({ row }) => model === 'NotificationRead' ? row.notificationId === f.notification.id : row.storeId === f.store.id),
+    ]));
+    const independent = await seedIndependent(f);
     const before = await snapshot();
     const out = await preview(f);
-    const res = await post(body(f, { dryRun: false, confirm: out.confirmToken, expect: out.willDelete }));
+    expect(out.willDelete).toEqual(Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model, 1])));
+    expect(await snapshot()).toEqual(before);
+    const res = await post(body(f, { dryRun: false, expect: out.willDelete }));
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json()).toEqual({ ...out, dryRun: false });
     const after = await snapshot();
     for (const [model, rows] of Object.entries(before)) {
-      const originals = (rows as { row: Record<string, unknown> }[]);
-      if ((STORE_RESET_DELETE_MODELS as readonly string[]).includes(model)) {
-        const kept = originals.filter(({ row }) => model === 'NotificationRead' ? row.notificationId !== f.notification.id : row.storeId !== f.store.id);
-        expect(after[model], model).toEqual(kept);
-      } else if (model === 'AuditEvent') {
+      const originals = rows as Row[];
+      if (model === 'AuditEvent') {
         expect(after[model]).toEqual(expect.arrayContaining(originals));
-        expect((after[model] as unknown[]).length).toBe(originals.length + 1);
-      } else if (model === 'StoreCounter' || model === 'CashRegister') {
-        const expected = originals.map(({ row }) => ({ row: row.storeId !== f.store.id ? row : model === 'StoreCounter'
-          ? { ...row, lastSaleNumber: 0, lastTradeNumber: 0, lastRepairNumber: 0 }
-          : { ...row, balance: 0, updatedAt: expect.any(String) } }));
-        expect(after[model], model).toEqual(expect.arrayContaining(expected));
-        expect((after[model] as unknown[]).length).toBe(originals.length);
-      } else expect(after[model], model).toEqual(originals);
+        expect((after[model] as Row[]).length).toBe(originals.length + 1);
+        continue;
+      }
+      const deleted = new Set((removed[model] ?? []).map(({ row }) => JSON.stringify(row)));
+      const expected = originals.filter(({ row }) => !deleted.has(JSON.stringify(row))).map(({ row }) => ({ row:
+        model === 'Client' && row.id === f.client.id ? { ...row, totalSpent: 0, pendingBalance: 0, lastPurchaseAt: null, updatedAt: expect.any(String) }
+        : model === 'CashRegister' && row.id === f.register.id ? { ...row, balance: 10 }
+        : model === 'ClientDeposit' && row.id === independent.deposit.id ? { ...row, productId: null }
+        : row,
+      }));
+      expect(after[model], model).toEqual(expect.arrayContaining(expected));
+      expect((after[model] as Row[]).length, model).toBe(expected.length);
     }
     const audit = await prisma.auditEvent.findFirstOrThrow({ where: { storeId: f.store.id, action: 'store.reset' } });
     expect(audit.source).toBe('system');
-    expect(JSON.parse(audit.detail!)).toEqual({ admin: adminEmail, willDelete: out.willDelete, willKeep: out.willKeep, reset: { StoreCounter: 0, CashRegisterBalance: 0 } });
+    expect(audit.actorUserId).toBeNull();
+    expect(JSON.parse(audit.detail!)).toEqual({ admin: adminEmail, willDelete: out.willDelete, willKeep: out.willKeep, clientsReset: 1 });
     const again = await preview(f);
-    expect(again.willDelete).toEqual(Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model, 0])));
-    const second = await post(body(f, { dryRun: false, confirm: again.confirmToken, expect: again.willDelete }));
-    expect(second.statusCode, second.body).toBe(200);
+    expect(Object.values(again.willDelete).every(n => n === 0)).toBe(true);
+    expect((await post(body(f, { dryRun: false, expect: again.willDelete }))).statusCode).toBe(200);
     expect(await prisma.auditEvent.count({ where: { storeId: f.store.id, action: 'store.reset' } })).toBe(2);
-    const numbers = await prisma.$transaction(async tx => Promise.all([
-      allocateDocumentNumber(tx, f.store.id, 'sale'), allocateDocumentNumber(tx, f.store.id, 'trade'), allocateDocumentNumber(tx, f.store.id, 'repair'),
-    ]));
-    expect(numbers).toEqual([1, 1, 1]);
   });
 
-  it.each(['cascade', 'set-null'])('rolls back every deletion on a cross-store %s side effect', async kind => {
+  it('keeps a manual balance on a client who also has sales and generic payments', async () => {
+    const f = await fixture();
+    // 60 sale debt + 15 linked charge - 10 general payment + 25 independent charge = 90.
+    await prisma.client.update({ where: { id: f.client.id }, data: { pendingBalance: 90 } });
+    await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, amount: 10, kind: 'PAGO', currency: 'ARS', method: 'EFECTIVO' } });
+    await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, saleId: f.sale.id, amount: 15, kind: 'CARGO', currency: 'ARS', method: 'AJUSTE', note: 'Flete de venta' } });
+    const charge = await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, amount: 25, kind: 'CARGO', currency: 'ARS', method: 'AJUSTE', note: 'Cargo independiente' } });
+    const before = await snapshot();
+    const out = await preview(f);
+    expect(await snapshot()).toEqual(before);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    const client = await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } });
+    expect(Number(client.pendingBalance)).toBe(25);
+    expect(Number(client.totalSpent)).toBe(0);
+    expect(await prisma.clientPayment.findUnique({ where: { id: charge.id } })).toEqual(charge);
+  });
+
+  it('uses stored exchange rates for debt and fails closed if a historical rate is missing', async () => {
+    const f = await fixture();
+    await prisma.sale.update({ where: { id: f.sale.id }, data: { amount: 100_000, openBalance: 60_000, amountCurrency: 'ARS' } });
+    await prisma.tradeIn.update({ where: { id: f.sale.tradeInId! }, data: { differencePaid: 90_000 } });
+    await prisma.client.update({ where: { id: f.client.id }, data: { balanceCurrency: 'USD', pendingBalance: 85 } });
+    const before = await snapshot();
+    expect((await post(body(f))).statusCode).toBe(409);
+    expect(await snapshot()).toEqual(before);
+    await prisma.sale.update({ where: { id: f.sale.id }, data: { exchangeRate: 1000 } });
+    const out = await preview(f);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(25);
+  });
+
+  it('removes source-less cash reversals and keeps the net independent register balance', async () => {
+    const f = await fixture();
+    const original = await prisma.cashMovement.findFirstOrThrow({ where: { storeId: f.store.id, sourceType: 'sale' } });
+    await prisma.cashMovement.create({ data: { storeId: f.store.id, registerId: f.register.id, amount: -90, kind: 'ANULACION', reversalOf: original.id } });
+    const manual = await prisma.cashMovement.create({ data: { storeId: f.store.id, registerId: f.register.id, amount: 5, kind: 'INGRESO' } });
+    await prisma.cashRegister.update({ where: { id: f.register.id }, data: { balance: 15 } });
+    const out = await preview(f);
+    expect(out.willDelete.CashMovement).toBe(2);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    expect(Number((await prisma.cashRegister.findUniqueOrThrow({ where: { id: f.register.id } })).balance)).toBe(15);
+    expect(await prisma.cashMovement.findMany({ where: { storeId: f.store.id } })).toEqual([manual]);
+  });
+
+  it('does not double-count price-rise ledger charges against a manual balance', async () => {
+    const f = await fixture();
+    await prisma.sale.update({ where: { id: f.sale.id }, data: { amount: 110, openBalance: 70 } });
+    await prisma.client.update({ where: { id: f.client.id }, data: { pendingBalance: 95 } });
+    await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, saleId: f.sale.id, amount: 10, kind: 'CARGO', currency: 'ARS', method: 'AJUSTE', note: 'Diferencia por corrección de precio' } });
+    const out = await preview(f);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).pendingBalance)).toBe(25);
+  });
+
+  it('resets actual sales with installments and excess credit created through the public API', async () => {
+    const context = await seedStoreContext();
+    const catalog = await seedCatalogFixture(context.store!.id);
+    const headers = buildAuthHeaders();
+    const createSale = (payload: object) => getApp().inject({ method: 'POST', url: '/api/operations/sales', headers, payload });
+    const financed = await createSale({ clientId: catalog.client.id, productId: catalog.inventoryItem.id, amount: 900, currency: 'ARS', paymentMethod: 'EFECTIVO',
+      tenders: [{ amount: 300, currency: 'ARS', method: 'EFECTIVO' }], installments: { count: 3, frequency: 'MENSUAL', firstDueDate: '2026-11-14' } });
+    expect(financed.statusCode, financed.body).toBe(201);
+    const excess = await createSale({ clientId: catalog.client.id, deviceLabel: 'Equipo sin stock', amount: 500, currency: 'ARS', exchangeRate: 1000, paymentMethod: 'EFECTIVO',
+      tenders: [{ amount: 700, currency: 'ARS', method: 'EFECTIVO' }], excess: 'CREDIT' });
+    expect(excess.statusCode, excess.body).toBe(201);
+    const request = { storeEmail: context.user.email!, expectStoreName: context.store!.name, expectStoreId: context.store!.id, dryRun: true };
+    const before = await snapshot();
+    const dry = await post(request);
+    expect(dry.statusCode, dry.body).toBe(200);
+    expect(dry.json().willDelete).toMatchObject({ Sale: 2, InventoryItem: 1, SaleInstallment: 3, ClientDeposit: 1 });
+    expect(await snapshot()).toEqual(before);
+    const apply = await post({ ...request, dryRun: false, expect: dry.json().willDelete });
+    expect(apply.statusCode, apply.body).toBe(200);
+    const client = await prisma.client.findUniqueOrThrow({ where: { id: catalog.client.id } });
+    expect(Number(client.pendingBalance)).toBe(0);
+    expect(Number(client.totalSpent)).toBe(0);
+    const leftovers = await Promise.all([
+      prisma.sale.count({ where: { storeId: context.store!.id } }),
+      prisma.inventoryItem.count({ where: { storeId: context.store!.id } }),
+      prisma.saleInstallment.count({ where: { storeId: context.store!.id } }),
+      prisma.saleInstallmentPlan.count({ where: { storeId: context.store!.id } }),
+      prisma.saleTender.count({ where: { storeId: context.store!.id } }),
+      prisma.clientPayment.count({ where: { storeId: context.store!.id } }),
+      prisma.clientDeposit.count({ where: { storeId: context.store!.id } }),
+    ]);
+    expect(leftovers).toEqual([0, 0, 0, 0, 0, 0, 0]);
+  });
+
+  it('removes legacy sale deposit ledger effects while preserving repair and receipt entries', async () => {
+    const f = await fixture();
+    for (const [kind, note] of [['APLICACION', 'Seña aplicada a venta (sin nuevo cobro)'], ['CREDITO', 'Seña disponible por cancelación de venta (sin devolución)']]) {
+      await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, amount: 10, method: 'EFECTIVO', kind, note } });
+    }
+    const kept = [];
+    for (const [kind, note] of [['SENA', 'Cobro de seña'], ['APLICACION', 'Seña aplicada a reparación (sin nuevo cobro)']]) {
+      kept.push(await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, amount: 10, method: 'EFECTIVO', kind, note } }));
+    }
+    const out = await preview(f);
+    expect(out.willDelete.ClientPayment).toBe(3);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    expect(await prisma.clientPayment.findMany({ where: { storeId: f.store.id }, orderBy: { createdAt: 'asc' } })).toEqual(kept);
+  });
+
+  it('removes cancellation credits, including structured references to already deleted sales', async () => {
+    const f = await fixture();
+    for (const saleId of [f.sale.id, 'previously-deleted-sale']) {
+      await prisma.clientPayment.create({ data: { storeId: f.store.id, clientId: f.client.id, saleId, amount: 2, kind: 'CREDITO', method: 'SALDO' } });
+      await prisma.clientDeposit.create({ data: { storeId: f.store.id, clientId: f.client.id, requestKey: `cancel-credit-${saleId}`, amount: 2, currency: 'ARS', exchangeRate: 1, usdAmount: 2, method: 'SALDO', status: 'CREDIT' } });
+    }
+    const out = await preview(f);
+    expect(out.willDelete.ClientDeposit).toBe(3);
+    expect((await post(body(f, { dryRun: false, expect: out.willDelete }))).statusCode).toBe(200);
+    expect(await prisma.clientDeposit.count({ where: { storeId: f.store.id } })).toBe(0);
+  });
+
+  it.each(['cascade', 'set-null'])('rolls back all effects on a cross-store %s', async kind => {
     const f = await fixture();
     const other = await fixture('two');
+    const out = await preview(f);
     if (kind === 'cascade') {
       await prisma.saleTender.updateMany({ where: { storeId: other.store.id }, data: { saleId: f.sale.id } });
     } else {
-      await prisma.sale.update({ where: { id: other.sale.id }, data: { clientId: f.client.id } });
+      await prisma.sale.update({ where: { id: other.sale.id }, data: { inventoryItemId: f.item.id } });
     }
     const before = await snapshot();
-    // Obtain counts without running the destructive preview (which also detects
-    // these broken tenant FKs). Every target table still contains exactly one row.
-    const willDelete = Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model, 1]));
-    const res = await post(body(f, { dryRun: false, confirm: `VACIAR ${f.store.id} ${STORE_RESET_DELETE_MODELS.length}`, expect: willDelete }));
-    expect(res.statusCode, res.body).toBe(409);
-    expect(await snapshot()).toEqual(before);
-    const dry = await post(body(f));
-    expect(dry.statusCode).toBe(409);
+    for (const payload of [body(f), body(f, { dryRun: false, expect: out.willDelete })]) {
+      expect((await post(payload)).statusCode).toBe(409);
+      expect(await snapshot()).toEqual(before);
+    }
+  });
+
+  it('rolls back after a late failure to write the reset audit', async () => {
+    const f = await fixture();
+    const out = await preview(f);
+    const before = await snapshot();
+    await prisma.$executeRawUnsafe(`CREATE FUNCTION reset_test_fail_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'store.reset' THEN RAISE EXCEPTION 'synthetic audit failure'; END IF; RETURN NEW; END $$`);
+    await prisma.$executeRawUnsafe(`CREATE TRIGGER reset_test_audit BEFORE INSERT ON "AuditEvent" FOR EACH ROW EXECUTE FUNCTION reset_test_fail_audit()`);
+    try {
+      const res = await post(body(f, { dryRun: false, expect: out.willDelete }));
+      expect(res.statusCode, res.body).toBe(500);
+      expect(await snapshot()).toEqual(before);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER reset_test_audit ON "AuditEvent"`);
+      await prisma.$executeRawUnsafe(`DROP FUNCTION reset_test_fail_audit()`);
+    }
+  });
+
+  it.each(['payment', 'deposit'])('rejects an ambiguous %s shared with repairs without any changes', async kind => {
+    const f = await fixture();
+    if (kind === 'payment') await prisma.clientPayment.updateMany({ where: { storeId: f.store.id, saleId: f.sale.id }, data: { repairOrderId: f.repair.id } });
+    else await prisma.clientDeposit.updateMany({ where: { storeId: f.store.id, saleId: f.sale.id }, data: { repairId: f.repair.id } });
+    const before = await snapshot();
+    expect((await post(body(f))).statusCode).toBe(409);
     expect(await snapshot()).toEqual(before);
   });
 });
+
+type Row = { row: Record<string, unknown> };
+async function seedIndependent(f: Fixture) {
+  const storeId = f.store.id;
+  const client = await prisma.client.create({ data: { storeId, name: 'Cliente sin ventas', pendingBalance: 25, totalSpent: 80, importedSpent: 200 } });
+  const deposit = await prisma.clientDeposit.create({ data: { storeId, clientId: client.id, requestKey: 'independent', amount: 15, currency: 'ARS', exchangeRate: 1, usdAmount: 15, method: 'EFECTIVO', productId: f.item.id } });
+  await prisma.clientPayment.create({ data: { storeId, clientId: f.client.id, repairOrderId: f.repair.id, amount: 7, method: 'EFECTIVO' } });
+  await prisma.clientPayment.create({ data: { storeId, clientId: client.id, amount: 3, method: 'EFECTIVO' } });
+  await prisma.tradeIn.create({ data: { storeId, deviceReceived: 'Borrador independiente', takeValue: 1, differencePaid: 0, status: 'PENDIENTE', dateLabel: '01/10', tradeAt: new Date() } });
+  const claim = await prisma.returnCase.create({ data: { storeId, caseNumber: 2, clientId: client.id, reason: 'Independiente', openedAt: new Date() } });
+  await prisma.returnEvent.create({ data: { storeId, caseId: claim.id, status: 'ABIERTO' } });
+  const credit = await prisma.creditNote.create({ data: { storeId, returnCaseId: claim.id, clientId: client.id, amount: 3, remaining: 1, currency: 'ARS' } });
+  await prisma.creditNoteApplication.create({ data: { storeId, creditNoteId: credit.id, amount: 2, currency: 'ARS' } });
+  for (const source of [{ sourceType: 'repair', sourceId: f.repair.id }, { sourceType: 'deposit', sourceId: deposit.id }, { sourceType: 'return', sourceId: claim.id }, {}]) {
+    await prisma.cashMovement.create({ data: { storeId, ...source, amount: 3, kind: 'COBRO' } });
+  }
+  const notice = await prisma.storeNotification.create({ data: { storeId, section: 'repairs', title: 'Reparación', message: 'Conservar', kind: 'repair', recordId: f.repair.id } });
+  await prisma.notificationRead.create({ data: { notificationId: notice.id, userId: f.user.id } });
+  await prisma.sectionRecordView.create({ data: { storeId, userId: f.user.id, section: 'repairs', recordId: f.repair.id, seenUpdatedAt: new Date() } });
+  return { deposit, client };
+}

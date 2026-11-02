@@ -1,11 +1,11 @@
 ## Why
-Las tiendas de pruebas necesitan reiniciar sus datos de negocio sin perder cuentas, miembros ni configuración.
+Matias pidió poder vaciar ventas e inventario de una tienda también en producción, con guardas explícitas por request.
 
 ## What Changes
-Agregar POST /admin/store-reset para platform admins, con rechazo de production (también con NODE_ENV=production si no hay nombre de Railway) y allowlist obligatoria STORE_RESET_ALLOWED_STORE_IDS. Validar tienda, OWNER y nombre exacto; exigir preview, confirmación y conteos actuales para aplicar. Borrar datos de Inventory, Sales, Clients, caja, reparaciones y módulos relacionados en una transacción serializable con postcondiciones y auditoría.
+POST /admin/store-reset exclusivo para platform admins. Resolver OWNER activo por storeEmail y validar expectStoreName/expectStoreId. Eliminar bloqueo por entorno y allowlist. dryRun ejecuta y revierte la transacción Serializable completa. Aplicar requiere expect idéntico al mapa willDelete del preview, incluidas ventas e inventario.
 
-## Non-goals
-Sin UI, cambios de schema Prisma, acceso a producción ni borrado de cuentas/configuración. Entrega exclusivamente contra test.
+## Scope
+Borrar ventas, stock e historial operativo de inventario y dependencias identificables de ventas (cobros, cuotas, canjes, devoluciones, créditos, comisiones devengadas y movimientos de caja). Conservar clientes, usuarios, miembros, tienda, configuración, billing, auditoría previa y módulos independientes. Corregir agregados de clientes y descontar de caja solamente los movimientos eliminados. Conservar numeración para no reutilizar comprobantes auditados.
 
 ## Impact
-Backend admin y tests de integración; sin nuevas dependencias; allowlist configurada fuera del repo exclusivamente en el deploy de test.
+Backend admin, integración y documentación. Sin UI, schema, dependencias ni ejecución contra datos reales. Rama feat/admin-store-reset y PR nuevo contra test; no main ni deploy.

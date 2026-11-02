@@ -12,7 +12,7 @@ import {
   inventoryDuplicatesRestoreBody, restoreInventoryDuplicates,
 } from "./inventory-duplicates.service.js";
 import { saleCorrectionsBody, correctSales } from "./sale-corrections.service.js";
-import { storeResetBody, resetStore, requireStoreResetTestEnvironment } from './store-reset.service.js';
+import { storeResetBody, resetStore } from './store-reset.service.js';
 
 const querySchema = z.object({
   range: z.enum(["7d", "30d", "all"]).optional(),
@@ -41,7 +41,6 @@ export async function adminRoutes(app: FastifyInstance) {
     return correctSales(saleCorrectionsBody.parse(request.body), { email: request.auth!.email! });
   });
   app.post('/store-reset', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
-    requireStoreResetTestEnvironment();
     return resetStore(storeResetBody.parse(request.body), { email: request.auth!.email! });
   });
   app.get('/imei-tac-misses', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {

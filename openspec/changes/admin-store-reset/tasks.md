@@ -1,8 +1,8 @@
 ## Backend
-- [x] Clasificar modelos y revisar FK y contadores.
-- [x] Implementar schema estricto, endpoint admin y transacción con guardas/postcondiciones/auditoría.
-- [x] Sembrar todas las tablas y cubrir aislamiento, rollback e idempotencia.
-- [x] Validar TypeScript/lint e integraciones store-reset, sale-corrections e inventory-import.
+- [x] Sustituir ambiente/allowlist por guardas OWNER/email, nombre e ID; schema estricto.
+- [x] Acotar borrado y preservar módulos independientes; ajustar agregados de clientes y caja en la misma transacción.
+- [x] Verificar preview, expect, auth, aislamiento, preservación y rollback con PostgreSQL local ficticio.
+- [x] Correr lint frontend/backend y tests relacionados; documentar contrato.
 
 ## Frontend
 Sin cambios.
