@@ -61,7 +61,7 @@ Reproduce with `node scripts/ci-timings.mjs collect /tmp/ci.json` and `node scri
 - Cache npm downloads using per-project relative paths and OS/architecture/Node22/lockfile key, without branch names, with a compatible npm-cache fallback. Main/test full runs seed base-branch caches for future PRs. PR merge caches cannot seed main/test; the first run of this new namespace is cold until those base workflows run after merge. Existing setup-node caches were present on main: this was fragmentation/path differences, not proof that every prior cache missed.
 - `node_modules` rejected: each project is about 540 MB unpacked; warm npm ci measured ~6 s locally / ~7 s backend on GitHub. Keep clean installs and avoid archiving/reusing native binaries and generated Prisma output. Cache downloads, regenerate Prisma explicitly.
 - No ESLint exists: both existing `lint` scripts are `tsc --noEmit` and remain unchanged. Oxlint is additive, measured <1 s locally over source/scripts; its default correctness rules report existing warnings while debugger/unreachable/constant-binary-expression errors block. It cannot replace typechecking. Formatting is checked only on changed push files; no repository-wide reformat.
-- Backend unit Vitest forks baseline: **12.84 s / 1,020 tests**. Threads with isolation and restoreMocks/unstubEnvs/unstubGlobals: **10.02, 9.73, 9.02 s**, all 1,020 passed in each run (median 9.73 s, ~24% lower). Local Node 24 / 8-core host, maxWorkers=2 in both candidates; runner timings reported separately below. Keep isolate=true: mock-heavy suites do not justify weakening per-file isolation. Integration stays isolated, serial per shard/database. Frontend keeps forks unless its own complete-suite experiment passes the same stability gate.
+- Backend unit Vitest forks baseline: **12.84 s / 1,020 tests**. Threads with isolation and restoreMocks/unstubEnvs/unstubGlobals: **10.02, 9.73, 9.02 s**, all 1,020 passed in each run (median 9.73 s, ~24% lower). Local Node 24 / 8-core host, maxWorkers=2 in both candidates; runner timings reported separately below. Keep isolate=true: mock-heavy suites do not justify weakening per-file isolation. Integration stays isolated, serial per shard/database. Frontend threads were rejected: one complete run took **430.01 s**, with **1 failure / 2,587 tests** in `sheet-detail.test.tsx`, versus forks **174.87 s / 2,587 passed**. No isolation/pool change applied to frontend. A warm backend forks confirmation passed all 1,020 tests in **10.30 s**: against this fairer warm comparison, threads median is ~5.5% faster; the 24% figure above is versus the initial run only.
 - CPU budgets: Vitest unit workers=min(2, availableParallelism), integration=1 per database, E2E=max(1, availableParallelism−1) in CI, PWA=1. Reserve CPU/memory for jsdom, browser, Vite and Fastify rather than starting workers for every reported host core.
 - Husky pre-push checks the union of **outgoing committed refs**, including earlier unpushed commits; handles new branches, ref deletions and literal filenames. Prettier/Oxlint inspect changed files. TypeScript retains complete affected project graphs, parallel with incremental metadata under ignored node_modules caches. Backend source edits also check frontend dependents. `npm run format:changed` fixes formatting; `npm run check:push` checks the outgoing diff manually. `npm ci` installs hooks via prepare; CI disables hooks with HUSKY=0.
 
@@ -69,9 +69,46 @@ Reproduce with `node scripts/ci-timings.mjs collect /tmp/ci.json` and `node scri
 
 All ten baseline full runs failed all eight E2E shards and iPhone PWA; Android PWA also failed on those runs. These are not successful 20-minute runtimes to beat. Example [baseline run](https://github.com/Matitisco/iManager/actions/runs/41370700261): E2E account-lines fails a text assertion; iPhone install-help fails a state assertion and update-toast visibility. Application/test behavior is outside this tooling change; retain checks and report any recurrence. No speedup claim for failed cohorts.
 
-## After
+## After: PR run (first cache population)
 
-Pending actual PR/dispatch runs; no projected numbers are presented as measured.
+[PR run 41373158821](https://github.com/Matitisco/iManager/actions/runs/41373158821), commit `1873322`, **all 17 jobs passed**. This PR changes workflow/config/dependencies, so it ran the **complete frontend/unit/integration suites**, plus existing PR browser smoke. One after sample is evidence for this commit, not a statistically significant median improvement.
+
+| Job                     | OK / total | Queue |  Setup | Execution | Cleanup | Job total |
+| ----------------------- | ---------: | ----: | -----: | --------: | ------: | --------: |
+| changes                 |        1/1 | 2.0 s |  6.0 s |     1.0 s |   0.0 s |     7.0 s |
+| typecheck (backend)     |        1/1 | 1.0 s | 20.0 s |    12.0 s |   1.0 s |    33.0 s |
+| build (frontend)        |        1/1 | 1.0 s | 22.0 s |    13.0 s |   1.0 s |    36.0 s |
+| lint                    |        1/1 | 1.0 s | 15.0 s |     0.0 s |   3.0 s |    18.0 s |
+| build (backend)         |        1/1 | 1.0 s | 17.0 s |    12.0 s |   2.0 s |    31.0 s |
+| typecheck (frontend)    |        1/1 | 1.0 s | 24.0 s |    13.0 s |   1.0 s |    38.0 s |
+| backend-unit            |        1/1 | 2.0 s | 23.0 s |    14.0 s |   0.0 s |    37.0 s |
+| pwa (android-chromium)  |        1/1 | 2.0 s | 46.0 s |    20.0 s |   8.0 s |    74.0 s |
+| e2e (0)                 |        1/1 | 2.0 s | 61.0 s |    30.0 s |  12.0 s |   103.0 s |
+| backend-integration (1) |        1/1 | 2.0 s | 34.0 s |   108.0 s |   2.0 s |   144.0 s |
+| frontend-unit (4)       |        1/1 | 2.0 s | 48.0 s |    51.0 s |   6.0 s |   105.0 s |
+| frontend-unit (3)       |        1/1 | 2.0 s | 49.0 s |    71.0 s |   8.0 s |   128.0 s |
+| frontend-unit (2)       |        1/1 | 2.0 s | 51.0 s |    64.0 s |   7.0 s |   122.0 s |
+| backend-integration (2) |        1/1 | 2.0 s | 34.0 s |   161.0 s |   2.0 s |   197.0 s |
+| frontend-unit (1)       |        1/1 | 4.0 s | 45.0 s |    57.0 s |   7.0 s |   109.0 s |
+| backend-integration (3) |        1/1 | 2.0 s | 27.0 s |    53.0 s |   1.0 s |    81.0 s |
+| test                    |        1/1 | 3.0 s |  3.0 s |     0.0 s |   0.0 s |     3.0 s |
+
+### Comparable job paths
+
+| Check                               |       Before successful job median |                                          After | Observation                                                                                          |
+| ----------------------------------- | ---------------------------------: | ---------------------------------------------: | ---------------------------------------------------------------------------------------------------- |
+| Combined backend unit + integration |                              334 s | unit 37 s; integration shards 144 / 197 / 81 s | Longest backend job **197 s**, ~41% lower; all integration files still run, each on its own database |
+| Frontend full suite                 | shard medians 175–191 s (2 shards) |             109 / 122 / 128 / 105 s (4 shards) | Longest frontend job **128 s**, ~33% lower than former 191 s shard; entire suite retained            |
+| Combined TypeScript lint            |                               54 s |      frontend 38 s / backend 33 s; Oxlint 18 s | Longest independent check 38 s, ~30% lower; Oxlint is additional                                     |
+| Frontend/backend build              |            No dedicated build jobs |                                      36 / 31 s | New independent verification; PWA's existing production builds retained                              |
+| PR E2E smoke                        |                               91 s |                                          103 s | First new-cache run is slower; no speedup claim                                                      |
+| PR Android PWA smoke                |                               63 s |                                           74 s | First new-cache run is slower; no speedup claim                                                      |
+| Selection                           |                                8 s |                                            7 s | Blobless history retains merge-base semantics                                                        |
+| Required aggregator                 |                              3.5 s |                                            3 s | All required checks retained                                                                         |
+
+Baseline aggregate mixes related/full PRs; the full-event baseline table above avoids that bias for Vitest. Browser smoke is compared only with smoke. Full E2E/PWA had no successful baseline cohort; no successful full workflow acceleration can be claimed while those existing failures remain.
+
+Hook measured **14.00 s cold** and **2.34 s warm** on the actual first push (22 changed files, both TypeScript projects). Full dispatch and warm-cache PR results will be recorded after they finish.
 
 ## Baseline provenance
 
