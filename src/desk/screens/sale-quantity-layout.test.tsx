@@ -20,7 +20,7 @@ let browser: Browser;
 beforeAll(async () => { browser = await chromium.launch(); });
 afterAll(async () => { await browser?.close(); });
 
-describe.each([{ width: 390, theme: 'light' }, { width: 390, theme: 'dark' }, { width: 1440, theme: 'light' }])('quantity layout at $width px ($theme)', ({ width, theme }) => {
+describe.each([{ width: 390, theme: 'light' }, { width: 390, theme: 'dark' }, { width: 1440, theme: 'light' }, { width: 1440, theme: 'dark' }])('quantity layout at $width px ($theme)', ({ width, theme }) => {
   it('keeps equipment, quantity and summary within their containers', async () => {
     const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ media: query, matches: width === 390 && query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
     const date = new Date().toISOString();

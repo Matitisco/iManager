@@ -1,0 +1,3 @@
+- [x] Agregar las columnas de escritorio y quitar Pago reutilizando formato, cálculo y permisos.
+- [x] Probar precio guardado/calculado, cantidad, moneda, costo ausente y permiso; conservar regresión móvil.
+- [x] Ejecutar lint frontend/backend y tests relacionados, sin build (135 tests en 11 archivos; layout Chromium 1440/390 claro/oscuro).
