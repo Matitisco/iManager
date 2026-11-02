@@ -42,4 +42,4 @@ Usar `PLAYWRIGHT_CHROMIUM_EXECUTABLE` si Chromium está instalado fuera de Playw
 
 Capturas con datos ficticios: [compras desktop](qa-hunt-inventario-compras/compra-abierta-1440.png), [compras móvil](qa-hunt-inventario-compras/compra-abierta-390.png), [IMEI vendido](qa-hunt-inventario-compras/imei-vendido-1440.png), [total activo móvil](qa-hunt-inventario-compras/total-activo-390.png).
 
-[PR]: https://github.com/Matitisco/iManager/compare/test...qa/hunt-inventario-compras
+[PR]: https://github.com/Matitisco/iManager/pull/713

@@ -5,4 +5,4 @@
 - [x] Aplicar fixes acotados de visualización.
 - [x] Ejecutar TypeScript, suites locales y E2E desktop/mobile.
 - [x] Registrar hallazgos, alcance y pendientes en docs/qa-hunt-inventario-compras.md.
-- [ ] Commitear, pushear rama QA y abrir PR a test con resultados.
+- [x] Commitear, pushear rama QA y abrir PR a test con resultados (#713).
