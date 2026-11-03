@@ -111,7 +111,7 @@ describe.each(['import', 'manual'].flatMap(source => ['OWNER', 'STAFF'].map(role
     await verify(3);
   });
 
-  it('devolución parcial y reventa reponen stock sin duplicar compras, incluso al anular el reclamo', async () => {
+  it('devolución parcial y reventa conservan compras y bloquean anular el reclamo compensado', async () => {
     const claim = await getApp().inject({ method: 'POST', url: '/api/returns', headers, payload: { saleId, cantidad: 2, reason: 'QA sintética', openedOn: '2026-11-02' } });
     expect(claim.statusCode, claim.body).toBe(201);
     const claimId = claim.json().return.id;
@@ -122,9 +122,11 @@ describe.each(['import', 'manual'].flatMap(source => ['OWNER', 'STAFF'].map(role
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: returnedId } })).toMatchObject({ cantidad: 2, acquiredQuantity: 0, stockPurchaseId: purchaseId });
     await verify(11);
     const removed = await getApp().inject({ method: 'DELETE', url: `/api/returns/${claimId}`, headers, payload: { reason: 'QA sintética' } });
-    expect(removed.statusCode, removed.body).toBe(204);
+    // #717 requires reversing the issued compensation before cancelling its claim.
+    expect(removed.statusCode, removed.body).toBe(409);
+    expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: claimId } })).deletedAt).toBeNull();
     await verify(11);
-    // The resolved physical effect persists even when the claim is voided.
+    // The active claim keeps its physical effect and blocks voiding the original sale.
     expect((await getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${saleId}/void`, headers, payload: { reason: 'QA sintética' } })).statusCode).toBe(409);
     const ready = await getApp().inject({ method: 'PATCH', url: `/api/inventory/${returnedId}`, headers, payload: { status: 'DISPONIBLE' } });
     expect(ready.statusCode, ready.body).toBe(200);

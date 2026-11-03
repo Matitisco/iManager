@@ -19,7 +19,7 @@ import { archivedMatch, batchChanges, cleanReason, deviceLabel, type ArchiveMeta
 import { diffFields, MONEY } from "../audit/diff-fields.js";
 import { writeOperationNotifications } from "../operations/operations.service.js";
 import { imeiPassesLuhn, parseOptionalImei } from "../../lib/imei.js";
-import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { currencyOnWrite, optionalCurrency, storeCurrency } from "../../lib/money-currency.js";
 import { assignItemSupplier, attachItemsToPurchase } from "../suppliers/link.js";
 import { calendarDay } from "../periodic-reports/schedule.js";
 import { loadProblems, summarizeProblems, type ProblemSummary } from "../suppliers/problems.js";
@@ -649,7 +649,10 @@ export async function updateInventoryItem(
 
     const priceChanges = input.price !== undefined && moneyChanged(existing.price, input.price);
     const costChanges = input.cost !== undefined && moneyChanged(existing.cost, input.cost);
-    if (options?.enforcePriceCost && (priceChanges || costChanges)) {
+    const requestedCurrency = optionalCurrency(input.currency);
+    const currencyChanges = requestedCurrency !== undefined
+      && requestedCurrency !== (existing.currency ?? await storeCurrency(storeId, tx));
+    if (options?.enforcePriceCost && (priceChanges || costChanges || currencyChanges)) {
       throw new InventoryError("No tenés permiso para cambiar precio o costo", 403);
     }
 

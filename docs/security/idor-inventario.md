@@ -1,0 +1,16 @@
+# Auditoría: idor-inventario
+
+Fecha: 2026-11-03. Solo PostgreSQL local descartable y usuarios ficticios `qa-sec-<n>@example.com`. Sin producción, secretos, schema ni migraciones.
+
+| Severidad | Hallazgo | Estado | OK de Matias |
+| --- | --- | --- | --- |
+| Media | Un miembro sin permiso sensible podía cambiar la moneda de costo/precio por `PATCH /api/inventory/:id`, incluso sin enviar importes o enviando los mismos. Cambiaba la denominación económica eludiendo el control de edición financiera. | Arreglado en el PR de `sec/idor-inventario` hacia `test`: comparar moneda solicitada con moneda efectiva (moneda guardada o de la tienda) antes de escribir. | No: aplica el permiso sensible existente; conserva lectura STAFF de #691. |
+| Media | Reimportar un IMEI propio con `cost` permite a STAFF modificar un costo existente aunque el PATCH normal lo prohíbe. | Pendiente: reproducido localmente por `staff-financials.integration.test.ts`, que explícitamente espera el cambio de costo. No se altera ese contrato durante esta auditoría. | Sí: decidir si la importación debe respetar el permiso sensible, conservar costos o rechazar filas; afecta datos financieros y el flujo de importación. |
+
+No se confirmó IDOR entre tiendas en los ataques ejecutados. Se revisaron rutas, middleware y servicios de equipos, categorías, campos personalizados, variantes/opciones, proveedores, compras, importación, catálogo y conteos/ajustes. Las consultas por ID sin `storeId` observadas usan IDs ya obtenidos mediante una consulta acotada a la tienda o creados dentro de la misma operación; no se encontraron entradas HTTP que permitan sustituirlos.
+
+Cobertura: lecturas normales/paginadas/archivadas, búsquedas y upsert por IMEI compartido y ajeno, GET/PATCH/DELETE/restore ajenos, relaciones categoría/proveedor, arrays mixtos de movimiento/reordenamiento/visibilidad/ajuste, altas en serie, `storeId` y relaciones inyectadas, rollback de importación y definición de columnas. El backend no expone una ruta de archivos/adjuntos de inventario/compras: Excel se prepara en frontend y se confirma como JSON; no hay descarga autenticada de archivos en estos módulos.
+
+Permisos conservados: STAFF con Inventario puede leer costos/ganancia (#691), cargar equipos y escanear stock; iniciar/cerrar/ajustar conteos requiere OWNER/MANAGER con acceso. Sin Inventario, sin membresía o sin autenticación se deniegan los endpoints correspondientes antes de analizar archivos/texto. No se agregaron restricciones a proveedores ni columnas sin una decisión de negocio.
+
+Validación: 20 regresiones nuevas con requests Fastify y un servidor HTTP real en loopback. Antes del fix, cinco casos de moneda recibían 200 en lugar de 403; después verifican rechazo sin persistencia. Incluye controles positivos de OWNER y STAFF con permiso sensible, misma moneda y edición no financiera. Pasaron 82 integraciones relacionadas (10 archivos), 127 unitarias relacionadas y TypeScript frontend/backend, con un máximo de dos workers. Se corrigió una expectativa obsoleta de compras (cuatro casos fallaban también contra el código base): #717 devuelve 409 al intentar anular un reclamo compensado; se conserva esa protección y se verifica que siga activo. Sin cambios a tests existentes de #691/importación.
