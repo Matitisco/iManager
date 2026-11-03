@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember } from "../../middleware/section-access.js";
@@ -7,7 +8,7 @@ import { canAccessSection } from "../stores/sections.js";
 import { loadActor } from "../audit/audit.js";
 import { addMovement, collectAccount, getFollowUpSettings, getSaleAccount, listDebtors, listFollowUps, saveFollowUpSettings } from "./accounts.service.js";
 
-const money = z.number().positive().max(100_000_000);
+const money = moneyInput({ positive: true, max: 100_000_000 });
 const currency = z.enum(["ARS", "USD"]).nullable().optional();
 
 function allowClientsOrSales(request: FastifyRequest, reply: FastifyReply) {

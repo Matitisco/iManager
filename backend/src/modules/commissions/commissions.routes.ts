@@ -1,6 +1,7 @@
 import { readReason } from '../audit/archive.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
@@ -74,8 +75,8 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.post("/payments", { preHandler: admin }, async (request, reply) => {
     requireMember(request);
-    const input = z.object({ memberId: z.string().min(1), period: commissionPeriodSchema, amount: z.number().finite().positive().max(9999999999),
-      currency: z.enum(["ARS", "USD"]), exchangeRate: z.number().finite().positive().max(9999999999),
+    const input = z.object({ memberId: z.string().min(1), period: commissionPeriodSchema, amount: moneyInput({ positive: true, max: 9999999999 }),
+      currency: z.enum(["ARS", "USD"]), exchangeRate: moneyInput({ positive: true, max: 9999999999 }),
       settlesCurrency: z.enum(["ARS", "USD"]), note: z.string().trim().max(2000).nullable().optional() }).strict().parse(request.body);
     return reply.code(201).send({ payment: await createCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), input as CommissionPaymentInput) });
   });

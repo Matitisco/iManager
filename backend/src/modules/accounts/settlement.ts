@@ -85,7 +85,10 @@ export async function settleNewSale(
         storeId: args.storeId,
         saleId: args.saleId,
         clientId: args.clientId,
-        amount: dec(tender.amount),
+        // OMIT discards excess in sale currency. Persist the retained share in
+        // the tender's original currency so cash cannot grow by the discarded part.
+        amount: recorded === converted[index] ? dec(tender.amount)
+          : new Decimal(tender.amount).mul(recorded).div(converted[index]!).toDecimalPlaces(2),
         currency: tender.currency,
         exchangeRate: tender.exchangeRate ? dec(tender.exchangeRate) : args.exchangeRate ? dec(args.exchangeRate) : null,
         method: tender.method.trim(),

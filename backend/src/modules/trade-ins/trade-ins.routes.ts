@@ -2,6 +2,7 @@ import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -32,17 +33,19 @@ const tradeInFieldsSchema = z.object({
   categoryId: z.string().nullable().optional(),
   deviceReceived: z.string().min(1).max(120),
   deviceReceivedImei: zodOptionalImei().nullable().optional(),
-  takeValue: z.number().optional(),
+  takeValue: moneyInput().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   deviceGiven: z.string().min(1).max(120),
-  differencePaid: z.number().optional(),
+  differencePaid: moneyInput().optional(),
   status: tradeInStatusSchema.optional(),
   batteryHealth: z.string().trim().max(50).optional().nullable(),
   grade: z.string().trim().max(20).optional().nullable(),
   customFields: z.record(z.unknown()).optional().nullable(),
 });
 
-const tradeInCreateSchema = tradeInFieldsSchema.refine(
+const tradeInCreateSchema = tradeInFieldsSchema.extend({
+  requestKey: z.string().trim().min(1).max(120).optional(),
+}).refine(
   (value) => value.takeValue === undefined || value.takeValue >= 0,
   { message: "El valor recibido no puede ser negativo", path: ["takeValue"] },
 );
@@ -103,11 +106,12 @@ export async function tradeInsRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const body = tradeInCreateSchema.parse(request.body) as TradeInInput;
+      const body = tradeInCreateSchema.parse(request.body);
 
       const payload = request.body as TradeInInput & { draft?: boolean };
       const takeValue = body.takeValue ?? 0;
       const operation = await createOperation(request.appUser.storeId, "tradeins", {
+        requestKey: body.requestKey,
         date: body.date ?? undefined,
         clientId: body.clientId,
         clientName: body.clientName,
