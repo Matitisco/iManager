@@ -33,6 +33,16 @@ El helper de integración trunca la base: usar exclusivamente una base descartab
 
 Validación local final: **40 integraciones** de miembros, permisos de equipo, gestión, onboarding y autorización aprobadas; **39 unitarias** relacionadas y TypeScript frontend/backend aprobados. De 58 integraciones relacionadas de billing, 52 pasaron inicialmente y seis fallaron durante una sobrecarga del host (load > 200): timeouts y un deadlock del TRUNCATE posterior a un timeout. Se repitieron únicamente los casos afectados y sus parametrizaciones: **9/9 aprobados**, con un worker y timeout de test elevado solo por CLI. No se cambió configuración global ni se ejecutó la suite completa local.
 
+## PR y CI
+
+PR [#732](https://github.com/Matitisco/iManager/pull/732), base `test`. **Abierto, sin merge**: la regla de integrar únicamente con TODO CI verde no se cumple.
+
+- [CI relacionada del PR](https://github.com/Matitisco/iManager/actions/runs/41685445266): verde, incluyendo frontend, backend y lint.
+- [Suite completa solicitada por workflow_dispatch](https://github.com/Matitisco/iManager/actions/runs/41685451802): backend y lint verdes; corrida global roja por UI/E2E/PWA y una prueba frontend de `ImportModal.panel.test.tsx` (espera 44 filas y obtiene cero).
+- Ejemplos concretos: `e2e/install-help-cases.ts:108` espera que el hermano de la tarjeta sea `more-profile` y recibe null; `e2e/pwa/install.spec.ts:329` espera un botón Importar ausente; `e2e/edit-sale-seller.flow.ts:108` espera Anular sobre una venta ya anulada; `e2e/service-dollar.spec.ts:27` espera un texto de actualización que no aparece. Hay además fallos de importación, archivado y layout en los shards E2E. Los casos PWA usan respuestas HTTP ficticias y no ejecutan los servicios de miembros modificados.
+
+No se modificaron frontend, PWA ni E2E en este PR. Los fallos de aserciones PWA/E2E se repiten en el retry interno del runner, por lo que no se asumen flakes ni se cambia su comportamiento para forzar un verde. Falta resolver o contrastar esos fallos de la suite global antes de integrar; no se certifica ausencia de regresiones UI mediante una CI roja. No se hizo rebase/merge a test ni se accedió a main/producción.
+
 ## Alcance y pendientes
 
 - No requiere OK de Matias para políticas nuevas: restituye invariantes y permisos ya previstos. Conserva costos/ganancias STAFF (#691), enlaces transferibles y matriz OWNER/MANAGER/STAFF.

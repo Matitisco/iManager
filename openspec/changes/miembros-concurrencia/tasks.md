@@ -2,4 +2,4 @@
 - [x] Proteger mutaciones, revalidar permisos y coordinar invitaciones.
 - [x] Validar regresiones y TypeScript sin build ni suite completa local.
 - [x] Documentar alcance, límites y evidencia local; preparar entrega por PR contra test.
-- [ ] Verificar CI y resolver la integración a test conforme a sus resultados.
+- [x] Verificar CI: relacionada verde; completa con fallos UI/PWA documentados. Mantener el PR abierto sin merge conforme a las reglas.
