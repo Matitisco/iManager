@@ -60,3 +60,15 @@ describe('Ventas / reports profit parity', () => {
     expect(front.marginPct).toBe(Math.round(reports.summary.marginRate));
   });
 });
+
+it('costo cargado en la venta conserva centavos de ganancia también en Dashboard', async () => {
+  const item = { id: 'costed', cost: 900.12, currency: 'USD' };
+  const sale: Sale = { id: 'cents', productId: item.id, clientId: '', date: '03/11/2026', amount: 1500.31, amountCurrency: 'USD', cantidad: 1, status: 'COMPLETADA', paymentMethod: 'EFECTIVO' };
+  mocks.store.mockResolvedValue({ currency: 'USD' });
+  mocks.sales.mockResolvedValue([{ ...sale, soldAt: new Date('2026-11-03T15:00:00Z'), inventoryItem: item }]);
+  const reports = await getReportsOverview('synthetic', { rangeKey: 'all_time', startDate: null, endDate: null });
+  const front = summarizeSaleProfit([sale], [item], 'USD', null);
+  expect(front.grossProfit).toBeCloseTo(600.19);
+  expect(reports.summary.grossProfit).toBeCloseTo(front.grossProfit!);
+  expect(reports.summary.salesWithoutCost).toBe(0);
+});

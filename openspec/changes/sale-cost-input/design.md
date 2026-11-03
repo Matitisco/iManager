@@ -6,3 +6,5 @@
 - canSeeFinancials gobierna UI y escritura; preSerialization existente elimina cost de respuestas sin permiso. Opciones de equipos incluyen costo para prefill.
 
 Cuando se envía costo y falta precio de inventario, solo se completa el precio automáticamente si está en la misma moneda: evita reetiquetar el costo. En otra moneda conserva precio a definir y registra el precio de la venta, sin conversión nueva.
+
+Dashboard: cuando no hay devoluciones que compensar, conserva la ganancia ya calculada por ventas sin pasarla por el redondeo agregado de netProfit; así no pierde centavos del costo/precio en la misma moneda.

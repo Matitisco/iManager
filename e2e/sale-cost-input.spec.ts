@@ -12,7 +12,7 @@ for (const width of [390, 1440]) {
       const email = buildTestEmail(info, 'sale-cost');
       await bootstrapStoreViaApi(page, request, email, 'Costo de venta ficticia');
       await openDeskSection(page, 'sales');
-      await page.getByRole('button', { name: 'Registrar venta', exact: true }).click();
+      await page.getByTestId('sales-empty').getByRole('button', { name: 'Registrar venta', exact: true }).click();
       let editor = page.getByRole('dialog', { name: 'Registrar venta' });
       await editor.getByRole('combobox', { name: 'Equipo', exact: true }).fill('Equipo por encargue ficticio');
       await editor.getByLabel('Precio completo de salida').fill('1500,31');
