@@ -36,6 +36,7 @@ export interface AppStoreSummary {
 }
 
 export interface AppMembershipSummary {
+  id?: string;
   role: AppMembershipRole;
   isDefault: boolean;
   sections?: string[] | null;
