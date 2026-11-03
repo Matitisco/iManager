@@ -24,11 +24,13 @@ test('the sidebar shows the blue dollar and a repair order moves from Recibido t
 
   const widget = page.getByTestId('blue-widget');
   await expect(widget).toHaveAttribute('data-state', 'ready');
-  await expect(widget).toContainText('Act. 21:40 · DolarApi');
+  await expect(widget).toContainText('1.280');
+  await expect(widget).toContainText('1.300');
   await page.getByRole('button', { name: /Dólar blue/ }).click();
   await page.getByLabel('Dólares').fill('100');
   await expect(page.getByTestId('blue-result')).toContainText('130.000');
   await expect(page.getByText('Fuente: DolarApi (cotización blue).')).toBeVisible();
+  await expect(page.getByRole('dialog').getByText(/Actualizado a las 21:40/)).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/dolar-detalle.png` });
   await page.getByTestId('blue-done').click();
 

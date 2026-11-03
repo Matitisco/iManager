@@ -24,7 +24,7 @@ test('a section change reflects an external archive, and another page follows a 
   await openDeskSection(page, 'sales');
   await refreshed;
   await openDeskSection(page, 'inventory');
-  await expect(page.getByRole('row').filter({ hasText: 'Pixel Viejo' })).toHaveClass(/is-void/);
+  await expect(page.getByRole('row').filter({ hasText: 'Pixel Viejo' })).toHaveCount(0);
   await expect(page.getByText('Pixel Compartido')).toBeVisible();
 
   const other = await context.newPage();
@@ -39,8 +39,11 @@ test('a section change reflects an external archive, and another page follows a 
   const synced = other.waitForResponse((response) => response.url().includes('/api/inventory') && response.request().method() === 'GET' && response.ok());
   await page.getByRole('dialog', { name: 'Archivar equipo' }).getByRole('button', { name: 'Archivar', exact: true }).click();
   await synced;
-  // Archiving retains a voided row in history while removing it from active stock.
-  await expect(other.getByRole('row').filter({ hasText: 'Pixel Compartido' })).toHaveClass(/is-void/);
+  // Both tabs remove archived devices from active stock and retain the archive.
+  await expect(other.getByRole('row').filter({ hasText: 'Pixel Compartido' })).toHaveCount(0);
+  await other.getByRole('button', { name: 'Archivados', exact: true }).click();
+  await expect(other.getByRole('row').filter({ hasText: 'Pixel Compartido' })).toBeVisible();
+  await expect(other.getByRole('row').filter({ hasText: 'Pixel Viejo' })).toBeVisible();
   expect((await fetchInventory(request, email)).inventory.map((item) => item.model)).not.toContain('Pixel Compartido');
   await other.close();
 });

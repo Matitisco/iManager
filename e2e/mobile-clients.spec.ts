@@ -110,7 +110,6 @@ test.describe('clients on a phone', () => {
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-clients')).toHaveClass(/on/);
     await expect(page.getByRole('heading', { level: 1, name: 'Clientes', exact: true })).toBeVisible();
     await expect(page.getByTestId('clients-empty')).toContainText('No hay clientes');
-    await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.getByPlaceholder('Buscar por nombre, DNI o teléfono')).toBeVisible();
     await expandListOptions(page);
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();

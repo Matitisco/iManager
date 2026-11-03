@@ -46,10 +46,12 @@ for (const device of [
       await page.reload();
       await openDeskSection(page, 'sales');
       const saleRow = page.locator(device.mobile ? '.phone-row' : 'tbody tr').filter({ hasText: 'Cuotas' });
-      await expect(saleRow).toContainText('Sin pago');
+      if (device.mobile) await expect(saleRow).toContainText('Sin pago');
+      else await expect(saleRow).toContainText('Pendiente');
       await expect(saleRow).not.toContainText('Efectivo');
       await saleRow.click();
       const beforePay = page.getByRole('dialog', { name: /V-/ });
+      await expect(beforePay.getByText('Sin pago', { exact: true })).toBeVisible();
       await expect(beforePay.getByText('Deuda $ 100')).toBeVisible();
       await expect(beforePay.locator('.kv').filter({ hasText: 'Cuota 1' })).toContainText('$ 50');
       await page.keyboard.press('Escape');
