@@ -18,6 +18,19 @@ import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from './ui';
 import { DEFAULT_REPAIR_WARRANTY_DAYS, parseWarrantyDaysInput, repairWarrantyView } from '../lib/warranty';
 import { shareOrCopy } from './overlays/shared';
+import { canSeeFinancials } from './sections';
+
+function RepairProfit({ cost, paid, format }: {
+  cost: number | null | undefined;
+  paid: number | null | undefined;
+  format: (value: number) => string;
+}) {
+  const { appSession } = useAppContext();
+  if (!canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role)) return null;
+  const profit = cost != null && paid != null && Number.isFinite(cost) && Number.isFinite(paid)
+    ? paid - cost : null;
+  return <div className="kv"><span>Ganancia</span><b data-ph-mask>{profit == null ? '—' : format(profit)}</b></div>;
+}
 
 function moneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -148,6 +161,7 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
               <input id="repair-new-deposit" data-testid="repair-new-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
             </Field>
           </div>
+          <RepairProfit cost={estimate.trim() ? parseMoney(estimate) : null} paid={deposit.trim() ? parseMoney(deposit) : null} format={money.showActive} />
           <div className="frow">
             <DatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
             <Field label="Técnico">
@@ -260,6 +274,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
       <div className="kv"><span>Costo del arreglo</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
       <div className="kv"><span>Lo que abonó el cliente</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      <RepairProfit cost={order.estimate} paid={order.deposit} format={show} />
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       {order.whatsappUrl ? (
@@ -306,6 +321,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         <div><span>Costo del arreglo</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
         <div><span>Lo que abonó el cliente</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
       </div>
+      <RepairProfit cost={order.estimate} paid={order.deposit} format={show} />
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       {order.whatsappUrl ? (
@@ -339,8 +355,8 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
   const [imei, setImei] = useState(order?.imei ?? '');
   const [tags, setTags] = useState<string[]>(order?.faultTags ?? []);
   const [fault, setFault] = useState(order?.fault ?? '');
-  const [estimate, setEstimate] = useState(order?.estimate == null ? '' : money.inputValue(order.estimate, order.currency));
-  const [deposit, setDeposit] = useState(order ? money.inputValue(order.deposit, order.currency) : '');
+  const [estimate, setEstimate] = useState(order?.estimate == null ? '' : money.inputValue(order.estimate, order.currency) || '0');
+  const [deposit, setDeposit] = useState(order?.deposit == null ? '' : money.inputValue(order.deposit, order.currency) || '0');
   const [delivery, setDelivery] = useState(arToIso(order?.estimatedDelivery));
   const [technician, setTechnician] = useState(order?.technician ?? '');
   const [warrantyDays, setWarrantyDays] = useState(order?.warrantyDays == null ? '' : String(order.warrantyDays));
@@ -471,6 +487,7 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
                 <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
               </Field>
             </div>
+            <RepairProfit cost={estimate.trim() ? parseMoney(estimate) : null} paid={deposit.trim() ? parseMoney(deposit) : null} format={money.showActive} />
             {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el costo del arreglo, lo que abonó el cliente o archivar la orden.</p>}
             <Field label="Garantía (días)" error={bad.warranty}>
               <input data-testid="repair-edit-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="Sin garantía cargada" onChange={(event) => { setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); setBad((current) => ({ ...current, warranty: '' })); }} />
