@@ -39,6 +39,7 @@ const prismaMock = vi.hoisted(() => ({
   returnCase: { findFirst: vi.fn() },
   commissionAccrual: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   sale: {
+    findMany: vi.fn(),
     findFirst: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
@@ -60,7 +61,7 @@ vi.mock("../../lib/store-sequence.js", () => ({
   allocateDocumentNumber,
 }));
 
-import { createCategory, createSale, deleteSale, importSales, updateSale } from "./sales.service.js";
+import { createCategory, createSale, deleteSale, importSales, listSales, updateSale } from "./sales.service.js";
 
 describe("sales.service", () => {
   beforeEach(() => {
@@ -178,6 +179,7 @@ describe("sales.service", () => {
       paymentMethod: "EFECTIVO",
       status: "COMPLETADA",
       categoryId: null,
+      createdAt: new Date("2026-10-07T15:00:00Z"),
       soldAt: new Date("2026-10-07T15:00:00Z"),
       customFields: {},
     });
@@ -378,5 +380,22 @@ describe("sales.service", () => {
     expect(await importSales('store-1', [{ ...row, amount: '1300' }])).toMatchObject({ imported: 1, errors: [] });
     expect(prismaMock.$executeRaw).toHaveBeenCalled();
     expect(prismaMock.sale.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: 'store-1' }) }));
+  });
+});
+
+
+describe('listSales: orden de carga (#748)', () => {
+  it.each([undefined, { voided: true }, { clientId: 'client-1', includeVoided: true }])('ordena por carga con desempate estable (%j)', async options => {
+    const createdAt = new Date('2026-10-10T14:32:01.123Z');
+    prismaMock.sale.findMany.mockResolvedValueOnce([{
+      id: 'sale-order', saleNumber: 16, amount: new Decimal(100), status: 'COMPLETADA',
+      dateLabel: '01/10/2026', soldAt: new Date('2026-10-01T03:00:00Z'), createdAt,
+    }]);
+    const result = await listSales('store-1', options);
+    expect(prismaMock.sale.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 'store-1', ...(options?.clientId ? { clientId: 'client-1' } : {}) }),
+      orderBy: [{ createdAt: 'desc' }, { saleNumber: 'desc' }, { id: 'desc' }],
+    }));
+    expect(result[0]).toMatchObject({ createdAt: createdAt.toISOString(), soldAt: '2026-10-01T03:00:00.000Z' });
   });
 });

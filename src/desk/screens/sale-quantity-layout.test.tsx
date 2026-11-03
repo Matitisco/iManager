@@ -49,10 +49,10 @@ describe.each([{ width: 390, theme: 'light' }, { width: 390, theme: 'dark' }, { 
       const equipment = page.locator(width === 390 ? '.sale-equipment > span:first-child' : 'tbody tr:first-child td:nth-child(5)');
       expect(await equipment.first().textContent()).toBe('iPhone 15 Pro Max 256GB');
       if (width === 390) {
-        expect(await page.locator('.sale-quantity').allTextContents()).toEqual(['x5', 'x2']);
+        expect(await page.locator('.sale-quantity').allTextContents()).toEqual(['x2', 'x5']);
       } else {
         expect(await page.getByRole('columnheader', { name: 'Cant.' }).count()).toBe(1);
-        expect(await page.locator('tbody .sale-quantity-cell').allTextContents()).toEqual(['5', '1', '2']);
+        expect(await page.locator('tbody .sale-quantity-cell').allTextContents()).toEqual(['2', '1', '5']);
         expect(await page.locator('tbody .sale-quantity-cell').first().evaluate(node => ({ align: getComputedStyle(node).textAlign, numbers: getComputedStyle(node).fontVariantNumeric, width: node.getBoundingClientRect().width }))).toMatchObject({ align: 'center', numbers: 'tabular-nums' });
       }
       const selectors = width === 390 ? '.sale-equipment, .sale-quantity, .sale-hero-grid > div' : 'tbody td, .dstats .dstat';
