@@ -72,7 +72,7 @@ describe('security: business logic API invariants', () => {
 
   it.each([
     { exchangeRate: 0 }, { exchangeRate: -1 }, { exchangeRate: 0.001 }, { exchangeRate: 1e100 },
-    { unitPrice: 0.001 }, { unitPrice: 1e100 },
+    { unitPrice: 1e100 },
     { tradeIn: { deviceReceived: 'QA', takeValue: -1 } },
     { tradeIn: { deviceReceived: 'QA', takeValue: 0.001 } },
     { tradeIn: { deviceReceived: 'QA', takeValue: 1e100 } },
@@ -107,6 +107,15 @@ describe('security: business logic API invariants', () => {
       payload: { ...baseSale, amount } });
     expect(response.statusCode, response.body).toBe(201);
     expect(response.json().sale.amount).toBe(Math.round(amount * 100) / 100);
+  });
+
+  it('accepts a legitimate repeating unit price from the quantity UI', async () => {
+    const f = await fixture();
+    await prisma.inventoryItem.update({ where: { id: f.inventoryItem.id }, data: { imei: null, cantidad: 3, price: 0 } });
+    const response = await getApp().inject({ method: 'POST', url: '/api/operations/sales', headers: f.headers,
+      payload: { ...baseSale, clientId: f.client.id, productId: f.inventoryItem.id, cantidad: 3, unitPrice: 100 / 3 } });
+    expect(response.statusCode, response.body).toBe(201);
+    expect(Number((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } })).price)).toBe(33.33);
   });
 
   it.each([false, true])('serializes two sales competing for the last unit (IMEI=%s)', async imei => {

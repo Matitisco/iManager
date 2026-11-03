@@ -124,6 +124,7 @@ describe.each(['import', 'manual'].flatMap(source => ['OWNER', 'STAFF'].map(role
     const removed = await getApp().inject({ method: 'DELETE', url: `/api/returns/${claimId}`, headers, payload: { reason: 'QA sintética' } });
     // #717 requires reversing the issued compensation before cancelling its claim.
     expect(removed.statusCode, removed.body).toBe(409);
+    expect(removed.json().error).toContain('compensación emitida');
     expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: claimId } })).deletedAt).toBeNull();
     await verify(11);
     // The active claim keeps its physical effect and blocks voiding the original sale.

@@ -54,7 +54,9 @@ const inputSchema = z.object({
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: moneyInput().optional(),
-  unitPrice: moneyInput({ positive: true }).optional(),
+  // The UI sends total / quantity, which can have repeating decimals.
+  // Inventory list price can intentionally differ from the discounted sale total.
+  unitPrice: z.number().finite().positive().max(9_999_999_999.99).optional(),
   paymentMethod: z.string().trim().max(50).optional(),
   status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
   categoryId: z.string().nullable().optional(),

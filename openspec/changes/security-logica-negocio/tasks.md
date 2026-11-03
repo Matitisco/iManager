@@ -2,4 +2,4 @@
 - [x] Reproducir abusos con requests sobre PostgreSQL local.
 - [x] Implementar fixes mínimos con regresiones rojas/verdes y concurrencia.
 - [x] Ejecutar TypeScript y pruebas relacionadas con hasta dos workers.
-- [ ] Documentar hallazgos y pendientes, abrir PR contra test y verificar CI.
+- [x] Documentar hallazgos y pendientes, abrir PR contra test y verificar CI.
