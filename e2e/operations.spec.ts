@@ -273,8 +273,8 @@ test('Inventory and Client-origin drafts can be resumed from their own sections'
   expect(clientId).toBeTruthy();
 
   await openDeskSection(page, 'inventory');
-  await page.getByRole('row').filter({ hasText: product.inventoryItem.model }).click();
-  await (await sheetAction(page.getByRole('dialog'), 'Vender')).click();
+  await page.getByRole('row').filter({ hasText: product.inventoryItem.model }).click({ button: 'right' });
+  await page.locator('.ctx').getByRole('button', { name: 'Vender', exact: true }).click();
   let dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await dialog.getByRole('checkbox', { name: 'Tiene canje' }).check();
   dialog = page.getByRole('dialog', { name: 'Nuevo canje' });

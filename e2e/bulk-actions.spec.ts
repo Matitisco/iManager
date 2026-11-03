@@ -1,4 +1,4 @@
-import { expandListOptions, openDeskSection } from './navigation';
+import { openDeskSection } from './navigation';
 import { mkdirSync } from 'node:fs';
 import { devices, expect, test } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createClientViaApi, createInventoryItemViaApi, fetchClients, fetchInventory, fetchSales, fetchTradeIns } from './utils';
@@ -77,11 +77,7 @@ for (const device of [
       await expect(bar).toHaveCount(0);
       expect((await fetchInventory(request, email)).inventory).toHaveLength(0);
       await page.reload(); await openDeskSection(page, 'inventory');
-      if (device.mobile) {
-        await expandListOptions(page);
-        await page.getByTestId('inventory-status-filter').getByRole('button', { name: 'Estado' }).click();
-        await page.getByRole('menuitemcheckbox', { name: 'Todos' }).click();
-      } else await page.getByRole('button', { name: 'Todos', exact: true }).click();
+      await page.getByRole('button', { name: 'Archivados', exact: true }).click();
       await expect(page.locator(device.mobile ? '.phone-row.is-void' : 'tbody tr.is-void')).toHaveCount(8);
       await expect(page.getByText('1–8 de 10', { exact: true })).toBeVisible();
     });

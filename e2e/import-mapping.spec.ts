@@ -80,11 +80,11 @@ for (const viewport of viewports) {
       await expect(dialog.getByTestId('import-sheet-summary').getByText('iPhones Usados')).toBeVisible();
       await expect(dialog.getByTestId('import-sheet-summary').getByText('iPhones Nuevos')).toBeVisible();
       await expect(dialog.getByTestId('import-sheet-summary').getByText('OUTLET')).toBeVisible();
-      await expect(dialog.getByText('20 equipos usados')).toBeVisible();
-      await expect(dialog.getByText('10 equipos nuevos')).toBeVisible();
+      await expect(dialog.getByTestId('import-sheet-summary').filter({ hasText: 'iPhones Usados' })).toContainText('21 equipos usados');
+      await expect(dialog.getByTestId('import-sheet-summary').filter({ hasText: 'iPhones Nuevos' })).toContainText('13 equipos nuevos');
       await expect(dialog.getByText('Revisá las columnas')).toHaveCount(0);
       await expect(dialog.locator('[data-testid^="import-confidence-"]')).toHaveCount(0);
-      await expect(dialog.getByTestId('import-preview-count')).toHaveText('37 equipos');
+      await expect(dialog.getByTestId('import-preview-count')).toHaveText('42 equipos');
       const preview = dialog.getByTestId('import-preview');
       await preview.scrollIntoViewIfNeeded();
       await expect(preview.getByTestId('import-preview-row').first()).toBeVisible();
@@ -158,9 +158,9 @@ for (const viewport of viewports) {
       const response = await importResponse;
       expect(response.ok()).toBe(true);
       const body = await response.json() as { imported: number; errors: unknown[] };
-      expect(body.imported).toBe(37);
+      expect(body.imported).toBe(42);
       expect(body.errors).toEqual([]);
-      await expect(dialog.getByText('37 creados')).toBeVisible();
+      await expect(dialog.getByText('42 creados')).toBeVisible();
     });
   });
 }

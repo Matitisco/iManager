@@ -6,7 +6,7 @@ for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
     await page.addInitScript(() => localStorage.setItem('imanager:test-auth-user', JSON.stringify({ email: 'admin@internal.test' })));
     const requests: URL[] = [];
-    await page.route('http://127.0.0.1:3194/**', async route => {
+    await page.route(`${process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:3100'}/**`, async route => {
       const url = new URL(route.request().url());
       if (url.pathname === '/api/me') return route.fulfill({ json: { user: { id: 'admin', email: 'admin@internal.test' }, store: null, membership: null, onboardingRequired: true } });
       if (url.pathname === '/api/me/admin') return route.fulfill({ json: { isAdmin: true } });

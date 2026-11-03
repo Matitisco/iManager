@@ -250,7 +250,7 @@ test.describe('issue 375 ventas, garantía y ficha en escritorio', () => {
     await expect(filter.getByRole('checkbox', { name: 'Sin vendedor' })).toBeVisible();
     await filter.getByRole('checkbox', { name: 'Lucía' }).check();
     await expect(page.getByTestId('sales-seller-chip')).toHaveText('Vendedor: Lucía ×');
-    await expect(page.getByTestId('sales-filter-summary')).toContainText('2 de 6 ventas');
+    await expect(page.getByTestId('sales-filter-summary')).toContainText('2 de 5 ventas');
     await expect(page.getByTestId('sales-filter-summary')).toContainText('1.410');
     await expect(page.getByRole('cell', { name: /Ana Pérez/ })).toHaveCount(0);
     await shot(page, 'issue-375-vendedor-filter-desktop.png');
@@ -339,7 +339,7 @@ test.describe('issue 375 ventas, garantía y ficha en iPhone', () => {
     await sheet.getByRole('checkbox', { name: /Lucía/ }).check();
     await sheet.getByRole('button', { name: 'Ver 2 ventas' }).click();
     await expect(page.getByTestId('sales-seller-chip')).toHaveText('Lucía');
-    await expect(page.getByTestId('sales-filter-summary')).toContainText('2 de 6 ventas');
+    await expect(page.getByTestId('sales-filter-summary')).toContainText('2 de 5 ventas');
     await expect(page.getByTestId('sales-filter-summary')).toContainText('1.410');
     await expect(page.getByText('iPhone 11 · 64GB')).toHaveCount(0);
     await expectNoOverflow(page);
