@@ -102,4 +102,8 @@ Se conservan las decisiones de #691 y las políticas pendientes de `logica-negoc
 
 Validación en PostgreSQL local exclusivo `contable_estados_fks`, puerto aleatorio >20000, datos sintéticos. Casos nuevos: 58 relaciones con control positivo, nulos/tombstones, filtros legacy y rollback en servicios frente a vínculos corruptos. Sin build, producción, schema ni migraciones en A.
 
-Verificación A: TypeScript frontend/backend; 579 unitarias relacionadas (38 archivos; adaptación de mocks), 42 pruebas frontend relacionadas y 280 integraciones relacionadas (incluida la nueva lectura corrupta). Máximo dos workers simultáneos. CI completo solicitado por workflow_dispatch por alcance transversal.
+Verificación A: TypeScript frontend/backend; 593 unitarias relacionadas (40 archivos; adaptación de mocks), 42 pruebas frontend relacionadas y 280 integraciones relacionadas (incluida la nueva lectura corrupta). Máximo dos workers simultáneos. CI completo solicitado por workflow_dispatch por alcance transversal.
+
+CI de A: el [CI rápido 41688428629](https://github.com/Matitisco/iManager/actions/runs/41688428629) quedó verde. El [CI completo 41688426129](https://github.com/Matitisco/iManager/actions/runs/41688426129) aprobó lint y todas las unitarias/integraciones, pero falló en E2E/PWA (por ejemplo account-lines, bulk-actions, delete-cancelled-trade-ins y toast móvil/foco de PWA). Se reintentan sólo los jobs fallidos. No se atribuyen como ajenos sin reproducción en la base, ni se mergea con ese resultado rojo/dudoso. El PR permanece abierto hasta contar con CI completo verde del código vigente.
+
+Cierre local tras revisar DTOs y borradores: 593 unitarias relacionadas, 42 frontend y última tanda de 80 integraciones verdes; se agregan regresiones de estados legacy en DTOs/crédito/RMA y confirmación de borrador `pending` con deuda 80 y cero cobros. La tanda previa de 280 integraciones y otra de 11 de reportes también pasaron.

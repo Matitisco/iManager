@@ -1,4 +1,4 @@
-import { ACCOUNTING_STATES, tradeState } from '../../lib/accounting-states.js';
+import { ACCOUNTING_STATES, nullableAccountingState, tradeState } from '../../lib/accounting-states.js';
 import { assertStoreReferences } from '../../lib/store-references.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -199,7 +199,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     draftSaleCategoryId: tradeIn.draftSaleCategoryId,
     draftAmount: tradeIn.draftAmount?.toNumber() ?? null,
     draftPaymentMethod: tradeIn.draftPaymentMethod,
-    draftPaymentStatus: tradeIn.draftPaymentStatus,
+    draftPaymentStatus: nullableAccountingState('sale', tradeIn.draftPaymentStatus),
     draftSellerMemberId: tradeIn.draftSellerMemberId,
     draftWarrantyDays: tradeIn.draftWarrantyDays,
     cancelledBy: tradeIn.cancelledBy ?? null,

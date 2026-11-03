@@ -14,7 +14,7 @@ export type DepositInput = { amount: number; currency: 'ARS' | 'USD'; exchangeRa
 const available = ['ACTIVE', 'CREDIT'];
 export const clearReservation = { reservedDepositId: null, reservedClientId: null, reservedClientName: null, reservedAt: null };
 export function serializeDeposit(row: ClientDeposit) {
-  return { ...row, amount: Number(row.amount), exchangeRate: Number(row.exchangeRate), usdAmount: Number(row.usdAmount),
+  return { ...row, status: normalizeAccountingState('deposit', row.status), amount: Number(row.amount), exchangeRate: Number(row.exchangeRate), usdAmount: Number(row.usdAmount),
     appliedAmount: row.appliedAmount == null ? null : Number(row.appliedAmount),
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
     appliedAt: row.appliedAt?.toISOString() ?? null, cancelledAt: row.cancelledAt?.toISOString() ?? null };

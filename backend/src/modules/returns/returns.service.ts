@@ -134,8 +134,8 @@ function present(row: CaseRow): ReturnCaseView {
     destination: row.destination,
     stockStatus: row.stockStatus,
     previousStatus: row.previousStatus,
-    rmaStatus: row.rmaStatus,
-    status: row.status,
+    rmaStatus: nullableAccountingState('rma', row.rmaStatus),
+    status: normalizeAccountingState('return', row.status),
     resolvedOn: row.resolvedAt ? calendarDay(row.resolvedAt, ZONE) : null,
     compensatedOn: compensatedAt ? calendarDay(compensatedAt, ZONE) : null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
@@ -152,9 +152,9 @@ function present(row: CaseRow): ReturnCaseView {
       amount: money(row.creditNote.amount),
       remaining: money(row.creditNote.remaining),
       currency: row.creditNote.currency,
-      status: row.creditNote.status,
+      status: normalizeAccountingState('credit', row.creditNote.status),
     } : null,
-    events: row.events.map((event) => ({ status: event.status, note: event.note, createdAt: event.createdAt.toISOString() })),
+    events: row.events.map((event) => ({ status: normalizeAccountingState('returnEvent', event.status), note: event.note, createdAt: event.createdAt.toISOString() })),
   };
 }
 
@@ -203,22 +203,22 @@ export async function listCreditNotes(storeId: string, clientId?: string): Promi
     amount: money(row.amount),
     remaining: money(row.remaining),
     currency: row.currency,
-    status: row.status,
+    status: normalizeAccountingState('credit', row.status),
     deletedAt: null,
   }));
 }
 
 // Cancelled claims with financial or physical effects still consume units.
-const consumingClaim = { OR: [
-  { deletedAt: null, status: { not: "ANULADO" } },
+const consumingClaim = async (tx: Tx, storeId: string) => ({ OR: [
+  { deletedAt: null, status: await storedStateFilter(tx, 'ReturnCase', storeId, ['ANULADO'], true) },
   { settlement: { in: ["REINTEGRO", "NOTA_CREDITO"] } },
   { destination: { in: ["STOCK", "PROVEEDOR"] } },
-] } satisfies Prisma.ReturnCaseWhereInput;
+] } satisfies Prisma.ReturnCaseWhereInput);
 
 export async function listReturnSales(storeId: string) {
   const [sales, claims] = await Promise.all([
     listSales(storeId),
-    prisma.returnCase.findMany({ where: { storeId, ...consumingClaim }, select: { saleId: true, cantidad: true } }),
+    prisma.returnCase.findMany({ where: { storeId, ...await consumingClaim(prisma, storeId) }, select: { saleId: true, cantidad: true } }),
   ]);
   const used = new Map<string, number>();
   for (const claim of claims) if (claim.saleId) used.set(claim.saleId, (used.get(claim.saleId) ?? 0) + (claim.cantidad ?? Infinity));
@@ -252,7 +252,7 @@ export async function createReturnCase(storeId: string, input: {
     if (!["COMPLETADA", "PENDIENTE"].includes(normalizeAccountingState('sale', sale.status))) throw new DomainError("Esta venta no permite abrir un reclamo.");
     const cantidad = input.cantidad ?? sale.cantidad;
     if (!Number.isInteger(cantidad) || cantidad < 1) throw new DomainError("La cantidad debe ser un entero positivo.");
-    const existing = await tx.returnCase.findMany({ where: { storeId, saleId: sale.id, ...consumingClaim }, select: { cantidad: true } });
+    const existing = await tx.returnCase.findMany({ where: { storeId, saleId: sale.id, ...await consumingClaim(tx, storeId) }, select: { cantidad: true } });
     const used = existing.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
     if (cantidad > sale.cantidad - used) throw new DomainError("La cantidad supera las unidades disponibles para reclamar.", 409);
     const item = sale.inventoryItem;
@@ -414,7 +414,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     }
     if (sale) {
       const others = await tx.returnCase.findMany({
-        where: { storeId, saleId: sale.id, id: { not: id }, ...consumingClaim }, select: { cantidad: true },
+        where: { storeId, saleId: sale.id, id: { not: id }, ...await consumingClaim(tx, storeId) }, select: { cantidad: true },
       });
       const used = others.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
       if (cantidad + used > sale.cantidad) throw new DomainError("Los reclamos superan las unidades de la venta. Revisá las cantidades de los otros reclamos.", 409);

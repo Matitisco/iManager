@@ -33,7 +33,7 @@ async function openSession(tx: Tx, box: CashRegister) {
   return session;
 }
 function movementResponse(row: CashMovement) {
-  return { ...row, amount: Number(row.amount), exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate), createdAt: row.createdAt.toISOString(), voidedAt: row.voidedAt?.toISOString() ?? null };
+  return { ...row, kind: normalizeAccountingState('cashKind', row.kind), amount: Number(row.amount), exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate), createdAt: row.createdAt.toISOString(), voidedAt: row.voidedAt?.toISOString() ?? null };
 }
 function countResponse(count: { id: string; expected: Prisma.Decimal; counted: Prisma.Decimal; difference: Prisma.Decimal; note: string | null; denominations: Prisma.JsonValue; countedBy: string; createdAt: Date }) {
   return { ...count, expected: Number(count.expected), counted: Number(count.counted), difference: Number(count.difference), createdAt: count.createdAt.toISOString() };
@@ -97,7 +97,7 @@ export async function startSession(storeId: string, registerId: string, actor: A
     const last = await tx.cashSession.findFirst({ where: { registerId, storeId }, orderBy: { day: 'desc' } });
     await assertStoreReferences(tx, storeId, 'CashSession', last);
     if (last?.day === day && normalizeAccountingState('cashSession', last.status) === 'OPEN') return { id: last.id };
-    if (last?.status !== 'APPROVED' && last) throw new DomainError('El día anterior quedó sin cerrar. Contalo y pedí aprobación antes de abrir otro día', 409);
+    if (last && normalizeAccountingState('cashSession', last.status) !== 'APPROVED') throw new DomainError('El día anterior quedó sin cerrar. Contalo y pedí aprobación antes de abrir otro día', 409);
     if (last && last.day >= day) throw new DomainError('Esta caja ya se cerró hoy. Abrí el próximo día', 409);
     const session = await tx.cashSession.create({ data: { storeId, registerId, day, opening: box.balance, openedBy: actor.userId } });
     await assertStoreReferences(tx, storeId, 'CashSession', session);
@@ -115,7 +115,7 @@ export async function manualMovement(storeId: string, input: { registerId: strin
     const prior = await tx.cashMovement.findFirst({ where: { storeId, requestKey: input.requestKey } });
     await assertStoreReferences(tx, storeId, 'CashMovement', prior);
     if (prior) {
-      if (prior.registerId !== box.id || prior.kind !== input.kind || !prior.amount.eq(signed) || prior.category !== (input.category || null) || prior.note !== (input.note || null)) throw new DomainError('La solicitud ya corresponde a otro movimiento', 409);
+      if (prior.registerId !== box.id || normalizeAccountingState('cashKind', prior.kind) !== input.kind || !prior.amount.eq(signed) || prior.category !== (input.category || null) || prior.note !== (input.note || null)) throw new DomainError('La solicitud ya corresponde a otro movimiento', 409);
       return { id: prior.id };
     }
     const row = await append(tx, box, { amount: signed, kind: input.kind, category: input.category || null, note: input.note || null, requestKey: input.requestKey, createdBy: actor.userId });
@@ -180,7 +180,7 @@ export async function voidMovement(storeId: string, id: string, actor: Actor, re
     await assertStoreReferences(tx, row?.storeId ?? storeId, 'CashMovement', row);
     if (!row) throw new DomainError('Movimiento no encontrado', 404);
     if (row.sourceType) throw new DomainError('Anulá este movimiento desde la venta, seña o reparación de origen', 409);
-    if (!['INGRESO', 'EGRESO', 'AJUSTE', 'TRANSFERENCIA'].includes(row.kind)) throw new DomainError('Este movimiento no se puede anular desde Cajas', 409);
+    if (!['INGRESO', 'EGRESO', 'AJUSTE', 'TRANSFERENCIA'].includes(normalizeAccountingState('cashKind', row.kind))) throw new DomainError('Este movimiento no se puede anular desde Cajas', 409);
     const rows = row.transferGroup ? await tx.cashMovement.findMany({ where: { storeId, transferGroup: row.transferGroup, reversalOf: null } }) : [row];
     for (const original of rows) await reverse(tx, original, actor);
     await cashAudit(tx, storeId, actor, 'voided', id, undefined, reason);
@@ -192,7 +192,7 @@ export async function changeCategory(storeId: string, id: string, category: stri
     const row = await tx.cashMovement.findFirst({ where: { id, storeId } });
     await assertStoreReferences(tx, row?.storeId ?? storeId, 'CashMovement', row);
     if (!row) throw new DomainError('Movimiento no encontrado', 404);
-    if (row.kind === 'EGRESO' && !category) throw new DomainError('El egreso necesita una categoría');
+    if (normalizeAccountingState('cashKind', row.kind) === 'EGRESO' && !category) throw new DomainError('El egreso necesita una categoría');
     await tx.cashMovement.update({ where: { id }, data: { category } });
     await cashAudit(tx, storeId, actor, 'category', id);
   });

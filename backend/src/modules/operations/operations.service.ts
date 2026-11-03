@@ -1,4 +1,4 @@
-import { normalizeAccountingState, saleState, storedStateFilter, tradeState } from '../../lib/accounting-states.js';
+import { normalizeAccountingState, nullableAccountingState, saleState, storedStateFilter, tradeState } from '../../lib/accounting-states.js';
 import { assertStoreReferences } from '../../lib/store-references.js';
 import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
 import { captureSaleCancellation, restoreCancelledSale } from './sale-restoration.js';
@@ -243,7 +243,7 @@ function serializeTrade(trade: TradeForResponse) {
     draftSaleCategoryId: trade.draftSaleCategoryId ?? null,
     draftAmount: trade.draftAmount ? toNum(trade.draftAmount) : null,
     draftPaymentMethod: trade.draftPaymentMethod ?? null,
-    draftPaymentStatus: trade.draftPaymentStatus ?? null,
+    draftPaymentStatus: nullableAccountingState('sale', trade.draftPaymentStatus) ?? null,
     draftSellerMemberId: trade.draftSellerMemberId ?? null,
     draftWarrantyDays: trade.draftWarrantyDays ?? null,
     voidedAt: trade.voidedAt?.toISOString() ?? null,
@@ -966,7 +966,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       amount: dec(outgoingAmount),
       amountCurrency: currency,
       paymentMethod: input.paymentMethod ?? trade.draftPaymentMethod ?? "EFECTIVO",
-      status: input.status ?? trade.draftPaymentStatus ?? "COMPLETADA",
+      status: input.status ?? nullableAccountingState('sale', trade.draftPaymentStatus) ?? "COMPLETADA",
       tradeInId: trade.id,
       customFields: toJson(input.customFields),
       integratedOperation: true,
@@ -1007,7 +1007,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     const cashDue = Math.max(0, outgoingAmount - takeValue - Number(depositAmount) - creditCovered);
     const settlement = await settleNewSale(tx, { storeId, saleId: sale.id, clientId: client.id, due: cashDue, currency: labelCurrency, exchangeRate: exchangeRate == null ? null : Number(exchangeRate), input, actor });
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
-    const paymentStatus = settlement?.status ?? input.status ?? trade.draftPaymentStatus ?? "COMPLETADA";
+    const paymentStatus = settlement?.status ?? input.status ?? nullableAccountingState('sale', trade.draftPaymentStatus) ?? "COMPLETADA";
     if (!settlement && paymentStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: cashDue, currency: labelCurrency, method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de canje', actor });
     if (!settlement && paymentStatus === "COMPLETADA") {
       await recordSaleCollection(tx, { storeId, clientId: client.id, saleId: sale.id, amount: cashDue, currency: labelCurrency, method: sale.paymentMethod });
@@ -1361,7 +1361,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftProductId: input.productId === undefined ? trade.draftProductId : input.productId,
         draftDeviceLabel: input.deviceLabel === undefined ? trade.draftDeviceLabel : input.deviceLabel,
         draftAmount: input.amount === undefined ? trade.draftAmount : dec(input.amount),
-        draftPaymentMethod: input.paymentMethod ?? trade.draftPaymentMethod, draftPaymentStatus: input.status ?? trade.draftPaymentStatus,
+        draftPaymentMethod: input.paymentMethod ?? trade.draftPaymentMethod, draftPaymentStatus: input.status ?? nullableAccountingState('sale', trade.draftPaymentStatus),
         categoryId: input.categoryId === undefined ? trade.categoryId : input.categoryId,
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
         draftSellerMemberId: input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId,
@@ -1413,7 +1413,7 @@ export async function updateTradeFromLegacy(storeId: string, tradeId: string, pa
     date: patch.date ?? undefined, clientId: patch.clientId, clientName: patch.clientName ?? undefined,
     categoryId: patch.categoryId, deviceLabel: patch.deviceGiven, amount,
     paymentMethod: sale?.paymentMethod ?? trade.draftPaymentMethod ?? undefined,
-    status: sale?.status ?? trade.draftPaymentStatus ?? undefined,
+    status: sale?.status ?? nullableAccountingState('sale', trade.draftPaymentStatus) ?? undefined,
     tradeIn: {
       deviceReceived: patch.deviceReceived ?? trade.deviceReceived,
       deviceReceivedImei: patch.deviceReceivedImei === undefined ? trade.deviceReceivedImei : patch.deviceReceivedImei,

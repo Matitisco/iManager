@@ -1,4 +1,4 @@
-import { storedStateFilter } from '../../lib/accounting-states.js';
+import { normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { recordCash } from '../cash/service.js';
@@ -327,7 +327,7 @@ export async function listClientPayments(storeId: string, clientId: string) {
     id: row.id,
     amount: row.amount.toNumber(),
     method: row.method,
-    kind: row.kind,
+    kind: normalizeAccountingState('paymentKind', row.kind),
     note: row.note,
     saleId: row.saleId,
     paidAt: row.paidAt.toISOString(),

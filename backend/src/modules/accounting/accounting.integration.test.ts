@@ -3,9 +3,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../plugins/prisma.js';
 import { resetDatabase, seedCatalogFixture, seedStoreContext } from '../../test/db.js';
 import { assertStoreReferences, STORE_REFERENCES } from '../../lib/store-references.js';
-import { createOperation, cancelSaleOperation } from '../operations/operations.service.js';
+import { confirmTradeOperation, createOperation, cancelSaleOperation } from '../operations/operations.service.js';
 import { countSession, reviewSession } from '../cash/service.js';
-import { createReturnCase } from '../returns/returns.service.js';
+import { listCreditNotes, listReturnCases, createReturnCase } from '../returns/returns.service.js';
+import { listDeposits } from '../deposits/deposits.service.js';
 import { listSales } from '../sales/sales.service.js';
 import { collectAccount } from '../accounts/accounts.service.js';
 
@@ -93,6 +94,24 @@ describe('pertenencia transaccional de referencias', () => {
     expect((await prisma.sale.findUniqueOrThrow({ where: { id: result.sale!.id } })).status).toBe('PENDIENTE');
     await prisma.sale.update({ where: { id: ownSaleId }, data: { inventoryItemId: parents.InventoryItem } });
     await expect(listSales(storeId)).rejects.toMatchObject({ statusCode: 409 });
+  });
+  it('serializa estados legacy sin reescribirlos y conserva crédito reconocido', async () => {
+    await prisma.clientDeposit.create({ data: { storeId, clientId: ownClientId, requestKey: 'legacy', amount: 10, usdAmount: 10, currency: 'USD', exchangeRate: 1000, method: 'EFECTIVO', status: ' credit ' } });
+    const claim = await prisma.returnCase.create({ data: { storeId, caseNumber: 2, saleId: ownSaleId, clientId: ownClientId, reason: 'Falla ficticia', openedAt: new Date(), status: ' en_diagnóstico ', rmaStatus: ' recibido ', events: { create: { storeId, status: ' recibido ' } } } });
+    await prisma.creditNote.create({ data: { storeId, clientId: ownClientId, returnCaseId: claim.id, amount: 10, remaining: 10, currency: 'USD', status: ' abierta ' } });
+    expect((await listDeposits(storeId, ownClientId))[0].status).toBe('CREDIT');
+    expect((await listReturnCases(storeId))[0]).toMatchObject({ status: 'EN_DIAGNOSTICO', rmaStatus: 'RECIBIDO', creditNote: { status: 'ABIERTA' }, events: [{ status: 'RECIBIDO' }] });
+    expect((await listCreditNotes(storeId))[0].status).toBe('ABIERTA');
+    expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: claim.id } })).status).toBe(' en_diagnóstico ');
+  });
+  it('confirmar borrador con pending histórico conserva deuda sin registrar un cobro', async () => {
+    const draft = await createOperation(storeId, 'tradeins', { draft: true, clientId: ownClientId, deviceLabel: 'Equipo libre', amount: 100, status: 'PENDIENTE', currency: 'ARS', paymentMethod: 'EFECTIVO', tradeIn: { deviceReceived: 'Recibido ficticio', takeValue: 20 } });
+    if (!('tradeIn' in draft) || !draft.tradeIn) throw new Error('Falta borrador');
+    await prisma.tradeIn.update({ where: { id: draft.tradeIn.id }, data: { draftPaymentStatus: ' pending ' } });
+    const result = await confirmTradeOperation(storeId, draft.tradeIn.id, {});
+    expect(result.sale.status).toBe('PENDIENTE');
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: ownClientId } })).pendingBalance)).toBe(80);
+    expect(await prisma.clientPayment.count({ where: { storeId, kind: 'PAGO' } })).toBe(0);
   });
   it('filtros SQL reconocen espacios, alias y mayúsculas sin backfill', async () => {
     for (const status of [' completed ', 'completada', ' PENDING ', 'ANULADA', ' cancelled ', 'INVENTADO']) await prisma.sale.create({ data: { storeId, status, dateLabel: '', amount: 10, paymentMethod: 'EFECTIVO', soldAt: new Date() } });

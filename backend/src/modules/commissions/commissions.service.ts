@@ -1,4 +1,4 @@
-import { storedStateFilter } from '../../lib/accounting-states.js';
+import { nullableAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
 import { assertStoreReferences } from '../../lib/store-references.js';
 import type { CommissionAccrual, CommissionPayment, CommissionRule, Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
@@ -50,7 +50,7 @@ function saleLine(row: CommissionAccrual, financials: boolean) {
     soldAt: row.soldAt.toISOString(), deviceLabel: row.deviceLabel, total: Number(row.total),
     currency: row.currency, exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate),
     commission: row.voidedAt ? 0 : Number(row.commission), originalCommission: Number(row.commission),
-    cancelled: row.voidedAt != null, voidReason: row.voidReason, voidedAt: row.voidedAt?.toISOString() ?? null,
+    cancelled: row.voidedAt != null, voidReason: nullableAccountingState('commissionVoid', row.voidReason), voidedAt: row.voidedAt?.toISOString() ?? null,
     rule: row.basis ? { id: row.ruleId, basis: row.basis, rate: Number(row.rate), currency: row.ruleCurrency } : null,
     ...(financials ? { cost: Number(row.cost), takeValue: Number(row.takeValue), grossProfit: Number(row.grossProfit) } : {}),
   };
@@ -144,7 +144,7 @@ function projectCommissionPeriod(
       sales: memberRows.filter(row => row.period === period.key).map(row => saleLine(row, financials)),
       adjustments: adjustments.map(row => ({
         accrualId: row.id, saleId: row.sourceSaleId, saleNumber: row.saleNumber, period: row.adjustmentPeriod!,
-        amount: -(allocations.get(row.id) ?? 0), currency: row.currency, label: "A descontar", reason: row.voidReason,
+        amount: -(allocations.get(row.id) ?? 0), currency: row.currency, label: "A descontar", reason: nullableAccountingState('commissionVoid', row.voidReason),
       })),
       payments: payments.filter(payment => payment.memberId === member.id && payment.period === period.key).map(presentPayment),
     };
