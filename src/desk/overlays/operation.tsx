@@ -461,7 +461,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
           </div>
           <div className="frow">
             <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
-            <Field label="Diferencia"><input aria-label="Diferencia" value={difference == null ? '' : money.show(difference, typedCurrency)} readOnly placeholder={difference == null && tradeGap.warning !== NEGATIVE_TRADE_DIFFERENCE ? 'Completá el precio' : undefined} /></Field>
+            <Field label="Diferencia"><output data-ph-mask className={`op-calculated${difference == null ? ' pending' : ''}`}>{difference == null ? 'Se calcula con el precio completo de salida' : money.show(difference, typedCurrency)}</output></Field>
           </div>
           <Field label="Estado técnico"><span /></Field>
           <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />

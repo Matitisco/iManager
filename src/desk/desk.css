@@ -2347,6 +2347,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .operation-form .frow { min-width: 0; margin-bottom: 16px; }
 .operation-form .fl > span { overflow-wrap: anywhere; }
 .operation-form .fl input { min-width: 0; }
+.operation-form .op-calculated { display: block; padding: 8px 0; border: 0; background: none; color: var(--primary); font-size: 14px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.operation-form .op-calculated.pending { color: var(--secondary); font-size: 12px; font-weight: 500; }
 .operation-form .frow { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .operation-form .frow > *,
 .operation-form .eqs > .fl,
