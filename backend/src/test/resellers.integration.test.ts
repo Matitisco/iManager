@@ -4,7 +4,6 @@ import { prisma } from '../plugins/prisma.js';
 import { buildAuthHeaders, seedCatalogFixture, seedStoreContext } from './db.js';
 import { useIntegrationApp } from './integration-helpers.js';
 import { currentPeriodKey, nextPeriod } from '../modules/commissions/commission-math.js';
-import { deleteSale } from '../modules/sales/sales.service.js';
 
 const { getApp } = useIntegrationApp();
 const headers = () => buildAuthHeaders();
@@ -118,11 +117,25 @@ describe('revendedores por tienda y comisiones', () => {
     if (action === 'cancelar') {
       const response = await getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${sale.id}/cancel`, headers: headers(), payload: {} });
       expect(response.statusCode, response.body).toBe(200);
-    } else await deleteSale(f.store!.id, sale.id, { userId: f.user.id, name: 'Dueño ficticio' });
+    } else {
+      const response = await getApp().inject({ method: 'DELETE', url: `/api/sales/${sale.id}`, headers: headers() });
+      expect(response.statusCode, response.body).toBe(204);
+    }
     const period = nextPeriod(currentPeriodKey());
     const detail = await person(a.id, period);
     expect(detail.adjustments).toEqual([expect.objectContaining({ label: 'A descontar', amount: -40 })]);
     expect((await person(b.id, period)).adjustments).toHaveLength(0);
+  });
+
+  it('reasigna en masa a otro revendedor, conserva el ajuste pagado y no duplica snapshots al reintentar', async () => {
+    const f = await seedStoreContext(); const a = await add(); const b = await add('Otro Ejemplo'); await rule();
+    const sale = await sell(a.id); await pay(a.id);
+    const assign = () => getApp().inject({ method: 'PATCH', url: '/api/commissions/sales/seller', headers: headers(), payload: { saleIds: [sale.id], sellerMemberId: null, resellerId: b.id } });
+    const changed = await assign(); expect(changed.statusCode, changed.body).toBe(200);
+    expect((await person(b.id)).earned.ARS).toBe(100);
+    expect((await person(a.id, nextPeriod(currentPeriodKey()))).adjustments).toEqual([expect.objectContaining({ amount: -40 })]);
+    expect((await assign()).statusCode).toBe(200);
+    expect(await prisma.commissionAccrual.count({ where: { storeId: f.store!.id, sourceSaleId: sale.id, resellerId: b.id, voidedAt: null } })).toBe(1);
   });
 
   it('archiva con ventas: conserva historial, permite liquidar y editar sin reasignar', async () => {

@@ -13,7 +13,7 @@ export const STORE_RESET_KEEP_MODELS = [
   'Store', 'User', 'StoreMember', 'StoreInvitation', 'StoreFollowUpSettings',
   'PeriodicReportSettings', 'StoreCatalog', 'StorePublicCatalog', 'StoreCatalogOption',
   'CustomFieldDefinition', 'ClientCategory', 'InventoryCategory', 'TradeInCategory',
-  'SaleCategory', 'CommissionRule', 'CashRegister', 'BillingCheckout', 'BillingPlan',
+  'SaleCategory', 'StoreReseller', 'CommissionRule', 'CashRegister', 'BillingCheckout', 'BillingPlan',
   'AuditEvent', 'ImeiTacMiss', 'StoreCounter', 'Client', 'RepairOrder',
   'RepairStatusEvent', 'CommissionPayment', 'CashCount', 'CashSession',
   'StockPurchase', 'Supplier', 'Expense', 'ProductEvent', 'PeriodicReportDelivery',
