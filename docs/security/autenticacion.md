@@ -1,6 +1,6 @@
 # Seguridad: autenticación, sesiones y rate limiting
 
-Auditoría local del 2026-11-03. Entrega: PR de `sec/autenticacion` hacia `test` (enlace actualizado al abrirlo). Sin producción, datos reales, build, schema ni migraciones; #691 intacto.
+Auditoría local del 2026-11-03. Entrega: [PR #725](https://github.com/Matitisco/iManager/pull/725), de `sec/autenticacion` hacia `test`. Sin producción, datos reales, build, schema ni migraciones; #691 intacto.
 
 | Hallazgo | Severidad | Estado / reproducción y corrección | OK de Matias |
 |---|---|---|---|
@@ -32,6 +32,6 @@ Por UID: sesión 120/min; onboarding 10/min; invitaciones: preview público 60/I
 
 Regresiones rojo→verde para revocación, emulador, ráfagas, Basic Auth parcial/fuerza bruta, logs y error 500. PostgreSQL descartable exclusivo `127.0.0.1:28743/autenticacion`, usuarios sintéticos `qa-sec-<n>@example.com`; requests Fastify y HTTP real por loopback. Firebase y proveedor IA se simulan: no se emitieron tokens reales, ni se llamó al proveedor o se revocaron cuentas reales. Audiencia, issuer, firma y vencimiento siguen a cargo del SDK Admin configurado con el proyecto de la credencial; se prueba la traducción uniforme de sus errores a 401. Invitaciones conservan UUID aleatorio, siete días de expiración y consumo único bajo lock/transacción, verificados en tests relacionados.
 
-Validación local: lint TypeScript frontend/backend, 71 unitarios backend, 43 integraciones relacionadas y 5 tests de Basic Auth aprobados; máximo dos procesos de tests con un worker cada uno. Una ejecución ampliada falló por inodos agotados en la máquina compartida; se liberaron recursos exclusivamente de este worktree y las integraciones se repitieron correctamente. CI y número de PR: se actualizan antes de la entrega.
+Validación local: lint TypeScript frontend/backend, 71 unitarios backend, 43 integraciones relacionadas y 5 tests de Basic Auth aprobados; máximo dos procesos de tests con un worker cada uno. Una ejecución ampliada falló por inodos agotados en la máquina compartida; se liberaron recursos exclusivamente de este worktree y las integraciones se repitieron correctamente. CI: [checks del PR #725](https://github.com/Matitisco/iManager/pull/725/checks).
 
 Referencias: [revocación de Firebase](https://firebase.google.com/docs/auth/admin/manage-sessions), [validación de ID tokens](https://firebase.google.com/docs/auth/admin/verify-id-tokens), [trustProxy de Fastify](https://fastify.dev/docs/latest/Reference/Server/#trustproxy), [headers de Railway](https://docs.railway.com/networking/public-networking/specs-and-limits).
