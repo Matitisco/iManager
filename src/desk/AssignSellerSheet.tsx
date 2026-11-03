@@ -1,3 +1,5 @@
+import { SellerField } from './SellerField';
+import { Fragment } from 'react';
 import { toActionMessage } from '../lib/user-message';
 import { useEffect, useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
@@ -31,7 +33,8 @@ export function AssignSellerSheet({ saleIds, subtitle, onClose, onSaved }: { sal
   return <Sheet title="Asignar vendedor" subtitle={subtitle} onClose={() => { if (!busy) onClose(); }} className="commission-form">
     {error ? <div className="ferr" role="alert">{error}</div> : null}
     {sellersUnavailable && !commissionSellers.length ? <p className="eqs-note">Sin vendedores para mostrar.</p> : null}
-    <div className="commission-seller-choices" role="radiogroup" aria-label="Vendedor a asignar">{[...commissionSellers.filter(person => !person.archivedAt).map(person => ({ id: person.id, name: person.name, role: person.role, sub: ROLE_LABEL[person.role] })), { id: '', name: 'Sin vendedor', role: 'NONE', sub: 'No suma comisión' }].map(person => <button key={person.id} type="button" role="radio" aria-checked={member === person.id} disabled={busy} className={`commission-seller-choice${member === person.id ? ' selected' : ''}`} onClick={() => setMember(person.id)}><CommissionAvatar id={person.id} name={person.name} role={person.role} /><span><b>{person.name}</b><small>{person.sub}</small></span><i /></button>)}</div>
+    <div className="commission-seller-choices" role="radiogroup" aria-label="Vendedor a asignar">{[...commissionSellers.filter(person => !person.archivedAt).map(person => ({ id: person.id, name: person.name, role: person.role, sub: ROLE_LABEL[person.role] })), { id: '', name: 'Sin vendedor', role: 'NONE', sub: 'No suma comisión' }].map((person, index, people) => <Fragment key={person.id}>{person.role === 'RESELLER' && people[index - 1]?.role !== 'RESELLER' ? <div className="sale-sec"><span>Revendedores</span></div> : null}<button type="button" role="radio" aria-checked={member === person.id} disabled={busy} className={`commission-seller-choice${member === person.id ? ' selected' : ''}`} onClick={() => setMember(person.id)}><CommissionAvatar id={person.id} name={person.name} role={person.role} /><span><b>{person.name}</b><small>{person.sub}</small></span><i /></button></Fragment>)}</div>
+    <SellerField directoryOnly value={member ?? ''} onChange={setMember} busy={busy} />
     <p className="commission-info">Se recalcula la comisión con la regla vigente para cada venta. Si alguna venta ya estaba pagada a otra persona, la diferencia se descuenta de su saldo.</p>
     <div className="sacts"><button type="button" className="btn2 s" disabled={busy} onClick={onClose}>Cancelar</button><button type="button" className="btn2 p" disabled={busy || member === null} onClick={() => { void save(); }}>{busy ? 'Guardando…' : member === '' ? 'Quitar vendedor' : `Asignar${member ? ` a ${commissionSellers.find(person => person.id === member)?.name.split(' ')[0] ?? ''}` : ''}`}</button></div>
   </Sheet>;

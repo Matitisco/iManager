@@ -1,5 +1,6 @@
 import { SaleCostField } from '../SaleCostField';
 import { canSeeFinancials } from '../sections';
+import { CommissionAvatar } from '../CommissionAvatar';
 import { beneficiaryInput } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
@@ -804,7 +805,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Cantidad</span><b>{sale.cantidad ?? 1}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
-      <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId))?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}{sale.resellerId ? <small className="mut"> · Revendedor</small> : null}</b></div>
+      <div className="kv"><span>Vendedor</span><b>{sale.resellerId ? <CommissionAvatar id={`reseller:${sale.resellerId}`} name={commissionSellers.find(person => person.resellerId === sale.resellerId)?.name ?? 'Revendedor'} role="RESELLER" /> : null}{commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId))?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}{sale.resellerId ? <small className="mut"> · Revendedor</small> : null}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       {typeof sale.customFields?.importReview === 'string' && <div className="sales-import-note"><span className="spill mid">Por revisar</span><p>{sale.customFields.importReview}</p></div>}
       {typeof sale.customFields?.notas === 'string' && sale.customFields.notas && <div className="kv"><span>Notas</span><b className="sales-import-note" data-ph-mask>{sale.customFields.notas}</b></div>}

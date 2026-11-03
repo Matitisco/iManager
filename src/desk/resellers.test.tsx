@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommissionSeller } from '../types/commissions';
 import type { Sale } from '../types';
 import { beneficiaryInput, beneficiaryKey } from '../types/commissions';
+import { AssignSellerSheet } from './AssignSellerSheet';
 import { SellerField } from './SellerField';
 import { sellerFilterOptions, salesMatchingSellers } from './sale-sellers';
 import { effectiveRule } from './commissions';
@@ -15,6 +16,7 @@ import { DeskProvider } from './ui';
 const ctx = vi.hoisted(() => ({
   appSession: { membership: { role: 'OWNER', sections: null as string[] | null }, store: { id: 'store' } },
   commissionSellers: [] as CommissionSeller[], saveReseller: vi.fn(), loadCommissionSellers: vi.fn(async () => {}),
+  assignCommissionSeller: vi.fn(async () => {}), reloadSales: vi.fn(async () => {}),
   commissionRules: [], payCommission: vi.fn(), saveCommissionRule: vi.fn(), loadCommissions: vi.fn(async () => {}),
   sales: [] as Sale[], clients: [], inventory: [], returns: [],
 }));
@@ -123,4 +125,13 @@ it('guarda reglas personales para el revendedor', async () => {
   render(<CommissionRuleSheet memberId={reseller.id} period="2026-10" onClose={vi.fn()} />);
   await userEvent.click(screen.getByRole('button', { name: 'Guardar regla' }));
   await waitFor(() => expect(ctx.saveCommissionRule).toHaveBeenCalledWith(expect.objectContaining({ memberId: null, resellerId: 'diego' })));
+});
+
+it('asignación masiva agrupa revendedores y ofrece alta rápida', async () => {
+  render(<AssignSellerSheet saleIds={['sale']} subtitle="Una venta" onClose={vi.fn()} onSaved={vi.fn()} />);
+  expect(screen.getByText('Revendedores', { exact: true })).toBeVisible();
+  expect(screen.getByRole('button', { name: '+ Agregar revendedor' })).toBeVisible();
+  await userEvent.click(screen.getByRole('radio', { name: /Diego Ejemplo/ }));
+  await userEvent.click(screen.getByRole('button', { name: 'Asignar a Diego' }));
+  await waitFor(() => expect(ctx.assignCommissionSeller).toHaveBeenCalledWith(['sale'], reseller.id));
 });

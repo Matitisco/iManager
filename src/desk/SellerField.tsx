@@ -8,7 +8,7 @@ import { Actions, Dialog, Field, Sheet } from './ui';
 import { canOpenSection } from './sections';
 import { CommissionAvatar } from './CommissionAvatar';
 
-export function SellerField({ value, onChange, busy }: { value: string; onChange: (value: string) => void; busy?: boolean }) {
+export function SellerField({ value, onChange, busy, directoryOnly = false }: { value: string; onChange: (value: string) => void; busy?: boolean; directoryOnly?: boolean }) {
   const { commissionSellers = [], appSession, saveReseller } = useAppContext();
   const [mode, setMode] = useState<'add' | 'all' | null>(null);
   const [editing, setEditing] = useState<string>();
@@ -41,7 +41,7 @@ export function SellerField({ value, onChange, busy }: { value: string; onChange
     finally { setSaving(false); }
   };
   return <>
-    <Field label="Vendedor"><DeskSelect className="seller-select" popupClassName="seller-picker" label="Vendedor" sheetTitle="Elegir vendedor" value={value} disabled={busy}
+    {directoryOnly ? <div className="reseller-actions"><button type="button" className="wlink" disabled={busy} onClick={() => { setError(''); setMode('all'); }}>Ver todas</button>{canWrite ? <button type="button" className="wlink" disabled={busy} onClick={() => openAdd()}>+ Agregar revendedor</button> : null}</div> : <><Field label="Vendedor"><DeskSelect className="seller-select" popupClassName="seller-picker" label="Vendedor" sheetTitle="Elegir vendedor" value={value} disabled={busy}
       onChange={key => { if (key === '__add') openAdd(); else if (key === '__all') { setError(''); setMode('all'); } else onChange(key); }}
       options={[
         { value: '', label: 'Sin vendedor' },
@@ -50,7 +50,7 @@ export function SellerField({ value, onChange, busy }: { value: string; onChange
         { value: '__all', label: 'Ver todas', group: 'Revendedores' },
         ...(canWrite ? [{ value: '__add', label: '+ Agregar revendedor', group: 'Revendedores' }] : []),
       ]} /></Field>
-    <p className="eqs-note">Elegí quién hizo la venta. Sin vendedor, no suma comisión.</p>
+    <p className="eqs-note">Elegí quién hizo la venta. Sin vendedor, no suma comisión.</p></>}
     {mode ? createPortal(<Sheet title={mode === 'add' ? editing ? 'Renombrar revendedor' : 'Agregar revendedor' : 'Revendedores'} onClose={() => { if (!saving && !archive) setMode(null); }} busy={saving} className="commission-form reseller-manager"
       footer={mode === 'add' ? <Actions primary="Guardar revendedor" onPrimary={() => { void save(); }} onSecondary={() => setMode(null)} busy={saving} /> : canWrite ? <button type="button" className="btn2 p" onClick={() => openAdd()}>+ Agregar revendedor</button> : undefined}>
       {error && !archive ? <p className="ferr" role="alert">{error}</p> : null}
