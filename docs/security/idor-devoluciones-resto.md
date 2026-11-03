@@ -1,6 +1,6 @@
 # Seguridad — idor-devoluciones-resto
 
-Auditoría del 2026-11-03 sobre `origin/test`. PR: pendiente de enlace al abrir. Sin producción, build, migraciones, cambios de schema ni reversión de #691.
+Auditoría del 2026-11-03 sobre `origin/test`. PR: [#728](https://github.com/Matitisco/iManager/pull/728), base `test`. Sin producción, build, migraciones, cambios de schema ni reversión de #691.
 
 | Hallazgo | Severidad | Estado | OK de Matías |
 | --- | --- | --- | --- |
