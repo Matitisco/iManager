@@ -2,6 +2,7 @@ import { readReason } from '../audit/archive.js';
 import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -36,7 +37,7 @@ const sectionFor: Record<OperationSource, "inventory" | "sales" | "tradeins" | "
 const tradeSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: zodOptionalImei().nullable().optional(),
-  takeValue: z.number().nonnegative(),
+  takeValue: moneyInput(),
   status: z.string().trim().max(30).optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
@@ -45,15 +46,15 @@ const tradeSchema = z.object({
 const inputSchema = z.object({
   depositIds: z.array(z.string().min(1)).max(20).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
-  exchangeRate: z.number().finite().positive().optional(),
+  exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
   cantidad: z.number().int().min(1).max(2147483647).optional(),
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
-  amount: z.number().nonnegative().optional(),
-  unitPrice: z.number().finite().positive().optional(),
+  amount: moneyInput().optional(),
+  unitPrice: moneyInput({ positive: true }).optional(),
   paymentMethod: z.string().trim().max(50).optional(),
   status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
   categoryId: z.string().nullable().optional(),
@@ -69,14 +70,14 @@ const inputSchema = z.object({
     color: z.string().trim().max(50).optional(),
     condition: z.string().trim().max(20).optional(),
     imei: zodOptionalImei().nullable().optional(),
-    price: z.number().nonnegative().optional(),
+    price: moneyInput().optional(),
   }).optional(),
   tradeIn: tradeSchema,
   tenders: z.array(z.object({
-    amount: z.number().positive(),
+    amount: moneyInput({ positive: true }),
     currency: z.enum(["ARS", "USD"]),
     method: z.string().trim().min(1).max(50),
-    exchangeRate: z.number().finite().positive().nullable().optional(),
+    exchangeRate: moneyInput({ positive: true }).nullable().optional(),
   })).max(8).optional(),
   excess: z.enum(["OMIT", "CREDIT", "CHANGE"]).optional(),
   changeMethod: z.string().trim().min(1).max(50).optional(),
@@ -85,7 +86,7 @@ const inputSchema = z.object({
     count: z.number().int().min(2).max(36),
     frequency: z.enum(["SEMANAL", "QUINCENAL", "MENSUAL"]),
     firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    surcharge: z.number().nonnegative().optional(),
+    surcharge: moneyInput().optional(),
     collectFirstNow: z.boolean().optional(),
     firstMethod: z.string().trim().min(1).max(50).optional(),
   }).nullable().optional(),

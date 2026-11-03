@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
@@ -25,7 +26,7 @@ const paymentMethodSchema = z.string().trim().min(1).max(50);
 const operationTradeInSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: z.string().trim().max(100).nullable().optional(),
-  takeValue: z.number().nonnegative(),
+  takeValue: moneyInput(),
   status: z.string().trim().max(30).optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
@@ -33,18 +34,19 @@ const operationTradeInSchema = z.object({
 });
 
 const saleCreateSchema = z.object({
+  requestKey: z.string().trim().min(1).max(120).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
-  exchangeRate: z.number().finite().positive().optional(),
+  exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
   cantidad: z.number().int().min(1).max(2147483647).optional(),
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
-  amount: z.number().nonnegative(),
+  amount: moneyInput(),
   amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   paymentMethod: paymentMethodSchema,
-  status: z.string().trim().min(1).max(20),
+  status: z.enum(['COMPLETADA', 'PENDIENTE', 'CANCELADA']),
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
   warrantyDays: z.number().int().min(0).max(3650).optional(),
@@ -54,15 +56,15 @@ const saleCreateSchema = z.object({
 const salePatchSchema = z
   .object({
     sellerMemberId: z.string().min(1).nullable().optional(),
-    exchangeRate: z.number().finite().positive().optional(),
+    exchangeRate: moneyInput({ positive: true }).optional(),
     clientId: z.string().trim().max(50).nullable().optional(),
     clientName: z.string().trim().max(120).nullable().optional(),
     productId: z.string().trim().max(50).nullable().optional(),
     deviceLabel: z.string().trim().max(120).nullable().optional(),
     paymentMethod: paymentMethodSchema.optional(),
-    status: z.string().trim().min(1).max(20).optional(),
+    status: z.enum(['COMPLETADA', 'PENDIENTE', 'CANCELADA']).optional(),
     date: z.string().min(1).max(120).optional(),
-    amount: z.number().nonnegative().optional(),
+    amount: moneyInput().optional(),
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
     customFields: z.record(z.unknown()).optional().nullable(),
