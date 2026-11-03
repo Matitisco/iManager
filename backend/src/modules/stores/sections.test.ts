@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
+  $transaction: vi.fn(),
   storeMember: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     update: vi.fn(),
   },
 }));
@@ -41,6 +44,9 @@ describe("financial visibility", () => {
 describe("member sections", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockResolvedValue([{ id: "store-1" }]);
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
+    prismaMock.storeMember.findUnique.mockResolvedValue({ role: "OWNER" });
   });
 
   it("keeps a missing list as full access and rejects unknown ids", () => {

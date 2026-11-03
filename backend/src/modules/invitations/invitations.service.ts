@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { lockStoreMembers, requireTeamActor, withMembershipTransaction } from "../stores/member-transaction.js";
 import { track } from '../analytics/track.js';
 import { assertMemberCapacity } from '../billing/service.js';
 import { storeBillingLock } from '../billing/domain.js';
@@ -43,8 +44,6 @@ export async function createInvitation(
     throw new DomainError("No tenés permisos para invitar con ese rol", 403);
   }
 
-  await assertMemberCapacity(storeId);
-
   const frontendUrl = process.env.FRONTEND_URL?.trim();
   if (!frontendUrl) {
     throw Object.assign(
@@ -57,16 +56,27 @@ export async function createInvitation(
   expiresAt.setDate(expiresAt.getDate() + INVITATION_TTL_DAYS);
 
   const sections = access?.sections !== undefined ? assertSectionList(access.sections) : undefined;
-  const invitation = await prisma.storeInvitation.create({
-    data: {
-      storeId,
-      ...(actorUserId ? { invitedById: actorUserId } : {}),
-      email: email?.trim().toLowerCase(),
-      role,
-      expiresAt,
-      ...(sections !== undefined ? { sections } : {}),
-      ...(access?.sensitiveAccess !== undefined ? { sensitiveAccess: access.sensitiveAccess } : {}),
-    },
+  const invitation = await withMembershipTransaction(async tx => {
+    await lockTransactionKey(tx, storeBillingLock(storeId));
+    await lockStoreMembers(tx, storeId);
+    if (actorUserId) {
+      const actor = await requireTeamActor(tx, storeId, actorUserId);
+      if (actor.role === "MANAGER" && role !== "STAFF") {
+        throw new DomainError("No tenés permisos para invitar con ese rol", 403);
+      }
+    }
+    await assertMemberCapacity(storeId, tx);
+    return tx.storeInvitation.create({
+      data: {
+        storeId,
+        ...(actorUserId ? { invitedById: actorUserId } : {}),
+        email: email?.trim().toLowerCase(),
+        role,
+        expiresAt,
+        ...(sections !== undefined ? { sections } : {}),
+        ...(access?.sensitiveAccess !== undefined ? { sensitiveAccess: access.sensitiveAccess } : {}),
+      },
+    });
   });
 
   void (async () => {
@@ -102,30 +112,25 @@ export async function revokeInvitation(storeId: string, invitationId: string, ac
     throw new DomainError("No tenés permisos para cancelar invitaciones", 403);
   }
 
-  const invitation = await prisma.storeInvitation.findFirst({
-    where: { id: invitationId, storeId },
-  });
-  if (!invitation) {
-    throw new DomainError("Invitación no encontrada", 404);
-  }
-  if (actorRole === "MANAGER" && invitation.role !== "STAFF") {
-    throw new DomainError("Solo podés cancelar invitaciones para Empleado", 403);
-  }
-  if (invitation.status === "REVOKED") return; // already revoked — idempotent
-  if (invitation.status !== "PENDING") {
-    throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
-  }
-
-  await prisma.$transaction(async tx => {
-    await lockTransactionKey(tx, `invitation:${invitation.id}`);
-    const current = await tx.storeInvitation.findUnique({ where: { id: invitation.id } });
-    if (current?.status === "REVOKED") return;
-    if (current?.status !== "PENDING") throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
+  await withMembershipTransaction(async tx => {
+    await lockTransactionKey(tx, `invitation:${invitationId}`);
+    await lockStoreMembers(tx, storeId);
+    const currentActor = actor ? await requireTeamActor(tx, storeId, actor.userId) : null;
+    const currentRole = currentActor?.role ?? actorRole;
+    const invitation = await tx.storeInvitation.findFirst({ where: { id: invitationId, storeId } });
+    if (!invitation) throw new DomainError("Invitación no encontrada", 404);
+    if (currentRole === "MANAGER" && invitation.role !== "STAFF") {
+      throw new DomainError("Solo podés cancelar invitaciones para Empleado", 403);
+    }
+    if (invitation.status === "REVOKED") return;
+    if (invitation.status !== "PENDING") {
+      throw new DomainError("Solo se pueden revocar invitaciones pendientes", 400);
+    }
     await tx.storeInvitation.update({ where: { id: invitation.id }, data: { status: "REVOKED" } });
     if (actor) {
       await writeAudit(tx, {
         storeId,
-        actor,
+        actor: { ...actor, role: currentRole },
         action: "invitation.cancelled",
         entityType: "invitation",
         entityId: invitation.id,
@@ -152,7 +157,7 @@ export async function previewInvitation(token: string) {
     ? await prisma.user.findUnique({ where: { id: invitation.invitedById }, select: { displayName: true } })
     : null;
   const owner = !inviter?.displayName ? await prisma.storeMember.findFirst({
-    where: { storeId: invitation.storeId, role: "OWNER" },
+    where: { storeId: invitation.storeId, role: "OWNER", removedAt: null },
     orderBy: { createdAt: "asc" },
     select: { user: { select: { displayName: true } } },
   }) : null;
@@ -191,7 +196,7 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     );
   }
 
-  await prisma.$transaction(async (tx) => {
+  await withMembershipTransaction(async (tx) => {
     await lockTransactionKey(tx, userMembershipLockKey(user.id));
     await lockTransactionKey(tx, `invitation:${invitation.id}`);
 
@@ -199,6 +204,11 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     if (!current || current.status !== "PENDING" || current.expiresAt <= new Date()) {
       throw new DomainError("La invitación expiró o ya fue utilizada", 410);
     }
+
+    // Billing mutators acquire this key before updating Store, so take it
+    // before the Store row too. Re-read membership only after both locks.
+    await lockTransactionKey(tx, storeBillingLock(invitation.storeId));
+    await lockStoreMembers(tx, invitation.storeId);
 
     assertInvitationEmail(current.email, auth);
 
@@ -212,7 +222,6 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
       );
     }
 
-    await lockTransactionKey(tx, storeBillingLock(invitation.storeId));
     await assertMemberCapacity(invitation.storeId, tx);
 
     const membershipCount = await tx.storeMember.count({ where: { userId: user.id, removedAt: null } });

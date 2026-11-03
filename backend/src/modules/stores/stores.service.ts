@@ -3,6 +3,7 @@ import { trialData } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import type { StoreRole } from "@prisma/client";
+import { lockStoreMembers, requireTeamActor, withMembershipTransaction } from "./member-transaction.js";
 import { lockTransactionKey, userMembershipLockKey } from "../../lib/advisory-lock.js";
 import { assertStoreContact, blankToNull } from "./store-contact.js";
 import { assertSectionList, normalizeSections } from "./sections.js";
@@ -86,26 +87,17 @@ export async function createStoreForUser(userId: string, storeName: string) {
 }
 
 export async function activateStoreForUser(userId: string, storeId: string) {
-  const membership = await prisma.storeMember.findFirst({
-    where: { userId, storeId },
+  return withMembershipTransaction(async (tx) => {
+    await lockTransactionKey(tx, userMembershipLockKey(userId));
+    await lockStoreMembers(tx, storeId);
+    const membership = await tx.storeMember.findFirst({
+      where: { userId, storeId, removedAt: null },
+    });
+    if (!membership) throw new DomainError("No pertenecés a esa tienda", 404);
+    await tx.storeMember.updateMany({ where: { userId }, data: { isDefault: false } });
+    await tx.storeMember.update({ where: { id: membership.id }, data: { isDefault: true } });
+    return membership;
   });
-
-  if (!membership) {
-    throw new DomainError("No pertenecés a esa tienda", 404);
-  }
-
-  await prisma.$transaction([
-    prisma.storeMember.updateMany({
-      where: { userId },
-      data: { isDefault: false },
-    }),
-    prisma.storeMember.update({
-      where: { id: membership.id },
-      data: { isDefault: true },
-    }),
-  ]);
-
-  return membership;
 }
 
 export interface StoreUpdateInput {
@@ -215,24 +207,29 @@ export async function updateMemberRole(
     throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
-  const target = await prisma.storeMember.findFirst({ where: { id: memberId, storeId } });
-  if (!target) {
-    throw new DomainError("Miembro no encontrado", 404);
-  }
+  return withMembershipTransaction(async (tx) => {
+    await lockStoreMembers(tx, storeId);
+    const actor = await requireTeamActor(tx, storeId, actorUserId);
 
-  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId || newRole !== "STAFF")) {
-    throw new DomainError("Solo el Propietario puede cambiar ese rol", 403);
-  }
-
-  // Cannot leave store without an OWNER
-  if (target.role === "OWNER" && newRole !== "OWNER") {
-    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
-    if (ownerCount <= 1) {
-      throw new DomainError("No puede haber una tienda sin Propietario", 400);
+    const target = await tx.storeMember.findFirst({ where: { id: memberId, storeId, removedAt: null } });
+    if (!target) {
+      throw new DomainError("Miembro no encontrado", 404);
     }
-  }
 
-  return prisma.storeMember.update({ where: { id: memberId }, data: { role: newRole } });
+    if (actor.role === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId || newRole !== "STAFF")) {
+      throw new DomainError("Solo el Propietario puede cambiar ese rol", 403);
+    }
+
+    // Cannot leave store without an OWNER
+    if (target.role === "OWNER" && newRole !== "OWNER") {
+      const ownerCount = await tx.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
+      if (ownerCount <= 1) {
+        throw new DomainError("No puede haber una tienda sin Propietario", 400);
+      }
+    }
+
+    return tx.storeMember.update({ where: { id: memberId }, data: { role: newRole } });
+  });
 }
 
 export async function removeMember(
@@ -245,39 +242,42 @@ export async function removeMember(
     throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
-  const target = await prisma.storeMember.findFirst({
-    where: { id: memberId, storeId, removedAt: null },
-    include: { user: true },
-  });
-  if (!target) {
-    throw new DomainError("Miembro no encontrado", 404);
-  }
+  return withMembershipTransaction(async (tx) => {
+    await lockStoreMembers(tx, storeId);
+    const actor = await requireTeamActor(tx, storeId, actorUserId);
 
-  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
-    throw new DomainError("Solo podés quitar Empleados del equipo", 403);
-  }
-
-  // Cannot remove the only OWNER
-  if (target.role === "OWNER") {
-    const ownerCount = await prisma.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
-    if (ownerCount <= 1) {
-      throw new DomainError("No puede haber una tienda sin Propietario", 400);
+    const target = await tx.storeMember.findFirst({
+      where: { id: memberId, storeId, removedAt: null },
+      include: { user: true },
+    });
+    if (!target) {
+      throw new DomainError("Miembro no encontrado", 404);
     }
-  }
 
-  const actor = await prisma.user.findUnique({
-    where: { id: actorUserId },
-    select: { displayName: true, email: true },
-  });
-  const actorName = actor?.displayName?.trim() || actor?.email?.trim() || "Equipo";
-  await prisma.$transaction(async (tx) => {
+    if (actor.role === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
+      throw new DomainError("Solo podés quitar Empleados del equipo", 403);
+    }
+
+    // Cannot remove the only OWNER
+    if (target.role === "OWNER") {
+      const ownerCount = await tx.storeMember.count({ where: { storeId, role: "OWNER", removedAt: null } });
+      if (ownerCount <= 1) {
+        throw new DomainError("No puede haber una tienda sin Propietario", 400);
+      }
+    }
+
+    const actorUser = await tx.user.findUnique({
+      where: { id: actorUserId },
+      select: { displayName: true, email: true },
+    });
+    const actorName = actorUser?.displayName?.trim() || actorUser?.email?.trim() || "Equipo";
     await tx.storeMember.update({
       where: { id: memberId },
       data: { removedAt: new Date(), removedBy: actorName.slice(0, 255) },
     });
     await writeAudit(tx, {
       storeId,
-      actor: { userId: actorUserId, name: actorName, role: actorRole },
+      actor: { userId: actorUserId, name: actorName, role: actor.role },
       action: "member.removed",
       entityType: "member",
       entityId: memberId,
@@ -299,34 +299,39 @@ export async function updateMemberSections(
     throw new DomainError("No tenés permisos para gestionar el equipo", 403);
   }
 
-  const target = await prisma.storeMember.findFirst({
-    where: { id: memberId, storeId },
-    include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
-  });
-  if (!target) {
-    throw new DomainError("Miembro no encontrado", 404);
-  }
-  if (target.role === "OWNER") {
-    throw new DomainError("El propietario conserva el acceso a todas las secciones", 403);
-  }
+  return withMembershipTransaction(async (tx) => {
+    await lockStoreMembers(tx, storeId);
+    const actor = await requireTeamActor(tx, storeId, actorUserId);
 
-  if (actorRole === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
-    throw new DomainError("Solo podés editar los permisos de Empleados", 403);
-  }
+    const target = await tx.storeMember.findFirst({
+      where: { id: memberId, storeId, removedAt: null },
+      include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
+    });
+    if (!target) {
+      throw new DomainError("Miembro no encontrado", 404);
+    }
+    if (target.role === "OWNER") {
+      throw new DomainError("El propietario conserva el acceso a todas las secciones", 403);
+    }
 
-  const next = assertSectionList(sections);
-  const updated = await prisma.storeMember.update({
-    where: { id: memberId },
-    data: {
-      sections: next,
-      ...(sensitiveAccess !== undefined ? { sensitiveAccess } : {}),
-    },
-    include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
+    if (actor.role === "MANAGER" && (target.role !== "STAFF" || target.userId === actorUserId)) {
+      throw new DomainError("Solo podés editar los permisos de Empleados", 403);
+    }
+
+    const next = assertSectionList(sections);
+    const updated = await tx.storeMember.update({
+      where: { id: memberId },
+      data: {
+        sections: next,
+        ...(sensitiveAccess !== undefined ? { sensitiveAccess } : {}),
+      },
+      include: { user: { select: { id: true, displayName: true, email: true, avatarUrl: true } } },
+    });
+    return serializeMember(updated);
   });
-  return serializeMember(updated);
 }
 
 export async function getStoreOwnerName(storeId: string) {
-  const owner = await prisma.storeMember.findFirst({ where: { storeId, role: 'OWNER' }, orderBy: { createdAt: 'asc' }, select: { user: { select: { displayName: true } } } });
+  const owner = await prisma.storeMember.findFirst({ where: { storeId, role: 'OWNER', removedAt: null }, orderBy: { createdAt: 'asc' }, select: { user: { select: { displayName: true } } } });
   return owner?.user.displayName || 'el propietario';
 }
