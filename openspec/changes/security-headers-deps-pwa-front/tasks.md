@@ -1,0 +1,4 @@
+- [x] Reproduce security boundary failures with regression tests and local HTTP requests.
+- [x] Apply minimal fixes and run related tests and TypeScript (two workers maximum).
+- [x] Document severity, residual risks and decisions requiring Matias.
+- [ ] Open security PR against test, watch CI, rebase and merge only with green CI.

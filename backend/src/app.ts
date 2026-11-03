@@ -40,37 +40,25 @@ import { stockCountRoutes } from "./modules/stock-counts/stock-counts.routes.js"
 import { env } from "./config/env.js";
 import { registerApiErrorHandler } from "./lib/api-error.js";
 import { redactFinancials } from "./lib/redact-financials.js";
+import { corsOrigins, registerHttpSecurity, securityLoggerOptions } from "./lib/http-security.js";
 import { canSeeFinancials } from "./modules/stores/sections.js";
 
 export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLimit?: number } = {}) {
   const app = Fastify({
-    logger: env.NODE_ENV === "test" ? false : true,
+    logger: env.NODE_ENV === "test" ? false : securityLoggerOptions,
     bodyLimit: 1024 * 1024,
     trustProxy: env.TRUST_PROXY_CIDRS?.length ? env.TRUST_PROXY_CIDRS : false,
   });
 
-  const allowedOrigins = env.CORS_ALLOWED_ORIGINS
-    ?.split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean) ?? [];
-
+  const allowedOrigins = corsOrigins(env.CORS_ALLOWED_ORIGINS);
+  registerHttpSecurity(app, { production: env.NODE_ENV === "production" });
   app.register(cors, {
-    origin: allowedOrigins.length > 0
-      ? (origin, callback) => {
-          if (!origin) { callback(null, true); return; }
-          if (allowedOrigins.includes(origin)) { callback(null, true); return; }
-          callback(new Error("Origin not allowed"), false);
-        }
-      : true,
-    credentials: true,
+    origin: (origin, callback) => callback(null, Boolean(origin && allowedOrigins.includes(origin))),
+    credentials: false,
   });
 
   app.register(sensible);
   registerSecurityRateLimits(app);
-
-  app.addHook("onRequest", async (request, reply) => {
-    if (request.url.startsWith("/api")) reply.header("cache-control", "no-store");
-  });
 
   app.addHook("preSerialization", async (request, _reply, payload) => {
     if (!request.appUser || canSeeFinancials(request.appUser)) return payload;

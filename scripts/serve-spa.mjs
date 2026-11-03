@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { securityHeaders } from './security-headers.mjs';
 import { timingSafeEqual } from 'node:crypto';
 
 const defaultRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..', 'dist'));
@@ -61,6 +62,9 @@ export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass 
 
 export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim(), basicAuth = createBasicAuthGuard() } = {}) {
   return async (request, response) => {
+    // Merge at writeHead so headers cover errors, the basic-auth gate and proxies.
+    const writeHead = response.writeHead.bind(response);
+    response.writeHead = (status, headers = {}) => writeHead(status, { ...securityHeaders({ firebaseHelper: (request.url || '').startsWith('/__/auth/') }), ...headers });
     if (!basicAuth(request, response)) return;
     const url = new URL(request.url || '/', 'http://localhost');
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.

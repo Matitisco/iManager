@@ -57,6 +57,7 @@ export async function catalogsRoutes(app: FastifyInstance) {
     } catch (error) {
       if (error instanceof z.ZodError) return reply.code(400).send({ error: "Revisá los nombres" });
       const status = getCatalogErrorStatus(error);
+      if (status >= 500) throw error;
       const message = error instanceof Error ? error.message : "No se pudo guardar";
       return reply.code(status).send({ error: message });
     }
