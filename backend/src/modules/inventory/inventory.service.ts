@@ -1,3 +1,4 @@
+import { getDefaultCatalog } from '../public-catalog/default-catalog.js';
 import { inventoryImportGroups } from './import-grouping.js';
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { randomUUID } from 'node:crypto';
@@ -395,7 +396,7 @@ export async function listInventoryPaged(
     `,
   ]);
 
-  const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
+  const catalog = await getDefaultCatalog(storeId);
   const supplierIds = [...new Set(rows.map((row) => row.supplierId).filter((id): id is string => Boolean(id)))];
   const suppliers = supplierIds.length
     ? await prisma.supplier.findMany({ where: { storeId, id: { in: supplierIds } }, select: { id: true, name: true } })
@@ -446,7 +447,7 @@ export async function listInventory(storeId: string, options?: { archived?: bool
     orderBy: { createdAt: "desc" },
   });
 
-  const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
+  const catalog = await getDefaultCatalog(storeId);
   return inventory.map((item: InventoryRecord) => serializeInventoryItem({ ...item, catalogIncluded: inPublicCatalog(item, catalog) }));
 }
 
@@ -461,7 +462,7 @@ export async function getInventoryItem(storeId: string, id: string): Promise<Inv
     },
   });
   if (!item) return null;
-  const catalog = await prisma.storePublicCatalog.findUnique({ where: { storeId } });
+  const catalog = await getDefaultCatalog(storeId);
   let purchaseSummary: ProblemSummary | null = null;
   if (item.stockPurchaseId && item.stockPurchase && !item.stockPurchase.deletedAt) {
     const snapshot = await loadProblems(storeId, { stockPurchaseId: item.stockPurchaseId });
@@ -840,7 +841,7 @@ export async function updateInventoryItem(
   });
 
   if (!updated) return null;
-  const catalog = updated.catalogVisible ? await prisma.storePublicCatalog.findUnique({ where: { storeId } }) : null;
+  const catalog = updated.catalogVisible ? await getDefaultCatalog(storeId) : null;
   return serializeInventoryItem({ ...updated, catalogIncluded: inPublicCatalog(updated, catalog) });
 }
 
@@ -901,7 +902,7 @@ export async function restoreInventoryItem(storeId: string, id: string, actor?: 
     source: meta?.source ?? (actor ? "app" : "system"),
     changes: [{ field: "status", label: "Estado", before: "Archivado", after: "Activo" }],
   });
-  const catalog = restored.catalogVisible ? await prisma.storePublicCatalog.findUnique({ where: { storeId } }) : null;
+  const catalog = restored.catalogVisible ? await getDefaultCatalog(storeId) : null;
   return serializeInventoryItem({ ...restored, catalogIncluded: inPublicCatalog(restored, catalog) });
 }
 

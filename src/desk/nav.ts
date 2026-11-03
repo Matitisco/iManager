@@ -46,7 +46,7 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'returns', label: 'Devoluciones', subtitle: 'Reclamos, notas de crédito y RMA', icon: 'swap', group: 'comercial' },
   { id: 'inventory', label: 'Equipos', subtitle: 'Equipos y stock', icon: 'list', group: 'stock' },
   { id: 'stockCount', label: 'Control de stock', subtitle: 'Conteo a ciegas del local', icon: 'list', group: 'stock' },
-  { id: 'publicCatalog', label: 'Catálogo', subtitle: 'Tu lista de precios pública', icon: 'store', group: 'stock' },
+  { id: 'publicCatalog', label: 'Catálogos', subtitle: 'Tus listas de precios públicas', icon: 'store', group: 'stock' },
   { id: 'clients', label: 'Clientes', subtitle: 'Agenda y saldos', icon: 'user', group: 'atencion' },
   { id: 'followups', label: 'Seguimientos', subtitle: 'A quién escribirle hoy', icon: 'user', group: 'atencion' },
   { id: 'service', label: 'Servicio técnico', subtitle: 'Órdenes de reparación', icon: 'wrench', group: 'atencion' },
