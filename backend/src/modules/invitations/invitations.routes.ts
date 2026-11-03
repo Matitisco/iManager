@@ -10,10 +10,11 @@ import {
   revokeInvitation,
   previewInvitation,
   acceptInvitation,
+  InvitationEmailError,
 } from "./invitations.service.js";
 
 const createSchema = z.object({
-  email: z.string().email().optional(),
+  email: z.string().trim().toLowerCase().email().optional(),
   role: z.enum(["MANAGER", "STAFF"]),
   sections: z.array(z.string()).optional(),
   sensitiveAccess: z.boolean().optional(),
@@ -78,7 +79,10 @@ export async function invitationsRoutes(app: FastifyInstance) {
           },
           "Invitation accept failed"
         );
-        return reply.code(statusCode).send({ error: statusCode < 500 ? e.message : "No se pudo aceptar la invitación. Probá de nuevo." });
+        return reply.code(statusCode).send({
+          error: statusCode < 500 ? e.message : "No se pudo aceptar la invitación. Probá de nuevo.",
+          ...(err instanceof InvitationEmailError ? { code: "INVITATION_EMAIL_REQUIRED" } : {}),
+        });
       }
     });
   });

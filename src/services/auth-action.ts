@@ -3,6 +3,7 @@ import {
   checkActionCode,
   confirmPasswordReset,
   verifyPasswordResetCode,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -18,6 +19,13 @@ function authError(code: string) {
 
 const E2E_ACCOUNT = 'owner@imanager.test';
 const E2E_RESTORED = 'restored@imanager.test';
+
+export async function sendInvitationEmailVerification(uid: string): Promise<void> {
+  if (isE2ETestMode()) return;
+  const user = auth.currentUser;
+  if (!user || user.uid !== uid) throw new Error('Volvé a iniciar sesión para verificar tu email.');
+  await sendEmailVerification(user);
+}
 
 function e2eFailure(oobCode: string): void {
   if (oobCode === 'expired') throw authError('auth/expired-action-code');
