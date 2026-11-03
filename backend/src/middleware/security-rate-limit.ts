@@ -69,7 +69,8 @@ export function registerSecurityRateLimits(app: FastifyInstance) {
     if (!selected.user) return;
     const handlers = Array.isArray(route.preHandler) ? [...route.preHandler] : route.preHandler ? [route.preHandler] : [];
     const authIndex = handlers.indexOf(authenticate);
-    if (authIndex < 0) throw new Error(`Security quota requires explicit authenticate on ${route.url}`);
+    // Routes behind a plugin-level authenticate onRequest hook (e.g. /admin) have no explicit preHandler auth:
+    // the quota then runs first in preHandler, after that hook, and still fails closed with 401 without request.auth.
     handlers.splice(authIndex + 1, 0, async (request, reply) => {
       if (!request.auth) return reply.code(401).send({ error: 'Unauthenticated' });
       const retry = consume(`user:${selected.group}:${request.auth.firebaseUid}`, selected.user, selected.windowMs);
