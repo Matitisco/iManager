@@ -101,7 +101,7 @@ describe('editing sale trade-in', () => {
     await user.clear(screen.getByLabelText('Cantidad'));
     await user.type(screen.getByLabelText('Cantidad'), '3');
     expect(screen.getByLabelText('Total')).toHaveTextContent('$ 900');
-    expect(screen.getByLabelText('Diferencia')).toHaveValue('$ 400');
+    expect(screen.getByLabelText('Diferencia')).toHaveTextContent('$ 400');
     await user.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith(sale.id, expect.objectContaining({ cantidad: 3, amount: 900, unitPrice: 300 })));
   });
