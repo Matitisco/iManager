@@ -16,9 +16,9 @@ La inversión no puede calcularse simplemente multiplicando costo por cantidad a
 Validación de la exploración inicial:
 
 - TypeScript frontend, backend y los nuevos E2E: sin errores.
-- Frontend relacionado: **157 pruebas aprobadas**, incluidas **65** de Inventario.
+- Selección de CI de frontend: **235 pruebas aprobadas**, incluidas **65** de Inventario y las regresiones compartidas de archivados.
 - Backend unitario completo: **1.061 aprobadas**.
-- Integración relacionada: **75 aprobadas + 3 fallos esperados** del pendiente de compras; PostgreSQL real local. Incluye cantidades >1, sobreventa concurrente, venta/anulación/restauración, devoluciones parciales, importación y reimportación, onboarding, monedas, aislamiento entre tiendas y permisos STAFF.
+- Integración relacionada: **98 aprobadas + 3 fallos esperados** del pendiente de compras; PostgreSQL real local. Incluye cantidades >1, sobreventa concurrente, venta/anulación/restauración, cuenta corriente, devoluciones parciales, importación y reimportación, onboarding, monedas, aislamiento entre tiendas y permisos STAFF.
 - Chromium: **8 recorridos correctos + 2 fallos esperados** de compras, con API real local, a **1440 y 390 px**. Excel sintético desde onboarding e Inventario; cantidad/IMEI; venta/anulación; archivado/restauración. Sin desborde horizontal de página en las vistas verificadas.
 - La primera corrida amplia se interrumpió por saturación de memoria del entorno compartido; los checks relacionados se repitieron con concurrencia reducida. No se completó la suite global de frontend.
 
