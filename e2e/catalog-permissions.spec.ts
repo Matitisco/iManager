@@ -98,15 +98,15 @@ for (const width of [1440, 390]) test(`catalog permission screenshots at ${width
     }
     await openDeskSection(review, 'publicCatalog');
     await expect(review.getByTestId('catalog-screen')).toBeVisible();
-    await review.getByRole('button', { name: width === 390 ? 'Editar ›' : 'Reglas y precio', exact: true }).click();
-    const sheet = review.getByRole('dialog', { name: 'Reglas y precio' });
+    await review.getByRole('article', { name: 'Clientes finales' }).getByRole('button', { name: 'Editar ›', exact: true }).click();
+    const sheet = review.getByRole('dialog', { name: 'Clientes finales' });
     await expect(sheet).toBeVisible();
     await expect(sheet.getByRole('button', { name: 'Regenerar link' })).toHaveCount(0);
     await expect(sheet.getByRole('button', { name: 'Desactivar catálogo' })).toHaveCount(0);
     await expect(sheet.getByRole('switch', { name: 'Catálogo activo' })).toHaveCount(0);
     await expect(sheet.getByRole('button', { name: 'Guardar', exact: true })).toBeInViewport();
     await capture(width === 390 ? '376-m-catalogo-empleado' : '376-catalogo-empleado-1440');
-    const saved = review.waitForRequest(req => req.method() === 'PATCH' && new URL(req.url()).pathname === '/api/catalog');
+    const saved = review.waitForRequest(req => req.method() === 'PATCH' && new URL(req.url()).pathname.startsWith('/api/catalog/list/'));
     await sheet.getByRole('button', { name: 'Guardar', exact: true }).click();
     expect((await saved).postDataJSON()).not.toHaveProperty('active');
     await expect(sheet).toBeHidden();

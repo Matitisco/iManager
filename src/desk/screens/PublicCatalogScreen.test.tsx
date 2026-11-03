@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ManagedCatalog } from '../../types/public-catalog';
 import { fetchPublicCatalog } from '../../services/public-catalog-api';
 import { DeskProvider } from '../ui';
-import { PublicCatalogScreen } from './PublicCatalogScreen';
+import { CatalogEquipmentScreen as PublicCatalogScreen } from './PublicCatalogScreen';
 
 const context = vi.hoisted(() => ({
   publicCatalog: null as ManagedCatalog | null,

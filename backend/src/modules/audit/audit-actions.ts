@@ -111,6 +111,8 @@ const ACTIONS: Record<string, ActionMeta> = {
   "member.permissions": { title: "Cambió los permisos", group: "Equipo y permisos", section: "settings", verb: "cambió los permisos de" },
   "invitation.cancelled": { title: "Canceló una invitación", group: "Equipo y permisos", section: "settings", verb: "canceló la invitación de" },
   "store.updated": { title: "Editó la tienda", group: "Edición", section: "settings", verb: "editó los datos de" },
+  "catalog.created": { title: "Creó un catálogo", group: "Alta", section: "settings", verb: "creó" },
+  "catalog.deleted": { title: "Borró un catálogo", group: "Anulación/Archivo", section: "settings", verb: "borró" },
   "catalog.visibility": { title: "Cambió la visibilidad", group: "Edición", section: "settings", verb: "cambió la visibilidad de" },
   "return.created": { title: "Abrió un reclamo", group: "Alta", section: "returns", verb: "abrió el reclamo" },
   "return.diagnosis": { title: "Cargó un diagnóstico", group: "Edición", section: "returns", verb: "cargó el diagnóstico de" },
