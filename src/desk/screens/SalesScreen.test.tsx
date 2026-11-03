@@ -74,6 +74,20 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
 
   afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
+  it('conserva los centavos USD en precio unitario y total de cada venta', () => {
+    const amounts = [25.8, 1.5, 1.6, 100];
+    context.sales = amounts.map((amount, index) => sale(index + 1, { amount, amountCurrency: 'USD', status: 'COMPLETADA' }));
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1200, manualSell: 1250 }}>
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider>
+    </ExchangeProvider>);
+    for (const [index, expected] of ['25,80', '1,50', '1,60', '100'].entries()) {
+      const row = screen.getByText(`Cliente ${index + 1}`).closest(width === 390 ? '.sale-card' : 'tr')!;
+      const shown = within(row as HTMLElement).getAllByText(`US$ ${expected}`, { exact: true });
+      expect(shown).toHaveLength(width === 390 ? 1 : 2);
+    }
+    expect(context.sales.map(row => row.amount)).toEqual(amounts);
+  });
+
   it('shows a desktop quantity column or mobile badges and preserves the period summary', async () => {
     renderScreen();
     const row = (buyer: string) => screen.getByText(buyer).closest(width === 390 ? '.sale-card' : 'tr')!;
