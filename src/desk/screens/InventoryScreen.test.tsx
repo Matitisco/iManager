@@ -176,7 +176,7 @@ describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) 
     expect(within(card).getByText('1 disponible · 2 reservados · 1 en reparación')).toBeInTheDocument();
     expect(card).not.toHaveTextContent('vendidos');
     expect(card).not.toHaveTextContent('en revisión');
-    expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 6');
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('4 de 4');
     expect(screen.queryByText(/Modelo 5/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Modelo 6/)).not.toBeInTheDocument();
   });
@@ -187,7 +187,7 @@ describe.each([false, true])('Inventory equipment summary (móvil=%s)', (phone) 
       context.inventory.push(item('60', { status: 'EN_REVISION', archivedAt: '2026-10-28' }));
       window.history.replaceState(null, '', '#/stock/equipos?status=EN_REVISION');
       renderScreen();
-      await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('30 de 60'));
+      await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('30 de 59'));
       expect(screen.queryByText(/Modelo 60/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Modelo 1(?:\s|$)/)).not.toBeInTheDocument();
       expect(screen.getByText(/Modelo 24/)).toBeInTheDocument();
@@ -1147,11 +1147,11 @@ describe("Cantidad inline según IMEI", () => {
     }
   });
 
-  it("muestra 1 sin input ni estilo editable y explica el IMEI incluso en vendidos", () => {
-    context.inventory[0] = item("1", { cantidad: 0, status: "VENDIDO" });
+  it.each([0, 1, undefined])("muestra stock persistido %s con IMEI sin ofrecer edición de cantidad", cantidad => {
+    context.inventory[0] = item("1", { cantidad, status: cantidad === 0 ? "VENDIDO" : "DISPONIBLE" });
     renderScreen();
-    const fixed = screen.getByTitle("Este equipo tiene IMEI, así que cuenta como 1 unidad.");
-    expect(fixed).toHaveTextContent(/^1$/);
+    const fixed = screen.getByTitle(cantidad === 0 ? "Este equipo tiene IMEI y no tiene unidades en stock." : "Este equipo tiene IMEI, así que cuenta como 1 unidad.");
+    expect(fixed.textContent).toBe(String(cantidad ?? 1));
     expect(fixed.tagName).toBe("SPAN");
     expect(fixed).not.toHaveClass("inv-quantity");
     expect(screen.queryByRole("spinbutton", { name: /Cantidad de Modelo 1/ })).not.toBeInTheDocument();
