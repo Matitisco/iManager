@@ -1,8 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   resolveInvitationPreview,
+  acceptInvitation,
   type InvitationPreview,
 } from './invitations-api';
+import type { AuthUserLike } from '../types/auth-user';
+import { ApiError } from './api-client';
+
+vi.mock('../lib/posthog-analytics', () => ({ capture: vi.fn(), identify: vi.fn() }));
 
 vi.mock('./backend-session', () => ({
   getBackendBaseUrl: () => 'https://api.imanager.test',
@@ -109,5 +114,34 @@ describe('discriminated invitation previews', () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status }), { status: 200 }));
     await expect(resolveInvitationPreview('token', { fetcher })).resolves.toEqual({ kind: 'invalid', reason: status, attempts: 1 });
     expect(fetcher).toHaveBeenCalledOnce();
+  });
+});
+
+describe('acceptInvitation email policy', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const user: AuthUserLike = { uid: 'invitee', email: 'invitee@example.com', displayName: 'Invitee', getIdToken: vi.fn(async () => 'synthetic-token') };
+
+  it('refreshes the verified claim and translates the generic rejection without revealing an email', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'No se pudo aceptar la invitación con esta cuenta.', code: 'INVITATION_EMAIL_REQUIRED' }), { status: 403 }));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(acceptInvitation(user, 'fixture-invite')).rejects.toMatchObject({ status: 403, message: 'Esta invitación es para otro email o tu email todavía no está verificado. Iniciá sesión con el email invitado y verificado.' });
+    expect(user.getIdToken).toHaveBeenCalledWith(true);
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ token: 'fixture-invite' });
+  });
+
+  it('preserves unrelated 403 and expired-link errors', async () => {
+    for (const [status, message] of [[403, 'No tenés permisos para esta operación'], [410, 'La invitación expiró o ya fue utilizada']] as const) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: message }), { status })));
+      await expect(acceptInvitation(user, 'fixture-invite')).rejects.toEqual(expect.objectContaining({ status, message }));
+    }
+  });
+
+  it('does not accept when Firebase cannot refresh the identity', async () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal('fetch', fetcher);
+    const error = new ApiError(401, 'Volvé a iniciar sesión');
+    await expect(acceptInvitation({ ...user, getIdToken: async () => { throw error; } }, 'fixture-invite')).rejects.toBe(error);
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });
