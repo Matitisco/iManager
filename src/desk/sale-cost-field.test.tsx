@@ -60,9 +60,9 @@ describe.each([390, 1440])('costo en venta a %s px', width => {
   });
   it('precarga el costo en moneda del equipo y actualiza ganancia en vivo', async () => {
     mount(undefined, 'USD');
-    expect(screen.getByRole('textbox', { name: 'Costo de compra' })).toHaveValue('900');
+    expect(screen.getByRole('textbox', { name: 'Costo del equipo' })).toHaveValue('900');
     expect(screen.getByLabelText('Ganancia')).toHaveTextContent('US$ 600,31');
-    fireEvent.change(screen.getByRole('textbox', { name: 'Costo de compra' }), { target: { value: '1000,12' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Costo del equipo' }), { target: { value: '1000,12' } });
     expect(screen.getByLabelText('Ganancia')).toHaveTextContent('US$ 500,19');
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalledWith('sale', expect.objectContaining({ cost: 1000.12 })));
@@ -75,7 +75,7 @@ describe.each([390, 1440])('costo en venta a %s px', width => {
   });
   it('vaciar no envía costo ni pisa el existente', async () => {
     mount();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Costo de compra' }), { target: { value: '' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Costo del equipo' }), { target: { value: '' } });
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalled());
     expect(ctx.updateSaleOperation.mock.calls[0][1]).not.toHaveProperty('cost');
@@ -86,17 +86,17 @@ describe.each([390, 1440])('costo en venta a %s px', width => {
     expect(screen.getByLabelText('Equipo')).toHaveAttribute('role', 'combobox');
     fireEvent.change(screen.getByLabelText('Equipo'), { target: { value: 'Equipo por encargue' } });
     fireEvent.change(screen.getByLabelText('Precio completo de salida'), { target: { value: '1500' } });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Costo de compra' }), { target: { value: '900,25' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Costo del equipo' }), { target: { value: '900,25' } });
     expect(screen.getByLabelText('Ganancia')).toHaveTextContent('US$ 599,75');
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar venta' }));
     await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('sales', expect.objectContaining({ cost: 900.25, unlistedEquipment: expect.objectContaining({ model: 'Equipo por encargue' }) })));
   });
   it('retirar Reportes después de escribir impide enviar costo', async () => {
     const view = mount();
-    fireEvent.change(screen.getByRole('textbox', { name: 'Costo de compra' }), { target: { value: '1100' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Costo del equipo' }), { target: { value: '1100' } });
     ctx.appSession.membership.role = 'MANAGER'; ctx.appSession.membership.sections = ['sales'];
     view.refresh();
-    expect(screen.queryByLabelText('Costo de compra')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Costo del equipo')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' }));
     await waitFor(() => expect(ctx.updateSaleOperation).toHaveBeenCalled());
     expect(ctx.updateSaleOperation.mock.calls[0][1]).not.toHaveProperty('cost');
@@ -105,7 +105,7 @@ describe.each([390, 1440])('costo en venta a %s px', width => {
     ctx.appSession.membership.role = role as string;
     ctx.appSession.membership.sections = ['sales'];
     mount();
-    expect(Boolean(screen.queryByRole('textbox', { name: 'Costo de compra' }))).toBe(visible);
+    expect(Boolean(screen.queryByRole('textbox', { name: 'Costo del equipo' }))).toBe(visible);
     expect(Boolean(screen.queryByLabelText('Ganancia'))).toBe(visible);
   });
   it('precarga opciones de equipo sin depender del inventario completo', () => {
@@ -113,7 +113,7 @@ describe.each([390, 1440])('costo en venta a %s px', width => {
     ctx.operationOptions = { sales: { products: [{ ...ctx.inventory[0], cost: 850.25 }], clients: [] } };
     ctx.inventory = [];
     mount({ type: 'new-sale', productId: 'product' }, 'USD');
-    expect(screen.getByRole('textbox', { name: 'Costo de compra' })).toHaveValue('850,25');
+    expect(screen.getByRole('textbox', { name: 'Costo del equipo' })).toHaveValue('850,25');
     ctx.operationOptions = {};
   });
 });
