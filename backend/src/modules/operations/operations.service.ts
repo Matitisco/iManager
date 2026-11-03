@@ -1,3 +1,4 @@
+import { applySaleItemCost } from '../inventory/sale-item-cost.js';
 import { normalizeAccountingState, nullableAccountingState, saleState, storedStateFilter, tradeState } from '../../lib/accounting-states.js';
 import { assertStoreReferences } from '../../lib/store-references.js';
 import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
@@ -59,6 +60,7 @@ export type OperationInput = {
   deviceLabel?: string | null;
   amount?: number;
   unitPrice?: number;
+  cost?: number;
   paymentMethod?: string;
   status?: string;
   categoryId?: string | null;
@@ -520,6 +522,7 @@ export async function getOperationOptions(storeId: string) {
         imei: true,
         cantidad: true,
         price: true,
+        cost: true,
         currency: true,
         condition: true,
         grade: true,
@@ -537,7 +540,7 @@ export async function getOperationOptions(storeId: string) {
       orderBy: { name: "asc" },
     }),
   ]);
-  return { products: products.map((p) => ({ ...p, price: p.price == null ? null : toNum(p.price), currency: p.currency ?? null })), clients };
+  return { products: products.map((p) => ({ ...p, cost: toNum(p.cost), price: p.price == null ? null : toNum(p.price), currency: p.currency ?? null })), clients };
 }
 
 export async function listOperationDrafts(storeId: string, source: OperationSource) {
@@ -661,6 +664,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, input.amount ?? 0, currency);
     }
     if (!product && !input.deviceLabel?.trim()) throw new OperationError("Indicá el equipo");
+    product = await applySaleItemCost(tx, storeId, product, input.cost, actor);
     const resolvedClient = await getClient(tx, storeId, input);
     const client = resolvedClient.client;
     const clientCreated = resolvedClient.created;
@@ -718,7 +722,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const cantidad = saleUnits(input.cantidad ?? 1, product);
     if (product) {
       await takeStock(tx, product, cantidad);
-      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.unitPrice ?? input.amount! / cantidad), currency } });
+      if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0 && (input.cost === undefined || await copyCurrency(tx, storeId, product.currency) === currency)) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.unitPrice ?? input.amount! / cantidad), currency } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
@@ -895,6 +899,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, outgoingAmount ?? 0, currency);
     }
 
+    product = await applySaleItemCost(tx, storeId, product, input.cost, actor);
     const date = parseArDateOr(input.date ?? trade.dateLabel);
     await assertIncomingImei(tx, storeId, receivedImei);
     const received = await receiveDevice(tx, {
@@ -942,7 +947,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       status: (product.cantidad ?? 1) > cantidad ? "DISPONIBLE" : "VENDIDO",
       pendingSaleRegistration: false,
       previousSaleStatus: null,
-      ...salePricePatch(product.price, input.unitPrice ?? outgoingAmount / cantidad, currency),
+      ...(input.cost === undefined || await copyCurrency(tx, storeId, product.currency) === currency ? salePricePatch(product.price, input.unitPrice ?? outgoingAmount / cantidad, currency) : {}),
     } });
     const sellerMemberId = input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId;
     await assertSeller(tx, storeId, sellerMemberId);
@@ -1098,6 +1103,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
       nextProduct = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, nextAmount, nextCurrency);
       nextProductId = nextProduct.id;
     }
+    nextProduct = await applySaleItemCost(tx, storeId, nextProduct, input.cost, actor);
     if (!nextProductId && !nextDeviceLabel) throw new OperationError("Indicá el equipo");
     if (nextProduct?.price === null && !(nextAmount > 0)) throw new OperationError("Cargá el precio de venta del equipo con precio a definir");
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
@@ -1142,7 +1148,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
         await takeStock(tx, refreshed, nextCantidad);
       }
     }
-    if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0) {
+    if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0 && (input.cost === undefined || await copyCurrency(tx, storeId, nextProduct.currency) === (nextCurrency ?? sale.amountCurrency))) {
       await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(input.unitPrice ?? nextAmount / nextCantidad), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
     await assertSeller(tx, storeId, input.sellerMemberId);

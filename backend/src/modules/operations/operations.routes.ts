@@ -1,3 +1,4 @@
+import { requireSaleCostAccess, saleCostInput } from '../sales/sale-cost-input.js';
 import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import { readReason } from '../audit/archive.js';
 import { loadActor } from "../audit/audit.js";
@@ -55,6 +56,7 @@ const inputSchema = z.object({
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: moneyInput().optional(),
+  cost: saleCostInput,
   // The UI sends total / quantity, which can have repeating decimals.
   // Inventory list price can intentionally differ from the discounted sale total.
   unitPrice: z.number().finite().positive().max(9_999_999_999.99).optional(),
@@ -145,6 +147,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     const source = getSource(routeParams(request).source);
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (!authorized(request, reply, source)) return;
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
     if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
@@ -184,6 +187,7 @@ export async function operationsRoutes(app: FastifyInstance) {
       : source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
       return reply.code(403).send({ error: "This source cannot confirm the trade-in" });
     }
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
     if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
@@ -196,6 +200,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (source !== "sales") return reply.code(403).send({ error: "Only sales source can edit a sale" });
     if (!authorized(request, reply, source)) return;
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
     if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
@@ -211,6 +216,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" || source === "clients") {
       if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only edit its pending trade-in" });
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot edit the trade-in operation" });
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
     if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;

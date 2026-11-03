@@ -121,6 +121,7 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
+  cost?: number;
   cantidad?: number;
   reservedDepositId?: string | null;
   reservedClientId?: string | null;

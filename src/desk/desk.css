@@ -2849,3 +2849,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   html, body, :root[data-theme="dark"], [data-theme="dark"] .desk-app { color-scheme: light !important; background: #fff !important; color: #16181d; }
   #boot-splash { display: none !important; }
 }
+
+.sale-cost-profit { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.sale-cost-profit output { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.sale-cost-profit .negative { color: var(--theme-err, var(--err)); }

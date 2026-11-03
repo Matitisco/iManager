@@ -1,3 +1,4 @@
+import { requireSaleCostAccess, saleCostInput } from './sale-cost-input.js';
 import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -44,6 +45,7 @@ const saleCreateSchema = z.object({
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: moneyInput(),
+  cost: saleCostInput,
   amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   paymentMethod: paymentMethodSchema,
   status: saleStateSchema,
@@ -65,6 +67,7 @@ const salePatchSchema = z
     status: saleStateSchema.optional(),
     date: z.string().min(1).max(120).optional(),
     amount: moneyInput().optional(),
+    cost: saleCostInput,
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
     customFields: z.record(z.string(), z.unknown()).optional().nullable(),
@@ -222,6 +225,7 @@ export async function salesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
+      if (!requireSaleCostAccess(request, reply)) return;
       const body = saleCreateSchema.parse(request.body);
       if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
 
@@ -239,6 +243,7 @@ export async function salesRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      if (!requireSaleCostAccess(request, reply)) return;
       const body = salePatchSchema.parse(request.body);
       if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
       const actor = await loadActor(request.appUser.userId);
