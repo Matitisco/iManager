@@ -34,7 +34,7 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); window.matchMedia = originalMedia; context.sectionChanges = {}; });
 
 describe.each([390, 1440])('section novelty rows at %spx', width => {
-  it.each(['inventory', 'sales', 'tradeins', 'clients'] as ViewSection[])('prioritizes %s before pagination, keeps cancelled marks, and acknowledges the section without reason text', async section => {
+  it.each(['inventory', 'tradeins', 'clients'] as ViewSection[])('prioritizes %s before pagination, keeps cancelled marks, and acknowledges the section without reason text', async section => {
     window.matchMedia = vi.fn().mockImplementation(query => ({ matches: width === 390 && query.includes('760'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     context.sectionChanges = { [section]: versions };
     const Screen = views[section];
@@ -56,11 +56,6 @@ describe.each([390, 1440])('section novelty rows at %spx', width => {
     expect(screen.queryByTestId('section-notices')).not.toBeInTheDocument();
     if (voidsLast) expect(document.querySelector('.is-void.novedad')).not.toBeInTheDocument();
     else expect(document.querySelector('.is-void.novedad')).toBeInTheDocument();
-    if (section === 'sales') {
-      fireEvent.click(screen.getByRole('button', { name: 'Página 2' }));
-      expect(records().at(-1)).toHaveClass('is-void', 'novedad');
-      fireEvent.click(screen.getByRole('button', { name: 'Página 1' }));
-    }
     // Acknowledgment clears backend pending versions while the current visit remains marked.
     context.sectionChanges = { [section]: [] };
     await act(async () => { view.rerender(renderScreen()); });
@@ -77,4 +72,26 @@ describe.each([390, 1440])('section novelty rows at %spx', width => {
     expect(context.viewSection).toHaveBeenLastCalledWith(section, context.sectionChanges[section]);
     expect(records()[0]).toHaveClass('novedad');
   });
+
+  it('mantiene el orden de carga de Ventas aunque una venta anterior tenga novedades', async () => {
+    window.matchMedia = vi.fn().mockImplementation(query => ({ matches: width === 390 && query.includes('760'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    context.sectionChanges = { sales: versions };
+    const renderScreen = () => <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider>;
+    const view = render(renderScreen());
+    await waitFor(() => expect(context.viewSection).toHaveBeenCalledWith('sales', versions));
+    const records = () => width === 1440 ? within(screen.getByRole('table')).getAllByRole('row').slice(1) : Array.from(document.querySelectorAll<HTMLElement>('.phone-row'));
+    const codes = () => records().map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
+    expect(codes()).toEqual(['V-0012', 'V-0011', 'V-0010', 'V-0009', 'V-0008', 'V-0007', 'V-0006', 'V-0005']);
+    expect(screen.queryByTestId('notice-dot')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Página 2' }));
+    expect(codes()).toEqual(['V-0004', 'V-0003', 'V-0001', 'V-0002']);
+    expect(records().at(-1)).toHaveClass('is-void', 'novedad');
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(2);
+    context.sectionChanges = { sales: [] };
+    await act(async () => { view.rerender(renderScreen()); });
+    expect(screen.getAllByTestId('notice-dot')).toHaveLength(2);
+    expect(codes()).toEqual(['V-0004', 'V-0003', 'V-0001', 'V-0002']);
+    expect(context.viewSection).toHaveBeenCalledTimes(1);
+  });
+
 });

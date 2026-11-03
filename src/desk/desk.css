@@ -323,6 +323,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-hero-grid small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; font-weight: 600; }
 .sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }
 .sale-pills .dsel { flex: none; }
+.sales-screen .dsel .menu { max-height: min(420px, 60dvh); overflow-y: auto; }
 .sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }
 .dsel.menu-start .menu { left: 0; right: auto; max-width: min(280px, calc(100vw - 32px)); transform-origin: top left; }
 .sale-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
