@@ -7,7 +7,7 @@ import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
-import { requireSensitiveActor } from "../stores/sensitive-access.js";
+import { requireStatusAccess, requireSensitiveActor } from "../stores/sensitive-access.js";
 import {
   cancelOperationFromSale,
   cancelTradeFromSale,
@@ -146,6 +146,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     if (source === "inventory" && !input.productId) return reply.code(400).send({ error: "Inventory source requires an existing product sale" });
     if (source === "clients" && !input.clientId) return reply.code(400).send({ error: "Clients source requires an existing client sale" });
     if (source === "tradeins" && !input.tradeIn) return reply.code(400).send({ error: "Trade-ins source requires exchange details" });
@@ -184,6 +185,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     }
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
@@ -195,6 +197,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!authorized(request, reply, source)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
@@ -209,6 +212,7 @@ export async function operationsRoutes(app: FastifyInstance) {
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot edit the trade-in operation" });
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input);
   });
 

@@ -6,10 +6,9 @@ import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
-import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
+import { requireStatusAccess, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { restoreSaleOperation, cancelOperationFromSale, createOperation, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
-  createSale,
   deleteSale,
   importSales,
   listSales,
@@ -222,7 +221,8 @@ export async function salesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const body = saleCreateSchema.parse(request.body) as Parameters<typeof createSale>[1];
+      const body = saleCreateSchema.parse(request.body);
+      if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
 
       const operation = await createOperation(request.appUser.storeId, "sales", { ...body, currency: body.amountCurrency }, await loadActor(request.appUser.userId));
       return reply.code(201).send(operation);
@@ -239,9 +239,7 @@ export async function salesRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = salePatchSchema.parse(request.body);
-      if (body.status === "CANCELADA" && !canManageSensitive(request.appUser)) {
-        return reply.code(403).send({ error: "No tenés permiso para esta acción" });
-      }
+      if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
       const actor = await loadActor(request.appUser.userId);
       if (body.tradeIn !== undefined || await isIntegratedSale(request.appUser.storeId, params.id)) {
         if (body.status === "CANCELADA") {
