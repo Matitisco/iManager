@@ -66,7 +66,9 @@ createServer(async (req, res) => {
     res.writeHead(405).end();
     return;
   }
-  const { pathname } = new URL(req.url || '/', 'http://localhost');
+  let pathname;
+  try { ({ pathname } = new URL(req.url || '/', 'http://localhost')); }
+  catch { res.writeHead(400, { 'Cache-Control': 'no-store' }).end(); return; }
   const serviceWorker = pathname === '/sw.js';
   const file = await resolveFile(pathname);
   if (!file) {

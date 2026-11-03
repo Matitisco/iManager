@@ -66,7 +66,9 @@ export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDo
     const writeHead = response.writeHead.bind(response);
     response.writeHead = (status, headers = {}) => writeHead(status, { ...securityHeaders({ firebaseHelper: (request.url || '').startsWith('/__/auth/') }), ...headers });
     if (!basicAuth(request, response)) return;
-    const url = new URL(request.url || '/', 'http://localhost');
+    let url;
+    try { url = new URL(request.url || '/', 'http://localhost'); }
+    catch { response.writeHead(400, { 'cache-control': 'no-store' }); response.end(); return; }
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.
     // These endpoints must NEVER fall through to the SPA or static cache.
     if (url.pathname.startsWith('/__/auth/') || url.pathname === '/__/firebase/init.json') {

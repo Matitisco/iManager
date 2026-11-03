@@ -63,3 +63,22 @@ test('malformed percent encoding cannot terminate the landing process', () => wi
   assert.equal(malformed.status, 404);
   assert.equal((await fetch(`${base}/security-probe-missing.js`)).status, 404);
 }));
+
+async function rawStatus(base, path) {
+  const { request } = await import('node:http');
+  return new Promise((resolve, reject) => {
+    const req = request(base, { path }, response => { response.resume(); resolve(response.statusCode); });
+    req.on('error', reject); req.end();
+  });
+}
+
+test('invalid raw URL targets cannot reject the SPA handler', async () => {
+  const response = { writeHead(status) { this.status = status; }, end() {} };
+  await createSpaHandler({ basicAuth: () => true })({ url: '//[bad', method: 'GET', headers: {} }, response);
+  assert.equal(response.status, 400);
+});
+
+test('invalid raw URL targets cannot terminate the landing process', () => withLanding(async base => {
+  assert.equal(await rawStatus(base, '//[bad'), 400);
+  assert.equal(await rawStatus(base, '/security-probe-missing.js'), 404);
+}));
