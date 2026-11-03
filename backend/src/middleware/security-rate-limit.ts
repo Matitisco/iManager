@@ -29,7 +29,7 @@ export function createSecurityQuota(now: () => number = Date.now, capacity = 20_
   let nextSweep = 0;
   return (key: string, limit: number, windowMs: number): number => {
     const time = now();
-    if (time >= nextSweep || entries.size >= capacity) {
+    if (time >= nextSweep) {
       for (const [id, entry] of entries) if (entry.expires <= time) entries.delete(id);
       nextSweep = time + MINUTE;
     }

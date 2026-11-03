@@ -39,7 +39,7 @@ export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass 
     // Only failed guesses consume quota; employees with valid credentials share NATs.
     // Forwarding headers are not trusted by this standalone HTTP server.
     const time = now();
-    if (time >= nextSweep || failures.size >= 10000) {
+    if (time >= nextSweep) {
       for (const [key, entry] of failures) if (entry.expires <= time) failures.delete(key);
       nextSweep = time + 60000;
     }
