@@ -65,7 +65,8 @@ function replaySnapshot() {
     maskAllInputs: replayConfig.maskAllInputs,
     maskInputOptions: replayConfig.maskInputOptions,
     maskTextSelector: replayConfig.maskTextSelector,
-    // Native PostHog recorder defaults; no custom text selector is needed.
+    maskAllElementAttributes: replayConfig.maskAllElementAttributes,
+    // Use the exact deployed privacy options with PostHog's real recorder.
     blockClass: 'ph-no-capture', maskTextClass: 'ph-mask', inlineStylesheet: false,
     emit: event => { if (event.type === EventType.FullSnapshot) snapshot = JSON.stringify(event.data.node); },
   });
@@ -80,31 +81,31 @@ function desk(children: React.ReactNode) {
   return render(<DeskProvider value={{ tab: 'billing', go: vi.fn(), open: vi.fn(), close: vi.fn(), openRecord: vi.fn(), toast: vi.fn(), isStaff: false }}>{children}</DeskProvider>);
 }
 
-describe('open replay policy', () => {
-  it('disables blanket input and text masking while keeping password masking', () => {
-    expect(replayConfig.maskAllInputs).toBe(false);
-    expect(replayConfig).not.toHaveProperty('maskTextSelector');
+describe('private replay policy', () => {
+  it('masks all input and rendered text before recording', () => {
+    expect(replayConfig.maskAllInputs).toBe(true);
+    expect(replayConfig.maskTextSelector).toBe('*');
     expect(replayConfig.maskInputOptions).toEqual({ password: true });
   });
 
-  it.each(['table', 'cards'] as const)('records import headings and data despite legacy markers in %s previews', layout => {
+  it.each(['table', 'cards'] as const)('masks client data in %s import previews', layout => {
     render(<ImportPreviewList rows={[{ name: 'Ana visible', phone: '1122334455', email: 'ana@example.test', dni: '30123456' }]}
       columns={[{ key: 'name', label: 'Nombre' }, { key: 'phone', label: 'Teléfono' }, { key: 'email', label: 'Email' }, { key: 'dni', label: 'DNI' }]}
       currency="ARS" nouns={{ one: 'cliente', many: 'clientes' }} layout={layout} />);
     expect(screen.getByText('Ana visible').closest('[data-ph-mask]')).not.toBeNull();
     const snapshot = replaySnapshot();
-    for (const text of ['Clientes a importar', 'Ana visible', '1122334455', 'ana@example.test', '30123456']) expect(snapshot).toContain(text);
+    for (const text of ['Ana visible', '1122334455', 'ana@example.test', '30123456']) expect(snapshot).not.toContain(text);
   });
 
-  it('records ordinary input values and changes', () => {
+  it('masks ordinary input values and changes', () => {
     function ClientInput() {
       const [value, setValue] = useState('Cliente visible');
       return <ClientField clients={[]} value={value} linked={false} onValue={setValue} onPick={vi.fn()} />;
     }
     render(<ClientInput />);
-    expect(replaySnapshot()).toContain('Cliente visible');
+    expect(replaySnapshot()).not.toContain('Cliente visible');
     fireEvent.change(screen.getByRole('combobox', { name: 'Cliente' }), { target: { value: 'Texto actualizado' } });
-    expect(replaySnapshot()).toContain('Texto actualizado');
+    expect(replaySnapshot()).not.toContain('Texto actualizado');
   });
 
   it.each([false, true])('blocks login/registration passwords even when revealed (registration=%s)', async registration => {
@@ -125,7 +126,7 @@ describe('open replay policy', () => {
       expect(confirmation).toHaveClass('ph-no-capture');
       expect(snapshot).not.toContain('secret-confirmation');
     }
-    expect(snapshot).toContain('Correo electrónico');
+    expect(snapshot).not.toContain('Correo electrónico');
   });
 
   it('blocks both reset passwords before and after the visibility toggle', async () => {
@@ -168,6 +169,6 @@ describe('open replay policy', () => {
     fireEvent.change(input, { target: { value: 'secret-payer@example.test' } });
     const snapshot = replaySnapshot();
     expect(snapshot).not.toContain('secret-payer@example.test');
-    expect(snapshot).toContain('Email del pago');
+    expect(snapshot).not.toContain('Email del pago');
   });
 });

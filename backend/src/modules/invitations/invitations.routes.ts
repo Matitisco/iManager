@@ -145,7 +145,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
         },
         "Invitation create failed"
       );
-      if (e.statusCode) {
+      if (e.statusCode && e.statusCode < 500) {
         return reply.code(e.statusCode).send({ error: e.message });
       }
       throw err;
@@ -183,7 +183,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
         },
         "Invitation revoke failed"
       );
-      if (e.statusCode) {
+      if (e.statusCode && e.statusCode < 500) {
         return reply.code(e.statusCode).send({ error: e.message });
       }
       throw err;

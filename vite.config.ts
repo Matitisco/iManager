@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
       name: 'catalog-server-config',
       generateBundle() { this.emitFile({ type: 'asset', fileName: 'catalog-config.json', source: JSON.stringify({ apiBase: env.VITE_API_BASE_URL || '' }) }); },
     }],
+    build: { sourcemap: false },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
