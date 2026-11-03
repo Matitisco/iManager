@@ -1,3 +1,4 @@
+import { SaleStatusPill } from '../SaleStatusPill';
 import { IMPORT_SALES_ENABLED } from '../../config/featureFlags';
 import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
@@ -358,7 +359,7 @@ export function SalesScreen() {
                     <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && (profit.costedSales > 0 || profit.costedReturns > 0) && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
-                    <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
+                    <td><SaleStatusPill sale={sale} />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
                   </PressTarget>
                 );
               })}
@@ -439,7 +440,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
     <span className="sale-card">
       <span className="sale-top">
         <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
-        <Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}
+        <SaleStatusPill sale={sale} />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}
       </span>
       <span className="sale-who">
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />

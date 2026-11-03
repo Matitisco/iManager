@@ -6,7 +6,7 @@ import { DomainError } from '../../lib/domain-error.js';
 import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
 import { storeCurrency } from '../../lib/money-currency.js';
 import { writeAudit, type Actor } from '../audit/audit.js';
-import { depositValue } from './deposit-money.js';
+import { depositMoney, depositValue } from './deposit-money.js';
 
 export type DepositInput = { amount: number; currency: 'ARS' | 'USD'; exchangeRate: number; method: string; productId?: string | null; requestKey: string };
 const available = ['ACTIVE', 'CREDIT'];
@@ -32,6 +32,16 @@ async function audit(tx: Prisma.TransactionClient, row: ClientDeposit, actor: Ac
 export async function lockInventory(tx: Prisma.TransactionClient, storeId: string, id: string) {
   await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "InventoryItem" WHERE "id" = ${id} AND "storeId" = ${storeId} FOR UPDATE`);
 }
+/** Records money once in the caller's transaction. Reservation/application belongs to that caller. */
+export async function receiveDeposit(tx: Prisma.TransactionClient, storeId: string, clientId: string, input: DepositInput, actor?: Actor, product?: { id: string; model: string; capacity: string; imei: string | null; status: string | null } | null) {
+  const snapshot = depositMoney(input);
+  const row = await tx.clientDeposit.create({ data: { storeId, clientId, requestKey: input.requestKey, ...snapshot, currency: input.currency, method: input.method,
+    productId: product?.id, productLabel: product ? [product.model, product.capacity, product.imei].filter(Boolean).join(' · ').slice(0, 200) : null, previousInventoryStatus: product?.status } });
+  await recordCash(tx, { storeId, amount: Number(row.amount), currency: row.currency, method: row.method, sourceType: 'deposit', sourceId: row.id, note: 'Cobro de seña', actor, requestKey: `deposit:${row.id}` });
+  await movement(tx, row, 'SENA', 'Cobro de seña');
+  await audit(tx, row, actor, 'created', `${row.amount} ${row.currency} · USD ${row.usdAmount} · cotización ${row.exchangeRate}${row.productLabel ? ` · equipo ${row.productLabel}` : ''}`);
+  return row;
+}
 export async function createDeposit(storeId: string, clientId: string, input: DepositInput, actor?: Actor) {
   return withSerializableRetry(async (tx) => {
     const prior = await tx.clientDeposit.findFirst({ where: { storeId, requestKey: input.requestKey } });
@@ -45,17 +55,8 @@ export async function createDeposit(storeId: string, clientId: string, input: De
     const product = input.productId ? await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } }) : null;
     if (input.productId && !product) throw new DomainError('Equipo no encontrado', 404);
     if (product && (product.reservedDepositId || product.status && product.status !== 'DISPONIBLE' || await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: 'CANCELADA' } }, select: { id: true } }))) throw new DomainError('El equipo no está disponible para reservar', 409);
-    const amount = new Decimal(input.amount).toDecimalPlaces(2);
-    const rate = new Decimal(input.exchangeRate).toDecimalPlaces(2);
-    if (!amount.gt(0) || !rate.gt(0)) throw new DomainError('Monto y cotización deben ser mayores a cero');
-    const usdAmount = input.currency === 'USD' ? amount : amount.div(rate).toDecimalPlaces(2);
-    if (!usdAmount.gt(0)) throw new DomainError('El equivalente USD debe ser mayor a cero');
-    const row = await tx.clientDeposit.create({ data: { storeId, clientId, requestKey: input.requestKey, amount, currency: input.currency, exchangeRate: rate, usdAmount, method: input.method,
-      productId: product?.id, productLabel: product ? [product.model, product.capacity, product.imei].filter(Boolean).join(' · ').slice(0, 200) : null, previousInventoryStatus: product?.status } });
+    const row = await receiveDeposit(tx, storeId, clientId, input, actor, product);
     if (product) await tx.inventoryItem.update({ where: { id: product.id }, data: { status: 'RESERVADO', reservedDepositId: row.id, reservedClientId: client.id, reservedClientName: client.name, reservedAt: row.createdAt } });
-    await recordCash(tx, { storeId, amount: Number(row.amount), currency: row.currency, method: row.method, sourceType: 'deposit', sourceId: row.id, note: 'Cobro de seña', actor, requestKey: `deposit:${row.id}` });
-    await movement(tx, row, 'SENA', 'Cobro de seña');
-    await audit(tx, row, actor, 'created', `${amount} ${row.currency} · USD ${usdAmount} · cotización ${rate}${row.productLabel ? ` · reserva ${row.productLabel}` : ''}`);
     return serializeDeposit(row);
   });
 }

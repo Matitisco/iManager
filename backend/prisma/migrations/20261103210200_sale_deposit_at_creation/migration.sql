@@ -1,0 +1,1 @@
+ALTER TABLE "Sale" ADD COLUMN "hasInitialDeposit" BOOLEAN NOT NULL DEFAULT false;
