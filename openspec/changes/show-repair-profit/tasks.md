@@ -1,0 +1,3 @@
+- [x] Agregar regresiones de UI para permisos, faltantes, ceros y moneda (6 regresiones rojas antes del cambio).
+- [x] Mostrar la ganancia en alta, edición y detalle sin cambiar persistencia.
+- [x] Ejecutar tests relacionados (112 aprobados, máximo 2 workers) y TypeScript frontend/backend.
