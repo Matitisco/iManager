@@ -264,6 +264,7 @@ export function onboardingCases(phone: boolean) {
       page.getByRole("heading", { name: "Inventario", exact: true }),
     ).toBeVisible();
     const saved = (await fetchInventory(request, email)).inventory;
+    expect(saved).toHaveLength(2);
     expect(saved.reduce((total, row) => total + (row.cantidad ?? 1), 0)).toBe(3);
     expect(saved).toEqual(expect.arrayContaining([
       expect.objectContaining({ model: 'iPhone 13', cantidad: 2, price: 420, currency: 'USD' }),
@@ -383,7 +384,12 @@ export function onboardingCases(phone: boolean) {
       page.getByRole("heading", { name: "Inventario", exact: true }),
     ).toBeVisible();
     const saved = (await fetchInventory(request, email)).inventory;
+    expect(saved).toHaveLength(2);
     expect(saved.reduce((total, row) => total + (row.cantidad ?? 1), 0)).toBe(3);
+    expect(saved).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model: 'iPhone 13', cantidad: 2, price: 420, currency: 'USD' }),
+      expect.objectContaining({ model: 'iPhone 14', cantidad: 1, price: 590, currency: 'USD' }),
+    ]));
   });
   test("texto inválido muestra formato y alternativas, sin persistir", async ({
     page,

@@ -150,7 +150,7 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
 
   return (
     <td className="inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-      {item.imei?.trim() ? <span className="inv-quantity-value" title={IMEI_QUANTITY_MESSAGE}>1</span> : (
+      {item.imei?.trim() ? <span className="inv-quantity-value" title={item.cantidad === 0 ? 'Este equipo tiene IMEI y no tiene unidades en stock.' : IMEI_QUANTITY_MESSAGE}>{item.cantidad ?? 1}</span> : (
         <input
           className="inv-quantity inv-quantity-value"
           aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`}
@@ -229,12 +229,12 @@ export function InventoryScreen() {
     return () => window.removeEventListener('hashchange', showReview);
   }, [setColumns, setQuery, setArchivedMode]);
 
-  const source = archivedMode ? archived : mergeRecordRows(inventory, archived);
+  const source = archivedMode ? archived : mergeRecordRows(inventory, archived).filter(item => !isVoidRow(item));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = source.filter((item) => {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
-      return (archivedMode || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
+      return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number | null; currency?: string | null }) => money.number(item.price ?? 0, item.currency) ?? item.price ?? 0;
     const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);

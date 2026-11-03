@@ -29,3 +29,17 @@ npm run test:e2e -- --config e2e/hunt-dashboard-permisos-onboarding.config.ts
 La configuración rechaza hosts no locales y otro nombre de base, aplica el schema sólo a esa base y arranca API/Vite locales (3186/4186). Nunca usarla con una base de negocio. La suite general omite los casos nuevos fuera de esta configuración dedicada.
 
 Tests de regresión: `src/desk/screens/DashboardScreen.test.tsx`, `backend/src/test/getting-started.integration.test.ts`, `backend/src/test/auth-onboarding.integration.test.ts` y `e2e/hunt-dashboard-permisos-onboarding.spec.ts`. Evidencia generada en `test-results/` (fuera de git).
+
+## Integración con `test` · 2026-11-03
+
+Merge de `origin/test` en `f8874ee` (#717, incluye #718, #713 y #714) sobre `a92c5ae`, en la rama de #716. Los conflictos textuales estaban en `PROJECT_STATUS.md` y `e2e/onboarding-cases.ts`: se conservan ambas entradas de estado y se verifican conjuntamente dos registros, tres unidades, precios y moneda. El merge automático de Primeros pasos conserva tanto el filtro de invitaciones pendientes vigentes como `acquiredQuantity` para muestras.
+
+La corrida conjunta detectó cuatro expectativas de #718 que aún permitían anular una devolución con reintegro. Se actualizan a HTTP 409 según #717, verificando que el reclamo y los totales del proveedor no cambien, y se mantiene la reventa del stock devuelto sin duplicar adquisiciones. Cuatro casos nuevos (importación/manual × OWNER/STAFF) comprueban además que anular un RMA sin compensación revierte el stock y conserva unidades adquiridas e inversión. No se cambia la lógica de negocio de ninguno de los PR integrados.
+
+Validación local de esta integración:
+
+- Lint TypeScript frontend/backend y chequeo TypeScript de los E2E afectados aprobados. El cliente Prisma local se regeneró para incluir el campo de #718.
+- 271 pruebas frontend en 12 archivos y 1.061 unitarias backend en 107 archivos aprobadas.
+- 198 integraciones únicas en 17 archivos aprobadas entre la corrida inicial y las repeticiones de proveedores, backfill y anulación; las expectativas incompatibles se corrigieron y los cuatro casos nuevos usan RMA/reparación, que es la resolución válida sin movimiento de dinero.
+- Chromium 1440/390: 57 resultados esperados. Suite de #716: 43 (42 normales y HUNT-04 con la falla esperada ya documentada); inventario/proveedores: 12; devoluciones/anulación compensada: 2. Ambos conflictos de onboarding se ejercitan en navegador. Configuración temporal fuera del repo para devoluciones, con puertos locales 3198/4198 y su base exclusiva.
+- PostgreSQL nuevo y exclusivo en `127.0.0.1:55497`: `qa_merge_716`, `qa_hunt_dashboard_e2e`, `qa_hunt_inventario_compras_e2e` y `qa_merge_716_returns_e2e`. Procesos de validación con entorno limpio y datos ficticios; no se consultaron secretos, Railway ni producción, ni se hizo build.

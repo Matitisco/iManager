@@ -171,7 +171,7 @@ async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.Inventor
       return restored;
     }
   }
-  return tx.inventoryItem.create({ data });
+  return tx.inventoryItem.create({ data: { ...data, acquiredQuantity: data.cantidad ?? 1 } });
 }
 
 type TradeForResponse = TradeIn & { saleId?: string | null; sale?: { id: string } | null };
@@ -438,6 +438,7 @@ async function createUnlistedEquipment(
       price: dec(price),
       ...(currency ? { currency } : {}),
       status: "DISPONIBLE",
+      acquiredQuantity: 1,
       needsCompletion: true,
       customFields: {},
     },

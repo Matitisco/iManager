@@ -95,10 +95,10 @@ describe('unidades físicas devueltas', () => {
     expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: claim.id } })).status).toBe('ABIERTO');
   });
 
-  it('rechaza cantidades de apertura superiores a lo vendido y conserva efectos al archivar', async () => {
+  it('rechaza cantidades de apertura superiores a lo vendido y bloquea archivar una compensación', async () => {
     const { sale, claim } = await fixture();
     expect((await post(`/api/returns/${claim.id}/resolve`, resolveBody)).statusCode).toBe(200);
-    expect((await getApp().inject({ method: 'DELETE', url: `/api/returns/${claim.id}`, headers: buildAuthHeaders() })).statusCode).toBe(204);
+    expect((await getApp().inject({ method: 'DELETE', url: `/api/returns/${claim.id}`, headers: buildAuthHeaders() })).statusCode).toBe(409);
     for (const cantidad of [0, 1.5, 11, 9]) {
       const result = await post('/api/returns', { saleId: sale.id, cantidad, reason: 'Otro reclamo', openedOn: '2026-11-02' });
       expect(result.statusCode, result.body).toBeGreaterThanOrEqual(400);

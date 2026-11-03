@@ -223,6 +223,8 @@ model InventoryItem {
   currency      String?            @db.VarChar(3)
   // Available units. Keep the existing column and its data.
   cantidad      Int                @default(1) @map("quantity")
+  // Historical acquisition snapshot; returns split into a new row carry zero. Never follows stock edits.
+  acquiredQuantity Int?
   status        String             @db.VarChar(20)
   archivedAt    DateTime?
   archivedBy    String?            @db.VarChar(255)

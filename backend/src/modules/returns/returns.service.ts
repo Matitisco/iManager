@@ -1,10 +1,11 @@
 import { listSales } from "../sales/sales.service.js";
 import { lockInventory } from "../deposits/deposits.service.js";
-import { Prisma, type InventoryItem } from "@prisma/client";
+import { Prisma, type InventoryItem, type ReturnCase } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { lockTransactionKey } from "../../lib/advisory-lock.js";
 import { formatArMoney } from "../../lib/ar-money.js";
 import { DomainError } from "../../lib/domain-error.js";
+import { positiveRate, storeCurrency } from "../../lib/money-currency.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
@@ -365,7 +366,7 @@ async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { s
       storeId, categoryId: fresh.categoryId, supplierId: fresh.supplierId, stockPurchaseId: fresh.stockPurchaseId,
       model: fresh.model, capacity: fresh.capacity, color: fresh.color, condition: fresh.condition,
       grade: fresh.grade, batteryHealth: fresh.batteryHealth, batteryNote: fresh.batteryNote,
-      cost: fresh.cost, price: fresh.price, currency: fresh.currency, cantidad,
+      cost: fresh.cost, price: fresh.price, currency: fresh.currency, cantidad, acquiredQuantity: 0,
       status: "VENDIDO", entryDate: new Date(), customFields: fresh.customFields ?? Prisma.JsonNull,
     } });
     await tx.returnCase.update({ where: { id: current.id }, data: { inventoryItemId: returned.id } });
@@ -401,8 +402,15 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > (current.cantidad ?? sale?.cantidad ?? 1) || (sale && cantidad > sale.cantidad)) {
       throw new DomainError("La cantidad debe ser un entero positivo que no supere las unidades del reclamo.");
     }
+    if (sale) {
+      const others = await tx.returnCase.findMany({
+        where: { storeId, saleId: sale.id, id: { not: id }, ...consumingClaim }, select: { cantidad: true },
+      });
+      const used = others.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
+      if (cantidad + used > sale.cantidad) throw new DomainError("Los reclamos superan las unidades de la venta. Revisá las cantidades de los otros reclamos.", 409);
+    }
     let item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
-    // Cancelar el reclamo conserva sus movimientos: también consumen el límite.
+    // Reclamos históricos anulados con movimientos conservados también consumen el límite.
     const previous = current.saleId ? await tx.returnCase.aggregate({
       where: {
         storeId, saleId: current.saleId, id: { not: current.id },
@@ -484,9 +492,16 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       });
     }
     if (current.clientId && amount > 0 && input.settlement !== "NINGUNO") {
-      const client = await tx.client.findFirst({ where: { id: current.clientId, storeId }, select: { totalSpent: true } });
+      const client = await tx.client.findFirst({ where: { id: current.clientId, storeId }, select: { totalSpent: true, balanceCurrency: true } });
       if (client) {
-        const next = Math.max(0, money(client.totalSpent) - amount);
+        const target = client.balanceCurrency ?? await storeCurrency(storeId, tx);
+        let deduction = new Decimal(amount);
+        if (target !== currency) {
+          const rate = positiveRate(sale?.exchangeRate);
+          if (rate == null) throw new DomainError("Falta la cotización de la venta para actualizar la cuenta del cliente.");
+          deduction = (currency === "USD" ? deduction.mul(rate) : deduction.div(rate)).toDecimalPlaces(2);
+        }
+        const next = Decimal.max(0, new Decimal(client.totalSpent).sub(deduction));
         await tx.client.update({ where: { id: current.clientId }, data: { totalSpent: new Decimal(next) } });
       }
     }
@@ -603,13 +618,48 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
   });
 }
 
+async function reverseUncompensatedStock(tx: Tx, storeId: string, current: ReturnCase) {
+  if (current.destination !== "STOCK" && current.destination !== "PROVEEDOR") return;
+  const conflict = () => new DomainError("No se puede anular el reclamo porque el stock cambió. Revisá el equipo y sus movimientos antes de intentarlo.", 409);
+  const sale = current.saleId ? await tx.sale.findFirst({ where: { id: current.saleId, storeId } }) : null;
+  if (!sale || sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(sale.status) || !current.inventoryItemId) throw conflict();
+  await lockInventory(tx, storeId, current.inventoryItemId);
+  const item = await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } });
+  const repaired = current.destination === "PROVEEDOR" && current.rmaStatus === "RECIBIDO" && current.resolution === "REPARACION";
+  const expectedStatus = current.destination === "PROVEEDOR" && current.rmaStatus !== "RECIBIDO"
+    ? "EN_RMA" : repaired ? "VENDIDO" : current.stockStatus;
+  // Legacy single-unit sales kept quantity=1 even while sold. Modern returns
+  // restore the claimed units, either on the original item or a separate row.
+  const legacy = !sale.stockDeducted && sale.cantidad === 1;
+  const expectedQuantity = legacy ? 1 : repaired && sale.stockDeducted ? 0 : current.cantidad ?? sale.cantidad;
+  if (!item || !expectedStatus || item.status !== expectedStatus || item.cantidad !== expectedQuantity ||
+      item.archivedAt || item.reservedDepositId || item.reservedClientId || item.reservedAt || item.pendingSaleRegistration) throw conflict();
+  const resale = await tx.sale.findFirst({ where: {
+    storeId, inventoryItemId: item.id, id: { not: sale.id }, voidedAt: null,
+    status: { in: ["COMPLETADA", "PENDIENTE"] },
+  }, select: { id: true } });
+  if (resale) throw conflict();
+  await tx.inventoryItem.update({ where: { id: item.id }, data: { status: "VENDIDO", cantidad: legacy ? 1 : 0 } });
+}
+
 export async function archiveReturnCase(storeId: string, id: string, actor: Actor, reason?: string | null) {
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
-    const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: null } });
+    const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: null }, include: { creditNote: { select: { id: true } } } });
     if (!current) return false;
     if (current.status === "ANULADO") return true;
-    await tx.returnCase.update({ where: { id }, data: { status: "ANULADO", deletedAt: new Date(), deletedBy: actor.name } });
+    // Issued compensation cannot be undone by archiving a claim. In particular,
+    // a consumed or soft-deleted note is not proof that its effects were reversed.
+    if (["REINTEGRO", "NOTA_CREDITO"].includes(current.settlement ?? "") || current.creditNote) {
+      throw new DomainError("Este reclamo tiene una compensación emitida. Anulá primero el reintegro o la nota de crédito antes de anular el reclamo.", 409);
+    }
+    await reverseUncompensatedStock(tx, storeId, current);
+    await tx.returnCase.update({ where: { id }, data: {
+      status: "ANULADO", deletedAt: new Date(), deletedBy: actor.name,
+      // Clear effective destination only after reversal; legacy cancelled claims
+      // with preserved physical effects must continue consuming their units.
+      ...(current.destination ? { destination: null } : {}),
+    } });
     await tx.returnEvent.create({ data: { storeId, caseId: id, status: "ANULADO", note: reason?.trim().slice(0, 280) || "Reclamo anulado." } });
     const code = returnCode(current.caseNumber);
     await writeAudit(tx, {
@@ -621,6 +671,7 @@ export async function archiveReturnCase(storeId: string, id: string, actor: Acto
       entityId: id,
       entityLabel: code,
       detail: `Quedó anulado el reclamo ${code}. Se conserva el historial.`,
+      ...(current.destination ? { changes: [{ field: "destination", label: "Destino revertido", before: current.destination, after: null }] } : {}),
     });
     return true;
   });
@@ -674,7 +725,7 @@ export async function coverSaleWithCredits(tx: Tx, input: {
     throw new DomainError("Esa nota de crédito ya no tiene saldo.");
   }
   const byId = new Map(notes.map((note) => [note.id, note]));
-  const ordered = input.noteIds.map((id) => byId.get(id)!);
+  const ordered = [...new Set(input.noteIds)].map((id) => byId.get(id)!);
   const plan = planCreditApplication({
     due: input.due,
     currency: currencyOf(input.currency),

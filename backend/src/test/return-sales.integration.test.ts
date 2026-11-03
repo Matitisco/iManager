@@ -56,7 +56,7 @@ it('returns one of three units, caps money and preserves the available lot; perm
   expect((await resolve(last.json().return.id, 1000)).statusCode).toBe(200);
   expect((await resolve(last.json().return.id, 1000)).statusCode).toBe(409);
 });
-it('validates quantities and preserves consumed units after cancelling settled claims', async () => {
+it('validates quantities and preserves consumed units when settled claim cancellation is blocked', async () => {
   const { saleId } = await fixture();
   for (const cantidad of [0, -1, 1.5]) expect((await open(saleId, cantidad)).statusCode).toBe(400);
   const draft = await open(saleId, 2);
@@ -64,7 +64,7 @@ it('validates quantities and preserves consumed units after cancelling settled c
   expect((await request('GET', '/api/returns/eligible-sales')).json().sales[0].remainingQuantity).toBe(3);
   const settled = await open(saleId, 1);
   expect((await resolve(settled.json().return.id)).statusCode).toBe(200);
-  expect((await request('DELETE', `/api/returns/${settled.json().return.id}`)).statusCode).toBe(204);
+  expect((await request('DELETE', `/api/returns/${settled.json().return.id}`)).statusCode).toBe(409);
   expect((await request('GET', '/api/returns/eligible-sales')).json().sales[0].remainingQuantity).toBe(2);
 });
 it.each([null, 1000])('allows pending wholesale claims independently of collection (openBalance=%s)', async openBalance => {

@@ -46,9 +46,8 @@ for (const device of [
       const record = device.mobile ? page.locator('.phone-row').filter({ hasText: code }) : page.getByRole('row').filter({ hasText: code });
       await expect(record).toContainText('Anulada');
       if (device.mobile) {
-        await record.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });
+        await record.locator('..').getByRole('button', { name: 'Más acciones', exact: true }).click();
         await expect(page.locator('.ctx')).toBeVisible();
-        await record.dispatchEvent('pointerup', { pointerType: 'touch' });
         await expect(page.getByRole('checkbox', { name: /^Seleccionar V-/ })).toHaveCount(0);
       } else await record.click({ button: 'right' });
       await expect(page.locator('.ctx').getByRole('button', { name: 'Revertir anulación', exact: true })).toBeVisible();
