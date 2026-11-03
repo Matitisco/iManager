@@ -1,0 +1,21 @@
+# Seguridad — idor-devoluciones-resto
+
+Auditoría del 2026-11-03 sobre `origin/test`. PR: [#728](https://github.com/Matitisco/iManager/pull/728), base `test`. Sin producción, build, migraciones, cambios de schema ni reversión de #691.
+
+| Hallazgo | Severidad | Estado | OK de Matías |
+| --- | --- | --- | --- |
+| MANAGER obtenía enlaces pendientes de rol MANAGER mediante GET invitations, aunque no podía emitirlos ni revocarlos. Podía compartir la capacidad con una cuenta nueva y agregar un par. | Alta | Arreglado: consulta por tienda + rol STAFF para MANAGER; OWNER conserva todos sus enlaces. | No; respeta la matriz de roles vigente. |
+| Reincorporar un miembro removido conservaba `sensitiveAccess=true` si la invitación nueva omitía el campo. Una invitación MANAGER sin secciones también conservaba secciones elevadas anteriores (historial/comisiones/saldos). | Alta | Arreglado: reemplaza permisos por los de la invitación vigente; null recupera el default del rol, igual que un alta nueva. | No; elimina permisos residuales. |
+| Quien posee un enlace puede aceptarlo con otro email. | Media, riesgo de enlace transferible | Pendiente: es política explícita de [equipo #71](../team-permissions-71.md) y `openspec/changes/team-multi-user/design.md`; se conserva el test que acepta otro email. | **Sí**, para vincular enlaces a identidad/email verificado; cambia el flujo legítimo de WhatsApp/Google. |
+
+Pendiente de investigación (severidad potencial media, sin explotación confirmada): `updateMemberRole`/`removeMember` cuentan propietarios y validan el rol del objetivo antes de mutar, sin lock común. Revisar carreras entre dos propietarios y cambios de rol/remoción. No se modifica la gestión de equipo en este parche acotado.
+
+La revisión cubrió rutas, middleware, servicios y queries de devoluciones/RMA/notas, clientes, reportes/dashboard, onboarding, invitaciones/miembros, tienda, historial, notificaciones, billing e importación con IA. Los recursos ajenos probados devuelven 403/404 o listas vacías; pagos/notas/stock quedan intactos. Reportes filtra por tienda también en comparaciones. Dashboard reutiliza esos datos; no hay endpoint dashboard independiente. IA valida sección y usa la tienda de sesión para contexto; no se invocó ningún proveedor externo.
+
+La [matriz completa](idor-devoluciones-resto-routes.md) detalla **230 combinaciones de verbo/ruta** y HEAD/OPTIONS. Ninguna ruta de negocio quedó accesible sin autenticación. Excepciones deliberadas: health, preview de invitación, dos lecturas del catálogo público y webhook con firma.
+
+Validación: PostgreSQL descartable exclusivo `idor_devoluciones_resto` en `127.0.0.1:34715`; identidades sintéticas `qa-sec-<n>@example.com`. Regresiones rojo→verde de ambos hallazgos, solicitudes Fastify contra Prisma real y recorrido HTTP real en listener loopback efímero. Tests nuevos cubren IDs ajenos, escalada STAFF, reincorporación, notas de otros clientes/tiendas y barrido de rutas. Se actualiza la expectativa insegura del test de #71: MANAGER recibe dos enlaces STAFF, antes recibía además uno MANAGER. TypeScript frontend/backend y 59 unitarias relacionadas aprobadas. Integración: 155 pruebas relacionadas aprobadas; dos timeouts transitorios pasaron al repetir únicamente esos casos.
+
+Límites: auth local usa el bypass existente exclusivo de test; no evalúa criptografía Firebase. Billing se prueba con proveedor HTTP ficticio. Se conservaron OWNER/STAFF, costos/ganancias de #691 y las políticas de negocio. Una corrida local se interrumpió por inodos agotados en la máquina compartida; se repite en almacenamiento temporal propio, sin tocar procesos ni bases ajenas.
+
+CI: la ejecución [41663551923](https://github.com/Matitisco/iManager/actions/runs/41663551923) aprobó lint/frontend y las regresiones nuevas, pero falló en cuatro casos preexistentes de `qa-hunt-purchases.integration.test.ts:125` (esperaban 204; #717 devuelve 409 al anular un reclamo compensado). Reproducido localmente en esos cuatro casos; sin relación con invitaciones. El PR #722 ya corrigió esas expectativas en `test` durante esta auditoría. Se verifica nuevamente contra esa base; [estado vigente de checks](https://github.com/Matitisco/iManager/pull/728/checks). Sin CI verde no se integra.

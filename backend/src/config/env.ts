@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isIP } from "node:net";
 
 const nodeEnvSchema = z.preprocess((value) => {
   if (typeof value !== "string" || value.trim() === "") {
@@ -12,6 +13,14 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3000),
   NODE_ENV: nodeEnvSchema,
   DATABASE_URL: z.string().min(1),
+  FIREBASE_AUTH_EMULATOR_HOST: z.string().optional(),
+  // Explicit proxy boundaries only; never trust arbitrary forwarding headers.
+  TRUST_PROXY_CIDRS: z.string().optional().transform(value => value?.split(',').map(entry => entry.trim()).filter(Boolean) ?? [])
+    .refine(entries => entries.every(entry => {
+      const [address, prefix, extra] = entry.split('/');
+      const version = isIP(address);
+      return !!version && extra === undefined && (prefix === undefined || (/^\d+$/.test(prefix) && Number(prefix) > 0 && Number(prefix) <= (version === 4 ? 32 : 128)));
+    }), 'TRUST_PROXY_CIDRS must contain explicit IP addresses or CIDRs'),
   CORS_ALLOWED_ORIGINS: z.string().optional(),
   ENABLE_TEST_AUTH_BYPASS: z.string().optional().transform((value) => value === "true"),
   FIREBASE_PROJECT_ID: z.string().optional(),
@@ -30,6 +39,9 @@ const envSchema = z.object({
   // Comma-separated login emails for the internal store-activity panel. Empty means nobody.
   ADMIN_EMAILS: z.string().optional(),
 }).superRefine((value, ctx) => {
+  if (value.FIREBASE_AUTH_EMULATOR_HOST && !(value.NODE_ENV === "test" && value.ENABLE_TEST_AUTH_BYPASS)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["FIREBASE_AUTH_EMULATOR_HOST"], message: "Firebase Auth emulator requires explicit test mode" });
+  }
   const firebaseRequired = !(value.NODE_ENV === "test" && value.ENABLE_TEST_AUTH_BYPASS);
 
   if (!firebaseRequired) {

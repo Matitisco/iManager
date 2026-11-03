@@ -34,3 +34,27 @@ test('with credentials configured, correct credentials serve the app', async () 
   const guard = createBasicAuthGuard({ user: 'qa', pass: 'secret:with:colons' });
   assert.equal((await request(guard, encode('qa:secret:with:colons'))).status, 200);
 });
+
+test('partial Basic Auth configuration fails closed', () => {
+  assert.throws(() => createBasicAuthGuard({ user: 'qa', pass: '' }), /BASIC_AUTH/);
+  assert.throws(() => createBasicAuthGuard({ user: '', pass: 'fixture-only' }), /BASIC_AUTH/);
+});
+
+test('throttles failed Basic Auth guesses by socket IP while valid users behind the same NAT still enter', () => {
+  let now = 0;
+  const guard = createBasicAuthGuard({ user: 'qa', pass: 'fixture-only', now: () => now });
+  const attempt = (authorization, ip = '192.0.2.1', forwarded = '198.51.100.1') => {
+    const result = {};
+    guard({ headers: { authorization, 'x-forwarded-for': forwarded }, socket: { remoteAddress: ip } }, {
+      writeHead(status, headers) { result.status = status; result.headers = headers; }, end() {},
+    });
+    return result;
+  };
+  for (let n = 0; n < 30; n++) assert.equal(attempt(encode('qa:wrong'), undefined, `198.51.100.${n + 1}`).status, 401);
+  assert.equal(attempt(encode('qa:wrong')).status, 429);
+  assert.equal(attempt(encode('qa:wrong')).headers['retry-after'], '60');
+  assert.equal(attempt(encode('qa:fixture-only')).status, undefined);
+  assert.equal(attempt(encode('qa:wrong'), '192.0.2.2').status, 401);
+  now = 60_000;
+  assert.equal(attempt(encode('qa:wrong')).status, 401);
+});

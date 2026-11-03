@@ -1,6 +1,7 @@
 import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -109,7 +110,7 @@ export async function returnRoutes(app: FastifyInstance) {
       cantidad: z.number().int().min(1).max(2147483647).optional(),
       resolution: z.enum(RESOLUTIONS),
       settlement: z.enum(SETTLEMENTS),
-      amount: z.number().min(0).max(100_000_000),
+      amount: moneyInput({ max: 100_000_000 }),
       destination: z.enum(DESTINATIONS),
       stockStatus: z.string().trim().max(20).nullable().optional(),
       diagnosis: z.string().trim().max(2000).nullable().optional(),

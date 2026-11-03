@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember } from "../../middleware/section-access.js";
@@ -19,23 +19,23 @@ const createSchema = z.object({
   sensitiveAccess: z.boolean().optional(),
 });
 
-function tokenPrefix(token: string) {
-  return token.slice(0, 8);
-}
-
 export async function invitationsRoutes(app: FastifyInstance) {
   // Public routes are isolated in a child scope so auth hooks below don't affect them.
   app.register(async (pub) => {
-    pub.get("/preview/:token", async (request, reply) => {
+    const previewOptions = {
+      exposeHeadRoute: true,
+      // Preview URLs contain a bearer capability; Fastify logs requests before onRequest hooks.
+      logSerializers: { req: (request: FastifyRequest) => ({ method: request.method, url: "/api/invitations/preview/[redacted]", hostname: request.hostname, remoteAddress: request.ip }) },
+    };
+    pub.get("/preview/:token", previewOptions, async (request, reply) => {
       const { token } = request.params as { token: string };
-      const logContext = { tokenPrefix: tokenPrefix(token) };
 
       try {
         const data = await previewInvitation(token);
         return data;
       } catch (error) {
-        request.log.error({ event: "invite_preview_error", ...logContext, error }, "Invitation preview failed");
-        throw error;
+        request.log.error({ event: "invite_preview_error" }, "Invitation preview failed");
+        return reply.code(500).send({ error: "No se pudo verificar la invitación. Probá de nuevo." });
       }
     });
 
@@ -50,7 +50,6 @@ export async function invitationsRoutes(app: FastifyInstance) {
       }
 
       const logContext = {
-        tokenPrefix: tokenPrefix(token),
         firebaseUid: request.auth.firebaseUid,
         email: request.auth.email ?? null,
       };
@@ -70,16 +69,16 @@ export async function invitationsRoutes(app: FastifyInstance) {
         return { session };
       } catch (err: unknown) {
         const e = err as { statusCode?: number; message: string };
+        const statusCode = e.statusCode && e.statusCode >= 400 && e.statusCode < 500 ? e.statusCode : 500;
         request.log.warn(
           {
             event: "invite_accept_failed",
             ...logContext,
-            statusCode: e.statusCode ?? 500,
-            errorMessage: e.message,
+            statusCode,
           },
           "Invitation accept failed"
         );
-        return reply.code(e.statusCode ?? 500).send({ error: e.message });
+        return reply.code(statusCode).send({ error: statusCode < 500 ? e.message : "No se pudo aceptar la invitación. Probá de nuevo." });
       }
     });
   });
@@ -92,7 +91,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: "No tenes permisos para ver las invitaciones" });
     }
 
-    const invitations = await listInvitations(request.appUser.storeId);
+    const invitations = await listInvitations(request.appUser.storeId, request.appUser.role);
     request.log.info(
       {
         event: "invite_list_ok",
@@ -129,7 +128,6 @@ export async function invitationsRoutes(app: FastifyInstance) {
           email: body.email ?? null,
           invitedRole: body.role,
           invitationId: result.id,
-          tokenPrefix: tokenPrefix(result.token),
         },
         "Invitation created"
       );
@@ -143,11 +141,11 @@ export async function invitationsRoutes(app: FastifyInstance) {
           actorRole: request.appUser.role,
           actorUserId: request.appUser.userId,
           statusCode: e.statusCode ?? 500,
-          errorMessage: e.message,
+          errorMessage: e.statusCode && e.statusCode < 500 ? e.message : undefined,
         },
         "Invitation create failed"
       );
-      if (e.statusCode) {
+      if (e.statusCode && e.statusCode < 500) {
         return reply.code(e.statusCode).send({ error: e.message });
       }
       throw err;
@@ -181,11 +179,11 @@ export async function invitationsRoutes(app: FastifyInstance) {
           actorUserId: request.appUser.userId,
           invitationId: id,
           statusCode: e.statusCode ?? 500,
-          errorMessage: e.message,
+          errorMessage: e.statusCode && e.statusCode < 500 ? e.message : undefined,
         },
         "Invitation revoke failed"
       );
-      if (e.statusCode) {
+      if (e.statusCode && e.statusCode < 500) {
         return reply.code(e.statusCode).send({ error: e.message });
       }
       throw err;

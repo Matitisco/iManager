@@ -23,7 +23,9 @@ const types = {
 };
 
 async function resolveFile(pathname) {
-  const target = normalize(join(root, decodeURIComponent(pathname)));
+  let target;
+  try { target = normalize(join(root, decodeURIComponent(pathname))); }
+  catch { return null; }
   if (target !== root && !target.startsWith(root + sep)) return null;
   try {
     const s = await stat(target);
@@ -49,11 +51,24 @@ function headers(file, status, { serviceWorker = false } = {}) {
 }
 
 createServer(async (req, res) => {
+  // Kept local because this Railway service is deployed with landing/ as its root.
+  const securityHeaders = {
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'Content-Security-Policy': "base-uri 'self'; object-src 'none'; frame-ancestors 'none'",
+    ...(process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test'
+      ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
+  };
+  for (const [name, value] of Object.entries(securityHeaders)) res.setHeader(name, value);
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405).end();
     return;
   }
-  const { pathname } = new URL(req.url || '/', 'http://localhost');
+  let pathname;
+  try { ({ pathname } = new URL(req.url || '/', 'http://localhost')); }
+  catch { res.writeHead(400, { 'Cache-Control': 'no-store' }).end(); return; }
   const serviceWorker = pathname === '/sw.js';
   const file = await resolveFile(pathname);
   if (!file) {

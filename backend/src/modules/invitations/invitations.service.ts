@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { track } from '../analytics/track.js';
 import { assertMemberCapacity } from '../billing/service.js';
 import { storeBillingLock } from '../billing/domain.js';
@@ -65,10 +66,11 @@ export async function createInvitation(
   };
 }
 
-export async function listInvitations(storeId: string) {
+export async function listInvitations(storeId: string, actorRole: "OWNER" | "MANAGER") {
   const now = new Date();
   const invitations = await prisma.storeInvitation.findMany({
-    where: { storeId, status: "PENDING", expiresAt: { gt: now } },
+    // Invitation URLs grant membership: expose only roles the actor may invite.
+    where: { storeId, status: "PENDING", expiresAt: { gt: now }, ...(actorRole === "MANAGER" ? { role: "STAFF" as const } : {}) },
     orderBy: { createdAt: "desc" },
     select: { id: true, token: true, email: true, role: true, createdAt: true, expiresAt: true },
   });
@@ -201,8 +203,10 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
           removedAt: null,
           removedBy: null,
           role: current.role,
-          sections: sections ?? undefined,
-          ...(typeof current.sensitiveAccess === "boolean" ? { sensitiveAccess: current.sensitiveAccess } : {}),
+          // Rejoining has the same permissions as a fresh acceptance. Undefined
+          // would preserve a grant left on the removed membership.
+          sections: sections ?? Prisma.DbNull,
+          sensitiveAccess: current.sensitiveAccess ?? null,
         },
       });
     } else {
