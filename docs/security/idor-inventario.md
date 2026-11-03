@@ -2,9 +2,11 @@
 
 Fecha: 2026-11-03. Solo PostgreSQL local descartable y usuarios ficticios `qa-sec-<n>@example.com`. Sin producción, secretos, schema ni migraciones.
 
+Entrega: [PR #722](https://github.com/Matitisco/iManager/pull/722), base `test`.
+
 | Severidad | Hallazgo | Estado | OK de Matias |
 | --- | --- | --- | --- |
-| Media | Un miembro sin permiso sensible podía cambiar la moneda de costo/precio por `PATCH /api/inventory/:id`, incluso sin enviar importes o enviando los mismos. Cambiaba la denominación económica eludiendo el control de edición financiera. | Arreglado en el PR de `sec/idor-inventario` hacia `test`: comparar moneda solicitada con moneda efectiva (moneda guardada o de la tienda) antes de escribir. | No: aplica el permiso sensible existente; conserva lectura STAFF de #691. |
+| Media | Un miembro sin permiso sensible podía cambiar la moneda de costo/precio por `PATCH /api/inventory/:id`, incluso sin enviar importes o enviando los mismos. Cambiaba la denominación económica eludiendo el control de edición financiera. | Arreglado en [PR #722](https://github.com/Matitisco/iManager/pull/722): comparar moneda solicitada con moneda efectiva (moneda guardada o de la tienda) antes de escribir. | No: aplica el permiso sensible existente; conserva lectura STAFF de #691. |
 | Media | Reimportar un IMEI propio con `cost` permite a STAFF modificar un costo existente aunque el PATCH normal lo prohíbe. | Pendiente: reproducido localmente por `staff-financials.integration.test.ts`, que explícitamente espera el cambio de costo. No se altera ese contrato durante esta auditoría. | Sí: decidir si la importación debe respetar el permiso sensible, conservar costos o rechazar filas; afecta datos financieros y el flujo de importación. |
 
 No se confirmó IDOR entre tiendas en los ataques ejecutados. Se revisaron rutas, middleware y servicios de equipos, categorías, campos personalizados, variantes/opciones, proveedores, compras, importación, catálogo y conteos/ajustes. Las consultas por ID sin `storeId` observadas usan IDs ya obtenidos mediante una consulta acotada a la tienda o creados dentro de la misma operación; no se encontraron entradas HTTP que permitan sustituirlos.

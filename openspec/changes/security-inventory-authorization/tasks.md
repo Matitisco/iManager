@@ -3,4 +3,4 @@
 - [x] Probar ataques con PostgreSQL local y agregar regresiones.
 - [x] Corregir bypasses mínimos confirmados y documentar pendientes.
 - [x] Ejecutar TypeScript y pruebas relacionadas.
-- [ ] Abrir PR hacia test, verificar CI y mergear solo con todos los checks verdes.
+- [x] Abrir PR #722 hacia test y condicionar el merge a todos los checks verdes, sin schema ni migraciones.
