@@ -59,8 +59,10 @@ El arranque actual utiliza `prisma db push`; por eso existe además una importac
 perezosa transaccional al primer acceso si aún no se ejecutó el INSERT. Tras crear
 el predeterminado solo se consulta la tabla nueva. Un slug regenerado nunca revive
 desde la tabla anterior. Inventario y onboarding leen la configuración nueva.
-El reset conserva los catálogos como configuración; los precios de equipos que el
-reset elimina se eliminan por su FK a InventoryItem.
+El reset conserva los catálogos como configuración; los precios de los equipos
+que elimina se incluyen explícitamente en el plan y los conteos de dryRun, antes
+de borrar el inventario. Su selección usa los IDs de inventario congelados y la
+pertenencia del catálogo a la tienda.
 
 ## Validación
 

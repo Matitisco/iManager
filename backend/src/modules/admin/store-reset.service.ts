@@ -25,7 +25,7 @@ export const STORE_RESET_DELETE_MODELS = [
   'StockCount', 'CreditNoteApplication', 'CreditNote', 'ReturnEvent', 'ReturnCase',
   'SaleInstallment', 'SaleInstallmentPlan', 'SaleTender', 'ClientDeposit',
   'ClientPayment', 'CommissionAccrual', 'CashMovement', 'Sale', 'TradeIn',
-  'InventoryItem', 'StoreNotification',
+  'CatalogItemPrice', 'InventoryItem', 'StoreNotification',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export const STORE_RESET_FULL_DELETE_MODELS = [
@@ -59,6 +59,7 @@ function table(model: Prisma.ModelName) {
 function scope(model: Prisma.ModelName, storeId: string): Prisma.Sql {
   if (model === 'Store') return Prisma.sql`t."id" = ${storeId}`;
   if (model === 'User') return Prisma.sql`t."id" IN (SELECT "userId" FROM "StoreMember" WHERE "storeId" = ${storeId})`;
+  if (model === 'CatalogItemPrice') return Prisma.sql`t."catalogId" IN (SELECT "id" FROM "StoreCatalog" WHERE "storeId" = ${storeId})`;
   if (model === 'NotificationRead') return Prisma.sql`t."notificationId" IN (SELECT "id" FROM "StoreNotification" WHERE "storeId" = ${storeId})`;
   if (model === 'BillingPlan' || model === 'ImeiTacMiss') return Prisma.sql`TRUE`;
   return Prisma.sql`t."storeId" = ${storeId}`;
@@ -91,8 +92,10 @@ async function planReset(tx: Tx, storeId: string, full: boolean) {
     // All operational rows belong to this reset, even archived rows, drafts,
     // loose deposits/credits and references to previously deleted operations.
     for (const model of STORE_RESET_FULL_DELETE_MODELS) {
-      if (model !== 'CashMovement' && model !== 'StoreNotification' && model !== 'NotificationRead' && model !== 'SectionRecordView') await select(model);
+      if (model !== 'CashMovement' && model !== 'StoreNotification' && model !== 'NotificationRead' && model !== 'SectionRecordView' && model !== 'CatalogItemPrice') await select(model);
     }
+    // Composite-key children are scoped by the frozen inventory selection.
+    plan.CatalogItemPrice = Prisma.sql`(${scope('CatalogItemPrice', storeId)}) AND (${inIds('inventoryItemId', ids.InventoryItem!)})`;
     const records = Object.values(ids).flat();
     await select('CashMovement', Prisma.sql`t."sourceType" IN ('sale', 'repair', 'client', 'deposit', 'return', 'trade-in', 'trade')
       OR (t."sourceType" IS NULL AND (${inIds('sourceId', records)} OR t."kind" IN ('COBRO', 'DEVOLUCION')))`);
@@ -115,6 +118,7 @@ async function planReset(tx: Tx, storeId: string, full: boolean) {
     UNION SELECT "sourceId" FROM "CashMovement" WHERE "storeId" = ${storeId} AND "sourceType" = 'sale' AND "sourceId" IS NOT NULL`);
   const saleReferences = references.map(row => row.id);
   const inventory = await select('InventoryItem');
+  plan.CatalogItemPrice = Prisma.sql`(${scope('CatalogItemPrice', storeId)}) AND (${inIds('inventoryItemId', inventory)})`;
   const trades = await select('TradeIn', Prisma.sql`${inIds('id', (await tx.sale.findMany({ where: { storeId, tradeInId: { not: null } }, select: { tradeInId: true } })).map(sale => sale.tradeInId!))}
     OR ${inIds('receivedInventoryItemId', inventory)} OR ${inIds('draftProductId', inventory)} OR ${notNull('removedFromSaleNumber')}`);
   const returns = await select('ReturnCase', Prisma.sql`${notNull('saleId')} OR ${inIds('inventoryItemId', inventory)}`);
