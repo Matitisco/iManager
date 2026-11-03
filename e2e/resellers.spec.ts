@@ -4,7 +4,7 @@ import { mockCommissions } from './fixtures/commissions';
 import { openDeskSection } from './navigation';
 
 for (const width of [390, 1440]) {
-  test(`revendedor: alta rápida y atribución al editar (${width})`, async ({ page }) => {
+  test(`@smoke revendedor: alta rápida y atribución al editar (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const state = await mockCommissions(page);
     // The rest of the fixture is shared with the existing commission flows.
