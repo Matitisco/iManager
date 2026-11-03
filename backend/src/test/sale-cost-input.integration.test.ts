@@ -127,6 +127,17 @@ describe('costo del equipo desde la venta', () => {
     expect((await overview()).grossProfit).toBeCloseTo(600.19);
   });
 
+  it('edición desde un canje confirmado conserva autor de la auditoría del costo', async () => {
+    const { create, fixture, headers, item, storeId, user } = await setup();
+    const created = await create({ clientId: fixture.client.id, tradeIn: { deviceReceived: 'Recibido ficticio', takeValue: 300 } });
+    expect(created.statusCode, created.body).toBe(201);
+    const changed = await getApp().inject({ method: 'PATCH', url: `/api/operations/tradeins/trades/${created.json().tradeIn.id}`, headers, payload: { cost: 950.12 } });
+    expect(changed.statusCode, changed.body).toBe(200);
+    expect(await item()).toMatchObject({ costChangedBy: user.displayName });
+    expect((await item()).cost.toNumber()).toBe(950.12);
+    expect(await prisma.auditEvent.findFirstOrThrow({ where: { storeId, action: 'inventory.cost' } })).toMatchObject({ actorUserId: user.id, actorName: user.displayName });
+  });
+
   it.each([false, true])('sin Reportes rechaza escrituras y no devuelve costo (legacy: %s)', async legacy => {
     const { membership, create, edit, item, headers } = await setup('MANAGER');
     await prisma.storeMember.update({ where: { id: membership!.id }, data: { sections: ['sales'] } });
