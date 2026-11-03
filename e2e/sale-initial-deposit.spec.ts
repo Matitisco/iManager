@@ -14,7 +14,8 @@ for (const width of [1440, 390]) {
       await updateStoreViaApi(request, email, { currency: 'USD', exchangeMode: 'manual', manualBuy: 1000, manualSell: 1000 });
       const { client } = await createClientViaApi(request, email, { name: 'Cliente ficticio de seña', dni: '30111222' });
       await page.reload(); await openDeskSection(page, 'sales');
-      await page.getByRole('button', { name: 'Registrar venta', exact: true }).click();
+      const createButton = width === 390 ? page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta', exact: true }) : page.getByRole('button', { name: 'Registrar venta', exact: true });
+      await createButton.click();
       const form = page.getByRole('dialog', { name: 'Registrar venta' });
       await form.getByRole('combobox', { name: 'Cliente', exact: true }).fill(client.name);
       await page.getByRole('option', { name: new RegExp(client.name) }).click();

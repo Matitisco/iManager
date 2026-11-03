@@ -305,6 +305,7 @@ function serializeClient(client: Client) {
     importedSpent: client.importedSpent == null ? null : toNum(client.importedSpent),
     importedSpentCurrency: client.importedSpentCurrency ?? null,
     pendingBalance: toNum(client.pendingBalance),
+    balanceCurrency: client.balanceCurrency ?? null,
     categoryId: client.categoryId ?? null,
     tag: client.tag ?? null,
     customFields: client.customFields ?? {},
