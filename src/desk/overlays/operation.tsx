@@ -103,7 +103,16 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setUnitPrice(total.trim() ? (formatInputMoney(parseMoney(total) / units) || '0') : '');
   };
   if (preset?.resumeAmount) dirty.current.add('amount');
-  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? '');
+  const newSale = !saleId && !tradeId && !currentSale && !currentTrade && !startWithTrade;
+  const defaultSellerId = context.commissionSellers?.find(person => person.id === context.appSession?.membership?.id)?.id ?? '';
+  const sellerInitialized = useRef(false);
+  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? (newSale ? defaultSellerId : ''));
+  useEffect(() => {
+    // The directory can arrive after opening; never replace a manual choice (including no seller).
+    if (!newSale || sellerInitialized.current || dirty.current.has('sellerMemberId') || !defaultSellerId) return;
+    sellerInitialized.current = true;
+    setSellerMemberId(defaultSellerId);
+  }, [newSale, defaultSellerId]);
   const [sellerError, setSellerError] = useState('');
   useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
