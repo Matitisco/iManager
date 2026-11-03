@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../types/commissions';
 import { useStableState } from '../lib/stable-state';
 import { useRef } from 'react';
 import type { AuthUserLike } from '../types/auth-user';
@@ -41,6 +42,12 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
   return {
     commissionSummaries: current.summaries, commissionDetails: current.details, commissionRules: current.rules, commissionSellers: current.sellers,
     loadCommissions, loadCommissionDetail,
+    saveReseller: async (input: { name?: string; archived?: boolean }, id?: string) => {
+      const reseller = await api.saveStoreReseller(auth(), input, id);
+      const seller: CommissionSeller = { id: `reseller:${reseller.id}`, resellerId: reseller.id, name: reseller.name, role: 'RESELLER', archivedAt: reseller.archivedAt };
+      merge({ sellers: [...current.sellers.filter(old => old.id !== seller.id), seller], summaries: {}, details: {} });
+      return reseller;
+    },
     loadCommissionSellers: async () => { const sellers = await api.fetchCommissionSellers(auth()); merge({ sellers }); },
     saveCommissionRule: async (input: CommissionRuleInput) => { await api.createCommissionRule(auth(), input); merge({ rules: await api.fetchCommissionRules(auth()) }); },
     deleteCommissionRule: async (id: string, reason?: string) => { await api.deleteCommissionRule(auth(), id, reason); merge({ rules: current.rules.filter(rule => rule.id !== id) }); },
@@ -52,7 +59,7 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
     },
     payCommission: async (input: CommissionPaymentInput) => {
       const payment = await api.createCommissionPayment(auth(), input);
-      try { await Promise.all([loadCommissions(input.period), loadCommissionDetail(input.memberId, input.period)]); return { payment, refreshError: '' }; }
+      try { await Promise.all([loadCommissions(input.period), loadCommissionDetail(beneficiaryKey(input), input.period)]); return { payment, refreshError: '' }; }
       catch { merge({ summaries: {}, details: {} }); return { payment, refreshError: 'El pago se registró, pero no se pudo actualizar el saldo. Cerrá y volvé a cargar las comisiones. No lo registres otra vez.' }; }
     },
     assignCommissionSeller: async (saleIds: string[], memberId: string | null) => { await api.assignSalesSeller(auth(), saleIds, memberId); merge({ summaries: {}, details: {} }); },

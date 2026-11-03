@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -396,7 +397,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           warning={money.warning}
         />
       ) : null}
-      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div data-ph-mask className="gstore">{row.name}</div><div className="gmeta">Pagado <ReplayValue>{commissionTotal(row.paid)}</ReplayValue> · pendiente <ReplayValue>{commissionTotal(row.pending)}</ReplayValue></div></div><div className="gr"><div data-ph-mask className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
+      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${beneficiaryKey(row)}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div data-ph-mask className="gstore">{row.name}{row.resellerId ? <small> · Revendedor</small> : null}</div><div className="gmeta">Pagado <ReplayValue>{commissionTotal(row.paid)}</ReplayValue> · pendiente <ReplayValue>{commissionTotal(row.pending)}</ReplayValue></div></div><div className="gr"><div data-ph-mask className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
       {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>

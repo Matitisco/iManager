@@ -77,9 +77,9 @@ export function SalesScreen() {
     void loadCommissionSellers().catch((cause: unknown) => { if (active) console.warn('No se pudieron cargar los vendedores.', cause); });
     return () => { active = false; };
   }, [appSession?.store?.id]);
-  const sellerPerson = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId);
-  const sellerName = (sale: Sale) => sellerPerson(sale)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
-  const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
+  const sellerPerson = (sale: Sale) => commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId));
+  const sellerName = (sale: Sale) => sellerPerson(sale)?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
+  const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.resellerId ? 'RESELLER' as const : sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
   const [sellerOpen, setSellerOpen] = useState(false);
   const [sellerDraft, setSellerDraft] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useNavigationState('Sales.searchOpen', false);
@@ -139,7 +139,7 @@ export function SalesScreen() {
     return `${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q);
   };
   const sellerPool = listed.filter((sale) => {
-    if (onlyUnassigned && sale.sellerMemberId) return false;
+    if (onlyUnassigned && (sale.sellerMemberId || sale.resellerId)) return false;
     if (!matchesQuery(sale)) return false;
     return matchesSaleColumns(sale, { ...columns, sellers: [] }, rowLabels(sale));
   });
@@ -299,7 +299,7 @@ export function SalesScreen() {
                       onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)}
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)}
                         profit={seeFinancials ? <SaleCardProfit sale={sale} inventory={inventory} returns={returns === null ? null : issuedReturns.filter(row => row.saleId === sale.id)} /> : null} />
                     </PhoneRecord>
                   </div>
@@ -349,7 +349,7 @@ export function SalesScreen() {
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
                       {sellerOptions.map((option) => (
-                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} /><span>{option.name}</span><em>{option.count}</em></label>
+                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} /><span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span><em>{option.count}</em></label>
                       ))}
                     </div>
                   </ColumnFilter>
@@ -389,7 +389,7 @@ export function SalesScreen() {
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td className="sale-quantity-cell">{saleQuantity(sale)}</td>
-                    <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
+                    <td><div className="dcell"><CommissionAvatar id={sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}{sale.resellerId ? <small className="reseller-label">Revendedor</small> : null}</span></div></td>
                     <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
                     {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && (profit.costedSales > 0 || profit.costedReturns > 0) && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
@@ -465,7 +465,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
   equipment: string;
   sellerId: string;
   seller: string;
-  sellerRole: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE';
+  sellerRole: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE' | 'RESELLER';
   amount: string;
   approx: string | null;
   profit: ReactNode;
@@ -480,6 +480,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />
         <span>
           <b data-ph-mask>{buyer}</b>
+          <small>{seller}{sale.resellerId ? ' · Revendedor' : ''}</small>
           <small className="sale-equipment"><span>{equipment}</span>{saleQuantityLabel(sale) ? <> <span className="sale-quantity">{saleQuantityLabel(sale)}</span></> : null}</small>
         </span>
       </span>
@@ -542,7 +543,7 @@ function SellerChip({ label, active, onOpen, onClear, phone = false }: {
 }
 
 function SellerSheet({ options, draft, count, onToggle, onClear, onApply, onClose }: {
-  options: { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE'; count: number }[];
+  options: { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' | 'RESELLER' | 'NONE'; count: number }[];
   draft: string[];
   count: number;
   onToggle: (id: string) => void;
@@ -561,7 +562,7 @@ function SellerSheet({ options, draft, count, onToggle, onClear, onApply, onClos
         {options.map((option) => (
           <label key={option.id} className="seller-opt">
             <CommissionAvatar id={option.id} name={option.name} role={option.role} />
-            <span>{option.name}</span>
+            <span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span>
             <em>{option.count}</em>
             <input type="checkbox" checked={draft.includes(option.id)} onChange={() => onToggle(option.id)} />
           </label>

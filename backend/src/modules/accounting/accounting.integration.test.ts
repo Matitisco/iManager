@@ -19,6 +19,7 @@ let ownSaleId: string;
 
 async function seedParents(store: string, memberId: string) {
   const f = await seedCatalogFixture(store);
+  const reseller = await prisma.storeReseller.create({ data: { storeId: store, name: 'Revendedor ficticio' } });
   const supplier = await prisma.supplier.create({ data: { storeId: store, name: 'Proveedor ficticio' } });
   const purchase = await prisma.stockPurchase.create({ data: { storeId: store, supplierId: supplier.id, purchasedAt: new Date() } });
   const trade = await prisma.tradeIn.create({ data: { storeId: store, clientId: f.client.id, dateLabel: '03 nov 2026', deviceReceived: 'iPhone ficticio', takeValue: 20, differencePaid: 80, status: 'APROBADO', tradeAt: new Date() } });
@@ -33,7 +34,7 @@ async function seedParents(store: string, memberId: string) {
   const rule = await prisma.commissionRule.create({ data: { storeId: store, memberId, rate: 10, effectiveFrom: new Date(), createdBy: actor.userId } });
   const plan = await prisma.saleInstallmentPlan.create({ data: { storeId: store, saleId: sale.id, clientId: f.client.id, count: 1, frequency: 'MENSUAL', firstDueDate: new Date(), financedAmount: 100 } });
   const count = await prisma.stockCount.create({ data: { storeId: store, startedById: actor.userId, startedByName: actor.name } });
-  return { Client: f.client.id, ClientCategory: f.clientCategory.id, InventoryItem: f.inventoryItem.id, InventoryCategory: f.inventoryCategory.id, SaleCategory: f.saleCategory.id, TradeInCategory: f.tradeInCategory.id, StoreMember: memberId, Supplier: supplier.id, StockPurchase: purchase.id, TradeIn: trade.id, Sale: sale.id, RepairOrder: repair.id, ReturnCase: claim.id, CreditNote: note.id, CashRegister: register.id, CashSession: session.id, CashMovement: movement.id, ClientDeposit: deposit.id, CommissionRule: rule.id, SaleInstallmentPlan: plan.id, StockCount: count.id };
+  return { StoreReseller: reseller.id, Client: f.client.id, ClientCategory: f.clientCategory.id, InventoryItem: f.inventoryItem.id, InventoryCategory: f.inventoryCategory.id, SaleCategory: f.saleCategory.id, TradeInCategory: f.tradeInCategory.id, StoreMember: memberId, Supplier: supplier.id, StockPurchase: purchase.id, TradeIn: trade.id, Sale: sale.id, RepairOrder: repair.id, ReturnCase: claim.id, CreditNote: note.id, CashRegister: register.id, CashSession: session.id, CashMovement: movement.id, ClientDeposit: deposit.id, CommissionRule: rule.id, SaleInstallmentPlan: plan.id, StockCount: count.id };
 }
 
 beforeAll(async () => { await prisma.$connect(); });

@@ -12,6 +12,7 @@ export interface OperationInput {
   depositIds?: string[];
   creditNoteIds?: string[];
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   date?: string;
   clientId?: string | null;

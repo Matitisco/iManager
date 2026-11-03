@@ -12,7 +12,7 @@ import { hasSettlement, settleNewSale, type SettlementRequest } from "../account
 import { recordPriceRise } from "../accounts/accounts.service.js";
 import { priceRiseDebt } from "../accounts/ledger.js";
 import { saleExchangeRate } from "../../lib/blue-rate.js";
-import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
+import { assertBeneficiary, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
 import { Prisma } from "@prisma/client";
 import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -53,6 +53,7 @@ export type OperationInput = {
   initialDeposit?: { amount: number; currency: 'ARS' | 'USD' };
   depositIds?: string[];
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   date?: string;
   clientId?: string | null;
@@ -202,6 +203,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     amount: toNum(sale.amount),
     amountCurrency: sale.amountCurrency ?? null,
     sellerMemberId: sale.sellerMemberId,
+    resellerId: sale.resellerId,
     registeredByUserId: sale.registeredByUserId,
     exchangeRate: sale.exchangeRate == null ? null : Number(sale.exchangeRate),
     paymentMethod: sale.paymentMethod,
@@ -251,6 +253,7 @@ function serializeTrade(trade: TradeForResponse) {
     draftPaymentMethod: trade.draftPaymentMethod ?? null,
     draftPaymentStatus: nullableAccountingState('sale', trade.draftPaymentStatus) ?? null,
     draftSellerMemberId: trade.draftSellerMemberId ?? null,
+    draftResellerId: trade.draftResellerId ?? null,
     draftWarrantyDays: trade.draftWarrantyDays ?? null,
     voidedAt: trade.voidedAt?.toISOString() ?? null,
     voidedBy: trade.voidedBy ?? null,
@@ -589,7 +592,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         if (existingSale) return replaySaleResult(tx, storeId, existingSale, "Canje recuperado");
         return { tradeIn: serializeTrade(prior), inventory: [], clients: [], notifications: [], summary: "Borrador de canje recuperado" };
       }
-      await assertSeller(tx, storeId, input.sellerMemberId);
+      await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
       const date = parseArDateOr(input.date);
       const draftClient = input.clientId ? await tx.client.findFirst({ where: { id: input.clientId, storeId }, select: { id: true, name: true } }) : null;
       if (input.clientId && !draftClient) throw new OperationError("Client not found", 404);
@@ -632,6 +635,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         draftPaymentMethod: input.paymentMethod ?? null,
         draftPaymentStatus: input.status ?? null,
         draftSellerMemberId: input.sellerMemberId ?? null,
+        draftResellerId: input.resellerId ?? null,
         draftWarrantyDays: input.warrantyDays ?? null,
       } });
       await assertStoreReferences(tx, storeId, 'TradeIn', trade);
@@ -731,7 +735,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       await takeStock(tx, product, cantidad);
       if ((product.price?.toNumber() ?? 0) <= 0 && input.amount! > 0 && (input.cost === undefined || await copyCurrency(tx, storeId, product.currency) === currency)) await tx.inventoryItem.update({ where: { id: product.id }, data: { price: dec(input.unitPrice ?? input.amount! / cantidad), currency } });
     }
-    await assertSeller(tx, storeId, input.sellerMemberId);
+    await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays, product?.condition ?? input.unlistedEquipment?.condition);
@@ -742,6 +746,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         storeId,
         saleNumber,
         sellerMemberId: input.sellerMemberId ?? null,
+        resellerId: input.resellerId ?? null,
         registeredByUserId: actor?.userId ?? null,
         exchangeRate,
         clientId: client?.id ?? null,
@@ -968,7 +973,8 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       ...(input.cost === undefined || await copyCurrency(tx, storeId, product.currency) === currency ? salePricePatch(product.price, input.unitPrice ?? outgoingAmount / cantidad, currency) : {}),
     } });
     const sellerMemberId = input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId;
-    await assertSeller(tx, storeId, sellerMemberId);
+    const resellerId = input.resellerId === undefined ? trade.draftResellerId : input.resellerId;
+    await assertBeneficiary(tx, storeId, sellerMemberId, resellerId, resellerId === trade.draftResellerId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const warrantyDays = await warrantyForSale(tx, storeId, input.warrantyDays ?? trade.draftWarrantyDays ?? undefined, product?.condition ?? input.unlistedEquipment?.condition);
@@ -976,6 +982,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       storeId,
       saleNumber,
       sellerMemberId: sellerMemberId ?? null,
+      resellerId: resellerId ?? null,
       registeredByUserId: actor?.userId ?? null,
       exchangeRate,
       clientId: client.id,
@@ -1169,7 +1176,9 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     if (nextProduct && (nextProduct.price?.toNumber() ?? 0) <= 0 && nextAmount > 0 && (input.cost === undefined || await copyCurrency(tx, storeId, nextProduct.currency) === (nextCurrency ?? sale.amountCurrency))) {
       await tx.inventoryItem.update({ where: { id: nextProduct.id }, data: { price: dec(input.unitPrice ?? nextAmount / nextCantidad), ...(nextCurrency ? { currency: nextCurrency } : {}) } });
     }
-    await assertSeller(tx, storeId, input.sellerMemberId);
+    const nextSeller = input.sellerMemberId === undefined ? sale.sellerMemberId : input.sellerMemberId;
+    const nextReseller = input.resellerId === undefined ? sale.resellerId : input.resellerId;
+    await assertBeneficiary(tx, storeId, nextSeller, nextReseller, nextReseller === sale.resellerId);
     let updatedSale = await tx.sale.update({
       where: { id: sale.id },
       data: {
@@ -1177,6 +1186,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
         ...(stockChanges ? { stockDeducted: Boolean(nextProduct) } : {}),
         integratedOperation: true,
         ...(input.sellerMemberId !== undefined ? { sellerMemberId: input.sellerMemberId } : {}),
+        ...(input.resellerId !== undefined ? { resellerId: input.resellerId } : {}),
         ...(input.exchangeRate !== undefined ? { exchangeRate: await saleExchangeRate(input.exchangeRate) } : {}),
         ...(hasTrade ? {} : { tradeInId: null }),
         clientId: nextClientId,
@@ -1290,7 +1300,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
       updatedTrade = await tx.tradeIn.update({ where: { id: updatedTrade.id }, data: { receivedInventoryItemId: incoming.id } });
     }
     await refreshSaleCommission(tx, storeId, sale.id);
-    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id, entityLabel: saleCode(sale.saleNumber) });
+    if (actor && ((input.sellerMemberId !== undefined && input.sellerMemberId !== sale.sellerMemberId) || (input.resellerId !== undefined && input.resellerId !== sale.resellerId))) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id, entityLabel: saleCode(sale.saleNumber) });
     if (collecting) {
       await recordCash(tx, { storeId, amount: nextOpenBalance, currency: labelCurrency, method: updatedSale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Saldo de venta cobrado', actor });
       if (nextClientId) await recordSaleCollection(tx, { storeId, clientId: nextClientId, saleId: sale.id, amount: nextOpenBalance, currency: labelCurrency, method: updatedSale.paymentMethod });
@@ -1350,7 +1360,10 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       await assertStoreReferences(tx, storeId, 'TradeIn', trade);
       if (!trade) throw new OperationError("Trade-in not found", 404);
       if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje cambio mientras se editaba", 409);
-      await assertSeller(tx, storeId, input.sellerMemberId);
+      await assertBeneficiary(tx, storeId,
+        input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId,
+        input.resellerId === undefined ? trade.draftResellerId : input.resellerId,
+        input.resellerId === undefined || input.resellerId === trade.draftResellerId);
       await assertCategory(tx, storeId, "tradeins", input.categoryId);
       if (input.saleCategoryId !== undefined) await assertCategory(tx, storeId, "sales", input.saleCategoryId);
       const typedNameChanged = typeof input.clientName === "string"
@@ -1391,6 +1404,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         categoryId: input.categoryId === undefined ? trade.categoryId : input.categoryId,
         draftSaleCategoryId: input.saleCategoryId === undefined ? trade.draftSaleCategoryId : input.saleCategoryId,
         draftSellerMemberId: input.sellerMemberId === undefined ? trade.draftSellerMemberId : input.sellerMemberId,
+        draftResellerId: input.resellerId === undefined ? trade.draftResellerId : input.resellerId,
         draftWarrantyDays: input.warrantyDays ?? trade.draftWarrantyDays,
         dateLabel: input.date ? formatArDate(parseArDateOr(input.date)) : trade.dateLabel, tradeAt: input.date ? parseArDateOr(input.date) : trade.tradeAt,
       } });

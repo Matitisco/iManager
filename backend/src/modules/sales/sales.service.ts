@@ -12,7 +12,7 @@ import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { saleExchangeRate } from "../../lib/blue-rate.js";
-import { assertSeller, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
+import { assertBeneficiary, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
@@ -32,6 +32,7 @@ import { saleDaysFromStore } from "../warranty/warranty.js";
 export interface SaleInput {
   cantidad?: number;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   date: string;
   clientId?: string | null;
@@ -50,6 +51,7 @@ export interface SaleInput {
 export interface SalePatchInput {
   cost?: number;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   clientId?: string | null;
   clientName?: string | null;
@@ -71,6 +73,7 @@ export interface SaleResponse {
   depositAppliedAmount?: number;
   openBalance?: number | null;
   sellerMemberId: string | null;
+  resellerId: string | null;
   registeredByUserId: string | null;
   exchangeRate: number | null;
   id: string;
@@ -104,6 +107,7 @@ type SaleRecord = {
   depositAppliedAmount?: Decimal;
   openBalance?: Decimal | null;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: Decimal | null;
   id: string;
@@ -195,6 +199,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     id: sale.id,
     saleNumber: sale.saleNumber,
     sellerMemberId: sale.sellerMemberId ?? null,
+    resellerId: sale.resellerId ?? null,
     registeredByUserId: sale.registeredByUserId ?? null,
     exchangeRate: sale.exchangeRate == null ? null : Number(sale.exchangeRate),
     date: formatStoredDate(sale.dateLabel, sale.soldAt),
@@ -287,12 +292,13 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
     const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
     const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
 
-    await assertSeller(tx, storeId, input.sellerMemberId);
+    await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
     const exchangeRate = await saleExchangeRate(input.exchangeRate);
     const sale = await tx.sale.create({
       data: {
         saleNumber,
         sellerMemberId: input.sellerMemberId ?? null,
+        resellerId: input.resellerId ?? null,
         registeredByUserId: actor?.userId ?? null,
         exchangeRate,
         cantidad,
@@ -316,7 +322,7 @@ export async function createSale(storeId: string, input: SaleInput, actor?: Acto
     await assertStoreReferences(tx, storeId, 'Sale', sale);
 
     if (saleState(sale.status) === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(sale.amount), currency: amountCurrency ?? 'ARS', method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de venta', actor });
-    if (input.sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
+    if (input.sellerMemberId || input.resellerId) await recordSaleCommission(tx, storeId, sale.id);
     if (inventoryItem) {
       await takeStock(tx, inventoryItem, cantidad);
       if (inventoryItem.price === null) await tx.inventoryItem.update({ where: { id: inventoryItem.id }, data: { price: toDecimal(input.amount / cantidad), currency: amountCurrency } });
@@ -411,7 +417,9 @@ export async function updateSale(
     const cancelling = input.status === "CANCELADA" && saleState(existing.status) !== "CANCELADA";
     const saveCancellation = cancelling ? await captureSaleCancellation(tx, existing) : null;
 
-    await assertSeller(tx, storeId, input.sellerMemberId);
+    const nextSeller = input.sellerMemberId === undefined ? existing.sellerMemberId : input.sellerMemberId;
+    const nextReseller = input.resellerId === undefined ? existing.resellerId : input.resellerId;
+    await assertBeneficiary(tx, storeId, nextSeller, nextReseller, nextReseller === existing.resellerId);
     if (cancelling) await voidSaleCommission(tx, storeId, id, "CANCELLED");
     if (input.cost !== undefined) {
       if (nextInventoryItemId) await lockInventory(tx, storeId, nextInventoryItemId);
@@ -422,6 +430,7 @@ export async function updateSale(
       where: { id },
       data: {
         ...(input.sellerMemberId !== undefined ? { sellerMemberId: input.sellerMemberId } : {}),
+        ...(input.resellerId !== undefined ? { resellerId: input.resellerId } : {}),
         ...(input.exchangeRate !== undefined ? { exchangeRate: await saleExchangeRate(input.exchangeRate) } : {}),
         paymentMethod: input.paymentMethod ?? existing.paymentMethod,
         status: input.status ?? saleState(existing.status),
@@ -450,7 +459,7 @@ export async function updateSale(
       if (saleState(existing.status) === 'PENDIENTE' && saleState(updated.status) === 'COMPLETADA') await recordCash(tx, { storeId, amount: Number(existing.openBalance ?? updated.amount), currency: updated.amountCurrency ?? await storeCurrency(storeId, tx), method: updated.paymentMethod, sourceType: 'sale', sourceId: id, note: 'Saldo de venta cobrado', actor });
     }
     if (!cancelling) await refreshSaleCommission(tx, storeId, id);
-    if (actor && input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id, entityLabel: saleCode(existing.saleNumber) });
+    if (actor && ((input.sellerMemberId !== undefined && input.sellerMemberId !== existing.sellerMemberId) || (input.resellerId !== undefined && input.resellerId !== existing.resellerId))) await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: id, entityLabel: saleCode(existing.saleNumber) });
     if (cancelling && actor) {
       await writeAudit(tx, {
         storeId,
@@ -587,6 +596,7 @@ export interface SaleImportRow {
   _rateDate?: string;
   notes?: string;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   date?: string;
   clientName?: string;
@@ -713,16 +723,16 @@ export async function importSales(
       const linkedClient = clientId ? await tx.client.findFirst({ where: { storeId, id: clientId } }) : null;
       const saleNumber = await allocateDocumentNumber(tx, storeId, 'sale');
       const sellerMemberId = r.sellerMemberId || (sellerUserId ? members.find(member => member.userId === sellerUserId)?.id ?? null : null);
-      await assertSeller(tx, storeId, sellerMemberId);
+      await assertBeneficiary(tx, storeId, sellerMemberId, r.resellerId);
       const exchangeRate = await saleExchangeRate(r._exchangeRate ? Number(r._exchangeRate) : r.exchangeRate ? Number(r.exchangeRate) : undefined);
       const sale = await tx.sale.create({ data: {
-        saleNumber, sellerMemberId, registeredByUserId: actor?.userId ?? null, exchangeRate,
+        saleNumber, sellerMemberId, resellerId: r.resellerId ?? null, registeredByUserId: actor?.userId ?? null, exchangeRate,
         storeId, clientId, clientName: clientName || linkedClient?.name || '', inventoryItemId, tradeInId, deviceLabel,
         dateLabel, amount: toDecimal(amount), amountCurrency, paymentMethod, status,
         customFields: normalizeCustomFields(customFields), soldAt, warrantyDays: null,
       } });
       await assertStoreReferences(tx, storeId, 'Sale', sale);
-      if (sellerMemberId) await recordSaleCommission(tx, storeId, sale.id);
+      if (sellerMemberId || r.resellerId) await recordSaleCommission(tx, storeId, sale.id);
       if (inventoryItemId) await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { status: 'VENDIDO' } });
       if (linkedClient) await tx.client.update({ where: { id: linkedClient.id }, data: {
         totalSpent: { increment: toDecimal(amount) }, lastPurchaseAt: !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt ? soldAt : linkedClient.lastPurchaseAt,

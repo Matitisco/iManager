@@ -80,6 +80,7 @@ model Store {
   sectionRecordViews  SectionRecordView[]
   auditEvents         AuditEvent[]
   storeCounter        StoreCounter?
+  resellers           StoreReseller[]
   commissionRules     CommissionRule[]
   commissionPayments  CommissionPayment[]
   commissionAccruals  CommissionAccrual[]
@@ -282,6 +283,8 @@ model Sale {
   cantidad        Int            @default(1)
   stockDeducted   Boolean        @default(false)
   id              String         @id @default(cuid())
+  resellerId      String?
+  reseller        StoreReseller? @relation(fields: [resellerId], references: [id], onDelete: Restrict)
   sellerMemberId  String?
   registeredByUserId String?
   exchangeRate    Decimal?       @db.Decimal(12, 2)
@@ -335,6 +338,7 @@ model Sale {
   @@index([storeId, voidedAt])
   @@index([storeId, voidedAt, soldAt])
   @@index([sellerMemberId])
+  @@index([storeId, resellerId])
   @@index([clientId])
   @@index([inventoryItemId])
   @@index([inventoryItemId, soldAt])
@@ -374,6 +378,7 @@ model TradeIn {
   draftAmount        Decimal?         @db.Decimal(12, 2)
   draftPaymentMethod String?          @db.VarChar(50)
   draftPaymentStatus String?          @db.VarChar(20)
+  draftResellerId     String?
   draftSellerMemberId String?         @db.VarChar(120)
   draftWarrantyDays   Int?
   cancelledBy        String?          @db.VarChar(255)
@@ -634,6 +639,8 @@ model CommissionRule {
   deletedAt     DateTime?
   id            String          @id @default(cuid())
   storeId       String
+  resellerId    String?
+  reseller      StoreReseller? @relation(fields: [resellerId], references: [id], onDelete: Restrict)
   memberId      String?
   basis         CommissionBasis @default(PROFIT_PERCENT)
   rate          Decimal         @db.Decimal(12, 4)
@@ -646,6 +653,7 @@ model CommissionRule {
 
   @@index([storeId])
   @@index([storeId, memberId, effectiveFrom])
+  @@index([storeId, resellerId, effectiveFrom])
 }
 
 model CommissionPayment {
@@ -653,7 +661,9 @@ model CommissionPayment {
   voidedBy        String?
   id              String      @id @default(cuid())
   storeId         String
-  memberId        String
+  resellerId    String?
+  reseller      StoreReseller? @relation(fields: [resellerId], references: [id], onDelete: Restrict)
+  memberId        String?
   period          String      @db.VarChar(7)
   amount          Decimal     @db.Decimal(12, 2)
   currency        String      @db.VarChar(3)
@@ -663,17 +673,20 @@ model CommissionPayment {
   createdBy       String
   createdAt       DateTime    @default(now())
   store           Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  member          StoreMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member          StoreMember? @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
   @@index([storeId, memberId, period])
+  @@index([storeId, resellerId, period])
 }
 
 // Frozen calculation, including tombstones for physically deleted sales.
 model CommissionAccrual {
   id               String           @id @default(cuid())
   storeId          String
-  memberId         String
+  resellerId    String?
+  reseller      StoreReseller? @relation(fields: [resellerId], references: [id], onDelete: Restrict)
+  memberId         String?
   sourceSaleId     String
   saleNumber       Int
   soldAt           DateTime
@@ -695,11 +708,12 @@ model CommissionAccrual {
   adjustmentPeriod String?          @db.VarChar(7)
   createdAt        DateTime         @default(now())
   store            Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  member           StoreMember      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member           StoreMember?      @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
   @@index([storeId, sourceSaleId])
   @@index([storeId, memberId, period])
+  @@index([storeId, resellerId, period])
 }
 
 // Public sharing is opt-in. No existing inventory is published by migration.
@@ -1296,4 +1310,21 @@ model CatalogItemPrice {
 
   @@id([catalogId, inventoryItemId])
   @@index([inventoryItemId])
+}
+
+model StoreReseller {
+  id          String    @id @default(cuid())
+  storeId     String
+  name        String    @db.VarChar(80)
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  store       Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  sales       Sale[]
+  rules       CommissionRule[]
+  accruals    CommissionAccrual[]
+  payments    CommissionPayment[]
+
+  @@index([storeId])
+  @@unique([storeId, name])
 }
