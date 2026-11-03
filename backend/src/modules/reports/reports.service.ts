@@ -567,6 +567,9 @@ export async function getReportsOverview(
       return [{ ...reversal, currency: row.moneyCurrency ?? currency,
         costCurrency: row.sale?.inventoryItem?.currency ?? row.moneyCurrency ?? currency }];
     });
+    // No return to reverse: keep the sale margin's cents, as Ventas does.
+    // netProfit's aggregate rounding would discard cents already in this currency.
+    if (!returns.length) return metrics.grossProfit;
     const figures = netProfit({ currency, sellRate: rate,
       sales: [{ amount: metrics.revenue, cost: metrics.revenue - metrics.grossProfit, currency, costCurrency: currency }],
       expenses: [], returns });
