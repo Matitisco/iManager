@@ -370,6 +370,24 @@ export async function restoreInventoryDuplicates(body: z.infer<typeof inventoryD
       SELECT "id", "storeId" FROM "InventoryItem" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`);
     for (const item of existing) expectEqual(`tienda actual de ${item.id}`, store.id, item.storeId);
 
+    // Physical backups bypass Prisma's relation inputs. A valid FK alone does
+    // not prove tenant ownership; reject mixed-store references before writing.
+    // Archived catalogs remain valid historical references.
+    const relations = [
+      ['categoryId', 'InventoryCategory'], ['supplierId', 'Supplier'], ['stockPurchaseId', 'StockPurchase'],
+    ] as const;
+    for (const [field, table] of relations) {
+      const values = backup.items.map(item => item[field]).filter(value => value != null);
+      if (values.some(value => typeof value !== 'string')) throw new DomainError('Referencia inválida en el backup.', 409);
+      const referenceIds = [...new Set(values as string[])];
+      if (!referenceIds.length) continue;
+      // Table names are constants above; all supplied IDs remain parameters.
+      const matched = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT "id" FROM ${Prisma.raw(`"${table}"`)}
+        WHERE "storeId" = ${store.id} AND "id" IN (${Prisma.join(referenceIds)}) FOR SHARE`);
+      if (matched.length !== referenceIds.length) throw new DomainError('El backup contiene referencias inexistentes o de otra tienda.', 409);
+    }
+
     const columns = (await tx.$queryRaw<{ column_name: string }[]>`
       SELECT column_name FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'InventoryItem' ORDER BY ordinal_position`).map(row => row.column_name);
