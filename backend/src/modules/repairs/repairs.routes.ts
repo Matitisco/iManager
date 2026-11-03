@@ -19,7 +19,7 @@ import {
   type RepairOrderInput,
 } from "./repairs.service.js";
 
-const tags = z.array(z.string().trim().min(1).max(40)).max(8);
+const tags = z.array(z.string().trim().min(1).max(40)).max(12);
 const money = z.number().nonnegative().max(100_000_000);
 
 const repairSchema = z.object({
