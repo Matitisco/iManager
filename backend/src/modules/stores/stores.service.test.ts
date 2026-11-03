@@ -4,6 +4,7 @@ const prismaMock = vi.hoisted(() => ({
   user: { findUniqueOrThrow: vi.fn() },
   storeMember: {
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     findMany: vi.fn(),
     count: vi.fn(),
     update: vi.fn(),
@@ -17,6 +18,7 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   $executeRaw: vi.fn(),
+  $queryRaw: vi.fn(),
   $transaction: vi.fn(),
 }));
 
@@ -37,10 +39,14 @@ import {
 describe("stores.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockResolvedValue([{ id: "store-1" }]);
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
+    prismaMock.storeMember.findUnique.mockResolvedValue({ role: "OWNER", userId: "user-1" });
     prismaMock.user.findUniqueOrThrow.mockResolvedValue({ billingLegacy: true });
   });
 
   it("prevents a manager from promoting someone to OWNER", async () => {
+    prismaMock.storeMember.findUnique.mockResolvedValue({ role: "MANAGER", userId: "user-1" });
     prismaMock.storeMember.findFirst.mockResolvedValue({
       id: "member-2",
       role: "STAFF",
@@ -129,7 +135,6 @@ describe("stores.service", () => {
 
   it("activates a store the user already belongs to", async () => {
     prismaMock.storeMember.findFirst.mockResolvedValue({ id: "member-2", storeId: "store-2" });
-    prismaMock.$transaction.mockResolvedValue([]);
 
     await activateStoreForUser("user-1", "store-2");
 

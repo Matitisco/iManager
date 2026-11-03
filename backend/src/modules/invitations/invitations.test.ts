@@ -26,6 +26,7 @@ const {
       updateMany: vi.fn(),
     },
     $executeRaw: vi.fn(),
+    $queryRaw: vi.fn(),
     $transaction: vi.fn(),
   },
   findOrCreateUserFromFirebaseMock: vi.fn(),
@@ -60,6 +61,7 @@ describe("invitations.service", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockResolvedValue([{ id: "store-1" }]);
     prismaMock.storeMember.findFirst.mockResolvedValue({ user: { displayName: "Ana" } });
     prismaMock.store.findUniqueOrThrow.mockResolvedValue({ billingPlan: "INTERNAL", trialEndsAt: null, billingPaidThrough: null });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));

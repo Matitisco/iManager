@@ -1,0 +1,5 @@
+- [x] Reproducir carreras con PostgreSQL local y Promise.all.
+- [x] Proteger mutaciones, revalidar permisos y coordinar invitaciones.
+- [x] Validar regresiones y TypeScript sin build ni suite completa local.
+- [x] Documentar alcance, límites y evidencia local; preparar entrega por PR contra test.
+- [ ] Verificar CI y resolver la integración a test conforme a sus resultados.
