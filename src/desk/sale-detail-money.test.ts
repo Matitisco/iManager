@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { saleDetailAmounts } from './sale-detail-money';
 
 describe('sale detail currency presentation', () => {
+  it.each([[25.8, '25,80'], [1.5, '1,50'], [1.6, '1,60']])('muestra centavos del accesorio de %s USD', (amount, expected) => {
+    expect(saleDetailAmounts(amount, 'USD', 'USD', null, null)).toEqual({ primary: `US$ ${expected}`, secondary: null });
+  });
   it('keeps the remaining USD debt and installments in USD with ARS equivalents', () => {
     expect(saleDetailAmounts(70, 'USD', 'USD', 'ARS', 1565)).toEqual({ primary: 'US$ 70', secondary: '$ 109.550' });
     expect(saleDetailAmounts(20, 'USD', 'USD', 'ARS', 1565)).toEqual({ primary: 'US$ 20', secondary: '$ 31.300' });

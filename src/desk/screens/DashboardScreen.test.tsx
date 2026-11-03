@@ -76,6 +76,27 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([false, true])('muestra centavos USD en indicadores, medios de pago y ventas recientes (móvil=%s)', async phone => {
+    if (phone) phoneMedia();
+    context.appSession.store.currency = 'USD';
+    const amounts = [25.8, 1.5, 1.6, 100];
+    context.sales = amounts.map((amount, index) => ({ ...makeSale(String(index), '2026-10-22', `Accesorio ${index}`), amount, amountCurrency: 'USD' }));
+    api.fetchReportsOverview.mockResolvedValue({ ...report, currency: 'USD',
+      summary: { ...report.summary, revenue: 128.9, grossProfit: 25.8 },
+      salesSeries: [{ start: '2026-10-22', label: '', revenue: 128.9, unitsSold: 4 }],
+      paymentMethods: [{ label: 'Efectivo', revenue: 128.9, share: 100, count: 4 }],
+    });
+    render(dashboardView('USD'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('US$ 128,90'));
+    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('US$ 25,80');
+    expect(document.querySelector('.dashboard-payment-amount')).toHaveTextContent('US$ 128,90');
+    for (const [index, expected] of ['25,80', '1,50', '1,60', '100'].entries()) {
+      const row = screen.getByText(`Accesorio ${index}`).closest(phone ? '.sale-card' : 'tr')!;
+      expect(within(row as HTMLElement).getByText(`US$ ${expected}`, { exact: true })).toBeVisible();
+    }
+    expect(context.sales.map(row => row.amount)).toEqual(amounts);
+  });
+
   it.each([
     { currency: 'USD' as const }, { manualSell: 1600 }, { manualBuy: 1400 },
     { exchangeMode: 'auto' }, { exchangeSource: 'mep' },

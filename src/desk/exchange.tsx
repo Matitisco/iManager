@@ -137,13 +137,14 @@ function passthroughMoney(): MoneyApi {
 }
 
 function buildMoney(active: MoneyCurrency, rate: number | null, warning: string | null): MoneyApi {
-  const shown = (amount: number, currency?: string | null, fractionDigits: 0 | 2 = 0) => {
-    const projected = projectAmount(amount, currency, active, rate, fractionDigits);
+  // Text projections keep USD cents; numeric totals and write paths retain their existing rules.
+  const shown = (amount: number, currency?: string | null, fractionDigits?: 0 | 2) => {
+    const projected = projectAmount(amount, currency, active, rate, fractionDigits ?? (active === 'USD' ? 2 : 0));
     return { text: formatMoney(projected.value, projected.currency, fractionDigits), currency: projected.currency };
   };
-  const show = (amount: number, currency?: string | null, fractionDigits: 0 | 2 = 0) => shown(amount, currency, fractionDigits).text;
+  const show = (amount: number, currency?: string | null, fractionDigits?: 0 | 2) => shown(amount, currency, fractionDigits).text;
   const compact = (amount: number, currency?: string | null) => {
-    const projected = projectAmount(amount, currency, active, rate);
+    const projected = projectAmount(amount, currency, active, rate, active === 'USD' ? 2 : 0);
     return formatMoneyCompact(projected.value, projected.currency);
   };
   return {
