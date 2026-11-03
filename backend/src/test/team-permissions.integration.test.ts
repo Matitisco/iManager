@@ -83,10 +83,10 @@ describe('issue #71 — invitations and section permissions', () => {
     expect((await app.inject({ method: 'DELETE', url: url(removable.id), headers: headers('socio') })).statusCode).toBe(200);
   });
 
-  it('accepts with a different email, persists STAFF defaults and remains single-use under concurrency', async () => {
+  it('accepts with the invited email, persists STAFF defaults and remains single-use under concurrency', async () => {
     const f = await fixture();
     const invitation = (await create('STAFF', 'test-owner', 'etiqueta@test.com')).json();
-    const accept = (uid: string) => getApp().inject({ method: 'POST', url: '/api/invitations/accept', headers: buildAuthHeaders({ uid, email: `${uid}@different.com` }), payload: { token: invitation.token } });
+    const accept = (uid: string) => getApp().inject({ method: 'POST', url: '/api/invitations/accept', headers: buildAuthHeaders({ uid, email: 'etiqueta@test.com' }), payload: { token: invitation.token } });
     const responses = await Promise.all([accept('new-a'), accept('new-b')]);
     expect(responses.map(r => r.statusCode).sort()).toEqual([200, 410]);
     expect(responses.find(r => r.statusCode === 200)!.json()).toMatchObject({ session: { membership: { role: 'STAFF', sections: STAFF_DEFAULT_SECTIONS } } });

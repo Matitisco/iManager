@@ -13,6 +13,24 @@ import { writeAudit, type Actor } from "../audit/audit.js";
 
 const INVITATION_TTL_DAYS = 7;
 
+export class InvitationEmailError extends DomainError {
+  constructor() {
+    super("No se pudo aceptar la invitación con esta cuenta.", 403);
+  }
+}
+
+function assertInvitationEmail(email: string | null | undefined, auth: FirebaseAuthContext) {
+  // Links without an email are an existing, transferable capability. Changing
+  // that flow requires a separate product decision (docs/security/invitaciones.md).
+  if (email == null) return;
+  const invitedEmail = email.trim().toLowerCase();
+  const tokenEmail = auth.email?.trim().toLowerCase();
+  // Do not strip +tags/dots or infer aliases. PG profile email is not identity proof.
+  if (!invitedEmail || auth.emailVerified !== true || !tokenEmail || tokenEmail !== invitedEmail) {
+    throw new InvitationEmailError();
+  }
+}
+
 export async function createInvitation(
   storeId: string,
   actorRole: string,
@@ -43,7 +61,7 @@ export async function createInvitation(
     data: {
       storeId,
       ...(actorUserId ? { invitedById: actorUserId } : {}),
-      email,
+      email: email?.trim().toLowerCase(),
       role,
       expiresAt,
       ...(sections !== undefined ? { sections } : {}),
@@ -157,6 +175,8 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     throw new DomainError("La invitación expiró o ya fue utilizada", 410);
   }
 
+  assertInvitationEmail(invitation.email, auth);
+
   // Find or create the User in PG
   const user = await findOrCreateUserFromFirebase(auth);
 
@@ -179,6 +199,8 @@ export async function acceptInvitation(token: string, auth: FirebaseAuthContext)
     if (!current || current.status !== "PENDING" || current.expiresAt <= new Date()) {
       throw new DomainError("La invitación expiró o ya fue utilizada", 410);
     }
+
+    assertInvitationEmail(current.email, auth);
 
     const memberNow = await tx.storeMember.findUnique({
       where: { storeId_userId: { storeId: invitation.storeId, userId: user.id } },

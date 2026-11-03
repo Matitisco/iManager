@@ -34,6 +34,7 @@ vi.mock("./invitations.service.js", () => ({
   listInvitations: listInvitationsMock,
   createInvitation: createInvitationMock,
   revokeInvitation: revokeInvitationMock,
+  InvitationEmailError: class extends Error {},
 }));
 
 import { invitationsRoutes } from "./invitations.routes.js";

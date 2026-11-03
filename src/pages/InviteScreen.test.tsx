@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { InviteScreen } from './InviteScreen';
 import type { UseInvitationPreviewState } from '../hooks/useInvitationPreview';
 
-const context = vi.hoisted(() => ({ user: null as null | { uid: string }, login: vi.fn(async () => undefined) }));
+const context = vi.hoisted(() => ({ user: null as null | { uid: string; email?: string; emailVerified?: boolean }, login: vi.fn(async () => undefined), logout: vi.fn(async () => undefined) }));
+const sendVerification = vi.hoisted(() => vi.fn(async (_uid: string) => undefined));
+vi.mock('../services/auth-action', () => ({ sendInvitationEmailVerification: sendVerification }));
 vi.mock('../context/AppContext', () => ({ useAppContext: () => context }));
 vi.mock('./Login', () => ({ Login: ({ initialRegisterMode }: { initialRegisterMode: boolean }) => <p>{initialRegisterMode ? 'Formulario para crear cuenta' : 'Formulario para iniciar sesión'}</p> }));
 const leave = vi.fn(); const accept = vi.fn(); const reload = vi.fn();
@@ -51,6 +53,39 @@ describe('accept invitation', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('No se pudo aceptar');
     await userEvent.click(screen.getByRole('button', { name: 'Aceptar invitación' }));
     expect(accept).toHaveBeenCalledOnce();
+  });
+
+  it('offers account switching without leaving or accepting the invitation', async () => {
+    context.user = { uid: 'other-user', email: 'other@example.com', emailVerified: true };
+    show(valid, false, 'Esta invitación es para otro email');
+    expect(screen.getByRole('alert')).toHaveTextContent('Esta invitación es para otro email');
+    expect(screen.getByText('Tu cuenta: other@example.com')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Usar otro email' }));
+    expect(context.logout).toHaveBeenCalledOnce();
+    expect(leave).not.toHaveBeenCalled();
+    expect(accept).not.toHaveBeenCalled();
+  });
+
+  it('sends verification only on request and keeps the invitation ready for retry', async () => {
+    context.user = { uid: 'new-user', email: 'invitee@example.com', emailVerified: false };
+    show();
+    expect(sendVerification).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar verificación de email' }));
+    expect(sendVerification).toHaveBeenCalledWith('new-user');
+    expect(screen.getByRole('status')).toHaveTextContent('Abrilo y después volvé a aceptar esta invitación.');
+    await userEvent.click(screen.getByRole('button', { name: 'Aceptar invitación' }));
+    expect(accept).toHaveBeenCalledOnce();
+    expect(leave).not.toHaveBeenCalled();
+  });
+
+  it('keeps a verification failure visible and allows another attempt', async () => {
+    context.user = { uid: 'new-user', emailVerified: false };
+    sendVerification.mockRejectedValueOnce(new Error('No se pudo enviar la verificación. Probá de nuevo.'));
+    show();
+    await userEvent.click(screen.getByRole('button', { name: 'Enviar verificación de email' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo enviar la verificación');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar verificación de email' })).toBeEnabled();
   });
 });
 

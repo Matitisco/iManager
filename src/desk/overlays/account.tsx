@@ -358,6 +358,7 @@ export function InviteForm({ initialUrl }: { initialUrl?: string }) {
       <Field label="Email (opcional)" error={emailError}>
         <input type="email" inputMode="email" autoComplete="email" aria-invalid={Boolean(emailError)} value={email} placeholder="martin@gmail.com" onChange={(event) => { setEmail(event.target.value); setEmailError(''); setUrl(''); }} />
       </Field>
+      <p className="sheet-note">Con email, solo esa cuenta con el email verificado puede aceptar. Sin email, cualquiera con el link puede sumarse.</p>
       <Field label="Rol"><span /></Field>
       <Segs
         options={owner ? [{ id: 'STAFF', label: 'Empleado' }, { id: 'MANAGER', label: 'Socio' }] : [{ id: 'STAFF', label: 'Empleado' }]}

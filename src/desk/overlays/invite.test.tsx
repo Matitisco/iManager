@@ -18,6 +18,7 @@ describe('link invitations', () => {
     expect(screen.getByText('Empleado', { exact: true })).toBeInTheDocument();
     expect(screen.queryByText('Socio', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Vendedor', { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText('Con email, solo esa cuenta con el email verificado puede aceptar. Sin email, cualquiera con el link puede sumarse.')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('invite-send'));
     await waitFor(() => expect(createInvitation).toHaveBeenCalledWith(context.user, undefined, 'STAFF', expect.objectContaining({ sections: expect.arrayContaining(['dashboard', 'clients', 'service', 'notifications']) })));
     expect(await screen.findByTestId('invite-url')).toHaveTextContent('https://imanager.test/invite/t');

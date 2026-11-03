@@ -1,17 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { authActionErrorMessage, confirmReset, recoverEmailCode, verifyEmailCode, verifyResetCode } from './auth-action';
+import { authActionErrorMessage, confirmReset, recoverEmailCode, sendInvitationEmailVerification, verifyEmailCode, verifyResetCode } from './auth-action';
 
 const verifyPasswordResetCode = vi.hoisted(() => vi.fn());
 const confirmPasswordReset = vi.hoisted(() => vi.fn());
 const applyActionCode = vi.hoisted(() => vi.fn());
 const checkActionCode = vi.hoisted(() => vi.fn());
-const auth = vi.hoisted(() => ({ currentUser: null }));
+const auth = vi.hoisted(() => ({ currentUser: null as null | { uid: string } }));
+const sendEmailVerification = vi.hoisted(() => vi.fn());
 
 vi.mock('firebase/auth', () => ({
   verifyPasswordResetCode,
   confirmPasswordReset,
   applyActionCode,
   checkActionCode,
+  sendEmailVerification,
 }));
 
 vi.mock('../firebase', () => ({
@@ -24,7 +26,20 @@ describe('auth action sdk', () => {
     confirmPasswordReset.mockReset();
     applyActionCode.mockReset();
     checkActionCode.mockReset();
+    sendEmailVerification.mockReset();
+    auth.currentUser = null;
     vi.unstubAllEnvs();
+  });
+
+  it('sends invitation verification through Firebase for the current identity only', async () => {
+    auth.currentUser = { uid: 'invitee' };
+    await sendInvitationEmailVerification('invitee');
+    expect(sendEmailVerification).toHaveBeenCalledWith(auth.currentUser);
+    sendEmailVerification.mockClear();
+    await expect(sendInvitationEmailVerification('other-user')).rejects.toThrow('Volvé a iniciar sesión');
+    auth.currentUser = null;
+    await expect(sendInvitationEmailVerification('invitee')).rejects.toThrow('Volvé a iniciar sesión');
+    expect(sendEmailVerification).not.toHaveBeenCalled();
   });
 
   it('verifies and confirms a password reset through firebase', async () => {

@@ -1,0 +1,5 @@
+- [x] Validar email verificado del token y normalización en crear/aceptar, sin alterar preview público ni /api/me.
+- [x] Agregar recuperación UI por cambio de cuenta/verificación y renovar token al aceptar.
+- [x] Cubrir coincidencia, rechazo, aliases, normalización, reuso, expiración y sesión en pruebas relacionadas.
+- [x] Documentar política, alternativas y decisiones que requieren OK de Matias.
+- [x] Validar TypeScript y pruebas locales relacionadas. Entrega autorizada por PR a test; sin merge por cambio visible pendiente de OK.
