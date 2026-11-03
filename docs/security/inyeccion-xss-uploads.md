@@ -1,6 +1,6 @@
 # Seguridad: inyección, XSS y archivos
 
-Revisión 2026-11-03, rama `sec/inyeccion-xss-uploads`, entrega mediante PR a `test` (enlace agregado al abrirlo). Sin producción, migraciones, cambios de schema ni cambios a permisos financieros de #691.
+Revisión 2026-11-03, rama `sec/inyeccion-xss-uploads`, entrega mediante [PR #726](https://github.com/Matitisco/iManager/pull/726) a `test`. Sin producción, migraciones, cambios de schema ni cambios a permisos financieros de #691.
 
 | Severidad | Hallazgo y reproducción | Estado | ¿OK de Matias? |
 |---|---|---|---|
