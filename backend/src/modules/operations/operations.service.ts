@@ -186,6 +186,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     stockDeducted: Boolean(sale.stockDeducted),
     id: sale.id,
     saleNumber: sale.saleNumber,
+    createdAt: sale.createdAt?.toISOString() ?? null,
     date: formatStoredDate(sale.dateLabel, sale.soldAt),
     clientId: sale.clientId ?? "",
     clientName: sale.clientName ?? "",

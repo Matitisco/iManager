@@ -271,7 +271,7 @@ describe('Sales column filters', () => {
     context.loadCommissionSellers.mockRejectedValueOnce(cause);
     renderScreen();
     await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los vendedores.', cause));
-    expect(screen.getByText('Cliente 1')).toBeVisible();
+    expect(screen.getByText('Cliente 11')).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
     expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
@@ -293,11 +293,11 @@ describe('Sales column filters', () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
 
-    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
     expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
-    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
     const client = screen.getByRole('dialog', { name: 'Filtrar cliente' });
@@ -320,8 +320,8 @@ describe('Sales column filters', () => {
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
-    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
-    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sales-hero')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
@@ -609,7 +609,7 @@ describe.each([false, true])('annulled sales order (phone: %s)', phone => {
     expect(records()).toHaveLength(8);
     expect(records().every(row => !row.querySelector('.is-void') && !row.classList.contains('is-void'))).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(records().map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0040', 'V-0031', 'V-0041']);
+    expect(records().map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0032', 'V-0041', 'V-0031']);
     view.unmount(); window.matchMedia = media;
   });
 
@@ -619,7 +619,7 @@ describe.each([false, true])('annulled sales order (phone: %s)', phone => {
     context.sales = [sale(21, { status: 'CANCELADA' }), sale(22), sale(23, { voidedAt: '2026-10-02' }), sale(24), sale(25, { status: 'ANULADA' }), sale(26, { status: 'PENDIENTE' })];
     const view = renderScreen();
     const records = [...document.querySelectorAll(phone ? '.sale-node' : 'tbody tr')];
-    expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0022', 'V-0024', 'V-0026', 'V-0021', 'V-0023', 'V-0025']);
+    expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0026', 'V-0024', 'V-0022', 'V-0025', 'V-0023', 'V-0021']);
     view.unmount(); window.matchMedia = media;
   });
 });
@@ -647,4 +647,91 @@ it('Ventas muestra el ajuste cuando sólo hay una devolución de una venta anter
   render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider></ExchangeProvider>);
   expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('US$ -1.300');
   expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('US$ -400');
+});
+
+
+describe('orden por carga y encabezados de Ventas (#748)', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: false, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.appSession = null;
+    context.inventory = [];
+    context.clients = [];
+    context.commissionSellers = [];
+    context.sales = [
+      sale(13, { createdAt: '2026-10-10T10:00:00Z', clientName: 'Zoe' }),
+      sale(7, { createdAt: '2026-10-10T14:00:00Z', clientName: 'Ana', date: '2026-09-30' }),
+      sale(16, { createdAt: '2026-10-10T10:00:00Z', clientName: 'Ana' }),
+    ];
+  });
+  const codes = () => [...document.querySelectorAll('tbody tr')].map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
+
+  it('ordena por hora de carga y desempata por número descendente', () => {
+    renderScreen();
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+  });
+
+  it('alterna el encabezado, conserva el desempate y permite volver al orden de carga', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const header = screen.getByRole('button', { name: 'Ordenar por cliente' });
+    expect(header).toHaveClass('thsort');
+    await user.click(header);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    await user.click(header);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
+    expect(codes()).toEqual(['V-0013', 'V-0007', 'V-0016']);
+    await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
+    expect(screen.getByRole('dialog', { name: 'Filtrar cliente' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
+    await user.click(screen.getByRole('button', { name: 'Orden de carga' }));
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
+  });
+
+  it.each([
+    ['venta', ['V-0007', 'V-0013', 'V-0016']],
+    ['fecha', ['V-0007', 'V-0016', 'V-0013']],
+    ['equipo', ['V-0007', 'V-0013', 'V-0016']],
+    ['cant.', ['V-0007', 'V-0016', 'V-0013']],
+    ['vendedor', ['V-0013', 'V-0007', 'V-0016']],
+    ['precio unit.', ['V-0013', 'V-0007', 'V-0016']],
+    ['total', ['V-0007', 'V-0013', 'V-0016']],
+    ['ganancia', ['V-0007', 'V-0013', 'V-0016']],
+    ['estado', ['V-0007', 'V-0016', 'V-0013']],
+  ])('ordena por %s sin modificar las ventas', async (label, expected) => {
+    context.sales = context.sales.map(row => ({ ...row, productId: `p${row.saleNumber}`, cantidad: row.saleNumber === 13 ? 5 : 1, unitPrice: row.saleNumber === 13 ? 12.11 : 12.12, amountCurrency: 'ARS', sellerMemberId: row.saleNumber === 13 ? 'ana' : 'zoe' }));
+    context.inventory = context.sales.map(row => ({ id: row.productId, model: row.deviceLabel, capacity: '', cost: 1, currency: 'ARS' })) as Product[];
+    context.commissionSellers = [{ id: 'ana', name: 'Ana', role: 'STAFF' }, { id: 'zoe', name: 'Zoe', role: 'STAFF' }];
+    const original = structuredClone(context.sales);
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const header = screen.getByRole('button', { name: `Ordenar por ${label}` });
+    await user.click(header);
+    expect(codes()).toEqual(expected);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(context.sales).toEqual(original);
+  });
+
+  it('permite ordenar las cards desde el mismo menú en mobile', async () => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const records = () => [...document.querySelectorAll('.sale-node')].map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
+    expect(records()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
+    await user.click(screen.getByRole('button', { name: 'Venta ↑' }));
+    expect(records()).toEqual(['V-0007', 'V-0013', 'V-0016']);
+  });
+
+  it('ordena el conjunto completo antes de paginar y vuelve a la primera página', async () => {
+    context.sales = Array.from({ length: 12 }, (_, i) => sale(i + 1));
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    await user.click(screen.getByRole('button', { name: 'Ordenar por venta' }));
+    expect(codes()).toEqual(['V-0001', 'V-0002', 'V-0003', 'V-0004', 'V-0005', 'V-0006', 'V-0007', 'V-0008']);
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
+  });
 });

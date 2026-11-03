@@ -176,7 +176,7 @@ describe.each(['light', 'dark'])('Variante B a 390 px (%s)', theme => {
       await page.setContent(`<!doctype html><html data-theme="${theme}"><meta charset="utf-8"><style>body{margin:0}${css}</style><div class="desk-app"><main class="stage"><div class="dscreen sales-screen">${screen.getByTestId('sales-timeline').outerHTML}</div></main></div></html>`);
       expect(await page.locator('.sale-profit').count()).toBe(5);
       expect(await page.locator('.sale-equipment > span:first-child').allTextContents()).toEqual(Array(5).fill('Equipo ficticio'));
-      expect(await page.locator('.sale-profit-net').allTextContents()).toEqual(['US$ 2.000', 'US$ 2.000', 'US$ 1.600', '—', 'US$ -500']);
+      expect(await page.locator('.sale-profit-net').allTextContents()).toEqual(['US$ -500', '—', 'US$ 1.600', 'US$ 2.000', 'US$ 2.000']);
       for (const row of await page.locator('.sale-profit').all()) {
         const dimensions = await row.evaluate(element => {
           const style = getComputedStyle(element);
@@ -187,9 +187,9 @@ describe.each(['light', 'dark'])('Variante B a 390 px (%s)', theme => {
         expect(dimensions.width).toBeLessThanOrEqual(dimensions.cardWidth);
       }
       const colors = await page.locator('.sale-profit-net').evaluateAll(elements => elements.map(element => getComputedStyle(element).color));
-      expect(colors[0]).toBe(theme === 'dark' ? 'rgb(143, 207, 168)' : 'rgb(28, 127, 81)');
+      expect(colors[4]).toBe(theme === 'dark' ? 'rgb(143, 207, 168)' : 'rgb(28, 127, 81)');
       expect(colors[2]).toBe(theme === 'dark' ? 'rgb(224, 196, 110)' : 'rgb(184, 120, 18)');
-      expect(colors[4]).toBe(theme === 'dark' ? 'rgb(232, 155, 148)' : 'rgb(220, 76, 76)');
+      expect(colors[0]).toBe(theme === 'dark' ? 'rgb(232, 155, 148)' : 'rgb(220, 76, 76)');
       expect(await page.locator('.sale-profit del').evaluate(element => getComputedStyle(element).textDecorationLine)).toBe('line-through');
       expect(await page.locator('body').evaluate(element => element.scrollWidth)).toBeLessThanOrEqual(390);
       if (process.env.SALE_PROFIT_SHOTS) {
