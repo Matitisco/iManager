@@ -45,7 +45,7 @@ export function visibleRepairStatuses(known: RepairStatusChoice[], orders: { sta
   ];
 }
 
-export const REPAIR_FAULTS = ['Pantalla', 'Batería', 'Pin de carga', 'Cámara', 'No enciende', 'Face ID', 'Mojado'];
+export const REPAIR_FAULTS = ['Pantalla', 'Batería', 'Pin de carga', 'Cámara', 'No enciende', 'Face ID', 'Mojado', 'Botón de encendido', 'Botones de volumen', 'Parlante', 'Tapa trasera'];
 
 export function repairFault(order: Pick<RepairOrder, 'fault' | 'faultTags'>) {
   const text = order.fault.trim();
