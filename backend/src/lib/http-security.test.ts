@@ -7,6 +7,11 @@ it('serializes actual Pino output without request secrets, PII, URL segments or 
   let output = '';
   const stream = new Writable({ write(chunk, _encoding, next) { output += chunk.toString(); next(); } });
   const app = Fastify({ logger: { ...securityLoggerOptions, stream } });
+  const startupError = new Error('synthetic-private-startup');
+  app.log.error(startupError);
+  app.log.error({ err: startupError });
+  app.log.error({ err: startupError }, startupError.message);
+  app.log.error({ err: { message: 'synthetic-private-provider' } });
   app.get('/invite/:token', async request => {
     const err = Object.assign(new Error('synthetic-private-sql'), { code: 'P2002' });
     request.log.error({ err, error: err, email: 'qa-sec-1@example.com', imei: 'synthetic-private-imei',

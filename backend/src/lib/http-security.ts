@@ -33,6 +33,20 @@ export const securityLoggerOptions: Exclude<FastifyServerOptions['logger'], bool
     paths: [...privateFields.flatMap(key => [key, `*.${key}`, `*.*.${key}`]), 'req.headers', 'req.body', 'res.headers', 'body', 'headers'],
     censor: '[REDACTED]',
   },
+  hooks: {
+    logMethod(args, method) {
+      const record = args[0];
+      const fields = record && typeof record === 'object' ? record as Record<string, unknown> : undefined;
+      const error = record instanceof Error ? record : (fields?.err ?? fields?.error);
+      // Pino otherwise copies err.message into msg outside the err serializer.
+      const errorMessage = error && typeof error === 'object' && 'message' in error ? error.message : undefined;
+      if (error && (args[1] === undefined || args[1] === errorMessage)) {
+        method.call(this, record instanceof Error ? { err: record } : record, 'operation failed');
+        return;
+      }
+      method.apply(this, args);
+    },
+  },
   serializers: {
     // Request URLs include invitation tokens and arbitrary PII in query/path segments.
     req: request => ({ method: request.method }),
