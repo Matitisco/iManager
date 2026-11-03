@@ -50,7 +50,7 @@ describe('reclamos: cambios auditados y baja lógica', () => {
   it('scopes deletion to the store and never writes if the case is missing', async () => {
     db.returnCase.findFirst.mockResolvedValue(null);
     expect(await archiveReturnCase('other', 'claim', actor)).toBe(false);
-    expect(db.returnCase.findFirst).toHaveBeenCalledWith({ where: { id: 'claim', storeId: 'other', deletedAt: null } });
+    expect(db.returnCase.findFirst).toHaveBeenCalledWith({ where: { id: 'claim', storeId: 'other', deletedAt: null }, include: { creditNote: { select: { id: true } } } });
     expect(db.returnCase.update).not.toHaveBeenCalled();
   });
   it('keeps ANULADO read-only even without a deletion timestamp', async () => {

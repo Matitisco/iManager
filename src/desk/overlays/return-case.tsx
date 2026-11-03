@@ -315,7 +315,7 @@ export function ReturnDelete({ id }: { id: string }) {
   };
   return <Sheet title="¿Anular reclamo?" onClose={close} busy={busy} className="return-delete" footer={<Actions busyLabel="Anular" primary="Anular" danger busy={busy || !current || isVoidRow(current)} onSecondary={close} onPrimary={() => { void remove(); }} />}>
     <div><b className="rd-who">{current?.code ?? 'Reclamo'} · <ReplayValue>{current?.clientName || 'Sin cliente'}</ReplayValue></b>
-    <p className="rd-note">Queda anulado y fuera de los totales. Se conservan los movimientos registrados.</p></div>
+    <p className="rd-note">El reclamo quedará anulado y se conservará su historial. Si tiene un reintegro o una nota de crédito, anulalos primero. Sin compensación, se revierten los movimientos de stock del reclamo.</p></div>
     {error ? <p className="ferr" role="alert">{error}</p> : null}
   </Sheet>;
 }

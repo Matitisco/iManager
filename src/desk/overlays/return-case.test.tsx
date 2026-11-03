@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReturnCaseView } from '../../services/returns-api';
+import { ApiError } from '../../services/api-client';
 import type { Client, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ReturnDelete, ReturnDetail, ReturnForm } from './return-case';
@@ -208,7 +209,7 @@ describe('editar y anular reclamo', () => {
     expect(screen.getByRole('dialog', { name: '¿Anular reclamo?' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
     expect(screen.queryByText(/Eliminar/)).not.toBeInTheDocument();
-    expect(screen.getByText(/fuera de los totales/)).toBeInTheDocument();
+    expect(screen.getByText(/se conservará su historial/)).toBeInTheDocument();
     expect(ctx.archiveReturn).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(close).toHaveBeenCalledOnce();
@@ -225,10 +226,18 @@ describe('editar y anular reclamo', () => {
     expect(ctx.archiveReturn).toHaveBeenCalledTimes(2);
     expect(ctx.archiveReturn).toHaveBeenLastCalledWith('claim');
   });
-  it('explains that an existing settlement remains recorded', () => {
-    ctx.returns = [{ ...claim, status: 'RESUELTO', resolution: 'REINTEGRO' }];
+  it.each(['REINTEGRO', 'NOTA_CREDITO'] as const)('explica el bloqueo de %s y conserva el modal ante HTTP 409', async settlement => {
+    ctx.returns = [{ ...claim, status: 'RESUELTO', resolution: 'REINTEGRO', settlement, moneyAmount: 500 }];
+    const message = 'Este reclamo tiene una compensación emitida. Anulá primero el reintegro o la nota de crédito antes de anular el reclamo.';
+    ctx.archiveReturn.mockRejectedValueOnce(new ApiError(409, message));
     mount(<ReturnDelete id="claim" />);
-    expect(screen.getByText(/Se conservan los movimientos registrados/)).toBeInTheDocument();
+    expect(screen.getByText(/Si tiene un reintegro o una nota de crédito, anulalos primero/)).toBeInTheDocument();
+    expect(screen.getByText(/Sin compensación, se revierten los movimientos de stock/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('dialog', { name: '¿Anular reclamo?' })).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    expect(ctx.returns[0]).toMatchObject({ status: 'RESUELTO', deletedAt: null, settlement, moneyAmount: 500 });
   });
 });
 

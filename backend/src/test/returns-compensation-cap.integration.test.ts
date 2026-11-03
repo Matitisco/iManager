@@ -6,7 +6,7 @@ import { useIntegrationApp } from "./integration-helpers.js";
 const { getApp } = useIntegrationApp();
 
 describe("QA 04: límite económico después de anular reclamos", () => {
-  it.each(["NOTA_CREDITO", "REINTEGRO"])("conserva el límite de la venta tras anular una compensación %s", async settlement => {
+  it.each(["NOTA_CREDITO", "REINTEGRO"])("bloquea anular una compensación %s y conserva el límite de la venta", async settlement => {
     const owner = await seedStoreContext();
     const storeId = owner.store!.id;
     const catalog = await seedCatalogFixture(storeId);
@@ -26,7 +26,7 @@ describe("QA 04: límite económico después de anular reclamos", () => {
     const first = await open();
     expect((await resolve(first, 300000)).statusCode).toBe(200);
     expect((await app.inject({ method: "POST", url: `/api/returns/${first}/rma`, headers, payload: { status: "RECIBIDO", stockStatus: "EN_REVISION" } })).statusCode).toBe(200);
-    expect((await app.inject({ method: "DELETE", url: `/api/returns/${first}`, headers })).statusCode).toBe(204);
+    expect((await app.inject({ method: "DELETE", url: `/api/returns/${first}`, headers })).statusCode).toBe(409);
     const second = await open();
     const duplicated = await resolve(second, 900000);
     expect(duplicated.statusCode, duplicated.body).toBe(400);
@@ -35,8 +35,8 @@ describe("QA 04: límite económico después de anular reclamos", () => {
     const excessivePartial = await resolve(second, 300000.01);
     expect(excessivePartial.statusCode, excessivePartial.body).toBe(400);
     expect((await resolve(second, 300000)).statusCode).toBe(200);
-    // Anular con el proveedor tampoco libera lo ya emitido.
-    expect((await app.inject({ method: "DELETE", url: `/api/returns/${second}`, headers })).statusCode).toBe(204);
+    // Tampoco se puede anular mientras el equipo sigue con el proveedor.
+    expect((await app.inject({ method: "DELETE", url: `/api/returns/${second}`, headers })).statusCode).toBe(409);
     const third = await open();
     expect((await resolve(third, 300000.01)).statusCode).toBe(400);
     expect((await resolve(third, 300000)).statusCode).toBe(200);

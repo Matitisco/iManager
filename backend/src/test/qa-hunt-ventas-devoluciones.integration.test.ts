@@ -107,9 +107,7 @@ describe('QA exploratorio ventas/devoluciones', () => {
     expect((await prisma.inventoryItem.aggregate({ where: { storeId: f.storeId }, _sum: { cantidad: true } }))._sum.cantidad).toBe(10);
   });
 
-  // Hallazgo grande: anular conserva dinero/stock pero los reportes lo omiten.
-  // La expectativa de negocio queda ejecutable hasta definir la reversión integral.
-  it.fails.each(['REINTEGRO', 'NOTA_CREDITO'])('pendiente: anular %s no debe borrar una compensación vigente de reportes', async settlement => {
+  it.each(['REINTEGRO', 'NOTA_CREDITO'])('HVD-04: bloquea anular %s y conserva la compensación en reportes', async settlement => {
     const f = await fixture();
     const sale = await sell(f);
     const claim = await open(sale.id);
@@ -118,7 +116,9 @@ describe('QA exploratorio ventas/devoluciones', () => {
     const before = await request('GET', url);
     expect(before.statusCode, before.body).toBe(200);
     expect(before.json().overview.summary.revenue).toBe(0);
-    expect((await request('DELETE', `/api/returns/${claim.id}`)).statusCode).toBe(204);
+    const cancelled = await request('DELETE', `/api/returns/${claim.id}`);
+    expect(cancelled.statusCode, cancelled.body).toBe(409);
+    expect(cancelled.json().error).toMatch(/Anulá primero el reintegro o la nota de crédito/);
     const after = await request('GET', url);
     expect(after.statusCode, after.body).toBe(200);
     expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).totalSpent)).toBe(0);
