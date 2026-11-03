@@ -51,7 +51,9 @@ describe.each([{ width: 390, theme: 'light' }, { width: 390, theme: 'dark' }, { 
       if (width === 390) {
         expect(await page.locator('.sale-quantity').allTextContents()).toEqual(['x2', 'x5']);
       } else {
-        expect(await page.getByRole('columnheader', { name: 'Cant.' }).count()).toBe(1);
+        expect(await page.getByRole('columnheader', { name: /ordenar por cant\./i }).count()).toBe(1);
+        expect(await page.getByRole('columnheader', { name: /ordenar por venta\b/i }).count()).toBe(1);
+        expect(await page.getByRole('columnheader', { name: /ordenar por vendedor\b/i }).count()).toBe(1);
         expect(await page.locator('tbody .sale-quantity-cell').allTextContents()).toEqual(['2', '1', '5']);
         expect(await page.locator('tbody .sale-quantity-cell').first().evaluate(node => ({ align: getComputedStyle(node).textAlign, numbers: getComputedStyle(node).fontVariantNumeric, width: node.getBoundingClientRect().width }))).toMatchObject({ align: 'center', numbers: 'tabular-nums' });
       }
@@ -100,6 +102,30 @@ describe.each([{ width: 390, theme: 'light' }, { width: 390, theme: 'dark' }, { 
           expect(result.fits).toBe(true);
         }
       }
+    } finally { media.mockRestore(); await page.close(); }
+  });
+});
+
+describe.each([360, 390])('filtros de Ventas a %i px', width => {
+  it('mantiene ordenar, período, vendedor y estado dentro de la pantalla al enfocarlos', async () => {
+    const media = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ media: query, matches: query.includes('max-width'), onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.sales = [];
+    const page = await browser.newPage({ viewport: { width, height: 844 } });
+    try {
+      render(<div className="desk-app"><main className="stage">
+        <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider>
+      </main></div>);
+      await page.setContent(`<!doctype html><html><meta charset="utf-8"><style>body{margin:0}${css}</style>${document.querySelector('.desk-app')!.outerHTML}</html>`);
+      const controls = page.locator('.sale-pills button');
+      expect(await controls.allTextContents()).toEqual(['Ordenar', 'Mes', 'Vendedor', 'Estado']);
+      for (const control of await controls.all()) {
+        await control.focus();
+        const box = await control.boundingBox();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      }
+      expect(await page.locator('.stage').evaluate(node => node.scrollLeft)).toBe(0);
+      expect(await page.getByTestId('sales-screen').evaluate(node => node.getBoundingClientRect().left)).toBeGreaterThanOrEqual(0);
     } finally { media.mockRestore(); await page.close(); }
   });
 });
