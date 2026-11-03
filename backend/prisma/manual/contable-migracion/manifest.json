@@ -1,0 +1,545 @@
+{
+  "references": [
+    {
+      "table": "Client",
+      "field": "categoryId",
+      "parent": "ClientCategory",
+      "historical": false
+    },
+    {
+      "table": "InventoryItem",
+      "field": "supplierId",
+      "parent": "Supplier",
+      "historical": false
+    },
+    {
+      "table": "InventoryItem",
+      "field": "stockPurchaseId",
+      "parent": "StockPurchase",
+      "historical": false
+    },
+    {
+      "table": "InventoryItem",
+      "field": "categoryId",
+      "parent": "InventoryCategory",
+      "historical": false
+    },
+    {
+      "table": "Sale",
+      "field": "sellerMemberId",
+      "parent": "StoreMember",
+      "historical": false
+    },
+    {
+      "table": "Sale",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "Sale",
+      "field": "categoryId",
+      "parent": "SaleCategory",
+      "historical": false
+    },
+    {
+      "table": "Sale",
+      "field": "inventoryItemId",
+      "parent": "InventoryItem",
+      "historical": false
+    },
+    {
+      "table": "Sale",
+      "field": "tradeInId",
+      "parent": "TradeIn",
+      "historical": false
+    },
+    {
+      "table": "TradeIn",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "TradeIn",
+      "field": "categoryId",
+      "parent": "TradeInCategory",
+      "historical": false
+    },
+    {
+      "table": "TradeIn",
+      "field": "receivedInventoryItemId",
+      "parent": "InventoryItem",
+      "historical": false
+    },
+    {
+      "table": "RepairOrder",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "RepairStatusEvent",
+      "field": "orderId",
+      "parent": "RepairOrder",
+      "historical": false
+    },
+    {
+      "table": "ClientPayment",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "ClientPayment",
+      "field": "repairOrderId",
+      "parent": "RepairOrder",
+      "historical": false
+    },
+    {
+      "table": "CommissionRule",
+      "field": "memberId",
+      "parent": "StoreMember",
+      "historical": false
+    },
+    {
+      "table": "CommissionPayment",
+      "field": "memberId",
+      "parent": "StoreMember",
+      "historical": false
+    },
+    {
+      "table": "CommissionAccrual",
+      "field": "memberId",
+      "parent": "StoreMember",
+      "historical": false
+    },
+    {
+      "table": "ClientDeposit",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "SaleTender",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": false
+    },
+    {
+      "table": "SaleInstallmentPlan",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": false
+    },
+    {
+      "table": "SaleInstallmentPlan",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "SaleInstallment",
+      "field": "planId",
+      "parent": "SaleInstallmentPlan",
+      "historical": false
+    },
+    {
+      "table": "StockPurchase",
+      "field": "supplierId",
+      "parent": "Supplier",
+      "historical": false
+    },
+    {
+      "table": "ReturnCase",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": false
+    },
+    {
+      "table": "ReturnCase",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "ReturnCase",
+      "field": "inventoryItemId",
+      "parent": "InventoryItem",
+      "historical": false
+    },
+    {
+      "table": "ReturnCase",
+      "field": "supplierId",
+      "parent": "Supplier",
+      "historical": false
+    },
+    {
+      "table": "ReturnEvent",
+      "field": "caseId",
+      "parent": "ReturnCase",
+      "historical": false
+    },
+    {
+      "table": "CreditNote",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": false
+    },
+    {
+      "table": "CreditNote",
+      "field": "returnCaseId",
+      "parent": "ReturnCase",
+      "historical": false
+    },
+    {
+      "table": "CreditNoteApplication",
+      "field": "creditNoteId",
+      "parent": "CreditNote",
+      "historical": false
+    },
+    {
+      "table": "CreditNoteApplication",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": false
+    },
+    {
+      "table": "CashSession",
+      "field": "registerId",
+      "parent": "CashRegister",
+      "historical": false
+    },
+    {
+      "table": "CashMovement",
+      "field": "registerId",
+      "parent": "CashRegister",
+      "historical": false
+    },
+    {
+      "table": "CashMovement",
+      "field": "sessionId",
+      "parent": "CashSession",
+      "historical": false
+    },
+    {
+      "table": "CashCount",
+      "field": "sessionId",
+      "parent": "CashSession",
+      "historical": false
+    },
+    {
+      "table": "StockCountExpected",
+      "field": "stockCountId",
+      "parent": "StockCount",
+      "historical": false
+    },
+    {
+      "table": "StockCountScan",
+      "field": "stockCountId",
+      "parent": "StockCount",
+      "historical": false
+    },
+    {
+      "table": "ClientPayment",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": true
+    },
+    {
+      "table": "SaleTender",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": true
+    },
+    {
+      "table": "SaleInstallment",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": true
+    },
+    {
+      "table": "SaleInstallment",
+      "field": "clientId",
+      "parent": "Client",
+      "historical": true
+    },
+    {
+      "table": "ClientDeposit",
+      "field": "productId",
+      "parent": "InventoryItem",
+      "historical": true
+    },
+    {
+      "table": "ClientDeposit",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": true
+    },
+    {
+      "table": "ClientDeposit",
+      "field": "repairId",
+      "parent": "RepairOrder",
+      "historical": true
+    },
+    {
+      "table": "TradeIn",
+      "field": "draftProductId",
+      "parent": "InventoryItem",
+      "historical": true
+    },
+    {
+      "table": "TradeIn",
+      "field": "draftSaleCategoryId",
+      "parent": "SaleCategory",
+      "historical": true
+    },
+    {
+      "table": "TradeIn",
+      "field": "draftSellerMemberId",
+      "parent": "StoreMember",
+      "historical": true
+    },
+    {
+      "table": "CreditNote",
+      "field": "saleId",
+      "parent": "Sale",
+      "historical": true
+    },
+    {
+      "table": "CommissionAccrual",
+      "field": "sourceSaleId",
+      "parent": "Sale",
+      "historical": true
+    },
+    {
+      "table": "CommissionAccrual",
+      "field": "ruleId",
+      "parent": "CommissionRule",
+      "historical": true
+    },
+    {
+      "table": "InventoryItem",
+      "field": "reservedDepositId",
+      "parent": "ClientDeposit",
+      "historical": true
+    },
+    {
+      "table": "InventoryItem",
+      "field": "reservedClientId",
+      "parent": "Client",
+      "historical": true
+    },
+    {
+      "table": "CashMovement",
+      "field": "reversalOf",
+      "parent": "CashMovement",
+      "historical": true
+    },
+    {
+      "table": "StockCountExpected",
+      "field": "inventoryItemId",
+      "parent": "InventoryItem",
+      "historical": true
+    },
+    {
+      "table": "StockCountScan",
+      "field": "inventoryItemId",
+      "parent": "InventoryItem",
+      "historical": true
+    }
+  ],
+  "states": {
+    "sale": [
+      "COMPLETADA",
+      "PENDIENTE",
+      "CANCELADA",
+      "ANULADA"
+    ],
+    "trade": [
+      "PENDIENTE",
+      "APROBADO",
+      "RECHAZADO",
+      "EN REVISIÓN",
+      "PERITAJE TÉC.",
+      "LISTO",
+      "CANCELADO",
+      "ANULADO"
+    ],
+    "deposit": [
+      "ACTIVE",
+      "CREDIT",
+      "APPLIED",
+      "REFUNDED",
+      "REVERSED"
+    ],
+    "paymentKind": [
+      "PAGO",
+      "DEVOLUCION",
+      "VUELTO",
+      "CARGO",
+      "NOTA_CREDITO",
+      "SENA",
+      "CREDITO",
+      "APLICACION"
+    ],
+    "tenderRole": [
+      "COBRO",
+      "VUELTO"
+    ],
+    "commissionVoid": [
+      "CANCELLED",
+      "DELETED",
+      "EDITED"
+    ],
+    "return": [
+      "ABIERTO",
+      "EN_DIAGNOSTICO",
+      "EN_PROVEEDOR",
+      "RESUELTO",
+      "ANULADO"
+    ],
+    "returnEvent": [
+      "ABIERTO",
+      "EN_DIAGNOSTICO",
+      "EN_PROVEEDOR",
+      "RESUELTO",
+      "ANULADO",
+      "ENVIADO",
+      "EN_REVISION",
+      "APROBADO",
+      "RECHAZADO",
+      "RECIBIDO"
+    ],
+    "rma": [
+      "ENVIADO",
+      "EN_REVISION",
+      "APROBADO",
+      "RECHAZADO",
+      "RECIBIDO"
+    ],
+    "credit": [
+      "ABIERTA",
+      "APLICADA"
+    ],
+    "cashSession": [
+      "OPEN",
+      "SUBMITTED",
+      "APPROVED",
+      "RECOUNT"
+    ],
+    "cashKind": [
+      "FONDO",
+      "INGRESO",
+      "EGRESO",
+      "AJUSTE",
+      "TRANSFERENCIA",
+      "COBRO",
+      "DEVOLUCION",
+      "ANULACION",
+      "ARQUEO"
+    ]
+  },
+  "aliases": {
+    "sale": {
+      "COMPLETED": "COMPLETADA",
+      "PENDING": "PENDIENTE",
+      "CANCELLED": "CANCELADA",
+      "CANCELED": "CANCELADA",
+      "CANCELADO": "CANCELADA",
+      "ANULADO": "ANULADA"
+    },
+    "trade": {
+      "PENDING": "PENDIENTE",
+      "APPROVED": "APROBADO",
+      "REJECTED": "RECHAZADO",
+      "COMPLETADO": "LISTO",
+      "COMPLETADA": "LISTO",
+      "COMPLETED": "LISTO",
+      "CANCELLED": "CANCELADO",
+      "CANCELED": "CANCELADO",
+      "CANCELADA": "CANCELADO",
+      "ANULADA": "ANULADO"
+    }
+  },
+  "columns": [
+    {
+      "table": "Sale",
+      "field": "status",
+      "domain": "sale",
+      "closed": false
+    },
+    {
+      "table": "TradeIn",
+      "field": "status",
+      "domain": "trade",
+      "closed": false
+    },
+    {
+      "table": "TradeIn",
+      "field": "draftPaymentStatus",
+      "domain": "sale",
+      "closed": false
+    },
+    {
+      "table": "ClientPayment",
+      "field": "kind",
+      "domain": "paymentKind",
+      "closed": true
+    },
+    {
+      "table": "SaleTender",
+      "field": "role",
+      "domain": "tenderRole",
+      "closed": true
+    },
+    {
+      "table": "CommissionAccrual",
+      "field": "voidReason",
+      "domain": "commissionVoid",
+      "closed": true
+    },
+    {
+      "table": "ClientDeposit",
+      "field": "status",
+      "domain": "deposit",
+      "closed": true
+    },
+    {
+      "table": "ReturnCase",
+      "field": "status",
+      "domain": "return",
+      "closed": true
+    },
+    {
+      "table": "ReturnCase",
+      "field": "rmaStatus",
+      "domain": "rma",
+      "closed": true
+    },
+    {
+      "table": "ReturnEvent",
+      "field": "status",
+      "domain": "returnEvent",
+      "closed": true
+    },
+    {
+      "table": "CreditNote",
+      "field": "status",
+      "domain": "credit",
+      "closed": true
+    },
+    {
+      "table": "CashSession",
+      "field": "status",
+      "domain": "cashSession",
+      "closed": true
+    },
+    {
+      "table": "CashMovement",
+      "field": "kind",
+      "domain": "cashKind",
+      "closed": true
+    }
+  ]
+}
