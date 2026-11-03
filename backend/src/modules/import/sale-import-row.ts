@@ -1,3 +1,4 @@
+import { saleState } from '../../lib/accounting-states.js';
 import { createHash } from 'node:crypto';
 import { formatArDate, parseArDate } from '../../lib/ar-date.js';
 import { normalizeCurrencyToken, normalizeImei, normalizeImportedDni, normalizeImportedPhone, normalizePayment, normalizeTradeIn } from './normalize-import.js';
@@ -57,14 +58,14 @@ export function prepareSaleReviewRows(input: SaleReviewRow[], currency: 'ARS' | 
     if (row._possibleTotal === 'true' || (!imei && [row.clientName, row.device].some(value => /^(total|subtotal|suma)(?:\s|:|$)/i.test(value || '')))) {
       row._possibleTotal = 'true'; addSaleReview(row, SALE_TOTAL_REVIEW); preserve('amount');
     }
-    if (row.status && !['COMPLETADA', 'PENDIENTE'].includes(row.status.toUpperCase())) {
+    if (row.status && !['COMPLETADA', 'PENDIENTE'].includes(saleState(row.status))) {
       addSaleReview(row, 'Estado no reconocido: se conserva en notas'); preserve('status');
     }
     for (const field of ['clientName', 'device', 'seller']) if ((row[field] || '').length > 120) {
       addSaleReview(row, `${field}: texto largo conservado completo en notas`); preserve(field);
       row[field] = row[field].slice(0, 120);
     }
-    row.status = row.status?.toUpperCase() === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA';
+    row.status = saleState(row.status ?? '') === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA';
     if (row._unassigned) addSaleReview(row, 'Columnas sin asignar conservadas en notas');
     const fingerprint = saleImportFingerprint(row);
     const occurrence = (seen.get(fingerprint) || 0) + 1;

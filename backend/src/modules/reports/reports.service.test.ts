@@ -28,6 +28,7 @@ vi.mock("./net-profit.service.js", () => ({ reportSellRate: rateMock }));
 
 vi.mock("../../plugins/prisma.js", () => ({
   prisma: {
+    $queryRaw: vi.fn().mockResolvedValue([]),
     store: { findUniqueOrThrow: storeFindMock },
     sale: {
       findMany: saleFindManyMock,

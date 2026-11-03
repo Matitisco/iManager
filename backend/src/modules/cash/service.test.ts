@@ -7,6 +7,7 @@ vi.mock('../../plugins/prisma.js', () => ({ prisma: {} }));
 const box = { id: 'box', storeId: 'store', currency: 'USD', method: 'EFECTIVO' };
 const mocks = {
   $executeRaw: vi.fn(),
+  $queryRaw: vi.fn(),
   store: { findUniqueOrThrow: vi.fn() },
   cashRegister: { findFirst: vi.fn(), update: vi.fn() },
   cashSession: { findFirst: vi.fn() },
@@ -17,6 +18,7 @@ const input = { storeId: 'store', amount: 50, currency: 'USD', method: 'EFECTIVO
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.$queryRaw.mockImplementation(async (sql) => sql.strings.join('').includes('SELECT DISTINCT') ? [] : [{ storeId: 'store' }]);
   mocks.store.findUniqueOrThrow.mockResolvedValue({ timezone: 'America/Argentina/Buenos_Aires' });
   mocks.cashMovement.create.mockImplementation(async ({ data }) => ({ id: 'movement', ...data }));
 });
@@ -42,7 +44,7 @@ describe('cobros de caja opcionales', () => {
     mocks.cashRegister.findFirst.mockResolvedValue(box);
     mocks.cashSession.findFirst.mockResolvedValue({ id: 'today' });
     await recordCash(tx, input);
-    expect(mocks.cashRegister.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ currency: 'USD', method: 'EFECTIVO', sessions: { some: { storeId: 'store', day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), status: 'OPEN' } } }) }));
+    expect(mocks.cashRegister.findFirst).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ currency: 'USD', method: 'EFECTIVO', sessions: { some: { storeId: 'store', day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), status: { in: ['OPEN'] } } } }) }));
     expect(mocks.cashMovement.create).toHaveBeenCalledWith({ data: expect.objectContaining({ registerId: 'box', sessionId: 'today', currency: 'USD', method: 'EFECTIVO' }) });
     expect(mocks.cashRegister.update).toHaveBeenCalledWith({ where: { id: 'box' }, data: { balance: { increment: expect.anything() } } });
     expect(Number(mocks.cashRegister.update.mock.calls[0][0].data.balance.increment)).toBe(50);

@@ -1,3 +1,4 @@
+import { isSaleCancelled } from '../../lib/accounting-states.js';
 import type { FastifyReply } from "fastify";
 import { loadActor, type Actor } from "../audit/audit.js";
 
@@ -18,7 +19,7 @@ export function requireStatusAccess(
   reply: FastifyReply,
   ...statuses: Array<string | null | undefined>
 ): boolean {
-  const cancelling = statuses.some(status => ["CANCELADA", "CANCELADO", "CANCELLED", "ANULADA", "ANULADO"].includes(status?.trim().toUpperCase() ?? ""));
+  const cancelling = statuses.some(status => isSaleCancelled(status));
   if (!cancelling || canManageSensitive(member)) return true;
   reply.code(403).send({ error: SENSITIVE_DENIED });
   return false;

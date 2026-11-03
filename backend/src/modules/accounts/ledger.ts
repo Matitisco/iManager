@@ -1,3 +1,4 @@
+import { saleState } from '../../lib/accounting-states.js';
 export const FREQUENCIES = ["SEMANAL", "QUINCENAL", "MENSUAL"] as const;
 export type Frequency = (typeof FREQUENCIES)[number];
 export type ExcessMode = "OMIT" | "CREDIT" | "CHANGE";
@@ -149,7 +150,7 @@ export function priceRiseDebt(input: {
 }): { extra: number; reopen: boolean; error?: string } {
   const rose = cents(input.nextAmount) > cents(input.priorAmount);
   const dueRise = cents(input.nextDue) - cents(input.priorDue);
-  if (!rose || dueRise <= 0 || input.priorStatus !== "COMPLETADA") return { extra: 0, reopen: false };
+  if (!rose || dueRise <= 0 || saleState(input.priorStatus) !== "COMPLETADA") return { extra: 0, reopen: false };
   if (!input.hasClient) return { extra: 0, reopen: false, error: "Para dejar la diferencia como deuda, la venta necesita un cliente" };
   return { extra: fromCents(dueRise), reopen: true };
 }

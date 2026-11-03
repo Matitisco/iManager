@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { prisma } from '../../plugins/prisma.js';
 import { DomainError } from '../../lib/domain-error.js';
 
@@ -10,7 +11,7 @@ export async function resolveAcquiredQuantities(storeId: string, items: { id: st
     where: { storeId, id: { in: missing.map(item => item.id) } },
     select: {
       id: true, cantidad: true,
-      sales: { where: { storeId, stockDeducted: true, voidedAt: null, status: { notIn: ['CANCELADA', 'ANULADA'] } }, select: { cantidad: true } },
+      sales: { where: { storeId, stockDeducted: true, voidedAt: null, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA","ANULADA"], true) }, select: { cantidad: true } },
       // Archiving/voiding a resolved claim does not undo its physical effects.
       returnCases: { where: { storeId, destination: { in: ['STOCK', 'PROVEEDOR'] }, resolution: { not: null } },
         select: { cantidad: true, resolution: true, rmaStatus: true, sale: { select: { storeId: true, cantidad: true, stockDeducted: true } } } },

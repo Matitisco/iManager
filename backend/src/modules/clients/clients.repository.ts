@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
@@ -31,9 +32,9 @@ export const clientsRepository = {
     return prisma.client.findFirst({ where: { id, storeId } });
   },
 
-  findActiveIntegratedSale(storeId: string, clientId: string) {
+  async findActiveIntegratedSale(storeId: string, clientId: string) {
     return prisma.sale.findFirst({
-      where: { storeId, clientId, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null },
+      where: { storeId, clientId, integratedOperation: true, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true), voidedAt: null },
       select: { id: true },
     });
   },

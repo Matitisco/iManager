@@ -1,3 +1,4 @@
+import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import { readReason } from '../audit/archive.js';
 import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -38,7 +39,7 @@ const tradeSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: zodOptionalImei().nullable().optional(),
   takeValue: moneyInput(),
-  status: z.string().trim().max(30).optional(),
+  status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
   customFields: z.record(z.unknown()).nullable().optional(),
@@ -58,7 +59,7 @@ const inputSchema = z.object({
   // Inventory list price can intentionally differ from the discounted sale total.
   unitPrice: z.number().finite().positive().max(9_999_999_999.99).optional(),
   paymentMethod: z.string().trim().max(50).optional(),
-  status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
+  status: saleStateSchema.refine(value => value !== "CANCELADA").optional(),
   categoryId: z.string().nullable().optional(),
   saleCategoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).nullable().optional(),

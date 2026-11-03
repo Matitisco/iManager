@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../backend/src/plugins/prisma.js', () => ({
   prisma: {
+    $queryRaw: vi.fn(async () => []),
     store: { findUniqueOrThrow: mocks.store },
     sale: { findMany: mocks.sales },
     tradeIn: { findMany: vi.fn(async () => []) },

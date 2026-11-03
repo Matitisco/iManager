@@ -1,3 +1,5 @@
+import { normalizeAccountingState, saleState, storedStateFilter, tradeState } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
 import { captureSaleCancellation, restoreCancelledSale } from './sale-restoration.js';
 import { trackFirstSale } from '../analytics/first-sale.js';
@@ -127,6 +129,7 @@ async function assertIncomingImei(tx: Prisma.TransactionClient, storeId: string,
     },
     select: { id: true },
   });
+  await assertStoreReferences(tx, storeId, 'InventoryItem', duplicate);
   if (duplicate) throw new OperationError("Ya existe un equipo con ese IMEI", 409);
 }
 
@@ -136,6 +139,7 @@ async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.Inventor
     const archived = await tx.inventoryItem.findFirst({
       where: { storeId: data.storeId, imei, archivedAt: { not: null } },
     });
+    await assertStoreReferences(tx, data.storeId, 'InventoryItem', archived);
     if (archived) {
       const restored = await tx.inventoryItem.update({
         where: { id: archived.id },
@@ -157,6 +161,7 @@ async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.Inventor
           archiveReason: null,
         },
       });
+      await assertStoreReferences(tx, data.storeId, 'InventoryItem', restored);
       await writeAudit(tx, {
         storeId: data.storeId,
         actor: null,
@@ -194,7 +199,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     registeredByUserId: sale.registeredByUserId,
     exchangeRate: sale.exchangeRate == null ? null : Number(sale.exchangeRate),
     paymentMethod: sale.paymentMethod,
-    status: sale.status,
+    status: saleState(sale.status),
     categoryId: sale.categoryId ?? null,
     customFields: sale.customFields ?? {},
     tradeInId: sale.tradeInId ?? null,
@@ -223,7 +228,7 @@ function serializeTrade(trade: TradeForResponse) {
     currency: trade.currency ?? null,
     deviceGiven: trade.deviceGiven,
     differencePaid: toNum(trade.differencePaid),
-    status: trade.status,
+    status: normalizeAccountingState('trade', trade.status),
     confirmationStatus: trade.confirmationStatus,
     removedFromSaleNumber: trade.removedFromSaleNumber ?? null,
     operationSource: trade.operationSource ?? null,
@@ -366,12 +371,13 @@ async function clientMovement(tx: Prisma.TransactionClient, storeId: string, cli
 
 async function applyClientOperation(tx: Prisma.TransactionClient, storeId: string, clientId: string, amount: number, paymentStatus: string, date: Date, direction: 1 | -1, debtAmount: number, money: MovementCurrency) {
   const client = await tx.client.findUnique({ where: { id: clientId } });
+  await assertStoreReferences(tx, storeId, 'Client', client);
   if (!client) return null;
   const convertedAmount = await clientMovement(tx, storeId, client, amount, money);
   const convertedDebt = await clientMovement(tx, storeId, client, debtAmount, money);
   const total = Math.max(0, toNum(client.totalSpent) + direction * convertedAmount);
   const pending = Math.max(0, toNum(client.pendingBalance) + (paymentStatus === "PENDIENTE" ? direction * convertedDebt : 0));
-  const lastPurchaseAt = direction > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
+  const lastPurchaseAt = direction > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId, voidedAt: null, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) }, _max: { soldAt: true } }))._max.soldAt;
   await tx.client.update({ where: { id: clientId }, data: { totalSpent: dec(total), pendingBalance: dec(pending), lastPurchaseAt } });
   return tx.client.findFirst({ where: { id: clientId, storeId } });
 }
@@ -380,12 +386,13 @@ async function applyClientDelta(tx: Prisma.TransactionClient, storeId: string, p
   const changed = [];
   for (const id of ids) {
     const client = await tx.client.findFirst({ where: { id, storeId } });
+    await assertStoreReferences(tx, storeId, 'Client', client);
     if (!client) continue;
     const oldAmount = id === priorId ? await clientMovement(tx, storeId, client, priorAmount, priorMoney) : 0;
     const newAmount = id === nextId ? await clientMovement(tx, storeId, client, nextAmount, nextMoney) : 0;
     const oldDebt = id === priorId && priorStatus === "PENDIENTE" ? await clientMovement(tx, storeId, client, priorDebt, priorMoney) : 0;
     const newDebt = id === nextId && nextStatus === "PENDIENTE" ? await clientMovement(tx, storeId, client, nextDebt, nextMoney) : 0;
-    const nextLastPurchase = newAmount > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId: id, voidedAt: null, status: { not: "CANCELADA" } }, _max: { soldAt: true } }))._max.soldAt;
+    const nextLastPurchase = newAmount > 0 ? date : (await tx.sale.aggregate({ where: { storeId, clientId: id, voidedAt: null, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) }, _max: { soldAt: true } }))._max.soldAt;
     await tx.client.update({ where: { id }, data: {
       totalSpent: dec(Math.max(0, toNum(client.totalSpent) + newAmount - oldAmount)),
       pendingBalance: dec(Math.max(0, toNum(client.pendingBalance) + newDebt - oldDebt)),
@@ -398,6 +405,7 @@ async function applyClientDelta(tx: Prisma.TransactionClient, storeId: string, p
 async function getClient(tx: Prisma.TransactionClient, storeId: string, input: OperationInput, prior?: Pick<Sale, "clientId" | "clientName"> | Pick<TradeIn, "clientId" | "clientName">) {
   if (input.clientId) {
     const found = await tx.client.findFirst({ where: { id: input.clientId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Client', found);
     if (!found) throw new OperationError("Client not found", 404);
     return { client: found, created: false };
   }
@@ -544,6 +552,7 @@ export async function listOperationDrafts(storeId: string, source: OperationSour
 }
 
 export async function createOperation(storeId: string, source: OperationSource, input: OperationInput, actor?: Actor) {
+  input = normalizeOperationStates(input);
   const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
     if (input.draft && hasSettlement(input)) throw new OperationError("Las cuotas y los pagos mixtos se confirman con la venta");
@@ -567,6 +576,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       const prior = input.requestKey ? await tx.tradeIn.findFirst({ where: { storeId, requestKey: input.requestKey } }) : null;
       if (prior) {
         const existingSale = await tx.sale.findFirst({ where: { storeId, tradeInId: prior.id } });
+        await assertStoreReferences(tx, storeId, 'Sale', existingSale);
         if (existingSale) return replaySaleResult(tx, storeId, existingSale, "Canje recuperado");
         return { tradeIn: serializeTrade(prior), inventory: [], clients: [], notifications: [], summary: "Borrador de canje recuperado" };
       }
@@ -576,6 +586,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
       if (input.clientId && !draftClient) throw new OperationError("Client not found", 404);
       if (input.productId) {
         const draftProduct = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
+        await assertStoreReferences(tx, storeId, 'InventoryItem', draftProduct);
         if (!draftProduct) throw new OperationError("Inventory item not found", 404);
         saleUnits(input.cantidad ?? 1, draftProduct);
         if (!canRegisterOutgoingSale(draftProduct)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
@@ -614,6 +625,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         draftSellerMemberId: input.sellerMemberId ?? null,
         draftWarrantyDays: input.warrantyDays ?? null,
       } });
+      await assertStoreReferences(tx, storeId, 'TradeIn', trade);
       const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
         action: "draft-created",
         receivedDevice: trade.deviceReceived,
@@ -643,7 +655,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     if (product?.price === null && !((input.amount ?? 0) > 0)) throw new OperationError("Cargá el precio de venta del equipo con precio a definir");
     if (product && !canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no está disponible para registrar una venta", 409);
     if (product?.status === "VENDIDO" && !product.pendingSaleRegistration) throw new OperationError("El equipo vendido no tiene registro pendiente", 409);
-    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
+    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     if (!product && input.unlistedEquipment) {
       product = await createUnlistedEquipment(tx, storeId, input.unlistedEquipment, input.amount ?? 0, currency);
     }
@@ -743,6 +755,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
         warrantyDays,
       },
     });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     await recordSaleCommission(tx, storeId, sale.id);
     if (actor) {
       const code = `V-${String(sale.saleNumber).padStart(4, "0")}`;
@@ -814,10 +827,13 @@ export async function createOperation(storeId: string, source: OperationSource, 
 }
 
 export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
+  input = normalizeOperationStates(input);
   const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
+    await assertStoreReferences(tx, storeId, 'TradeIn', trade);
     if (!trade) throw new OperationError("Trade-in not found", 404);
     const priorSale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
+    await assertStoreReferences(tx, storeId, 'Sale', priorSale);
     if (priorSale) return replaySaleResult(tx, storeId, priorSale, "Canje ya confirmado");
     if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje no esta pendiente", 409);
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
@@ -834,7 +850,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
       ? trade.deviceReceivedImei
       : input.tradeIn.deviceReceivedImei?.trim() || null;
     const takeValue = input.tradeIn?.takeValue ?? toNum(trade.takeValue);
-    const receivedStatus = input.tradeIn?.status ?? trade.status;
+    const receivedStatus = input.tradeIn?.status ?? normalizeAccountingState('trade', trade.status);
     const receivedBattery = input.tradeIn?.batteryHealth === undefined
       ? trade.batteryHealth
       : input.tradeIn.batteryHealth?.trim() || null;
@@ -854,7 +870,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
     if (product && !canRegisterOutgoingSale(product, { ...input, clientId: input.clientId ?? trade.clientId })) {
       throw new OperationError("El equipo no esta disponible", 409);
     }
-    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: "CANCELADA" } } })) {
+    if (product?.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } })) {
       throw new OperationError("Este equipo ya tiene una venta activa", 409);
     }
     const typedClientName = input.clientName !== undefined
@@ -918,6 +934,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
         ? false
         : product?.pendingSaleRegistration ?? false,
     } });
+    await assertStoreReferences(tx, storeId, 'TradeIn', confirmed);
     const cantidad = saleUnits(input.cantidad ?? trade.draftCantidad ?? 1, product);
     if (product) await tx.inventoryItem.update({ where: { id: product.id }, data: {
       cantidad: (product.cantidad ?? 1) - cantidad,
@@ -959,6 +976,7 @@ export async function confirmTradeOperation(storeId: string, tradeId: string, in
         : product?.pendingSaleRegistration ?? false,
       warrantyDays,
     } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     await recordSaleCommission(tx, storeId, sale.id);
     if (actor) {
       const code = `V-${String(sale.saleNumber).padStart(4, "0")}`;
@@ -1037,11 +1055,13 @@ export async function updateSaleOperation(storeId: string, saleId: string, input
 
 /** Same edit as updateSaleOperation, inside a transaction owned by the caller (used by the admin sale correction). */
 export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, storeId: string, saleId: string, input: OperationInput, actor?: Actor) {
+  input = normalizeOperationStates(input);
   {
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError("Sale not found", 404);
-    if (sale.status === "CANCELADA") throw new OperationError("No se puede editar una operación cancelada", 409);
+    if (saleState(sale.status) === "CANCELADA") throw new OperationError("No se puede editar una operación cancelada", 409);
     if (hasSettlement(input)) throw new OperationError("Las cuotas y los pagos mixtos se definen al crear la venta", 409);
     const trade = sale.tradeInId ? await tx.tradeIn.findFirst({ where: { id: sale.tradeInId, storeId } }) : null;
     const hasTrade = input.tradeIn === null ? false : Boolean(trade || input.tradeIn);
@@ -1082,7 +1102,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     if (nextProductId && !nextProduct) throw new OperationError("Inventory item not found", 404);
     if (nextProduct && nextProductId !== sale.inventoryItemId) {
       if (!canRegisterOutgoingSale(nextProduct)) throw new OperationError("El equipo no está disponible", 409);
-      if (nextProduct.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: nextProduct.id, id: { not: sale.id }, status: { not: "CANCELADA" } } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
+      if (nextProduct.imei && await tx.sale.findFirst({ where: { storeId, inventoryItemId: nextProduct.id, id: { not: sale.id }, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } })) throw new OperationError("Este equipo ya tiene una venta activa", 409);
     }
     const typedClientName = input.clientName !== undefined
       && (input.clientId === null || (input.clientId === undefined && input.clientName?.trim() !== sale.clientName));
@@ -1090,7 +1110,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     const nextClient = resolvedNextClient.client;
     const clientCreated = resolvedNextClient.created;
     const nextClientId = nextClient?.id ?? null;
-    let nextStatus = input.status ?? sale.status;
+    let nextStatus = input.status ?? saleState(sale.status);
     if (input.depositIds?.length) throw new OperationError("Las señas se aplican al crear una venta", 409);
     if (Number(sale.depositAppliedAmount) > 0 && (nextClientId !== sale.clientId || nextProductId !== sale.inventoryItemId || amountChanges || nextCurrency && nextCurrency !== sale.amountCurrency || hasTrade !== Boolean(trade) || moneyChanged(trade?.takeValue ?? 0, nextTakeValue))) throw new OperationError("Esta venta tiene señas aplicadas. Para cambiar cliente, equipo o importes, cancelala y registrá una nueva", 409);
     if (hasTrade && !nextClient) throw new OperationError("El canje confirmado requiere un cliente", 400);
@@ -1098,15 +1118,15 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     const priorDue = (trade ? toNum(trade.differencePaid) : toNum(sale.amount)) - Number(sale.depositAppliedAmount);
     const priorOpenBalance = sale.openBalance == null ? priorDue : toNum(sale.openBalance);
     const nextOpenBalance = Math.max(0, nextDebt - (priorDue - priorOpenBalance));
-    const collecting = sale.status === "PENDIENTE" && nextStatus === "COMPLETADA";
-    const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: sale.status, hasClient: Boolean(nextClient) });
+    const collecting = saleState(sale.status) === "PENDIENTE" && nextStatus === "COMPLETADA";
+    const rise = priceRiseDebt({ priorAmount: toNum(sale.amount), nextAmount, priorDue, nextDue: nextDebt, priorStatus: saleState(sale.status), hasClient: Boolean(nextClient) });
     if (rise.error) throw new OperationError(rise.error, 409);
     if (rise.reopen) nextStatus = "PENDIENTE";
     let archivedIncoming: InventoryItem | null = null;
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
       const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
-      if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) {
+      if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) {
         throw new OperationError("No se puede quitar el canje: el equipo recibido ya está en uso", 409);
       }
       if (received) archivedIncoming = await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
@@ -1117,6 +1137,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
       await releaseStock(tx, storeId, sale);
       if (nextProduct) {
         const refreshed = await tx.inventoryItem.findFirstOrThrow({ where: { id: nextProduct.id, storeId } });
+        await assertStoreReferences(tx, storeId, 'InventoryItem', refreshed);
         await takeStock(tx, refreshed, nextCantidad);
       }
     }
@@ -1166,6 +1187,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
               : nextProduct?.pendingSaleRegistration ?? false,
       },
     });
+    await assertStoreReferences(tx, storeId, 'Sale', updatedSale);
     let updatedTrade = hasTrade ? trade : null;
     let incoming: InventoryItem | null = null;
     if (trade && hasTrade) {
@@ -1188,7 +1210,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
           ...(nextCurrency ? { currency: nextCurrency } : {}),
           differencePaid: dec(nextAmount - nextTakeValue),
           deviceGiven: nextProduct?.model ?? nextDeviceLabel ?? "",
-          status: nextTradeInput?.status ?? trade.status,
+          status: nextTradeInput?.status ?? normalizeAccountingState('trade', trade.status),
           batteryHealth:
             nextTradeInput?.batteryHealth === undefined
               ? trade.batteryHealth
@@ -1254,7 +1276,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     }
     const balanceStatus = rise.reopen ? "COMPLETADA" : nextStatus;
     const balanceDebt = rise.reopen ? priorDue : nextOpenBalance;
-    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, sale.status, balanceStatus, priorOpenBalance, balanceDebt, nextDate, { currency: await copyCurrency(tx, storeId, sale.amountCurrency), exchangeRate: sale.exchangeRate }, { currency: labelCurrency, exchangeRate: updatedSale.exchangeRate })).filter(present);
+    let updatedClients = (await applyClientDelta(tx, storeId, sale.clientId, nextClientId, toNum(sale.amount), nextAmount, saleState(sale.status), balanceStatus, priorOpenBalance, balanceDebt, nextDate, { currency: await copyCurrency(tx, storeId, sale.amountCurrency), exchangeRate: sale.exchangeRate }, { currency: labelCurrency, exchangeRate: updatedSale.exchangeRate })).filter(present);
     if (rise.reopen && nextClientId) {
       const raised = await recordPriceRise(tx, { storeId, clientId: nextClientId, saleId: sale.id, amount: rise.extra, currency: labelCurrency, actor });
       updatedClients = updatedClients.map((client) => client?.id === raised.id ? raised : client);
@@ -1293,11 +1315,13 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
 }
 
 export async function updateTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
+  input = normalizeOperationStates(input);
   const draftSnapshot = await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId }, select: { confirmationStatus: true } });
   if (!draftSnapshot) throw new OperationError("Trade-in not found", 404);
   if (draftSnapshot.confirmationStatus === "PENDING") {
     return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
       const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
+      await assertStoreReferences(tx, storeId, 'TradeIn', trade);
       if (!trade) throw new OperationError("Trade-in not found", 404);
       if (trade.confirmationStatus !== "PENDING") throw new OperationError("El canje cambio mientras se editaba", 409);
       await assertSeller(tx, storeId, input.sellerMemberId);
@@ -1322,6 +1346,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
       }
       if (input.productId) {
         const product = await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } });
+        await assertStoreReferences(tx, storeId, 'InventoryItem', product);
         if (!product) throw new OperationError("Inventory item not found", 404);
         if (!canRegisterOutgoingSale(product, input)) throw new OperationError("El equipo no esta disponible para registrar una venta", 409);
       }
@@ -1330,7 +1355,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         deviceReceived: input.tradeIn?.deviceReceived ?? trade.deviceReceived,
         deviceReceivedImei: input.tradeIn?.deviceReceivedImei === undefined ? trade.deviceReceivedImei : input.tradeIn.deviceReceivedImei?.trim() || null,
         takeValue: input.tradeIn?.takeValue === undefined ? trade.takeValue : dec(input.tradeIn.takeValue),
-        status: input.tradeIn?.status ?? trade.status, batteryHealth: input.tradeIn?.batteryHealth === undefined ? trade.batteryHealth : input.tradeIn.batteryHealth,
+        status: input.tradeIn?.status ?? normalizeAccountingState('trade', trade.status), batteryHealth: input.tradeIn?.batteryHealth === undefined ? trade.batteryHealth : input.tradeIn.batteryHealth,
         grade: input.tradeIn?.grade === undefined ? trade.grade : strictTradeGrade(input.tradeIn.grade),
         draftCantidad: saleUnits(input.cantidad ?? trade.draftCantidad ?? 1),
         draftProductId: input.productId === undefined ? trade.draftProductId : input.productId,
@@ -1343,6 +1368,7 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
         draftWarrantyDays: input.warrantyDays ?? trade.draftWarrantyDays,
         dateLabel: input.date ? formatArDate(parseArDateOr(input.date)) : trade.dateLabel, tradeAt: input.date ? parseArDateOr(input.date) : trade.tradeAt,
       } });
+      await assertStoreReferences(tx, storeId, 'TradeIn', updated);
       const labelCurrency = await copyCurrency(tx, storeId, trade.currency);
       const notifications = await notify(tx, storeId, sectionRecords(["tradeins"], {
         action: "draft-updated",
@@ -1392,7 +1418,7 @@ export async function updateTradeFromLegacy(storeId: string, tradeId: string, pa
       deviceReceived: patch.deviceReceived ?? trade.deviceReceived,
       deviceReceivedImei: patch.deviceReceivedImei === undefined ? trade.deviceReceivedImei : patch.deviceReceivedImei,
       takeValue,
-      status: patch.status ?? trade.status,
+      status: patch.status ?? normalizeAccountingState('trade', trade.status),
       batteryHealth: patch.batteryHealth === undefined ? trade.batteryHealth : patch.batteryHealth,
       grade: patch.grade === undefined ? trade.grade : patch.grade,
       customFields: patch.customFields ?? undefined,
@@ -1440,7 +1466,7 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
         storeId,
         clientId: sale.clientId,
         voidedAt: null,
-        OR: [{ id: sale.id }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }],
+        OR: [{ id: sale.id }, { status: await storedStateFilter(tx, 'Sale', storeId, ["PENDIENTE"], false) }, { status: await storedStateFilter(tx, 'Sale', storeId, ["COMPLETADA"], false), openBalance: { gt: 0 } }],
       },
       select: {
         id: true,
@@ -1466,12 +1492,13 @@ async function planSaleCancellation(tx: Prisma.TransactionClient, storeId: strin
   const target = targets.find((row) => row.id === sale.id) ?? {
     id: sale.id,
     cash,
-    status: sale.status,
+    status: saleState(sale.status),
     openBalance: sale.openBalance == null ? null : toNum(sale.openBalance),
     soldAt: sale.soldAt.toISOString(),
   };
   target.cash = cash;
   const client = await tx.client.findFirst({ where: { id: sale.clientId, storeId }, select: { pendingBalance: true, balanceCurrency: true } });
+  await assertStoreReferences(tx, storeId, 'Client', client);
   const plan = cancellationSettlement(target, targets, rows.map((row) => ({
     saleId: row.saleId,
     repairOrderId: row.repairOrderId,
@@ -1489,6 +1516,7 @@ async function recordCancellationRefund(
 ) {
   if (!clientId || !(input.refund > 0)) return 0;
   const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { id: true } });
+  await assertStoreReferences(tx, storeId, 'Client', client);
   if (!client) return 0;
   await tx.clientPayment.create({
     data: {
@@ -1514,6 +1542,7 @@ async function recordCancellationCredit(
 ) {
   if (!clientId || !(input.credit > 0)) return 0;
   const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { id: true } });
+  await assertStoreReferences(tx, storeId, 'Client', client);
   if (!client) return 0;
   const currency = input.currency === "USD" ? "USD" : "ARS";
   const store = currency === "ARS" ? await tx.store.findUnique({ where: { id: storeId }, select: { manualSell: true } }) : null;
@@ -1565,11 +1594,12 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     // race on the unique cash reversal before reaching the sale status update.
     await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError("Sale not found", 404);
     if (!sale.integratedOperation) throw new OperationError("Esta venta no pertenece a una operación integrada", 409);
     if (sale.tradeInId) throw new OperationError("Esta venta pertenece a un canje; cancelá el canje asociado", 409);
-    if (sale.status === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
+    if (saleState(sale.status) === "CANCELADA") return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: "Venta ya cancelada" };
     const saveCancellation = await captureSaleCancellation(tx, sale);
     const labelCurrency = await copyCurrency(tx, storeId, sale.amountCurrency);
     await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
@@ -1594,6 +1624,7 @@ export async function cancelSaleOperation(storeId: string, saleId: string, actor
     await voidSaleCommission(tx, storeId, sale.id, "CANCELLED");
     const stamp = { ...cancellationStamp(actor), ...(voiding ? { voidedAt: new Date(), voidedBy: actor?.name ?? null, voidReason: cleanReason(reason) } : {}) };
     const cancelled = await tx.sale.update({ where: { id: sale.id }, data: { status: "CANCELADA", ...(sale.openBalance != null ? { openBalance: new Decimal(0) } : {}), ...stamp } });
+    await assertStoreReferences(tx, storeId, 'Sale', cancelled);
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
     if (actor) await writeAudit(tx, { storeId, actor, action: voiding ? "sale.voided" : "sale.cancelled", reason, entityType: "sale", entityId: sale.id, detail });
     const adjusted = sale.clientId ? await applyClientOperation(tx, storeId, sale.clientId, toNum(sale.amount), plan.debtToRemove > 0 ? "PENDIENTE" : "COMPLETADA", sale.soldAt, -1, plan.debtToRemove, { currency: labelCurrency, exchangeRate: sale.exchangeRate }) : null;
@@ -1638,14 +1669,16 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
   return withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${tradeId} AND "storeId" = ${storeId} FOR UPDATE`;
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
+    await assertStoreReferences(tx, storeId, 'TradeIn', trade);
     if (!trade) throw new OperationError("Trade-in not found", 404);
     if (trade.confirmationStatus == null) throw new OperationError("Este canje histórico no pertenece a una operación integrada", 409);
     if (trade.confirmationStatus === "CANCELLED") return { tradeIn: serializeTrade(trade), inventory: [], clients: [], notifications: [], summary: "Canje ya cancelado" };
     const sale = await tx.sale.findFirst({ where: { storeId, tradeInId: trade.id } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     const saveCancellation = sale ? await captureSaleCancellation(tx, sale, trade) : null;
     const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
-    if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: { not: "CANCELADA" } } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
+    if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
     if (sale) await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
     const plan = sale ? await planSaleCancellation(tx, storeId, sale, operationCash(toNum(trade.differencePaid), Number(sale.depositAppliedAmount))) : { refund: 0, debtToRemove: 0, credit: 0 };
     const refund = sale
@@ -1673,6 +1706,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     if (sale?.inventoryItemId) await releaseStock(tx, storeId, sale);
     if (received) await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
     const updated = await tx.tradeIn.update({ where: { id: trade.id }, data: { confirmationStatus: "CANCELLED", status: "CANCELADO", ...stamp } });
+    await assertStoreReferences(tx, storeId, 'TradeIn', updated);
     const detail = refund > 0 ? `Devolución ${formatArMoney(refund, labelCurrency)}` : credit > 0 ? `Saldo a favor ${formatArMoney(credit, labelCurrency)}` : null;
     if (actor) {
       await writeAudit(tx, { storeId, actor, action: voiding ? "trade.voided" : "trade.cancelled", reason, entityType: "trade", entityId: trade.id, detail });
@@ -1718,7 +1752,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
 }
 
 export async function isIntegratedSale(storeId: string, saleId: string, options: { excludeCancelled?: boolean } = {}) {
-  return Boolean(await prisma.sale.findFirst({ where: { id: saleId, storeId, integratedOperation: true, ...(options.excludeCancelled ? { status: { not: "CANCELADA" } } : {}) }, select: { id: true } }));
+  return Boolean(await prisma.sale.findFirst({ where: { id: saleId, storeId, integratedOperation: true, ...(options.excludeCancelled ? { status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true) } : {}) }, select: { id: true } }));
 }
 export async function isIntegratedTradeIn(storeId: string, tradeId: string, options: { excludeCancelled?: boolean } = {}) {
   return Boolean(await prisma.tradeIn.findFirst({
@@ -1797,12 +1831,14 @@ export async function restoreSaleOperation(storeId: string, saleId: string, acto
   return withSerializableRetry(async tx => {
     // Same lock order as trade cancellation, followed by the sale and inventory.
     const linked = await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { tradeInId: true } });
+    await assertStoreReferences(tx, storeId, 'Sale', linked);
     if (linked?.tradeInId) await tx.$queryRaw`SELECT "id" FROM "TradeIn" WHERE "id" = ${linked.tradeInId} AND "storeId" = ${storeId} FOR UPDATE`;
     await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} AND "storeId" = ${storeId} FOR UPDATE`;
     const sale = await tx.sale.findFirst({ where: { id: saleId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     if (sale?.inventoryItemId) await lockInventory(tx, storeId, sale.inventoryItemId);
     if (!sale) throw new OperationError('Venta no encontrada', 404);
-    if (!sale.voidedAt && !['CANCELADA', 'ANULADA'].includes(sale.status)) return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: 'La venta ya está activa' };
+    if (!sale.voidedAt && !['CANCELADA', 'ANULADA'].includes(saleState(sale.status))) return { sale: serializeSale(sale), inventory: [], clients: [], notifications: [], summary: 'La venta ya está activa' };
     const result = await restoreCancelledSale(tx, sale, actor);
     const records = [
       { section: 'sales', recordId: sale.id },
@@ -1813,4 +1849,9 @@ export async function restoreSaleOperation(storeId: string, saleId: string, acto
     const notifications = await writeOperationNotifications(tx, storeId, records.map(record => ({ ...record, title: 'Anulación revertida', message: `${saleCode(sale.saleNumber)} · ${sale.deviceLabel || 'Venta'}`, kind: 'restored' })));
     return { sale: serializeSale(result.sale), inventory: result.inventory.map(serializeProduct), clients: result.client ? [serializeClient(result.client)] : [], ...(result.trade ? { tradeIn: serializeTrade({ ...result.trade, saleId }) } : {}), notifications, summary: 'Anulación revertida' };
   });
+}
+
+function normalizeOperationStates(input: OperationInput): OperationInput {
+  return { ...input, ...(input.status === undefined ? {} : { status: saleState(input.status) }),
+    ...(input.tradeIn ? { tradeIn: { ...input.tradeIn, ...(input.tradeIn.status === undefined ? {} : { status: tradeState(input.tradeIn.status) }) } } : {}) };
 }

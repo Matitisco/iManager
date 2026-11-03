@@ -1,3 +1,4 @@
+import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { moneyInput } from '../../lib/money-input.js';
@@ -26,7 +27,7 @@ const operationTradeInSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: z.string().trim().max(100).nullable().optional(),
   takeValue: moneyInput(),
-  status: z.string().trim().max(30).optional(),
+  status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
   customFields: z.record(z.unknown()).nullable().optional(),
@@ -45,7 +46,7 @@ const saleCreateSchema = z.object({
   amount: moneyInput(),
   amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   paymentMethod: paymentMethodSchema,
-  status: z.enum(['COMPLETADA', 'PENDIENTE', 'CANCELADA']),
+  status: saleStateSchema,
   categoryId: z.string().nullable().optional(),
   customFields: z.record(z.unknown()).optional().nullable(),
   warrantyDays: z.number().int().min(0).max(3650).optional(),
@@ -61,7 +62,7 @@ const salePatchSchema = z
     productId: z.string().trim().max(50).nullable().optional(),
     deviceLabel: z.string().trim().max(120).nullable().optional(),
     paymentMethod: paymentMethodSchema.optional(),
-    status: z.enum(['COMPLETADA', 'PENDIENTE', 'CANCELADA']).optional(),
+    status: saleStateSchema.optional(),
     date: z.string().min(1).max(120).optional(),
     amount: moneyInput().optional(),
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),

@@ -1,3 +1,5 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import type { CommissionAccrual, CommissionPayment, CommissionRule, Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 import { DomainError } from "../../lib/domain-error.js";
@@ -80,7 +82,7 @@ export async function getCommissionPeriod(storeId: string, periodKey?: string, f
     prisma.storeMember.findMany({ where: { storeId, ...(memberId ? { id: memberId } : {}) }, include: { user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.commissionAccrual.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
     prisma.commissionPayment.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
-    memberId ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, voidedAt: null, sellerMemberId: null, status: { notIn: ["CANCELADA", "CANCELLED"] }, soldAt: { gte: period.start, lt: period.end } } }),
+    memberId ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, voidedAt: null, sellerMemberId: null, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA","CANCELLED"], true), soldAt: { gte: period.start, lt: period.end } } }),
   ]);
   // Only legacy accruals need the current quote; historical entries use their frozen rate.
   const needsRate = rows.some(row => row.exchangeRate == null);
@@ -203,6 +205,7 @@ export async function saveCommissionRule(storeId: string, actor: Actor, input: P
 export async function deleteCommissionRule(storeId: string, actor: Actor, id: string, reason?: string | null) {
   return withSerializableRetry(async tx => {
     const rule = await tx.commissionRule.findFirst({ where: { id, storeId } });
+    await assertStoreReferences(tx, storeId, 'CommissionRule', rule);
     if (!rule) throw new DomainError("Regla no encontrada", 404);
     if (rule.deletedAt) return;
     await tx.commissionRule.update({ where: { id }, data: { deletedAt: new Date(), active: false } });
@@ -213,9 +216,11 @@ export async function deleteCommissionRule(storeId: string, actor: Actor, id: st
 export async function voidCommissionPayment(storeId: string, actor: Actor, id: string, reason?: string | null) {
   return withSerializableRetry(async tx => {
     const payment = await tx.commissionPayment.findFirst({ where: { id, storeId } });
+    await assertStoreReferences(tx, storeId, 'CommissionPayment', payment);
     if (!payment) throw new DomainError("Pago no encontrado", 404);
     if (payment.voidedAt) return presentPayment(payment);
     const voided = await tx.commissionPayment.update({ where: { id }, data: { voidedAt: new Date(), voidedBy: actor.userId } });
+    await assertStoreReferences(tx, storeId, 'CommissionPayment', voided);
     await writeAudit(tx, { storeId, actor, action: "commission.payment.voided", reason, entityType: "commissionPayment", entityId: id,
       detail: `${payment.amount} ${payment.currency} (${payment.period})` });
     return presentPayment(voided);
@@ -234,6 +239,7 @@ export async function createCommissionPayment(storeId: string, actor: Actor, inp
     await periodContext(storeId, input.period, tx);
     if (!Number.isFinite(input.amount) || input.amount <= 0 || !Number.isFinite(input.exchangeRate) || input.exchangeRate <= 0) throw new DomainError("Pago o cotización inválidos");
     const payment = await tx.commissionPayment.create({ data: { storeId, ...input, createdBy: actor.userId } });
+    await assertStoreReferences(tx, storeId, 'CommissionPayment', payment);
     await writeAudit(tx, { storeId, actor, action: "commission.payment.created", entityType: "commissionPayment", entityId: payment.id,
       detail: `${input.amount} ${input.currency} → ${input.settlesCurrency} (${input.period})` });
     return presentPayment(payment);

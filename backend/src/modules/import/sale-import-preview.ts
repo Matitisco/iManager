@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { prisma } from '../../plugins/prisma.js';
 import { normalizeImei } from './normalize-import.js';
 import { decideInventoryLink } from './link-imported-sale.js';
@@ -13,7 +14,7 @@ export async function reviewSaleImport(storeId: string, analysis: AnalysisResult
   const [stock, existing] = await Promise.all([
     imeis.length ? prisma.inventoryItem.findMany({
       where: { storeId, imei: { in: imeis } },
-      select: { id: true, imei: true, status: true, archivedAt: true, reservedDepositId: true, sales: { where: { status: { not: 'CANCELADA' } }, select: { id: true }, take: 1 } },
+      select: { id: true, imei: true, status: true, archivedAt: true, reservedDepositId: true, sales: { where: { status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true) }, select: { id: true }, take: 1 } },
     }) : [],
     keys.length ? prisma.sale.findMany({
       where: { storeId, OR: keys.map(key => ({ customFields: { path: ['importFingerprint'], equals: key } })) },

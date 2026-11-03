@@ -1,3 +1,5 @@
+import { isSaleCancelled } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import type { Prisma, Store, CommissionAccrual, CommissionPayment, CommissionRule } from "@prisma/client";
 import { DomainError } from "../../lib/domain-error.js";
 import { currentBlueRate } from "../../lib/blue-rate.js";
@@ -20,6 +22,7 @@ export async function loadCommissionBatch(tx: Prisma.TransactionClient, storeId:
     tx.commissionAccrual.findMany({ where: { storeId, sourceSaleId: { in: saleIds }, voidedAt: null }, orderBy: { createdAt: "desc" } }),
     tx.commissionRule.findMany({ where: { storeId, active: true, deletedAt: null }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] }),
   ]);
+  for (const sale of sales) await assertStoreReferences(tx, storeId, 'Sale', sale);
   const payments = await tx.commissionPayment.findMany({ where: { storeId, memberId: { in: [...new Set(accruals.map(row => row.memberId))] }, voidedAt: null } });
   return { sales: new Map(sales.map(sale => [sale.id, sale])), store, accruals, rules, payments };
 }
@@ -48,7 +51,8 @@ export async function voidSaleCommission(tx: Prisma.TransactionClient, storeId: 
 export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string, batch?: CommissionBatch) {
   const sale = batch ? batch.sales.get(saleId) : await tx.sale.findFirst({ where: { id: saleId, storeId }, include: { inventoryItem: true, tradeIn: true } });
   if (!sale) return;
-  if (!sale.sellerMemberId || ["CANCELADA", "CANCELLED"].includes(sale.status)) return;
+  await assertStoreReferences(tx, storeId, 'Sale', sale);
+  if (!sale.sellerMemberId || isSaleCancelled(sale.status)) return;
   const existing = batch ? batch.accruals.find(row => row.sourceSaleId === saleId) : await tx.commissionAccrual.findFirst({ where: { storeId, sourceSaleId: saleId, voidedAt: null }, orderBy: { createdAt: "desc" } });
   const store = batch?.store ?? await tx.store.findUniqueOrThrow({ where: { id: storeId } });
   const currency = (sale.amountCurrency ?? store.currency) as Currency;
@@ -84,7 +88,7 @@ export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId
 
 export async function refreshSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string, batch?: CommissionBatch) {
   const sale = batch ? batch.sales.get(saleId) : await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { sellerMemberId: true, status: true } });
-  if (!sale?.sellerMemberId || ["CANCELADA", "CANCELLED"].includes(sale.status)) {
-    await voidSaleCommission(tx, storeId, saleId, !sale ? "DELETED" : ["CANCELADA", "CANCELLED"].includes(sale.status) ? "CANCELLED" : "EDITED", new Date(), batch);
+  if (!sale?.sellerMemberId || isSaleCancelled(sale.status)) {
+    await voidSaleCommission(tx, storeId, saleId, !sale ? "DELETED" : isSaleCancelled(sale.status) ? "CANCELLED" : "EDITED", new Date(), batch);
   } else await recordSaleCommission(tx, storeId, saleId, batch);
 }

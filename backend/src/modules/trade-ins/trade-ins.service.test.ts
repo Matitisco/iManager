@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const allocateDocumentNumber = vi.hoisted(() => vi.fn());
 
 const prismaMock = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
   store: {
     findUnique: vi.fn(),
   },
@@ -76,6 +77,7 @@ function tradeRecord(overrides: Record<string, unknown> = {}) {
 describe("trade-ins.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockImplementation(async (sql) => sql.strings.join('').includes('SELECT DISTINCT') ? [] : [{ storeId: 'store-1' }]);
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     allocateDocumentNumber.mockResolvedValue(4);
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
@@ -150,7 +152,7 @@ describe("trade-ins.service", () => {
 
     expect(prismaMock.client.findFirst).not.toHaveBeenCalled();
     expect(prismaMock.tradeIn.update).toHaveBeenCalledWith({
-      where: { id: "trade-1" },
+      where: { id: "trade-1", storeId: "store-1" },
       data: expect.objectContaining({ clientId: null, clientName: "Mostrador" }),
     });
     expect(result).toMatchObject({ clientId: "", clientName: "Mostrador" });

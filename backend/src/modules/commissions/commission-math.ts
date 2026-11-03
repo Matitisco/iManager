@@ -1,3 +1,4 @@
+import { isSaleCancelled } from '../../lib/accounting-states.js';
 import { Decimal } from "@prisma/client/runtime/library";
 
 export const COMMISSION_TIME_ZONE = "America/Argentina/Buenos_Aires";
@@ -119,7 +120,7 @@ export function commissionForSale(sale: {
   currency: Currency;
   exchangeRate: number;
 }, rule: RuleSnapshot | null) {
-  if (!sale.sellerMemberId || !rule || ["CANCELADA", "CANCELLED"].includes(sale.status)) return 0;
+  if (!sale.sellerMemberId || !rule || isSaleCancelled(sale.status)) return 0;
   if (rule.basis === "FIXED_PER_UNIT") return convert(rule.rate, rule.currency ?? sale.currency, sale.currency, sale.exchangeRate);
   const base = rule.basis === "SALE_PERCENT" ? new Decimal(sale.amount)
     : new Decimal(sale.amount).minus(sale.cost).minus(sale.takeValue);
