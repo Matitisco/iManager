@@ -1,6 +1,6 @@
 # QA exploratorio: dashboard, permisos y onboarding
 
-Base: `origin/test` (`e4fa2a9`), rama `qa/hunt-dashboard-permisos-onboarding`. Datos ficticios; PostgreSQL exclusivamente en loopback, puerto 55461. No se consultaron bases de producción ni Railway, no se imprimieron secretos ni se hizo build. Se conserva #691: STAFF ve costos y finanzas; eso no concede Reportes ni acciones sensibles.
+Base inicial: `origin/test` (`e4fa2a9`); integrada después con `651df9a` (#715), rama `qa/hunt-dashboard-permisos-onboarding`. Datos ficticios; PostgreSQL exclusivamente en loopback, puerto 55461. No se consultaron bases de producción ni Railway, no se imprimieron secretos ni se hizo build. Se conserva #691: STAFF ve costos y finanzas; eso no concede Reportes ni acciones sensibles.
 
 | Bug confirmado | Severidad | Cómo reproducir | Estado | PR |
 | --- | --- | --- | --- | --- |
