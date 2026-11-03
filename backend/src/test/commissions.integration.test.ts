@@ -46,6 +46,18 @@ async function pay(memberId: string, extra: Record<string, unknown> = {}) {
 }
 
 describe("commissions API (adapted from #122)", () => {
+  it("keeps personal assignment and basis when only the commission rate changes", async () => {
+    const f = await fixture();
+    const created = await getApp().inject({ method: "POST", url: "/api/commissions/rules", headers: ownerHeaders(), payload: {
+      memberId: f.member.id, basis: "SALE_PERCENT", rate: 10, effectiveFrom: "2025-01-01T00:00Z",
+    } });
+    expect(created.statusCode, created.body).toBe(201);
+    const response = await getApp().inject({ method: "PATCH", url: `/api/commissions/rules/${created.json().rule.id}`, headers: ownerHeaders(), payload: { rate: 15 } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().rule).toMatchObject({ memberId: f.member.id, basis: "SALE_PERCENT", rate: 15 });
+    const listed = await getApp().inject({ url: "/api/commissions/rules", headers: ownerHeaders() });
+    expect(listed.json().rules).toEqual(expect.arrayContaining([expect.objectContaining({ memberId: f.member.id, basis: "SALE_PERCENT", rate: 15 })]));
+  });
   it("lets staff select a seller using only the current store's minimal directory", async () => {
     const f = await fixture();
     const other = await prisma.store.create({ data: { name: "Otra tienda" } });

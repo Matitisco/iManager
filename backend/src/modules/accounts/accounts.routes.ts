@@ -40,10 +40,10 @@ export async function accountsRoutes(app: FastifyInstance) {
   app.patch("/follow-ups/settings", { preHandler: guard }, async (request, reply) => {
     if (!allowClientsOrSales(request, reply)) return;
     const body = z.object({
-      birthdayLeadDays: z.number().int().min(0).max(60).optional(),
-      warrantyMonths: z.number().int().min(0).max(36).optional(),
-      warrantyLeadDays: z.number().int().min(0).max(60).optional(),
-      inactiveDays: z.number().int().min(30).max(365).optional(),
+      birthdayLeadDays: z.number().refine(Number.isInteger).min(0).max(60).optional(),
+      warrantyMonths: z.number().refine(Number.isInteger).min(0).max(36).optional(),
+      warrantyLeadDays: z.number().refine(Number.isInteger).min(0).max(60).optional(),
+      inactiveDays: z.number().refine(Number.isInteger).min(30).max(365).optional(),
       includeDebts: z.boolean().optional(),
     }).parse(request.body);
     return { settings: await saveFollowUpSettings(request.appUser!.storeId, body) };

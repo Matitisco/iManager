@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -8,15 +9,15 @@ import { listHistory, listHistoryActors } from "./history.service.js";
 
 const querySchema = z.object({
   actorUserId: z.string().min(1).optional(),
-  from: z.string().datetime().optional(),
-  to: z.string().datetime().optional(),
+  from: dateTimeInput().optional(),
+  to: dateTimeInput().optional(),
   group: z.string().trim().min(1).optional(),
   section: z.string().trim().min(1).optional(),
   q: z.string().trim().max(120).optional(),
   entityType: z.string().trim().min(1).max(40).optional(),
   entityId: z.string().trim().min(1).max(120).optional(),
   cursor: z.string().min(1).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
+  limit: z.coerce.number().refine(Number.isInteger).min(1).max(50).optional(),
 });
 
 function periodStart(preset: string) {

@@ -41,7 +41,7 @@ const tradeInFieldsSchema = z.object({
   status: tradeInStatusSchema.optional(),
   batteryHealth: z.string().trim().max(50).optional().nullable(),
   grade: z.string().trim().max(20).optional().nullable(),
-  customFields: z.record(z.unknown()).optional().nullable(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 const tradeInCreateSchema = tradeInFieldsSchema.extend({

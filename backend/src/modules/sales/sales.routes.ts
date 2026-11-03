@@ -30,7 +30,7 @@ const operationTradeInSchema = z.object({
   status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const saleCreateSchema = z.object({
@@ -40,7 +40,7 @@ const saleCreateSchema = z.object({
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
-  cantidad: z.number().int().min(1).max(2147483647).optional(),
+  cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: moneyInput(),
@@ -48,8 +48,8 @@ const saleCreateSchema = z.object({
   paymentMethod: paymentMethodSchema,
   status: saleStateSchema,
   categoryId: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
   tradeIn: operationTradeInSchema.optional(),
 });
 
@@ -67,8 +67,8 @@ const salePatchSchema = z
     amount: moneyInput().optional(),
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
-    customFields: z.record(z.unknown()).optional().nullable(),
-    warrantyDays: z.number().int().min(0).max(3650).optional(),
+    customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+    warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
     tradeIn: operationTradeInSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -93,7 +93,7 @@ export async function salesRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const rowSchema = z.object({
-        sourceRow: z.number().int().positive().optional(),
+        sourceRow: z.number().refine(Number.isInteger).positive().optional(),
         _sourceRow: z.string().optional(),
         _sourceSheet: z.string().optional(),
         _sourceData: z.string().max(100000).optional(),

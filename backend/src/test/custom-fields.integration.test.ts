@@ -60,6 +60,14 @@ describe('custom equipment fields and import', () => {
     expect((await getApp().inject({ method: 'GET', url: '/api/custom-field-definitions', headers })).json().definitions).toEqual([]);
     expect((await prisma.inventoryItem.findFirst({ where: { storeId: store!.id } }))!.customFields).toEqual({ reparaciones: 2 });
   });
+  it('keeps the existing order when a PATCH only renames a field', async () => {
+    const { headers } = await context();
+    const created = await getApp().inject({ method: 'POST', url: '/api/custom-field-definitions', headers, payload: { ...definitions[0], order: 17 } });
+    expect(created.statusCode).toBe(201);
+    const renamed = await getApp().inject({ method: 'PATCH', url: `/api/custom-field-definitions/${created.json().definition.id}`, headers, payload: { label: 'Renombrado' } });
+    expect(renamed.statusCode).toBe(200);
+    expect(renamed.json().definition).toMatchObject({ label: 'Renombrado', order: 17 });
+  });
   it('validates typed values and allows clearing nullable fields on normal create/update', async () => {
     const { headers } = await context();
     await getApp().inject({ method: 'POST', url: '/api/custom-field-definitions', headers, payload: definitions[0] });

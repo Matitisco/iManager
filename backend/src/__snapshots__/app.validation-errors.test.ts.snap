@@ -1,0 +1,243 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`validation errors > preserves the 400 contract: empty commission patch 1`] = `
+{
+  "error": "Indicá un cambio",
+  "fields": {
+    "body": "Indicá un cambio",
+  },
+  "message": "Indicá un cambio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: invalid currency 1`] = `
+{
+  "error": "El dato no es válido",
+  "fields": {
+    "balanceCurrency": "El dato no es válido",
+  },
+  "message": "El dato no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: invalid email 1`] = `
+{
+  "error": "El email del pagador no es válido",
+  "fields": {
+    "payerEmail": "El email del pagador no es válido",
+  },
+  "message": "El email del pagador no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: invalid expense currency 1`] = `
+{
+  "error": "Elegí pesos o dólares.",
+  "fields": {
+    "currency": "Elegí pesos o dólares.",
+  },
+  "message": "Elegí pesos o dólares.",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: invalid record 1`] = `
+{
+  "error": "El dato no es válido",
+  "fields": {
+    "customFields": "El dato no es válido",
+  },
+  "message": "El dato no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: long name 1`] = `
+{
+  "error": "El nombre puede tener hasta 120 caracteres",
+  "fields": {
+    "name": "El nombre puede tener hasta 120 caracteres",
+  },
+  "message": "El nombre puede tener hasta 120 caracteres",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: missing expense currency 1`] = `
+{
+  "error": "Elegí pesos o dólares.",
+  "fields": {
+    "currency": "Elegí pesos o dólares.",
+  },
+  "message": "Elegí pesos o dólares.",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: missing name 1`] = `
+{
+  "error": "El nombre es obligatorio",
+  "fields": {
+    "name": "El nombre es obligatorio",
+  },
+  "message": "El nombre es obligatorio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: missing payment 1`] = `
+{
+  "error": "El pago es obligatorio",
+  "fields": {
+    "amount": "El pago es obligatorio",
+  },
+  "message": "El pago es obligatorio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: money decimals 1`] = `
+{
+  "error": "Usá hasta dos decimales",
+  "fields": {
+    "amount": "Usá hasta dos decimales",
+  },
+  "message": "Usá hasta dos decimales",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: nested repair tags 1`] = `
+{
+  "error": "La falla es obligatorio",
+  "fields": {
+    "faultTags.0": "La falla es obligatorio",
+  },
+  "message": "La falla es obligatorio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: null expense currency 1`] = `
+{
+  "error": "Elegí pesos o dólares.",
+  "fields": {
+    "currency": "Elegí pesos o dólares.",
+  },
+  "message": "Elegí pesos o dólares.",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: null name 1`] = `
+{
+  "error": "El nombre es obligatorio",
+  "fields": {
+    "name": "El nombre es obligatorio",
+  },
+  "message": "El nombre es obligatorio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: null payment 1`] = `
+{
+  "error": "El pago es obligatorio",
+  "fields": {
+    "amount": "El pago es obligatorio",
+  },
+  "message": "El pago es obligatorio",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: repair refinement 1`] = `
+{
+  "error": "Contá la falla",
+  "fields": {
+    "fault": "Contá la falla",
+  },
+  "message": "Contá la falla",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: strict catalog 1`] = `
+{
+  "error": "El dato no es válido",
+  "fields": {
+    "body": "El dato no es válido",
+  },
+  "message": "El dato no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: strict commission patch 1`] = `
+{
+  "error": "El dato no es válido",
+  "fields": {
+    "body": "El dato no es válido",
+  },
+  "message": "El dato no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: strict query 1`] = `
+{
+  "error": "El dato no es válido",
+  "fields": {
+    "body": "El dato no es válido",
+  },
+  "message": "El dato no es válido",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: too many repair tags 1`] = `
+{
+  "error": "La falla puede tener hasta 8 elementos",
+  "fields": {
+    "faultTags": "La falla puede tener hasta 8 elementos",
+  },
+  "message": "La falla puede tener hasta 8 elementos",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: wrong name type 1`] = `
+{
+  "error": "El nombre tiene que ser texto",
+  "fields": {
+    "name": "El nombre tiene que ser texto",
+  },
+  "message": "El nombre tiene que ser texto",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: wrong payment type 1`] = `
+{
+  "error": "El pago tiene que ser un número",
+  "fields": {
+    "amount": "El pago tiene que ser un número",
+  },
+  "message": "El pago tiene que ser un número",
+  "statusCode": 400,
+}
+`;
+
+exports[`validation errors > preserves the 400 contract: zero payment 1`] = `
+{
+  "error": "El pago no puede ser negativo",
+  "fields": {
+    "amount": "El pago no puede ser negativo",
+  },
+  "message": "El pago no puede ser negativo",
+  "statusCode": 400,
+}
+`;

@@ -67,7 +67,7 @@ export async function returnRoutes(app: FastifyInstance) {
     requireMember(request);
     const body = z.object({
       saleId: z.string().min(1),
-      cantidad: z.number().int().min(1).max(2147483647).optional(),
+      cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
       reason: z.string().trim().min(1, "Completá el motivo.").max(500, "El motivo es demasiado largo."),
       openedOn,
       diagnosis: z.string().trim().max(2000, "El diagnóstico es demasiado largo.").nullable().optional(),
@@ -107,7 +107,7 @@ export async function returnRoutes(app: FastifyInstance) {
     if (!actor) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = z.object({
-      cantidad: z.number().int().min(1).max(2147483647).optional(),
+      cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
       resolution: z.enum(RESOLUTIONS),
       settlement: z.enum(SETTLEMENTS),
       amount: moneyInput({ max: 100_000_000 }),

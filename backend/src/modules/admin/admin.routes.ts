@@ -49,7 +49,7 @@ export async function adminRoutes(app: FastifyInstance) {
     return resetStore(storeResetBody.parse(request.body), { email: request.auth!.email! });
   });
   app.get('/imei-tac-misses', async (request) => {
-    const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).strict().parse(request.query);
+    const { limit } = z.object({ limit: z.coerce.number().refine(Number.isInteger).min(1).max(500).default(100) }).strict().parse(request.query);
     return listTacMisses(limit);
   });
   app.get('/funnel', async (request, reply) => {

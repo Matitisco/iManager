@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
@@ -5,7 +6,7 @@ import { resolveAppUser } from '../../middleware/resolve-app-user.js';
 import { CLIENT_EVENT_NAMES } from './events.js';
 import { trackMany } from './track.js';
 
-const eventSchema = z.object({ name: z.enum(CLIENT_EVENT_NAMES), props: z.record(z.unknown()).optional(), at: z.string().datetime().optional() }).strict();
+const eventSchema = z.object({ name: z.enum(CLIENT_EVENT_NAMES), props: z.record(z.string(), z.unknown()).optional(), at: dateTimeInput().optional() }).strict();
 // Legacy/forged identity fields are explicitly ignored, while all other unknown keys fail validation.
 const ignoredId = z.unknown().optional();
 const bodySchema = z.object({ events: z.array(eventSchema.extend({ storeId: ignoredId, userId: ignoredId })).min(1).max(20), storeId: ignoredId, userId: ignoredId }).strict();

@@ -12,7 +12,7 @@ const expenseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida"),
   category: z.string().trim().min(1, "Completá la categoría.").max(80, "La categoría es demasiado larga."),
   amount: moneyInput({ positive: true, max: 100_000_000 }),
-  currency: z.enum(["ARS", "USD"], { errorMap: () => ({ message: "Elegí pesos o dólares." }) }),
+  currency: z.enum(["ARS", "USD"], { error: "Elegí pesos o dólares." }),
   exchangeRate: moneyInput({ positive: true, max: 100_000_000 }).nullable().optional(),
   notes: z.string().trim().max(2000, "Las notas son demasiado largas.").nullable().optional(),
 });

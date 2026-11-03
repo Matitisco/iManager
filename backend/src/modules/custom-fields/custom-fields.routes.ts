@@ -21,7 +21,10 @@ export async function customFieldRoutes(app: FastifyInstance) {
     requireMember(request);
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     // Key and type are immutable so stored values keep their meaning.
-    const data = definitionSchema.pick({ label: true, order: true }).partial().strict().parse(request.body);
+    const data = definitionSchema.pick({ label: true, order: true }).partial().extend({
+      // Updating only the label must not apply the creation order default.
+      order: definitionSchema.shape.order.removeDefault().optional(),
+    }).strict().parse(request.body);
     const updated = await prisma.customFieldDefinition.updateMany({ where: { id, storeId: request.appUser.storeId, archivedAt: null }, data });
     if (!updated.count) return reply.code(404).send({ error: 'No encontramos ese campo' });
     return { definition: await prisma.customFieldDefinition.findFirst({ where: { id, storeId: request.appUser.storeId } }) };

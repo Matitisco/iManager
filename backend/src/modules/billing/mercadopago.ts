@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
@@ -76,12 +77,12 @@ export function parseRemote<T>(schema: z.ZodType<T>, value: unknown): T {
   if (!parsed.success) throw new DomainError('Mercado Pago devolvió una respuesta inválida. Reintentá.', 502);
   return parsed.data;
 }
-export const remotePlanSchema = z.object({ id: z.string().min(1), init_point: z.string().url(), reason: z.string().optional(), back_url: z.string().optional(), auto_recurring: z.object({ transaction_amount: z.coerce.number().positive(), currency_id: z.literal('ARS'), frequency: z.number().int().positive(), frequency_type: z.literal('months'), free_trial: z.unknown().optional() }) });
+export const remotePlanSchema = z.object({ id: z.string().min(1), init_point: z.string().url(), reason: z.string().optional(), back_url: z.string().optional(), auto_recurring: z.object({ transaction_amount: z.coerce.number().positive(), currency_id: z.literal('ARS'), frequency: z.number().refine(Number.isInteger).positive(), frequency_type: z.literal('months'), free_trial: z.unknown().optional() }) });
 export const remoteSubscriptionSchema = z.object({
   id: z.string().min(1), preapproval_plan_id: z.string().optional(), external_reference: z.string().nullish(),
   payer_email: z.string().nullish(), payer_id: z.number().nullish(), init_point: z.string().nullish(),
   status: z.enum(['pending', 'authorized', 'paused', 'cancelled']),
-  last_modified: z.string().datetime({ offset: true }), date_created: z.string().datetime({ offset: true }).optional(),
+  last_modified: dateTimeInput({ offset: true }), date_created: dateTimeInput({ offset: true }).optional(),
   auto_recurring: z.object({ currency_id: z.string(), frequency: z.number(), frequency_type: z.string(), transaction_amount: z.coerce.number().optional() }),
   summarized: z.object({ charged_quantity: z.number().nullish(), last_charged_date: z.string().nullish() }).optional(),
 });

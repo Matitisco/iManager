@@ -30,6 +30,25 @@ describe("toValidationBody", () => {
     expect(toValidationBody(longModel.error)?.error).toBe("El modelo puede tener hasta 100 caracteres");
   });
 
+  it.each([undefined, null])("preserves required enum messages for %s without retaining input", value => {
+    const parsed = z.object({ currency: z.enum(["ARS", "USD"]) }).safeParse({ currency: value });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(toValidationBody(parsed.error)).toEqual({
+      statusCode: 400, error: "La moneda es obligatorio", message: "La moneda es obligatorio",
+      fields: { currency: "La moneda es obligatorio" },
+    });
+    expect(parsed.error.issues[0]).not.toHaveProperty("input");
+  });
+
+  it("keeps missing literals generic and preserves explicit enum messages", () => {
+    const literal = z.object({ currency: z.literal("ARS") }).safeParse({});
+    const custom = z.object({ currency: z.enum(["ARS", "USD"], { error: "Elegí pesos o dólares." }) }).safeParse({});
+    if (literal.success || custom.success) throw new Error("Expected validation errors");
+    expect(toValidationBody(literal.error)?.error).toBe("La moneda no es válido");
+    expect(toValidationBody(custom.error)?.error).toBe("Elegí pesos o dólares.");
+  });
+
   it("calls a client payment amount a pago", () => {
     const parsed = z.object({ amount: z.number().positive() }).safeParse({ amount: -1 });
     expect(parsed.success).toBe(false);

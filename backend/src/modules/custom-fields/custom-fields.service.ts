@@ -9,7 +9,7 @@ export const definitionSchema = z.object({
   key: z.string().min(1).max(60).regex(/^[a-z][a-z0-9_]*$/).refine(value => !['constructor', 'prototype', '__proto__'].includes(value)),
   label: z.string().trim().min(1).max(100),
   type: z.enum(['text', 'date', 'number']),
-  order: z.number().int().min(0).max(10000).default(0),
+  order: z.number().refine(Number.isInteger).min(0).max(10000).default(0),
 });
 export type DefinitionInput = z.infer<typeof definitionSchema>;
 type Db = Prisma.TransactionClient;

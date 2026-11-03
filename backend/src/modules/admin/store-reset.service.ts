@@ -38,7 +38,7 @@ export const storeResetBody = z.object({
   expectStoreId: z.string().min(1).max(160),
   dryRun: z.boolean(),
   scope: z.literal('full').optional(),
-  expect: z.record(z.number().int().nonnegative().safe()).optional(),
+  expect: z.record(z.string(), z.number().refine(Number.isInteger).nonnegative().safe()).optional(),
 }).strict();
 export type StoreResetBody = z.infer<typeof storeResetBody>;
 type Tx = Prisma.TransactionClient;
