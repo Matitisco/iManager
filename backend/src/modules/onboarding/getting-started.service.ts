@@ -187,6 +187,7 @@ export async function createSampleStock(storeId: string) {
         ...row,
         storeId,
         sampleBatchId,
+        acquiredQuantity: 1,
         currency: "USD",
         condition: "USADO",
         grade: "A",

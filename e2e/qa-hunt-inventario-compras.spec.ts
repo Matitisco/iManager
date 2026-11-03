@@ -78,16 +78,20 @@ for (const width of [1440, 390]) test.describe(`QA inventario-compras ${width}`,
     await expect(page.getByTestId('inventory-total')).toHaveText('15 de 15');
   });
 
-  test('ABIERTO: compra mayorista muestra inversión por unidades adquiridas', async ({ page, request }, info) => {
+  for (const source of ['import', 'manual']) test(`compra ${source} conserva inversión al vender y anular`, async ({ page, request }, info) => {
     const email = buildTestEmail(info, 'hunt-purchase');
     await call(request, email, 'GET', '/api/me');
     await call(request, email, 'POST', '/api/stores', { name: 'Mayorista QA ficticio' });
     await call(request, email, 'PATCH', '/api/stores/current', { instagram: 'qa.ficticia', currency: 'USD', exchangeMode: 'manual', manualBuy: 1000, manualSell: 1000 });
     const { supplier } = await call(request, email, 'POST', '/api/suppliers', { name: 'Proveedor ficticio QA' });
-    const imported = await call(request, email, 'POST', '/api/inventory/import', { supplierId: supplier.id, purchaseName: 'Lote ficticio', rows: [
-      { model: 'iPhone 13', quantity: 10, cost: 300, price: 400, currency: 'USD' },
-    ] });
-    expect(imported).toMatchObject({ imported: 1, units: 10, errors: [] });
+    if (source === 'import') {
+      const imported = await call(request, email, 'POST', '/api/inventory/import', { supplierId: supplier.id, purchaseName: 'Lote ficticio', rows: [
+        { model: 'iPhone 13', quantity: 10, cost: 300, price: 400, currency: 'USD' },
+      ] });
+      expect(imported).toMatchObject({ imported: 1, units: 10, errors: [] });
+    } else {
+      await call(request, email, 'POST', '/api/inventory', { supplierId: supplier.id, model: 'iPhone 13', cantidad: 10, cost: 300, price: 400, currency: 'USD', capacity: '128GB', color: '', condition: 'NUEVO', grade: '', batteryHealth: '', status: 'DISPONIBLE' });
+    }
     await signIn(page, email);
     await openDeskSection(page, 'suppliers');
     await page.getByTestId(`supplier-${supplier.id}`).click();
@@ -96,11 +100,22 @@ for (const width of [1440, 390]) test.describe(`QA inventario-compras ${width}`,
     const total = detail.locator('.sup-detail-totals');
     await expect(total).toBeVisible();
     const observed = await total.innerText();
-    await page.screenshot({ path: info.outputPath(`compra-abierta-${width}.png`) });
+    await page.screenshot({ path: info.outputPath(`compra-${source}-${width}.png`) });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await info.attach('inversion-observada', { body: JSON.stringify({ quantity: 10, unitCost: 300, currency: 'USD', observed, expected: 'US$ 3.000' }), contentType: 'application/json' });
-    // Only this business assertion is an expected failure; setup/layout errors stay red.
-    test.fail(process.env.QA_HUNT_STRICT !== '1', 'Defecto abierto de compras; ver docs/qa-hunt-inventario-compras.md');
     expect(observed).toBe('US$ 3.000');
+    await expect(detail.getByText('10 de 10 equipos', { exact: true })).toBeVisible();
+    const { inventory } = await call(request, email, 'GET', '/api/inventory');
+    const sold = await call(request, email, 'POST', '/api/operations/sales', { productId: inventory[0].id, cantidad: 4, amount: 1600, currency: 'USD', exchangeRate: 1000, clientName: 'Cliente ficticio', paymentMethod: 'EFECTIVO', status: 'COMPLETADA' });
+    for (const [action, stock] of [['sale', 6], ['void', 10]] as const) {
+      if (action === 'void') await call(request, email, 'POST', `/api/operations/sales/sales/${sold.sale.id}/void`, { reason: 'QA local' });
+      await page.reload();
+      await openDeskSection(page, 'suppliers');
+      await page.getByTestId(`supplier-${supplier.id}`).click();
+      await expect(total).toHaveText('US$ 3.000');
+      await expect(detail.getByText(`${stock} de 10 equipos`, { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: info.outputPath(`compra-${source}-${action}-${width}.png`) });
+    }
   });
 });

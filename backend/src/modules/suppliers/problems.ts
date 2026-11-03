@@ -6,7 +6,7 @@ export const activeClaims = { deletedAt: null, status: { not: "ANULADO" } } sati
 
 const deviceSelect = {
   id: true, model: true, capacity: true, color: true, currency: true, imei: true, status: true,
-  supplierId: true, stockPurchaseId: true, createdAt: true,
+  supplierId: true, stockPurchaseId: true, createdAt: true, cantidad: true, acquiredQuantity: true,
   supplier: { select: { name: true } },
   stockPurchase: { select: { id: true, name: true, purchasedAt: true, notes: true, deletedAt: true } },
 } satisfies Prisma.InventoryItemSelect;
