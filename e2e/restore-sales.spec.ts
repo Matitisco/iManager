@@ -39,9 +39,7 @@ for (const phone of [false, true]) {
       await snapshot('orden');
       const openMenu = async () => {
         if (phone) {
-          await annulled.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });
-          await expect(page.locator('.ctx')).toBeVisible();
-          await annulled.dispatchEvent('pointerup', { pointerType: 'touch' });
+          await annulled.locator('..').getByRole('button', { name: 'Más acciones', exact: true }).click();
         } else await annulled.click({ button: 'right' });
       };
       await openMenu();
