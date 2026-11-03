@@ -7,9 +7,12 @@ export function parseAppDate(value: string | null | undefined): Date | null {
   return parseArDate(value);
 }
 
-export function formatMoney(value: number, currency: 'ARS' | 'USD' = 'ARS', fractionDigits: 0 | 2 = 0): string {
+export function formatMoney(value: number, currency: 'ARS' | 'USD' = 'ARS', fractionDigits: 0 | 2 = currency === 'USD' ? 2 : 0): string {
   const amount = Number.isFinite(value) ? (fractionDigits === 0 ? Math.round(value) : value) : 0;
-  const formatted = new Intl.NumberFormat('es-AR', { maximumFractionDigits: fractionDigits }).format(amount);
+  const formatted = new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: currency === 'USD' && fractionDigits === 2 && !Number.isInteger(amount) ? 2 : 0,
+    maximumFractionDigits: fractionDigits,
+  }).format(amount);
   return currency === 'USD' ? `US$ ${formatted}` : `$ ${formatted}`;
 }
 
