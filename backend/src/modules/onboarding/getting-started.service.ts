@@ -1,3 +1,4 @@
+import { getDefaultCatalog } from '../public-catalog/default-catalog.js';
 import { track, trackMany, markFirstSteps } from '../analytics/track.js';
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../plugins/prisma.js";
@@ -54,7 +55,7 @@ export async function getGettingStarted(member: Member) {
         ? prisma.storeInvitation.count({ where: { storeId, status: "PENDING", expiresAt: { gt: new Date() } } })
         : 0,
       can("publicCatalog")
-        ? prisma.storePublicCatalog.findUnique({ where: { storeId } })
+        ? getDefaultCatalog(storeId)
         : null,
       can("inventory")
         ? prisma.inventoryItem.count({

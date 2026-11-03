@@ -52,7 +52,7 @@ describe('sidenav accordion', () => {
     const nav = screen.getByRole('navigation', { name: 'Navegación principal' });
     expect(within(nav).getByRole('button', { name: 'Clientes' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByText('Mis comisiones')).toBeInTheDocument();
-    for (const label of ['Análisis', 'Reportes', 'Resumen periódico', 'Historial', 'Fallas', 'Catálogo', 'Cajas', 'Gastos', 'Seguimientos']) {
+    for (const label of ['Análisis', 'Reportes', 'Resumen periódico', 'Historial', 'Fallas', 'Catálogos', 'Cajas', 'Gastos', 'Seguimientos']) {
       expect(within(nav).queryByText(label)).not.toBeInTheDocument();
     }
   });
@@ -92,7 +92,7 @@ describe('sidenav accordion', () => {
     expect(onOpen).toHaveBeenCalledWith('patterns', undefined);
     expect(screen.getByRole('button', { name: 'Resumen periódico' }).parentElement).toBe(screen.getByRole('button', { name: 'Reportes' }).parentElement);
     view.rerender(<SidenavNavigation {...props} activeHash="#/stock/catalogo?view=items" />);
-    expect(screen.getByRole('button', { name: 'Catálogo' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'Catálogos' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByText('Resumen')).not.toBeInTheDocument();
     expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
   });

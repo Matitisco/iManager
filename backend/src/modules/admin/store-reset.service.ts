@@ -11,7 +11,7 @@ import { balanceStillOwed } from '../../lib/cancel-refund.js';
 // tables use the frozen selection below, never an unconditional tenant wipe.
 export const STORE_RESET_KEEP_MODELS = [
   'Store', 'User', 'StoreMember', 'StoreInvitation', 'StoreFollowUpSettings',
-  'PeriodicReportSettings', 'StorePublicCatalog', 'StoreCatalogOption',
+  'PeriodicReportSettings', 'StoreCatalog', 'StorePublicCatalog', 'StoreCatalogOption',
   'CustomFieldDefinition', 'ClientCategory', 'InventoryCategory', 'TradeInCategory',
   'SaleCategory', 'CommissionRule', 'CashRegister', 'BillingCheckout', 'BillingPlan',
   'AuditEvent', 'ImeiTacMiss', 'StoreCounter', 'Client', 'RepairOrder',
