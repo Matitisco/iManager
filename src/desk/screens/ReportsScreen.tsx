@@ -691,7 +691,7 @@ function buildReport(
     donutMoney: false,
     donutTotal: orders.length,
     delta: `${orders.length} ${orders.length === 1 ? 'orden' : 'órdenes'} · ${leadTimeLabel(average)}`,
-    note: unavailable ? 'No se puede sumar la facturación en la moneda de la tienda.' : 'La facturación suma los presupuestos. El tiempo medio va del ingreso hasta Entregado.',
+    note: unavailable ? 'No se puede sumar la facturación en la moneda de la tienda.' : 'La facturación suma los costos del arreglo. El tiempo medio va del ingreso hasta Entregado.',
     bucketLabel,
     buckets,
     donutTitle: title,

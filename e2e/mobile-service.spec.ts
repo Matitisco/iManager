@@ -240,12 +240,12 @@ test.describe('service on a phone', () => {
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveAttribute('href', /wa\.me/);
     await expect(detail.getByRole('link', { name: 'Abrir WhatsApp' })).toHaveCount(1);
     await expectRepairHistory(page, detail, 2, ['Listo para retirar']);
-    await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
+    await expect(detail.getByLabel('Costo del arreglo')).toHaveCount(0);
 
     await (await sheetAction(detail, 'Editar')).click();
     const editor = page.getByRole('dialog', { name: 'Editar orden' });
-    await editor.getByLabel('Presupuesto').fill('200');
-    await editor.getByLabel('Seña').fill('50');
+    await editor.getByLabel('Costo del arreglo').fill('200');
+    await editor.getByLabel('Lo que abonó el cliente').fill('50');
     await expectFits(page);
     await editor.getByTestId('repair-delete').click();
     const confirm = page.getByRole('dialog', { name: 'Archivar orden' });
@@ -276,7 +276,7 @@ test.describe('service on a phone', () => {
       await expect(staffDetail.getByText('US$ 200')).toBeVisible();
       await (await sheetAction(staffDetail, 'Editar')).click();
       const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
-      await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
+      await expect(staffEditor.getByLabel('Costo del arreglo')).toBeDisabled();
       await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();
       await expect(staffEditor.getByText(/Acciones sensibles/)).toBeVisible();
     } finally {

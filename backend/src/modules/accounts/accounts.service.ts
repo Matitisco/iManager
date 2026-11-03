@@ -299,7 +299,7 @@ export async function collectAccount(
       const repair = await tx.repairOrder.findFirst({ where: { id: input.repairId, storeId, clientId: client.id } });
       if (!repair) throw new DomainError("La reparación no pertenece al cliente", 404);
       if (CLOSED_REPAIR.includes(repair.status)) throw new DomainError("La reparación ya está cerrada", 409);
-      if (repair.estimate == null) throw new DomainError("Completá el presupuesto de la reparación");
+      if (repair.estimate == null) throw new DomainError("Completá el costo del arreglo");
       const remainder = new Decimal(repair.estimate.toString()).minus(repair.deposit);
       if (amount.greaterThan(remainder)) throw new DomainError("El monto supera el saldo de la reparación");
       await tx.repairOrder.update({ where: { id: repair.id }, data: { deposit: repair.deposit.plus(amount), currency } });
