@@ -102,7 +102,7 @@ describe('ganancia en cards mobile de Ventas', () => {
     renderSales();
     const net = within(profitRow()).getByLabelText('Ganancia neta');
     expect(net).toHaveClass('negative');
-    expect(net).toHaveTextContent(returned ? 'US$ -654' : 'US$ -500');
+    expect(net).toHaveTextContent(returned ? 'US$ -653,85' : 'US$ -500');
     expect(Boolean(profitRow().querySelector('del'))).toBe(returned);
   });
 
