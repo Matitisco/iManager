@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Product, Sale, TradeIn } from '../types';
@@ -43,6 +43,31 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('editing sale trade-in', () => {
+  it('shows whether a mobile sale includes a trade even when its panel is collapsed', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn(query => ({ ...original(query), matches: query === '(max-width: 760px)' }));
+    try {
+      const user = userEvent.setup(); mount();
+      const fold = screen.getByTestId('sale-trade-fold');
+      const summary = fold.querySelector('summary')!;
+      expect(summary).toHaveTextContent('Sin canje');
+      await user.click(summary);
+      expect(summary).toHaveTextContent('Sin canje');
+      const checkbox = within(fold).getByRole('checkbox', { name: 'Tiene canje' });
+      await user.click(checkbox);
+      expect(summary).toHaveTextContent('Con canje');
+      await user.click(summary);
+      expect(fold).not.toHaveAttribute('open');
+      expect(summary).toHaveTextContent('Con canje');
+      expect(checkbox).toBeChecked();
+      await user.click(summary);
+      await user.click(checkbox);
+      expect(summary).toHaveTextContent('Sin canje');
+    } finally {
+      window.matchMedia = original;
+    }
+  });
+
   it.each([true, false])('adds a trade-in to an existing sale (integrated: %s)', async (integratedOperation) => {
     ctx.sales = [{ ...sale, integratedOperation }];
     const user = userEvent.setup(); mount();
