@@ -56,6 +56,7 @@ describe("session.service", () => {
 
   it("prefers the requested store membership when available", async () => {
     getMembershipForUserAndStoreMock.mockResolvedValue({
+      id: "member-store-2",
       store: {
         id: "store-2",
         name: "Sucursal Norte",
@@ -78,6 +79,7 @@ describe("session.service", () => {
     expect(session.store?.id).toBe("store-2");
     expect(session.store).toMatchObject({ email: "hola@norte.test", instagram: "norte" });
     expect(session.membership?.role).toBe("MANAGER");
+    expect(session.membership).toHaveProperty("id", "member-store-2");
     expect(session.stores).toEqual([]);
   });
 });

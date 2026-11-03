@@ -8,11 +8,12 @@ import type { Overlay } from './types';
 import { DeskProvider } from './ui';
 
 const ctx = vi.hoisted(() => ({
+  appSession: { user: { id: 'user-owner' }, store: { id: 'store' }, membership: { id: 'owner-member' as string | undefined } },
   sales: [] as Sale[], tradeIns: [] as TradeIn[], inventory: [] as Product[], clients: [],
   operationOptions: {}, operationDrafts: [],
   commissionSellers: [{ id: 'seller', name: 'Ana Vendedora', role: 'STAFF' }],
   loadOperationOptions: vi.fn(), fetchSaleOperation: vi.fn(), fetchTradeOperation: vi.fn(),
-  loadCommissionSellers: vi.fn(), updateSaleOperation: vi.fn(), confirmTradeOperation: vi.fn(),
+  loadCommissionSellers: vi.fn(), createOperation: vi.fn(), updateSaleOperation: vi.fn(), confirmTradeOperation: vi.fn(),
 }));
 vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 const close = vi.fn();
@@ -23,23 +24,117 @@ const original: Sale = {
   status: 'COMPLETADA', integratedOperation: true, tradeInId: null,
 };
 function mount(overlay: Overlay = { type: 'edit-sale', id: 'sale' }, active: 'ARS' | 'USD' = 'ARS') {
-  return render(<ExchangeProvider settings={{ currency: active, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1190, manualSell: 1234.56 }}>
+  const form = () => <ExchangeProvider settings={{ currency: active, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1190, manualSell: 1234.56 }}>
     <DeskProvider value={{ tab: 'sales', go: vi.fn(), open, openRecord: vi.fn(), close, toast: vi.fn(), isStaff: false }}>
       <DeskOverlays overlay={overlay} />
     </DeskProvider>
-  </ExchangeProvider>);
+  </ExchangeProvider>;
+  const view = render(form());
+  return { ...view, refresh: () => view.rerender(form()) };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ctx.appSession.membership.id = 'owner-member';
+  ctx.commissionSellers = [
+    { id: 'seller', name: 'Ana Vendedora', role: 'STAFF' },
+    { id: 'owner-member', name: 'Nico', role: 'OWNER' },
+  ];
   ctx.sales = [{ ...original }]; ctx.tradeIns = [];
   ctx.inventory = [{ id: 'product', model: 'iPhone 14', capacity: '128GB', color: 'Azul', imei: '', condition: 'USADO', grade: 'A', batteryHealth: '90%', cost: 900, price: 1500.31, currency: 'USD', status: 'VENDIDO' }];
   ctx.loadOperationOptions.mockResolvedValue(undefined);
   ctx.fetchSaleOperation.mockResolvedValue({}); ctx.fetchTradeOperation.mockResolvedValue({});
   ctx.loadCommissionSellers.mockResolvedValue(undefined);
+  ctx.createOperation.mockResolvedValue({ summary: 'Venta registrada' });
   ctx.updateSaleOperation.mockResolvedValue({ summary: 'Operación actualizada' });
 });
 afterEach(() => vi.restoreAllMocks());
+
+describe.each([390, 1440])('vendedor inicial a %s px', width => {
+  beforeEach(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ ...media, media: query, matches: width === 390 && query.includes('760') }));
+  });
+
+  it.each(['sales', 'inventory', 'clients'] as const)('preselecciona al miembro logueado desde %s', source => {
+    mount({ type: 'new-sale', source });
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Nico · Propietario');
+  });
+
+  it.each(['Nico · Propietario', 'Sin vendedor'])('confirma la venta con la elección %s', async label => {
+    ctx.inventory[0].status = 'DISPONIBLE';
+    mount({ type: 'new-sale', productId: 'product' });
+    if (label === 'Sin vendedor') {
+      await userEvent.click(screen.getByRole('combobox', { name: 'Vendedor' }));
+      await userEvent.click(screen.getByRole('option', { name: label }));
+    }
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar venta' }));
+    await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('sales', expect.objectContaining({ sellerMemberId: label === 'Sin vendedor' ? null : 'owner-member' })));
+  });
+
+  it('preselecciona al logueado si el directorio llega después de abrir', () => {
+    const sellers = ctx.commissionSellers;
+    ctx.commissionSellers = [];
+    const view = mount({ type: 'new-sale' });
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Sin vendedor');
+    ctx.commissionSellers = sellers;
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Nico · Propietario');
+  });
+
+  it.each(['not-a-seller', undefined])('sin coincidencia de miembro (%s) deja Sin vendedor', memberId => {
+    ctx.appSession.membership.id = memberId;
+    mount({ type: 'new-sale' });
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Sin vendedor');
+  });
+
+  it.each(['Ana Vendedora · Empleado', 'Sin vendedor'])('conserva la elección manual %s al recargar opciones', async label => {
+    const view = mount({ type: 'new-sale' });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Vendedor' }));
+    await userEvent.click(screen.getByRole('option', { name: label }));
+    ctx.commissionSellers = [...ctx.commissionSellers];
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent(label);
+  });
+
+  it('conserva Sin vendedor elegido antes de que llegue el miembro logueado', async () => {
+    const sellers = ctx.commissionSellers;
+    ctx.commissionSellers = sellers.filter(person => person.id !== 'owner-member');
+    const view = mount({ type: 'new-sale' });
+    await userEvent.click(screen.getByRole('combobox', { name: 'Vendedor' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Sin vendedor' }));
+    ctx.commissionSellers = sellers;
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Sin vendedor');
+  });
+
+  it.each(['seller', null, undefined])('edición conserva el vendedor guardado %s', sellerMemberId => {
+    ctx.sales[0].sellerMemberId = sellerMemberId;
+    const view = mount();
+    ctx.commissionSellers = [...ctx.commissionSellers];
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent(sellerMemberId ? 'Ana Vendedora' : 'Sin vendedor');
+  });
+
+  it('no aplica el default mientras carga una venta existente', () => {
+    ctx.sales = [];
+    const view = mount();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Sin vendedor');
+    ctx.sales = [{ ...original, sellerMemberId: 'seller' }];
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Ana Vendedora');
+  });
+
+  it('conserva Sin vendedor al retomar un canje pendiente', () => {
+    ctx.tradeIns = [{ id: 'trade', date: original.date, clientId: 'client', clientName: 'Ana',
+      deviceReceived: 'iPhone 11', deviceReceivedImei: '', takeValue: 300, currency: 'USD',
+      deviceGiven: original.deviceLabel!, differencePaid: 0, status: 'PENDIENTE',
+      confirmationStatus: 'PENDING', draftSellerMemberId: null }];
+    const view = mount({ type: 'new-sale', tradeInId: 'trade' });
+    view.refresh();
+    expect(screen.getByRole('combobox', { name: 'Vendedor' })).toHaveTextContent('Sin vendedor');
+  });
+});
 
 describe('sale seller editing', () => {
   it.each([390, 1440])('anchors the real edit form calendar and persists the chosen date at %s px', async width => {
