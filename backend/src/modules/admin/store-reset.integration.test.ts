@@ -337,6 +337,7 @@ describe('POST /admin/store-reset', () => {
       }
       const expected = originals.filter(({ row }) => {
         if (model === 'NotificationRead') return !removedNoticeIds.has(row.notificationId);
+        if (model === 'CatalogItemPrice') return row.inventoryItemId !== f.item.id;
         if (row.storeId !== f.store.id) return true;
         if (model === 'CashMovement') return row.id === manual.id;
         if (model === 'StoreNotification') return row.id === configNotice.id;

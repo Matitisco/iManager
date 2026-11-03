@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { openDeskSection } from './navigation';
 import { authHeaders, bootstrapStoreViaApi, buildTestEmail, createInventoryItemViaApi } from './utils';
 const api = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:3100';
-for (const width of [1440, 390]) test(`multiple catalogs keep independent prices at ${width}px`, async ({ page, request }, info) => {
+for (const width of [1440, 390]) test(`multiple catalogs keep independent prices at ${width}px @smoke`, async ({ page, request }, info) => {
   await page.setViewportSize({ width, height: 900 });
   const email = buildTestEmail(info, 'multiple-catalogs');
   await bootstrapStoreViaApi(page, request, email, 'Tienda de prueba');
