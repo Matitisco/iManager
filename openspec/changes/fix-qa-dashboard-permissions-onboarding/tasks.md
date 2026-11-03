@@ -6,4 +6,4 @@
 - [x] Reproducir y corregir onboarding bloqueado por una membresía eliminada.
 - [x] Explorar casos contables y documentar los que requieran mayor alcance.
 - [x] Ejecutar TypeScript, pruebas relacionadas, integración local y E2E desktop/mobile.
-- [ ] Documentar resultados y abrir PR contra test desde la rama QA.
+- [x] Documentar resultados y abrir PR #716 contra test desde la rama QA.
