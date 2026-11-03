@@ -253,7 +253,7 @@ describe('desk required fields', () => {
     expect(screen.getByText('Completá el precio de salida')).toBeInTheDocument();
     expect(ctx.createOperation).not.toHaveBeenCalled();
 
-    await user.type(screen.getByPlaceholderText('$ 0'), '1800');
+    await user.type(screen.getByLabelText('Precio completo de salida'), '1800');
     await user.click(screen.getByRole('button', { name: 'Confirmar venta' }));
     await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('inventory', expect.objectContaining({
       productId: 'prod-0',

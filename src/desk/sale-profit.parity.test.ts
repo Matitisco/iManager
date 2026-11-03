@@ -60,3 +60,18 @@ describe('Ventas / reports profit parity', () => {
     expect(front.marginPct).toBe(Math.round(reports.summary.marginRate));
   });
 });
+
+it.each([
+  { amount: 1500.31, cost: 900.12, cantidad: 1, profit: 600.19 },
+  { amount: 1950, cost: 450.25, cantidad: 3, profit: 599.25 },
+])('costo cargado en la venta conserva centavos de ganancia en Dashboard ($cantidad unidades)', async ({ amount, cost, cantidad, profit }) => {
+  const item = { id: 'costed', cost, currency: 'USD' };
+  const sale: Sale = { id: 'cents', productId: item.id, clientId: '', date: '03/11/2026', amount, amountCurrency: 'USD', cantidad, status: 'COMPLETADA', paymentMethod: 'EFECTIVO' };
+  mocks.store.mockResolvedValue({ currency: 'USD' });
+  mocks.sales.mockResolvedValue([{ ...sale, soldAt: new Date('2026-11-03T15:00:00Z'), inventoryItem: item }]);
+  const reports = await getReportsOverview('synthetic', { rangeKey: 'all_time', startDate: null, endDate: null });
+  const front = summarizeSaleProfit([sale], [item], 'USD', null);
+  expect(front.grossProfit).toBeCloseTo(profit);
+  expect(reports.summary.grossProfit).toBeCloseTo(front.grossProfit!);
+  expect(reports.summary.salesWithoutCost).toBe(0);
+});

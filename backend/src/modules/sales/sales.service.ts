@@ -1,3 +1,4 @@
+import { applySaleItemCost } from '../inventory/sale-item-cost.js';
 import { saleState, storedStateFilter } from '../../lib/accounting-states.js';
 import { assertIncludedStore, assertStoreReferences } from '../../lib/store-references.js';
 import { saleUnits, takeStock, releaseStock } from '../inventory/stock-units.js';
@@ -47,6 +48,7 @@ export interface SaleInput {
 }
 
 export interface SalePatchInput {
+  cost?: number;
   sellerMemberId?: string | null;
   exchangeRate?: number;
   clientId?: string | null;
@@ -408,6 +410,11 @@ export async function updateSale(
 
     await assertSeller(tx, storeId, input.sellerMemberId);
     if (cancelling) await voidSaleCommission(tx, storeId, id, "CANCELLED");
+    if (input.cost !== undefined) {
+      if (nextInventoryItemId) await lockInventory(tx, storeId, nextInventoryItemId);
+      const costItem = nextInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: nextInventoryItemId, storeId } }) : null;
+      await applySaleItemCost(tx, storeId, costItem, input.cost, actor);
+    }
     const updated = await tx.sale.update({
       where: { id },
       data: {

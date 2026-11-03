@@ -1,3 +1,5 @@
+import { SaleCostField } from '../SaleCostField';
+import { canSeeFinancials } from '../sections';
 import { ReplayValue } from '../replay-privacy';
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
 import { depositAmount, depositAvailable } from '../deposits';
@@ -58,6 +60,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }) {
   const context = useAppContext();
   const money = useMoney();
+  const seeCosts = canSeeFinancials(context.appSession?.membership?.sections, context.appSession?.membership?.role);
   const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, fetchSaleOperation, fetchTradeOperation } = context;
   const catalogs = useCatalogs();
   const requestKey = useRef(`desk-${crypto.randomUUID()}`);
@@ -227,6 +230,11 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
     : undefined;
+  const [costEdit, setCostEdit] = useState<{ productId: string; value: string } | null>(null);
+  const savedCost = selectedProduct?.cost ?? inventory.find(item => item.id === productId)?.cost ?? 0;
+  const costTouched = costEdit?.productId === productId;
+  const costValue = costTouched ? costEdit.value : savedCost > 0 ? formatInputMoney(savedCost) : '';
+  const costCurrency = recordCurrency(selectedProduct ? selectedProduct.currency : currentSale?.amountCurrency, money.active);
   const stockByImei = (imei: string) => equipmentItems.find((item) => (item.imei ?? '').replace(/\D/g, '') === imei && !('archivedAt' in item && item.archivedAt) && isInStock('status' in item ? item.status : 'DISPONIBLE'));
   const pickStock = (item: (typeof equipmentItems)[number]) => {
     dirty.current.add('deviceLabel');
@@ -322,6 +330,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     clientId: clientId || null,
     clientName: buyer.trim() || null,
     cantidad: Number(cantidad),
+    ...(seeCosts && !draft && costTouched && costValue.trim() ? { cost: parseMoney(costValue) } : {}),
     productId: productId || null,
     deviceLabel: deviceLabel.trim() || undefined,
     ...(!draft && source !== 'inventory' && !productId && deviceLabel.trim() ? { unlistedEquipment: {
@@ -587,6 +596,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         setAmount(Number(cantidad) > 1 && value.trim() ? (formatInputMoney(parseMoney(value) * Number(cantidad)) || '0') : value);
         clearBad(setBad, 'amount');
       }} placeholder="$ 0" /></Field>
+      <SaleCostField visible={seeCosts} value={costValue} onChange={value => setCostEdit({ productId, value })}
+        cost={costValue.trim() ? parseMoney(costValue) : savedCost} amount={parseMoney(amount)} cantidad={Number(cantidad)}
+        currency={recordCurrency(typedCurrency, money.active)} costCurrency={costCurrency} rate={money.rate} busy={busy} />
       {Number(cantidad) > 1 ? <p data-ph-mask className="op-summary op-total"><span>Total</span><output aria-label="Total"><strong>{money.show(parseMoney(amount), typedCurrency, Number.isInteger(parseMoney(amount)) ? 0 : 2)}</strong></output></p> : null}
       {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       {dueCopy ? <p data-ph-mask className="op-summary">{dueCopy}</p> : null}

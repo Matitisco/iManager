@@ -441,6 +441,8 @@ describe('Sales on a phone', () => {
     renderScreen();
     expect(screen.getByTestId('sales-empty')).toHaveTextContent('No hay ventas');
     expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar primera venta' })).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
   });
 

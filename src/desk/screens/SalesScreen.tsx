@@ -579,7 +579,7 @@ function SalesEmpty({ onCreate }: { onCreate: () => void }) {
         <p>Todavía no registraste ventas en este período. Cargá la primera cuando cierres una operación.</p>
         <button className="dbtn p" type="button" onClick={onCreate}>
           <ImanagerIcon name="agregar" size={16} />
-          Registrar venta
+          Registrar primera venta
         </button>
       </div>
     </div>
