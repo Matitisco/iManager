@@ -47,8 +47,8 @@ export function SellerField({ value, onChange, busy, directoryOnly = false }: { 
         { value: '', label: 'Sin vendedor' },
         ...commissionSellers.filter(person => person.role !== 'RESELLER').map(person => ({ value: person.id, label: `${person.name} · ${ROLE_LABEL[person.role]}` })),
         ...recent.map(person => ({ value: person.id, label: person.name, group: 'Revendedores', disabled: Boolean(person.archivedAt), icon: <CommissionAvatar id={person.id} name={person.name} role="RESELLER" /> })),
-        { value: '__all', label: 'Ver todas', group: 'Revendedores' },
-        ...(canWrite ? [{ value: '__add', label: '+ Agregar revendedor', group: 'Revendedores' }] : []),
+        { value: '__all', label: 'Ver todas', group: 'Revendedores', className: 'reseller-all' },
+        ...(canWrite ? [{ value: '__add', label: '+ Agregar revendedor', group: 'Revendedores', className: 'reseller-add' }] : []),
       ]} /></Field>
     <p className="eqs-note">Elegí quién hizo la venta. Sin vendedor, no suma comisión.</p></>}
     {mode ? createPortal(<Sheet title={mode === 'add' ? editing ? 'Renombrar revendedor' : 'Agregar revendedor' : 'Revendedores'} onClose={() => { if (!saving && !archive) setMode(null); }} busy={saving} className="commission-form reseller-manager"

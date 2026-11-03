@@ -2857,6 +2857,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-cost-profit strong { font-size: 16px; font-weight: 800; }
 /* #746: shared seller directory, without user memberships. */
 .desk-app .ds-select-group { padding: 14px 12px 6px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.desk-app .seller-picker .reseller-all { text-decoration: underline; text-underline-offset: 4px; }
+.desk-app .seller-picker .reseller-add { border-top: 1px solid var(--border); margin-top: 6px; font-weight: 700; }
 .desk-app .reseller-label { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
 .desk-app .reseller-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); min-width: 0; }
 .desk-app .reseller-row .commission-name { min-width: 0; text-align: left; }
@@ -2870,6 +2872,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 @media (max-width: 600px) {
   .desk-app .ds-select-popup.phone.seller-picker { height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: max(20px, env(safe-area-inset-top, 0px)); }
   .desk-app .seller-picker .ds-select-grab { display: none; }
-  .desk-app .seller-picker .ds-select-list { flex: 1; }
-  .desk-app .seller-picker .ds-select-option:last-child { margin-top: 20px; }
+  .desk-app .seller-picker .ds-select-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .desk-app .seller-picker .ds-select-option { flex-shrink: 0; }
+  .desk-app .seller-picker .reseller-add { margin-top: auto; justify-content: center; background: var(--primary); color: var(--theme-on-action, #fff); }
 }
