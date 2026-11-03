@@ -224,7 +224,9 @@ export function clearStoreLists(storeId: string) {
 export function clearAllStoreLists() {
   bumpEpoch();
   try {
-    for (const id of readIndex()) localStorage.removeItem(listKey(id));
+    // A quota failure or interrupted write can leave a list without an index entry.
+    const keys = Array.from({ length: localStorage.length }, (_, index) => localStorage.key(index));
+    for (const key of keys) if (key?.startsWith(LIST_PREFIX)) localStorage.removeItem(key);
     localStorage.removeItem(LIST_INDEX_KEY);
   } catch {
     // Ignore private-mode storage failures.
