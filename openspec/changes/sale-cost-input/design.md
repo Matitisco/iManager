@@ -8,3 +8,5 @@
 Cuando se envía costo y falta precio de inventario, solo se completa el precio automáticamente si está en la misma moneda: evita reetiquetar el costo. En otra moneda conserva precio a definir y registra el precio de la venta, sin conversión nueva.
 
 Dashboard: cuando no hay devoluciones que compensar, conserva la ganancia ya calculada por ventas sin pasarla por el redondeo agregado de netProfit; así no pierde centavos del costo/precio en la misma moneda.
+
+Accesibilidad: el campo se nombra «Costo de compra» para distinguirlo de «Equipo» al buscar controles por etiqueta. La acción del estado vacío dice «Registrar primera venta» y la acción principal conserva «Registrar venta», sin nombres duplicados.
