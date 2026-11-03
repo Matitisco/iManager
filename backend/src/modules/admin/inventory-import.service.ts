@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { safeXlsxBytes } from '../../lib/import-shared/safe-xlsx.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
@@ -36,8 +37,9 @@ export async function inventoryImportSheets(body: Pick<InventoryImportBody, 'she
   try {
     let sheets = body.sheets;
     if (!sheets) {
+      const bytes = safeXlsxBytes(Buffer.from(body.fileBase64!, 'base64'));
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(Buffer.from(body.fileBase64!, 'base64') as unknown as ExcelJS.Buffer);
+      await workbook.xlsx.load(bytes as unknown as ExcelJS.Buffer);
       sheets = workbook.worksheets.map(sheet => ({ name: sheet.name, rows: readWorksheet(sheet) }));
     }
     const prepared = prepareImportSheets(sheets);
