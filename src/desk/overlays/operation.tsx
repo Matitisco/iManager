@@ -604,7 +604,10 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} /></>}
       {foldTrade ? (
         <details className="op-fold" data-testid="sale-trade-fold" open={tradeOpen} onToggle={(event) => setTradeOpen(event.currentTarget.open)}>
-          <summary>Canje como parte de pago</summary>
+          <summary>
+            <span>Canje como parte de pago</span>
+            <span className={`op-fold-state${hasTrade ? ' on' : ''}`}>{hasTrade ? 'Con canje' : 'Sin canje'}</span>
+          </summary>
           <div className="op-fold-body">{tradeBlock}</div>
         </details>
       ) : null}
