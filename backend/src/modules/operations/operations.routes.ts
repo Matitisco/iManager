@@ -219,7 +219,8 @@ export async function operationsRoutes(app: FastifyInstance) {
     const input = parseInput(request.body, reply);
     if (!input) return;
     if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
-    return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input);
+    const actor = await loadActor(request.appUser!.userId);
+    return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input, actor) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input, actor);
   });
 
   for (const action of ["cancel", "void"] as const) {
