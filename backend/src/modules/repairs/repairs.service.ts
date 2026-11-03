@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { recordCash } from '../cash/service.js';
 import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
 import { Prisma } from "@prisma/client";
@@ -303,7 +304,7 @@ export async function updateRepair(
     if (input.technician !== undefined) data.technician = input.technician.trim();
     if (input.estimatedDelivery !== undefined) data.estimatedDelivery = deliveryDate(input.estimatedDelivery);
     if (input.warrantyDays !== undefined) data.warrantyDays = input.warrantyDays;
-    const applications = await tx.clientDeposit.count({ where: { storeId, repairId: id, status: 'APPLIED' } });
+    const applications = await tx.clientDeposit.count({ where: { storeId, repairId: id, status: await storedStateFilter(tx, 'ClientDeposit', storeId, ["APPLIED"], false) } });
     const latest = current;
     if (applications && (input.deposit !== undefined && moneyChanged(latest.deposit, input.deposit) || input.currency != null && input.currency !== latest.currency || input.clientId !== undefined && input.clientId !== latest.clientId || input.clientName !== undefined && input.clientName !== latest.clientName)) throw new RepairError('La orden tiene señas aplicadas. Conservá cliente, moneda y anticipo', 409);
     if (applications) {

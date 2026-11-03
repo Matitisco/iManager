@@ -65,6 +65,7 @@ import { createCategory, createSale, deleteSale, importSales, updateSale } from 
 describe("sales.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockImplementation(async (sql) => sql.strings.join('').includes('SELECT DISTINCT') ? [] : [{ storeId: 'store-1' }]);
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     allocateDocumentNumber.mockResolvedValue(4);
     prismaMock.client.findMany.mockResolvedValue([]);

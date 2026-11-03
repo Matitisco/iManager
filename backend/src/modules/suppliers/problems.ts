@@ -1,8 +1,9 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../plugins/prisma.js";
 
 // Match the inventory/returns modules: archived devices and cancelled claims do not participate.
-export const activeClaims = { deletedAt: null, status: { not: "ANULADO" } } satisfies Prisma.ReturnCaseWhereInput;
+const activeClaims = async (storeId: string) => ({ deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ['ANULADO'], true) }) satisfies Prisma.ReturnCaseWhereInput;
 
 const deviceSelect = {
   id: true, model: true, capacity: true, color: true, currency: true, imei: true, status: true,
@@ -60,7 +61,7 @@ export function indexProblems<T extends Pick<ProblemDevice, "id" | "supplierId" 
 export async function loadProblems(storeId: string, where: Prisma.InventoryItemWhereInput = {}) {
   const [items, claims, repairs] = await Promise.all([
     prisma.inventoryItem.findMany({ where: { ...where, storeId, archivedAt: null }, select: deviceSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }] }),
-    prisma.returnCase.findMany({ where: { storeId, ...activeClaims }, select: claimSelect }),
+    prisma.returnCase.findMany({ where: { storeId, ...await activeClaims(storeId) }, select: claimSelect }),
     prisma.repairOrder.findMany({
       where: { storeId, archivedAt: null, status: { notIn: ["ENTREGADO", "CANCELADO", "CANCELADA", "ANULADO"] }, imei: { not: "" } },
       select: { imei: true },

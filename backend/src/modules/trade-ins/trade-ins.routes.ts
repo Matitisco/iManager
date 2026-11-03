@@ -1,3 +1,4 @@
+import { tradeStateSchema } from '../../lib/accounting-states.js';
 import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
@@ -24,7 +25,7 @@ import {
   bulkMoveTradeInCategory,
 } from "./trade-ins.service.js";
 
-const tradeInStatusSchema = z.string().trim().min(1).max(30);
+const tradeInStatusSchema = tradeStateSchema;
 
 const tradeInFieldsSchema = z.object({
   date: z.string().trim().max(120).optional().nullable(),

@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
@@ -211,7 +212,7 @@ async function clientAdjustments(tx: Tx, storeId: string) {
   const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { currency: true } });
   const clients = await tx.client.findMany({ where: { storeId, OR: [
     { sales: { some: { storeId } } }, { payments: { some: { storeId, saleId: { not: null } } } },
-  ] }, include: { sales: { where: { storeId, voidedAt: null, status: { notIn: ['CANCELADA', 'ANULADA'] } }, include: { tradeIn: true } }, payments: { where: { storeId } } } });
+  ] }, include: { sales: { where: { storeId, voidedAt: null, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA","ANULADA"], true) }, include: { tradeIn: true } }, payments: { where: { storeId } } } });
   return clients.map(client => {
     const currency = client.balanceCurrency ?? store.currency;
     const convert = (amount: Prisma.Decimal, from: string | null, rate?: Prisma.Decimal | null) => {

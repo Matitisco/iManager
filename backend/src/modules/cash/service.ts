@@ -1,3 +1,5 @@
+import { normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import { randomUUID } from 'node:crypto';
 import { Prisma, type CashMovement, type CashRegister } from '@prisma/client';
 import { prisma } from '../../plugins/prisma.js';
@@ -25,24 +27,26 @@ async function register(tx: Tx, storeId: string, id: string) {
 async function openSession(tx: Tx, box: CashRegister) {
   if (box.archivedAt) throw new DomainError('La caja está archivada', 409);
   const day = await cashDay(tx, box.storeId);
-  const session = await tx.cashSession.findFirst({ where: { storeId: box.storeId, registerId: box.id, day, status: 'OPEN' } });
+  const session = await tx.cashSession.findFirst({ where: { storeId: box.storeId, registerId: box.id, day, status: await storedStateFilter(tx, 'CashSession', box.storeId, ["OPEN"], false) } });
+  await assertStoreReferences(tx, box.storeId, 'CashSession', session);
   if (!session) throw new DomainError(`Abrí la caja «${box.name}» para hoy; si está en revisión, completá el cierre`, 409);
   return session;
 }
 function movementResponse(row: CashMovement) {
-  return { ...row, amount: Number(row.amount), exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate), createdAt: row.createdAt.toISOString(), voidedAt: row.voidedAt?.toISOString() ?? null };
+  return { ...row, kind: normalizeAccountingState('cashKind', row.kind), amount: Number(row.amount), exchangeRate: row.exchangeRate == null ? null : Number(row.exchangeRate), createdAt: row.createdAt.toISOString(), voidedAt: row.voidedAt?.toISOString() ?? null };
 }
 function countResponse(count: { id: string; expected: Prisma.Decimal; counted: Prisma.Decimal; difference: Prisma.Decimal; note: string | null; denominations: Prisma.JsonValue; countedBy: string; createdAt: Date }) {
   return { ...count, expected: Number(count.expected), counted: Number(count.counted), difference: Number(count.difference), createdAt: count.createdAt.toISOString() };
 }
 export async function listSessions(storeId: string, registerId: string) {
   await register(prisma, storeId, registerId);
-  const sessions = await prisma.cashSession.findMany({ where: { storeId, registerId, status: 'APPROVED' }, orderBy: { day: 'desc' }, take: 100, include: { counts: { orderBy: { createdAt: 'asc' } } } });
-  return { sessions: sessions.map(session => ({ id: session.id, day: session.day, status: session.status, reviewNote: session.reviewNote, counts: session.counts.map(countResponse) })) };
+  const sessions = await prisma.cashSession.findMany({ where: { storeId, registerId, status: await storedStateFilter(prisma, 'CashSession', storeId, ["APPROVED"], false) }, orderBy: { day: 'desc' }, take: 100, include: { counts: { orderBy: { createdAt: 'asc' } } } });
+  return { sessions: sessions.map(session => ({ id: session.id, day: session.day, status: normalizeAccountingState('cashSession', session.status), reviewNote: session.reviewNote, counts: session.counts.map(countResponse) })) };
 }
 async function append(tx: Tx, box: CashRegister, data: Omit<Prisma.CashMovementUncheckedCreateInput, 'storeId' | 'registerId'>, requireOpen = true) {
   const session = requireOpen ? await openSession(tx, box) : null;
   const row = await tx.cashMovement.create({ data: { ...data, currency: box.currency, method: box.method, storeId: box.storeId, registerId: box.id, sessionId: session?.id ?? data.sessionId ?? null } });
+  await assertStoreReferences(tx, box.storeId, 'CashMovement', row);
   await tx.cashRegister.update({ where: { id: box.id }, data: { balance: { increment: data.amount } } });
   return row;
 }
@@ -56,9 +60,9 @@ export async function listRegisters(storeId: string, member: Member) {
   return { canViewBalances: view, registers: rows.map(row => {
     const last = row.sessions[0];
     // OPEN/RECOUNT never discloses an earlier count, even to the counter.
-    const showCounts = last && ['SUBMITTED', 'APPROVED'].includes(last.status) && (view || last.counts.at(-1)?.countedBy === member.userId);
+    const showCounts = last && ['SUBMITTED', 'APPROVED'].includes(normalizeAccountingState('cashSession', last.status)) && (view || last.counts.at(-1)?.countedBy === member.userId);
     return { id: row.id, name: row.name, currency: row.currency, method: row.method, isDefault: row.isDefault, archivedAt: row.archivedAt?.toISOString() ?? null, ...(view ? { balance: Number(row.balance) } : {}), session: last ? {
-      id: last.id, day: last.day, status: last.status, reviewNote: last.reviewNote,
+      id: last.id, day: last.day, status: normalizeAccountingState('cashSession', last.status), reviewNote: last.reviewNote,
       ...(showCounts ? { counts: (view ? last.counts : last.counts.slice(-1)).map(countResponse) } : {}),
     } : null };
   }) };
@@ -77,7 +81,7 @@ export async function editRegister(storeId: string, id: string, input: { name?: 
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const box = await register(tx, storeId, id);
-    if (input.archived && await tx.cashSession.findFirst({ where: { registerId: id, status: { not: 'APPROVED' } } })) throw new DomainError('Completá el cierre antes de archivar', 409);
+    if (input.archived && await tx.cashSession.findFirst({ where: { registerId: id, status: await storedStateFilter(tx, 'CashSession', storeId, ["APPROVED"], true) } })) throw new DomainError('Completá el cierre antes de archivar', 409);
     if (input.isDefault && (input.archived || box.archivedAt && input.archived !== false)) throw new DomainError('Desarchivá la caja antes de hacerla predeterminada');
     if (input.isDefault) await tx.cashRegister.updateMany({ where: { storeId, currency: box.currency, method: box.method }, data: { isDefault: false } });
     await tx.cashRegister.update({ where: { id }, data: { name: input.name, ...(input.archived !== undefined ? { archivedAt: input.archived ? new Date() : null, ...(input.archived ? { isDefault: false } : {}) } : {}), ...(input.isDefault !== undefined ? { isDefault: input.isDefault } : {}) } });
@@ -91,10 +95,12 @@ export async function startSession(storeId: string, registerId: string, actor: A
     if (box.archivedAt) throw new DomainError('Desarchivá la caja primero', 409);
     const day = await cashDay(tx, storeId);
     const last = await tx.cashSession.findFirst({ where: { registerId, storeId }, orderBy: { day: 'desc' } });
-    if (last?.day === day && last.status === 'OPEN') return { id: last.id };
-    if (last?.status !== 'APPROVED' && last) throw new DomainError('El día anterior quedó sin cerrar. Contalo y pedí aprobación antes de abrir otro día', 409);
+    await assertStoreReferences(tx, storeId, 'CashSession', last);
+    if (last?.day === day && normalizeAccountingState('cashSession', last.status) === 'OPEN') return { id: last.id };
+    if (last && normalizeAccountingState('cashSession', last.status) !== 'APPROVED') throw new DomainError('El día anterior quedó sin cerrar. Contalo y pedí aprobación antes de abrir otro día', 409);
     if (last && last.day >= day) throw new DomainError('Esta caja ya se cerró hoy. Abrí el próximo día', 409);
     const session = await tx.cashSession.create({ data: { storeId, registerId, day, opening: box.balance, openedBy: actor.userId } });
+    await assertStoreReferences(tx, storeId, 'CashSession', session);
     await cashAudit(tx, storeId, actor, 'opened', session.id);
     return { id: session.id };
   });
@@ -107,8 +113,9 @@ export async function manualMovement(storeId: string, input: { registerId: strin
     if (input.kind === 'AJUSTE' && !input.note?.trim()) throw new DomainError('Explicá el ajuste de saldo');
     const signed = money(input.kind === 'EGRESO' ? -input.amount : input.amount);
     const prior = await tx.cashMovement.findFirst({ where: { storeId, requestKey: input.requestKey } });
+    await assertStoreReferences(tx, storeId, 'CashMovement', prior);
     if (prior) {
-      if (prior.registerId !== box.id || prior.kind !== input.kind || !prior.amount.eq(signed) || prior.category !== (input.category || null) || prior.note !== (input.note || null)) throw new DomainError('La solicitud ya corresponde a otro movimiento', 409);
+      if (prior.registerId !== box.id || normalizeAccountingState('cashKind', prior.kind) !== input.kind || !prior.amount.eq(signed) || prior.category !== (input.category || null) || prior.note !== (input.note || null)) throw new DomainError('La solicitud ya corresponde a otro movimiento', 409);
       return { id: prior.id };
     }
     const row = await append(tx, box, { amount: signed, kind: input.kind, category: input.category || null, note: input.note || null, requestKey: input.requestKey, createdBy: actor.userId });
@@ -126,8 +133,10 @@ export async function transferFunds(storeId: string, input: { fromId: string; to
     const converted = convertedMoney(input.amount, from.currency, to.currency, input.exchangeRate);
     const rate = from.currency === to.currency ? null : money(input.exchangeRate!);
     const prior = await tx.cashMovement.findFirst({ where: { storeId, requestKey: input.requestKey } });
+    await assertStoreReferences(tx, storeId, 'CashMovement', prior);
     if (prior) {
       const other = await tx.cashMovement.findFirst({ where: { storeId, transferGroup: prior.transferGroup, amount: { gt: 0 } } });
+      await assertStoreReferences(tx, storeId, 'CashMovement', other);
       if (prior.registerId !== from.id || !prior.amount.eq(amount.neg()) || other?.registerId !== to.id || !other.amount.eq(converted) || String(prior.exchangeRate) !== String(rate) || prior.note !== (input.note || null)) throw new DomainError('La solicitud ya corresponde a otra conversión', 409);
       return { id: prior.id };
     }
@@ -144,7 +153,7 @@ export async function transferFunds(storeId: string, input: { fromId: string; to
 async function appendAutomatic(tx: Tx, storeId: string, currency: string, method: string, data: Omit<Prisma.CashMovementUncheckedCreateInput, 'storeId' | 'registerId'>) {
   const day = await cashDay(tx, storeId);
   const box = await tx.cashRegister.findFirst({
-    where: { storeId, currency, method, archivedAt: null, sessions: { some: { storeId, day, status: 'OPEN' } } },
+    where: { storeId, currency, method, archivedAt: null, sessions: { some: { storeId, day, status: await storedStateFilter(tx, 'CashSession', storeId, ["OPEN"], false) } } },
     orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
   });
   if (box) return append(tx, box, data);
@@ -168,9 +177,10 @@ export async function voidMovement(storeId: string, id: string, actor: Actor, re
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const row = await tx.cashMovement.findFirst({ where: { id, storeId } });
+    await assertStoreReferences(tx, row?.storeId ?? storeId, 'CashMovement', row);
     if (!row) throw new DomainError('Movimiento no encontrado', 404);
     if (row.sourceType) throw new DomainError('Anulá este movimiento desde la venta, seña o reparación de origen', 409);
-    if (!['INGRESO', 'EGRESO', 'AJUSTE', 'TRANSFERENCIA'].includes(row.kind)) throw new DomainError('Este movimiento no se puede anular desde Cajas', 409);
+    if (!['INGRESO', 'EGRESO', 'AJUSTE', 'TRANSFERENCIA'].includes(normalizeAccountingState('cashKind', row.kind))) throw new DomainError('Este movimiento no se puede anular desde Cajas', 409);
     const rows = row.transferGroup ? await tx.cashMovement.findMany({ where: { storeId, transferGroup: row.transferGroup, reversalOf: null } }) : [row];
     for (const original of rows) await reverse(tx, original, actor);
     await cashAudit(tx, storeId, actor, 'voided', id, undefined, reason);
@@ -180,8 +190,9 @@ export async function changeCategory(storeId: string, id: string, category: stri
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const row = await tx.cashMovement.findFirst({ where: { id, storeId } });
+    await assertStoreReferences(tx, row?.storeId ?? storeId, 'CashMovement', row);
     if (!row) throw new DomainError('Movimiento no encontrado', 404);
-    if (row.kind === 'EGRESO' && !category) throw new DomainError('El egreso necesita una categoría');
+    if (normalizeAccountingState('cashKind', row.kind) === 'EGRESO' && !category) throw new DomainError('El egreso necesita una categoría');
     await tx.cashMovement.update({ where: { id }, data: { category } });
     await cashAudit(tx, storeId, actor, 'category', id);
   });
@@ -190,8 +201,9 @@ export async function countSession(storeId: string, id: string, input: { denomin
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const session = await tx.cashSession.findFirst({ where: { id, storeId }, include: { register: true } });
+    await assertStoreReferences(tx, storeId, 'CashSession', session);
     if (!session) throw new DomainError('Sesión no encontrada', 404);
-    if (!['OPEN', 'RECOUNT'].includes(session.status)) throw new DomainError('El conteo ya está guardado', 409);
+    if (!['OPEN', 'RECOUNT'].includes(normalizeAccountingState('cashSession', session.status))) throw new DomainError('El conteo ya está guardado', 409);
     const total = session.register.method === 'EFECTIVO' ? countedMoney(session.register.currency, input.denominations ?? {}) : money(input.counted ?? 0);
     if (session.register.method === 'EFECTIVO' && !input.denominations) throw new DomainError('Completá el conteo por denominación');
     if (session.register.method === 'TRANSFERENCIA' && input.counted === undefined) throw new DomainError('Ingresá el total contado');
@@ -199,6 +211,7 @@ export async function countSession(storeId: string, id: string, input: { denomin
     const difference = total.sub(expected);
     if (!difference.eq(0) && !input.note?.trim()) throw new DomainError('Explicá la diferencia en una nota antes de guardar');
     const count = await tx.cashCount.create({ data: { storeId, sessionId: id, expected, counted: total, difference, denominations: input.denominations, note: input.note || null, countedBy: actor.userId } });
+    await assertStoreReferences(tx, storeId, 'CashCount', count);
     await tx.cashSession.update({ where: { id }, data: { status: 'SUBMITTED', reviewNote: null } });
     await cashAudit(tx, storeId, actor, 'counted', id);
     return { id: count.id, expected: Number(expected), counted: Number(total), difference: Number(difference) };
@@ -208,12 +221,14 @@ export async function reviewSession(storeId: string, id: string, input: { action
   return prisma.$transaction(async tx => {
     await lockCash(tx, storeId);
     const session = await tx.cashSession.findFirst({ where: { id, storeId }, include: { register: true, counts: { orderBy: { createdAt: 'desc' }, take: 1 } } });
+    await assertStoreReferences(tx, storeId, 'CashSession', session);
     if (!session) throw new DomainError('Sesión no encontrada', 404);
-    if (input.action === 'APPROVE' && session.status === 'APPROVED') return;
-    if (session.status !== 'SUBMITTED') throw new DomainError('Guardá el conteo antes de revisarlo', 409);
+    if (input.action === 'APPROVE' && normalizeAccountingState('cashSession', session.status) === 'APPROVED') return;
+    if (normalizeAccountingState('cashSession', session.status) !== 'SUBMITTED') throw new DomainError('Guardá el conteo antes de revisarlo', 409);
     if (input.action === 'RECOUNT' && !input.note?.trim()) throw new DomainError('Explicá qué debe recontarse');
     if (input.action === 'APPROVE') {
       const count = session.counts[0]!;
+      await assertStoreReferences(tx, storeId, 'CashCount', count);
       if (!count.difference.eq(0)) await append(tx, session.register, { amount: count.difference, sessionId: session.id, kind: 'ARQUEO', note: count.note, createdBy: actor.userId }, false);
     }
     await tx.cashSession.update({ where: { id }, data: { status: input.action === 'APPROVE' ? 'APPROVED' : 'RECOUNT', reviewNote: input.note || null, ...(input.action === 'APPROVE' ? { approvedBy: actor.userId, approvedAt: new Date() } : {}) } });
@@ -266,6 +281,7 @@ export async function restoreCashMovements(tx: Tx, storeId: string, ids: string[
   const rows = await tx.cashMovement.findMany({ where: { storeId, id: { in: ids } } });
   for (const row of rows) {
     const reversal = await tx.cashMovement.findFirst({ where: { storeId, reversalOf: row.id } });
+    await assertStoreReferences(tx, storeId, 'CashMovement', reversal);
     if (!reversal) continue;
     const box = row.registerId ? await register(tx, storeId, row.registerId) : null;
     const currency = row.currency ?? box!.currency;

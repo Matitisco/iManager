@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { inventoryImportGroups } from './import-grouping.js';
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
 import { randomUUID } from 'node:crypto';
@@ -679,7 +680,7 @@ export async function updateInventoryItem(
 
     if (input.status !== undefined) {
       const activeSale = await tx.sale.findFirst({
-        where: { storeId, inventoryItemId: id, status: { not: "CANCELADA" }, voidedAt: null },
+        where: { storeId, inventoryItemId: id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true), voidedAt: null },
         select: { id: true },
       });
       if (activeSale && input.status !== existing.status) {
@@ -853,7 +854,7 @@ export async function archiveInventoryItems(tx: Prisma.TransactionClient, storeI
   const activeIds = items.map(item => item.id);
   if (!activeIds.length) return 0;
   const [sales, trades] = await Promise.all([
-    tx.sale.findMany({ where: { storeId, inventoryItemId: { in: activeIds }, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { inventoryItemId: true } }),
+    tx.sale.findMany({ where: { storeId, inventoryItemId: { in: activeIds }, integratedOperation: true, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true), voidedAt: null }, select: { inventoryItemId: true } }),
     tx.tradeIn.findMany({ where: { storeId, receivedInventoryItemId: { in: activeIds }, confirmationStatus: "CONFIRMED", voidedAt: null }, select: { receivedInventoryItemId: true } }),
   ]);
   if (sales.length || trades.length) throw new InventoryError("El equipo pertenece a una operación activa", 409);

@@ -1,3 +1,5 @@
+import { ACCOUNTING_STATES, nullableAccountingState, tradeState } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
@@ -142,14 +144,7 @@ function requiredTradeImei(value: string | null | undefined) {
 
 class TradeInsError extends DomainError {}
 
-const VALID_TRADE_IN_STATUSES = [
-  "PENDIENTE",
-  "APROBADO",
-  "RECHAZADO",
-  "EN REVISIÓN",
-  "PERITAJE TÉC.",
-  "LISTO",
-] as const;
+const VALID_TRADE_IN_STATUSES = ACCOUNTING_STATES.trade.filter(state => state !== 'CANCELADO' && state !== 'ANULADO');
 
 const toDecimal = (value: number) => new Decimal(value);
 
@@ -190,7 +185,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     currency: tradeIn.currency ?? null,
     deviceGiven: tradeIn.deviceGiven,
     differencePaid: tradeIn.differencePaid.toNumber(),
-    status: tradeIn.status as TradeInResponse["status"],
+    status: tradeState(tradeIn.status),
     batteryHealth: tradeIn.batteryHealth ?? undefined,
     grade: tradeIn.grade ?? undefined,
     customFields: toCustomFields(tradeIn.customFields),
@@ -204,7 +199,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     draftSaleCategoryId: tradeIn.draftSaleCategoryId,
     draftAmount: tradeIn.draftAmount?.toNumber() ?? null,
     draftPaymentMethod: tradeIn.draftPaymentMethod,
-    draftPaymentStatus: tradeIn.draftPaymentStatus,
+    draftPaymentStatus: nullableAccountingState('sale', tradeIn.draftPaymentStatus),
     draftSellerMemberId: tradeIn.draftSellerMemberId,
     draftWarrantyDays: tradeIn.draftWarrantyDays,
     cancelledBy: tradeIn.cancelledBy ?? null,
@@ -289,13 +284,14 @@ export async function createTradeIn(storeId: string, input: TradeInInput) {
         currency,
         deviceGiven: input.deviceGiven,
         differencePaid: toDecimal(input.differencePaid ?? 0),
-        status: input.status?.trim() || "PENDIENTE",
+        status: tradeState(input.status?.trim() || "PENDIENTE"),
         batteryHealth: input.batteryHealth ?? null,
         grade: normalizeGrade(input.grade) ?? null,
         customFields: normalizeCustomFields(input.customFields),
         tradeAt,
       },
     });
+    await assertStoreReferences(tx, storeId, 'TradeIn', tradeIn);
 
     return serializeTradeIn(tradeIn as TradeInRecord);
   });
@@ -335,41 +331,44 @@ export async function updateTradeIn(
   const valueChanges = (input.takeValue !== undefined && moneyChanged(existing.takeValue, input.takeValue))
     || (input.differencePaid !== undefined && moneyChanged(existing.differencePaid, input.differencePaid));
   const nextCurrency = currencyOnWrite(input.currency, valueChanges, valueChanges ? await storeCurrency(storeId, prisma) : "ARS");
-  const updated = await prisma.tradeIn.update({
-    where: { id },
-    data: {
-      clientId: nextClientId,
-      clientName: nextClientName,
-      categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
-      dateLabel: nextDateLabel,
-      deviceReceived: input.deviceReceived ?? existing.deviceReceived,
-      deviceReceivedImei:
-        input.deviceReceivedImei !== undefined
-          ? requiredTradeImei(input.deviceReceivedImei)
-          : existing.deviceReceivedImei,
-      takeValue:
-        input.takeValue !== undefined ? toDecimal(input.takeValue) : existing.takeValue,
-      ...(nextCurrency ? { currency: nextCurrency } : {}),
-      deviceGiven: input.deviceGiven ?? existing.deviceGiven,
-      differencePaid:
-        input.differencePaid !== undefined
-          ? toDecimal(input.differencePaid)
-          : existing.differencePaid,
-      status: input.status ?? existing.status,
-      batteryHealth:
-        input.batteryHealth !== undefined
-          ? normalizeBatteryHealth(input.batteryHealth)
-          : existing.batteryHealth,
-      grade:
-        input.grade !== undefined
-          ? normalizeGrade(input.grade)
-          : existing.grade,
-      customFields:
-        input.customFields !== undefined
-          ? normalizeCustomFields(input.customFields)
-          : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
-      tradeAt: nextDate,
-    },
+  const updated = await prisma.$transaction(async tx => {
+    await assertStoreReferences(tx, storeId, 'TradeIn', { ...existing, clientId: nextClientId, categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId });
+    return tx.tradeIn.update({
+      where: { id, storeId },
+      data: {
+        clientId: nextClientId,
+        clientName: nextClientName,
+        categoryId: input.categoryId !== undefined ? input.categoryId : existing.categoryId,
+        dateLabel: nextDateLabel,
+        deviceReceived: input.deviceReceived ?? existing.deviceReceived,
+        deviceReceivedImei:
+          input.deviceReceivedImei !== undefined
+            ? requiredTradeImei(input.deviceReceivedImei)
+            : existing.deviceReceivedImei,
+        takeValue:
+          input.takeValue !== undefined ? toDecimal(input.takeValue) : existing.takeValue,
+        ...(nextCurrency ? { currency: nextCurrency } : {}),
+        deviceGiven: input.deviceGiven ?? existing.deviceGiven,
+        differencePaid:
+          input.differencePaid !== undefined
+            ? toDecimal(input.differencePaid)
+            : existing.differencePaid,
+        status: tradeState(input.status ?? existing.status),
+        batteryHealth:
+          input.batteryHealth !== undefined
+            ? normalizeBatteryHealth(input.batteryHealth)
+            : existing.batteryHealth,
+        grade:
+          input.grade !== undefined
+            ? normalizeGrade(input.grade)
+            : existing.grade,
+        customFields:
+          input.customFields !== undefined
+            ? normalizeCustomFields(input.customFields)
+            : ((existing.customFields ?? {}) as Prisma.InputJsonValue),
+        tradeAt: nextDate,
+      },
+    });
   });
 
   return serializeTradeIn(updated as TradeInRecord);
@@ -380,6 +379,7 @@ export async function deleteTradeIn(storeId: string, id: string, actor?: Actor |
     const existing = await tx.tradeIn.findFirst({
       where: { id, storeId },
     });
+    await assertStoreReferences(tx, storeId, 'TradeIn', existing);
 
     if (!existing || existing.voidedAt) {
       return false;
@@ -492,7 +492,7 @@ export async function importTradeIns(
         continue;
       }
 
-      const rawStatus = row.status?.trim().toUpperCase();
+      const rawStatus = row.status ? tradeState(row.status) : undefined;
       const status = (VALID_TRADE_IN_STATUSES as readonly string[]).includes(rawStatus ?? "")
         ? (rawStatus as string)
         : "PENDIENTE";

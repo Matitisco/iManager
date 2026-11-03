@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { currentBlueRate } from "../../lib/blue-rate.js";
 import { prisma } from "../../plugins/prisma.js";
 import { calendarDay, labelToIso } from "../periodic-reports/schedule.js";
@@ -35,7 +36,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
   const currency: MoneyCurrency = store.currency === "USD" ? "USD" : "ARS";
   const rate = await reportSellRate(store);
   const sales = await prisma.sale.findMany({
-    where: { storeId, voidedAt: null, status: { not: "CANCELADA" } },
+    where: { storeId, voidedAt: null, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true) },
     select: {
       amount: true,
       status: true, voidedAt: true, cancelledAt: true,
@@ -51,9 +52,9 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     select: { amount: true, currency: true, spentAt: true },
   });
   const claims = await prisma.returnCase.findMany({
-    where: { storeId, deletedAt: null, status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] } },
+    where: { storeId, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true), resolution: { in: ["CAMBIO", "REINTEGRO"] } },
     select: {
-      ...returnRecognitionSelect,
+      ...await returnRecognitionSelect(prisma, storeId),
       moneyAmount: true,
       moneyCurrency: true,
       sale: { select: { cantidad: true, amount: true, inventoryItem: { select: { cost: true, currency: true } } } },

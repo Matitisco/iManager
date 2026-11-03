@@ -1,3 +1,4 @@
+import { normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
 import { netProfit } from "./net-profit.js";
 import { returnReversal } from "../returns/returns-math.js";
 import { reportSellRate } from "./net-profit.service.js";
@@ -352,7 +353,7 @@ export async function getReportsOverview(
     voidedAt: null,
     cancelledAt: null,
     // PENDIENTE describes collection, not whether the equipment was sold.
-    status: { in: ["COMPLETADA", "PENDIENTE"] },
+    status: await storedStateFilter(prisma, 'Sale', storeId, ['COMPLETADA', 'PENDIENTE']),
     ...buildDateRangeWhere("soldAt", input.startDate, input.endDate),
   };
   const tradeInsWhere = {
@@ -415,7 +416,7 @@ export async function getReportsOverview(
             storeId,
             voidedAt: null,
             cancelledAt: null,
-            status: { in: ["COMPLETADA", "PENDIENTE"] },
+            status: await storedStateFilter(prisma, 'Sale', storeId, ["COMPLETADA","PENDIENTE"], false),
             soldAt: {
               gte: previousWindow.startDate,
               lte: previousWindow.endDate,
@@ -490,10 +491,10 @@ export async function getReportsOverview(
     where: {
       storeId,
       deletedAt: null,
-      status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
+      status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true), resolution: { in: ["CAMBIO", "REINTEGRO"] },
     },
     select: {
-      ...returnRecognitionSelect, moneyAmount: true, moneyCurrency: true,
+      ...await returnRecognitionSelect(prisma, storeId), moneyAmount: true, moneyCurrency: true,
       sale: {
         select: {
           cantidad: true, amount: true, paymentMethod: true, clientId: true,
@@ -509,7 +510,7 @@ export async function getReportsOverview(
     return issuedAt && (!input.startDate || issuedAt >= input.startDate) && (!input.endDate || issuedAt <= input.endDate);
   });
 
-  const needsConversion = [...sales.filter(sale => sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE'), ...previousSales].some(sale =>
+  const needsConversion = [...sales.filter(sale => normalizeAccountingState('sale', sale.status) === 'COMPLETADA' || normalizeAccountingState('sale', sale.status) === 'PENDIENTE'), ...previousSales].some(sale =>
     (sale.amountCurrency != null && sale.amountCurrency !== currency) ||
     (sale.inventoryItem?.currency != null && sale.inventoryItem.currency !== currency)) ||
     [...inventoryValuation, ...availableStock, ...inboundStock].some(row => row.currency != null && row.currency !== currency) ||
@@ -526,7 +527,7 @@ export async function getReportsOverview(
     item && toNumber(item.cost) > 0 ? convert(item.cost, item.currency) : null;
 
   const recognizedSales: RecognizedSale[] = sales
-    .filter((sale) => sale.status === "COMPLETADA" || sale.status === "PENDIENTE")
+    .filter((sale) => normalizeAccountingState('sale', sale.status) === "COMPLETADA" || normalizeAccountingState('sale', sale.status) === "PENDIENTE")
     .map((sale) => ({
       amount: convert(sale.amount, sale.amountCurrency),
       paymentMethod: sale.paymentMethod,
@@ -539,8 +540,8 @@ export async function getReportsOverview(
       cost: knownCost(sale.inventoryItem) == null ? null : knownCost(sale.inventoryItem)! * (sale.cantidad ?? 1),
     }));
 
-  const activeTradeIns = tradeIns.filter((tradeIn) => tradeIn.status !== "CANCELADO");
-  const pendingSaleRows = sales.filter((sale) => sale.status === "PENDIENTE");
+  const activeTradeIns = tradeIns.filter((tradeIn) => !['CANCELADO', 'ANULADO'].includes(normalizeAccountingState('trade', tradeIn.status)));
+  const pendingSaleRows = sales.filter((sale) => normalizeAccountingState('sale', sale.status) === "PENDIENTE");
   const pendingSales = pendingSaleRows.length;
   const pendingAmount = pendingSaleRows.reduce(
     (accumulator, sale) => accumulator + convert(sale.amount, sale.amountCurrency),
@@ -598,7 +599,7 @@ export async function getReportsOverview(
     clientName: row.sale?.client?.name?.trim() || "Sin cliente",
   }))];
   const marginRate = currentMetrics.marginRevenue > 0 ? (grossProfit / currentMetrics.marginRevenue) * 100 : 0;
-  const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status)).length;
+  const approvedTradeIns = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(normalizeAccountingState('trade', tradeIn.status))).length;
   const activeClients = new Set(
     recognizedSales
       .map((sale) => sale.clientId)
@@ -674,11 +675,11 @@ export async function getReportsOverview(
     .sort((left, right) => right.revenue - left.revenue || right.purchases - left.purchases)
     .slice(0, 5);
 
-  const approvedTradeInRows = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(tradeIn.status));
-  const openTradeInRows = activeTradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(tradeIn.status));
+  const approvedTradeInRows = activeTradeIns.filter((tradeIn) => APPROVED_TRADE_IN_STATUSES.has(normalizeAccountingState('trade', tradeIn.status)));
+  const openTradeInRows = activeTradeIns.filter((tradeIn) => OPEN_TRADE_IN_STATUSES.has(normalizeAccountingState('trade', tradeIn.status)));
   const otherTradeInRows = activeTradeIns.filter(
     (tradeIn) =>
-      !APPROVED_TRADE_IN_STATUSES.has(tradeIn.status) && !OPEN_TRADE_IN_STATUSES.has(tradeIn.status)
+      !APPROVED_TRADE_IN_STATUSES.has(normalizeAccountingState('trade', tradeIn.status)) && !OPEN_TRADE_IN_STATUSES.has(normalizeAccountingState('trade', tradeIn.status))
   );
   const sumDifference = (rows: typeof tradeIns) =>
     rows.reduce((accumulator, tradeIn) => accumulator + toNumber(tradeIn.differencePaid), 0);

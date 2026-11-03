@@ -1,3 +1,4 @@
+import { assertStoreReferences } from '../../lib/store-references.js';
 import { recordCash } from '../cash/service.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -50,9 +51,11 @@ export async function settleNewSale(
   },
 ): Promise<{ status: string; unpaid: number; method: string } | null> {
   if (!hasSettlement(args.input)) return null;
+  await assertStoreReferences(tx, args.storeId, 'SaleInstallmentPlan', { saleId: args.saleId, clientId: args.clientId });
   if (args.currency !== "ARS" && args.currency !== "USD") throw new DomainError("Moneda inválida");
   if (args.input.installments && !args.clientId) throw new DomainError("Financiar en cuotas no está disponible para consumidor final");
   const existing = await tx.saleInstallmentPlan.findFirst({ where: { storeId: args.storeId, saleId: args.saleId }, select: { id: true } });
+  await assertStoreReferences(tx, args.storeId, 'SaleInstallmentPlan', existing);
   if (existing) throw new DomainError("La venta ya tiene un plan de cuotas", 409);
 
   const drafts = args.input.tenders ?? [];
@@ -191,6 +194,7 @@ export async function settleNewSale(
         currency: args.currency,
       },
     });
+    await assertStoreReferences(tx, args.storeId, 'SaleInstallmentPlan', plan);
     await tx.saleInstallment.createMany({
       data: slices.map((slice) => ({
         storeId: args.storeId,
@@ -224,6 +228,7 @@ export async function settleNewSale(
 
 async function createCashTender(tx: Prisma.TransactionClient, args: { data: Prisma.SaleTenderUncheckedCreateInput }) {
   const row = await tx.saleTender.create(args);
+  await assertStoreReferences(tx, row.storeId, 'SaleTender', row);
   await recordCash(tx, { storeId: row.storeId, amount: Number(row.amount) * (row.role === 'VUELTO' ? -1 : 1), currency: row.currency, method: row.method, sourceType: 'sale', sourceId: row.saleId, note: row.role === 'VUELTO' ? 'Vuelto de venta' : 'Cobro de venta', requestKey: `tender:${row.id}` });
   return row;
 }

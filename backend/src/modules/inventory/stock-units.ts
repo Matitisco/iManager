@@ -1,3 +1,4 @@
+import { assertStoreReferences } from '../../lib/store-references.js';
 import type { InventoryItem, Prisma } from '@prisma/client';
 import { DomainError } from '../../lib/domain-error.js';
 
@@ -10,6 +11,7 @@ export function saleUnits(cantidad = 1, item?: Pick<InventoryItem, 'cantidad' | 
 
 /** Call after locking the inventory row in the transaction. */
 export async function takeStock(tx: Prisma.TransactionClient, item: InventoryItem, cantidad = 1) {
+  await assertStoreReferences(tx, item.storeId, 'InventoryItem', item);
   saleUnits(cantidad, item);
   const remaining = (item.cantidad ?? 1) - cantidad;
   return tx.inventoryItem.update({ where: { id: item.id }, data: {
@@ -28,6 +30,7 @@ export async function releaseStock(tx: Prisma.TransactionClient, storeId: string
   if (sale.stockDeducted) {
     await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${sale.inventoryItemId} AND "storeId" = ${storeId} FOR UPDATE`;
     const current = await tx.inventoryItem.findFirstOrThrow({ where: { id: sale.inventoryItemId, storeId } });
+    await assertStoreReferences(tx, storeId, 'InventoryItem', current);
     status = current.reservedDepositId ? 'RESERVADO' : 'DISPONIBLE';
   }
   return tx.inventoryItem.update({ where: { id: sale.inventoryItemId, storeId }, data: {

@@ -1,3 +1,5 @@
+import { nullableAccountingState, normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
+import { assertIncludedStore, assertStoreReferences } from '../../lib/store-references.js';
 import { listSales } from "../sales/sales.service.js";
 import { lockInventory } from "../deposits/deposits.service.js";
 import { Prisma, type InventoryItem, type ReturnCase } from "@prisma/client";
@@ -32,9 +34,9 @@ type Tx = Prisma.TransactionClient;
 const caseInclude = {
   events: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }] },
   creditNote: true,
-  supplier: { select: { name: true } },
-  sale: { select: { amount: true, amountCurrency: true, openBalance: true, status: true, cantidad: true, stockDeducted: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
-  inventoryItem: { select: { cost: true, currency: true, status: true } },
+  supplier: { select: { name: true, storeId: true } },
+  sale: { select: { storeId: true, amount: true, amountCurrency: true, openBalance: true, status: true, cantidad: true, stockDeducted: true, warrantyDays: true, dateLabel: true, paymentMethod: true } },
+  inventoryItem: { select: { storeId: true, cost: true, currency: true, status: true } },
 } satisfies Prisma.ReturnCaseInclude;
 
 type CaseRow = Prisma.ReturnCaseGetPayload<{ include: typeof caseInclude }>;
@@ -106,6 +108,7 @@ function currencyOf(value: string | null | undefined): MoneyCurrency {
 }
 
 function present(row: CaseRow): ReturnCaseView {
+  assertIncludedStore(row.storeId, row.sale, row.supplier, row.inventoryItem, row.creditNote, ...row.events);
   const sale = row.sale;
   const compensatedAt = returnCompensatedAt(row);
   return {
@@ -131,12 +134,12 @@ function present(row: CaseRow): ReturnCaseView {
     destination: row.destination,
     stockStatus: row.stockStatus,
     previousStatus: row.previousStatus,
-    rmaStatus: row.rmaStatus,
-    status: row.status,
+    rmaStatus: nullableAccountingState('rma', row.rmaStatus),
+    status: normalizeAccountingState('return', row.status),
     resolvedOn: row.resolvedAt ? calendarDay(row.resolvedAt, ZONE) : null,
     compensatedOn: compensatedAt ? calendarDay(compensatedAt, ZONE) : null,
     deletedAt: row.deletedAt?.toISOString() ?? null,
-    refundable: roundMoney((row.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1) * refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null)),
+    refundable: roundMoney((row.cantidad ?? sale?.cantidad ?? 1) / (sale?.cantidad ?? 1) * refundableAmount(sale ? { status: normalizeAccountingState('sale', sale.status), amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null)),
     saleAmount: money(sale?.amount),
     saleQuantity: sale?.cantidad ?? 1,
     saleCurrency: sale?.amountCurrency ?? null,
@@ -149,14 +152,16 @@ function present(row: CaseRow): ReturnCaseView {
       amount: money(row.creditNote.amount),
       remaining: money(row.creditNote.remaining),
       currency: row.creditNote.currency,
-      status: row.creditNote.status,
+      status: normalizeAccountingState('credit', row.creditNote.status),
     } : null,
-    events: row.events.map((event) => ({ status: event.status, note: event.note, createdAt: event.createdAt.toISOString() })),
+    events: row.events.map((event) => ({ status: normalizeAccountingState('returnEvent', event.status), note: event.note, createdAt: event.createdAt.toISOString() })),
   };
 }
 
 async function loadCase(tx: Tx | typeof prisma, storeId: string, id: string) {
-  return tx.returnCase.findFirst({ where: { id, storeId }, include: caseInclude });
+  const row = await tx.returnCase.findFirst({ where: { id, storeId }, include: caseInclude });
+  await assertStoreReferences(tx, storeId, 'ReturnCase', row);
+  return row;
 }
 
 function openedDate(value: string) {
@@ -171,7 +176,7 @@ async function nextNumber(tx: Tx, storeId: string) {
 
 export async function listReturnCases(storeId: string, archived = false): Promise<ReturnCaseView[]> {
   const rows = await prisma.returnCase.findMany({
-    where: { storeId, ...(archived ? { OR: [{ deletedAt: { not: null } }, { status: "ANULADO" }] } : { deletedAt: null, status: { not: "ANULADO" } }) },
+    where: { storeId, ...(archived ? { OR: [{ deletedAt: { not: null } }, { status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], false) }] } : { deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true) }) },
     include: caseInclude,
     orderBy: [{ openedAt: "desc" }, { caseNumber: "desc" }],
   });
@@ -183,7 +188,7 @@ export async function listCreditNotes(storeId: string, clientId?: string): Promi
     where: {
       storeId,
       deletedAt: null,
-      status: "ABIERTA",
+      status: await storedStateFilter(prisma, 'CreditNote', storeId, ["ABIERTA"], false),
       remaining: { gt: 0 },
       ...(clientId ? { clientId } : {}),
     },
@@ -198,26 +203,26 @@ export async function listCreditNotes(storeId: string, clientId?: string): Promi
     amount: money(row.amount),
     remaining: money(row.remaining),
     currency: row.currency,
-    status: row.status,
+    status: normalizeAccountingState('credit', row.status),
     deletedAt: null,
   }));
 }
 
 // Cancelled claims with financial or physical effects still consume units.
-const consumingClaim = { OR: [
-  { deletedAt: null, status: { not: "ANULADO" } },
+const consumingClaim = async (tx: Tx, storeId: string) => ({ OR: [
+  { deletedAt: null, status: await storedStateFilter(tx, 'ReturnCase', storeId, ['ANULADO'], true) },
   { settlement: { in: ["REINTEGRO", "NOTA_CREDITO"] } },
   { destination: { in: ["STOCK", "PROVEEDOR"] } },
-] } satisfies Prisma.ReturnCaseWhereInput;
+] } satisfies Prisma.ReturnCaseWhereInput);
 
 export async function listReturnSales(storeId: string) {
   const [sales, claims] = await Promise.all([
     listSales(storeId),
-    prisma.returnCase.findMany({ where: { storeId, ...consumingClaim }, select: { saleId: true, cantidad: true } }),
+    prisma.returnCase.findMany({ where: { storeId, ...await consumingClaim(prisma, storeId) }, select: { saleId: true, cantidad: true } }),
   ]);
   const used = new Map<string, number>();
   for (const claim of claims) if (claim.saleId) used.set(claim.saleId, (used.get(claim.saleId) ?? 0) + (claim.cantidad ?? Infinity));
-  return sales.filter(sale => ["COMPLETADA", "PENDIENTE"].includes(sale.status) && !sale.voidedAt).map(sale => ({
+  return sales.filter(sale => ["COMPLETADA", "PENDIENTE"].includes(normalizeAccountingState('sale', sale.status)) && !sale.voidedAt).map(sale => ({
     ...sale, remainingQuantity: Math.max(0, sale.cantidad - (used.get(sale.id) ?? 0)),
   })).filter(sale => sale.remainingQuantity > 0);
 }
@@ -240,13 +245,14 @@ export async function createReturnCase(storeId: string, input: {
       where: { id: input.saleId, storeId },
       include: { inventoryItem: true, client: { select: { id: true, name: true } } },
     });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     if (!sale) throw new DomainError("No encontramos esa venta.", 404);
     if (sale.voidedAt) throw new DomainError("No se puede devolver una venta anulada.");
-    if (sale.status === "CANCELADA") throw new DomainError("No se puede devolver una venta cancelada.");
-    if (!["COMPLETADA", "PENDIENTE"].includes(sale.status)) throw new DomainError("Esta venta no permite abrir un reclamo.");
+    if (normalizeAccountingState('sale', sale.status) === "CANCELADA") throw new DomainError("No se puede devolver una venta cancelada.");
+    if (!["COMPLETADA", "PENDIENTE"].includes(normalizeAccountingState('sale', sale.status))) throw new DomainError("Esta venta no permite abrir un reclamo.");
     const cantidad = input.cantidad ?? sale.cantidad;
     if (!Number.isInteger(cantidad) || cantidad < 1) throw new DomainError("La cantidad debe ser un entero positivo.");
-    const existing = await tx.returnCase.findMany({ where: { storeId, saleId: sale.id, ...consumingClaim }, select: { cantidad: true } });
+    const existing = await tx.returnCase.findMany({ where: { storeId, saleId: sale.id, ...await consumingClaim(tx, storeId) }, select: { cantidad: true } });
     const used = existing.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
     if (cantidad > sale.cantidad - used) throw new DomainError("La cantidad supera las unidades disponibles para reclamar.", 409);
     const item = sale.inventoryItem;
@@ -279,6 +285,7 @@ export async function createReturnCase(storeId: string, input: {
       },
       include: caseInclude,
     });
+    await assertStoreReferences(tx, storeId, 'ReturnCase', created);
     const code = returnCode(created.caseNumber);
     await writeAudit(tx, {
       storeId,
@@ -307,14 +314,14 @@ export async function updateReturnCase(storeId: string, id: string, input: Updat
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt || current.status === "ANULADO") return null;
-    if (input.status && (current.status === "RESUELTO" || current.status === "EN_PROVEEDOR")) {
+    if (!current || current.deletedAt || normalizeAccountingState('return', current.status) === "ANULADO") return null;
+    if (input.status && (normalizeAccountingState('return', current.status) === "RESUELTO" || normalizeAccountingState('return', current.status) === "EN_PROVEEDOR")) {
       throw new DomainError("Este reclamo ya tiene una resolución.", 409);
     }
-    const status = input.status ?? (current.status === "ABIERTO" && input.diagnosis?.trim() ? "EN_DIAGNOSTICO" : current.status);
+    const status = input.status ?? (normalizeAccountingState('return', current.status) === "ABIERTO" && input.diagnosis?.trim() ? "EN_DIAGNOSTICO" : normalizeAccountingState('return', current.status));
     const diagnosis = input.diagnosis === undefined ? current.diagnosis : input.diagnosis?.trim() || null;
     const note = input.note?.trim() || null;
-    const changed = status !== current.status || diagnosis !== current.diagnosis ||
+    const changed = status !== normalizeAccountingState('return', current.status) || diagnosis !== current.diagnosis ||
       (reason !== undefined && reason !== current.reason) ||
       (input.openedOn !== undefined && input.openedOn !== calendarDay(current.openedAt, ZONE));
     if (!changed && !note) return present(current);
@@ -327,7 +334,7 @@ export async function updateReturnCase(storeId: string, id: string, input: Updat
       storeId, actor, action: "return.updated", entityType: "return", entityId: id,
       entityLabel: returnCode(current.caseNumber), detail: `Se actualizó el reclamo ${returnCode(current.caseNumber)}.`,
       changes: [
-        { field: "status", label: "Estado", before: current.status, after: status },
+        { field: "status", label: "Estado", before: normalizeAccountingState('return', current.status), after: status },
         { field: "reason", label: "Motivo", before: current.reason, after: reason ?? current.reason },
         { field: "diagnosis", label: "Diagnóstico", before: current.diagnosis, after: diagnosis },
         { field: "openedOn", label: "Fecha", before: calendarDay(current.openedAt, ZONE), after: input.openedOn ?? calendarDay(current.openedAt, ZONE) },
@@ -360,6 +367,7 @@ async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { s
   if (!sale || (!sale.stockDeducted && sale.cantidad === 1)) return item;
   await lockInventory(tx, storeId, item.id);
   const fresh = await tx.inventoryItem.findFirstOrThrow({ where: { id: item.id, storeId } });
+  await assertStoreReferences(tx, storeId, 'InventoryItem', fresh);
   const cantidad = current.cantidad ?? sale.cantidad;
   if (!fresh.imei && (sale.cantidad > 1 || fresh.cantidad > 0)) {
     const returned = await tx.inventoryItem.create({ data: {
@@ -369,6 +377,7 @@ async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { s
       cost: fresh.cost, price: fresh.price, currency: fresh.currency, cantidad, acquiredQuantity: 0,
       status: "VENDIDO", entryDate: new Date(), customFields: fresh.customFields ?? Prisma.JsonNull,
     } });
+    await assertStoreReferences(tx, storeId, 'InventoryItem', returned);
     await tx.returnCase.update({ where: { id: current.id }, data: { inventoryItemId: returned.id } });
     return returned;
   }
@@ -391,12 +400,13 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt || current.status === "ANULADO") return null;
-    if (current.resolvedAt || current.status === "RESUELTO" || current.status === "EN_PROVEEDOR") {
+    if (!current || current.deletedAt || normalizeAccountingState('return', current.status) === "ANULADO") return null;
+    if (current.resolvedAt || normalizeAccountingState('return', current.status) === "RESUELTO" || normalizeAccountingState('return', current.status) === "EN_PROVEEDOR") {
       throw new DomainError("Este reclamo ya está resuelto.", 409);
     }
+    await assertStoreReferences(tx, storeId, 'ReturnCase', current);
     const sale = current.saleId ? await tx.sale.findFirst({ where: { id: current.saleId, storeId } }) : null;
-    if (sale && (sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(sale.status))) throw new DomainError("La venta está anulada o cancelada.", 409);
+    if (sale && (sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(normalizeAccountingState('sale', sale.status)))) throw new DomainError("La venta está anulada o cancelada.", 409);
     if (sale && sale.inventoryItemId !== current.inventoryItemId) throw new DomainError("El equipo de la venta cambió. Revisá el reclamo antes de resolverlo.", 409);
     const cantidad = input.cantidad ?? current.cantidad ?? sale?.cantidad ?? 1;
     if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > (current.cantidad ?? sale?.cantidad ?? 1) || (sale && cantidad > sale.cantidad)) {
@@ -404,7 +414,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     }
     if (sale) {
       const others = await tx.returnCase.findMany({
-        where: { storeId, saleId: sale.id, id: { not: id }, ...consumingClaim }, select: { cantidad: true },
+        where: { storeId, saleId: sale.id, id: { not: id }, ...await consumingClaim(tx, storeId) }, select: { cantidad: true },
       });
       const used = others.reduce((sum, claim) => sum + (claim.cantidad ?? sale.cantidad), 0);
       if (cantidad + used > sale.cantidad) throw new DomainError("Los reclamos superan las unidades de la venta. Revisá las cantidades de los otros reclamos.", 409);
@@ -418,7 +428,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
       },
       _sum: { moneyAmount: true },
     }) : null;
-    const collected = refundableAmount(sale ? { status: sale.status, amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null);
+    const collected = refundableAmount(sale ? { status: normalizeAccountingState('sale', sale.status), amount: money(sale.amount), openBalance: sale.openBalance == null ? null : money(sale.openBalance) } : null);
     const unitCap = roundMoney(collected * cantidad / (sale?.cantidad ?? 1));
     const cap = Math.max(0, Math.min(unitCap, roundMoney(collected - money(previous?._sum.moneyAmount))));
     const amount = roundMoney(input.amount);
@@ -493,6 +503,7 @@ export async function resolveReturnCase(storeId: string, id: string, input: {
     }
     if (current.clientId && amount > 0 && input.settlement !== "NINGUNO") {
       const client = await tx.client.findFirst({ where: { id: current.clientId, storeId }, select: { totalSpent: true, balanceCurrency: true } });
+      await assertStoreReferences(tx, storeId, 'Client', client);
       if (client) {
         const target = client.balanceCurrency ?? await storeCurrency(storeId, tx);
         let deduction = new Decimal(amount);
@@ -557,15 +568,15 @@ export async function advanceRma(storeId: string, id: string, input: { status: R
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await loadCase(tx, storeId, id);
-    if (!current || current.deletedAt || current.status === "ANULADO") return null;
-    const rejectedAtSupplier = current.status === "RESUELTO" && current.destination === "PROVEEDOR" && current.rmaStatus === "RECHAZADO";
-    if (current.status !== "EN_PROVEEDOR" && !rejectedAtSupplier) throw new DomainError("Este reclamo no está en el proveedor.");
-    if (current.rmaStatus === "RECIBIDO" || (current.rmaStatus === "RECHAZADO" && (!rejectedAtSupplier || input.status !== "RECIBIDO"))) {
+    if (!current || current.deletedAt || normalizeAccountingState('return', current.status) === "ANULADO") return null;
+    const rejectedAtSupplier = normalizeAccountingState('return', current.status) === "RESUELTO" && current.destination === "PROVEEDOR" && nullableAccountingState('rma', current.rmaStatus) === "RECHAZADO";
+    if (normalizeAccountingState('return', current.status) !== "EN_PROVEEDOR" && !rejectedAtSupplier) throw new DomainError("Este reclamo no está en el proveedor.");
+    if (nullableAccountingState('rma', current.rmaStatus) === "RECIBIDO" || (nullableAccountingState('rma', current.rmaStatus) === "RECHAZADO" && (!rejectedAtSupplier || input.status !== "RECIBIDO"))) {
       throw new DomainError("El RMA con el proveedor ya terminó.", 409);
     }
-    if (input.status === current.rmaStatus) throw new DomainError("El RMA ya está en ese estado.");
+    if (input.status === nullableAccountingState('rma', current.rmaStatus)) throw new DomainError("El RMA ya está en ese estado.");
     let stockStatus = current.stockStatus;
-    let status = current.status;
+    let status = normalizeAccountingState('return', current.status);
     let resolvedAt = current.resolvedAt;
     if (input.status === "RECIBIDO") {
       const item = current.inventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } }) : null;
@@ -622,11 +633,12 @@ async function reverseUncompensatedStock(tx: Tx, storeId: string, current: Retur
   if (current.destination !== "STOCK" && current.destination !== "PROVEEDOR") return;
   const conflict = () => new DomainError("No se puede anular el reclamo porque el stock cambió. Revisá el equipo y sus movimientos antes de intentarlo.", 409);
   const sale = current.saleId ? await tx.sale.findFirst({ where: { id: current.saleId, storeId } }) : null;
-  if (!sale || sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(sale.status) || !current.inventoryItemId) throw conflict();
+  if (!sale || sale.voidedAt || !["COMPLETADA", "PENDIENTE"].includes(normalizeAccountingState('sale', sale.status)) || !current.inventoryItemId) throw conflict();
   await lockInventory(tx, storeId, current.inventoryItemId);
   const item = await tx.inventoryItem.findFirst({ where: { id: current.inventoryItemId, storeId } });
-  const repaired = current.destination === "PROVEEDOR" && current.rmaStatus === "RECIBIDO" && current.resolution === "REPARACION";
-  const expectedStatus = current.destination === "PROVEEDOR" && current.rmaStatus !== "RECIBIDO"
+  await assertStoreReferences(tx, storeId, 'InventoryItem', item);
+  const repaired = current.destination === "PROVEEDOR" && nullableAccountingState('rma', current.rmaStatus) === "RECIBIDO" && current.resolution === "REPARACION";
+  const expectedStatus = current.destination === "PROVEEDOR" && nullableAccountingState('rma', current.rmaStatus) !== "RECIBIDO"
     ? "EN_RMA" : repaired ? "VENDIDO" : current.stockStatus;
   // Legacy single-unit sales kept quantity=1 even while sold. Modern returns
   // restore the claimed units, either on the original item or a separate row.
@@ -636,8 +648,9 @@ async function reverseUncompensatedStock(tx: Tx, storeId: string, current: Retur
       item.archivedAt || item.reservedDepositId || item.reservedClientId || item.reservedAt || item.pendingSaleRegistration) throw conflict();
   const resale = await tx.sale.findFirst({ where: {
     storeId, inventoryItemId: item.id, id: { not: sale.id }, voidedAt: null,
-    status: { in: ["COMPLETADA", "PENDIENTE"] },
+    status: await storedStateFilter(tx, 'Sale', storeId, ["COMPLETADA","PENDIENTE"], false),
   }, select: { id: true } });
+  await assertStoreReferences(tx, storeId, 'Sale', resale);
   if (resale) throw conflict();
   await tx.inventoryItem.update({ where: { id: item.id }, data: { status: "VENDIDO", cantidad: legacy ? 1 : 0 } });
 }
@@ -646,8 +659,9 @@ export async function archiveReturnCase(storeId: string, id: string, actor: Acto
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: null }, include: { creditNote: { select: { id: true } } } });
+    await assertStoreReferences(tx, storeId, 'ReturnCase', current);
     if (!current) return false;
-    if (current.status === "ANULADO") return true;
+    if (normalizeAccountingState('return', current.status) === "ANULADO") return true;
     // Issued compensation cannot be undone by archiving a claim. In particular,
     // a consumed or soft-deleted note is not proof that its effects were reversed.
     if (["REINTEGRO", "NOTA_CREDITO"].includes(current.settlement ?? "") || current.creditNote) {
@@ -681,10 +695,12 @@ export async function restoreReturnCase(storeId: string, id: string, actor: Acto
   return withSerializableRetry(async (tx) => {
     await lockTransactionKey(tx, `returns:${storeId}`);
     const current = await tx.returnCase.findFirst({ where: { id, storeId, deletedAt: { not: null } } });
+    await assertStoreReferences(tx, storeId, 'ReturnCase', current);
     if (!current) return null;
-    if (current.status === "ANULADO") throw new DomainError("Un reclamo anulado no se puede restaurar.", 409);
+    if (normalizeAccountingState('return', current.status) === "ANULADO") throw new DomainError("Un reclamo anulado no se puede restaurar.", 409);
     if (current.saleId) {
       const other = await tx.returnCase.findFirst({ where: { storeId, saleId: current.saleId, deletedAt: null, id: { not: id } }, select: { id: true } });
+      await assertStoreReferences(tx, storeId, 'ReturnCase', other);
       if (other) throw new DomainError("Esa venta ya tiene otro reclamo activo.", 409);
     }
     await tx.returnCase.update({ where: { id }, data: { deletedAt: null, deletedBy: null } });
@@ -720,8 +736,10 @@ export async function coverSaleWithCredits(tx: Tx, input: {
     include: { returnCase: { select: { caseNumber: true } } },
   });
   if (notes.length !== new Set(input.noteIds).size) throw new DomainError("No encontramos esa nota de crédito.", 404);
+  for (const note of notes) await assertStoreReferences(tx, input.storeId, 'CreditNote', note);
   if (notes.some((note) => note.clientId !== input.clientId)) throw new DomainError("La nota de crédito es de otro cliente.");
-  if (notes.some((note) => note.status !== "ABIERTA" || money(note.remaining) <= 0)) {
+  for (const note of notes) await assertStoreReferences(tx, input.storeId, 'CreditNote', note);
+  if (notes.some((note) => normalizeAccountingState('credit', note.status) !== "ABIERTA" || money(note.remaining) <= 0)) {
     throw new DomainError("Esa nota de crédito ya no tiene saldo.");
   }
   const byId = new Map(notes.map((note) => [note.id, note]));
