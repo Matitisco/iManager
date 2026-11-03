@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../plugins/prisma.js';
@@ -8,10 +9,10 @@ const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(s => {
   const date = new Date(`${s}T00:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === s;
 }, 'Fecha inválida');
-const position = z.object({ at: z.string().datetime(), id: z.string().min(1).max(200), until: z.string().datetime(), posthog: z.boolean() }).strict();
+const position = z.object({ at: dateTimeInput(), id: z.string().min(1).max(200), until: dateTimeInput(), posthog: z.boolean() }).strict();
 export const historyQuery = z.object({
   type: z.enum(HISTORY_TYPES).optional(), from: day.optional(), to: day.optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(40),
+  limit: z.coerce.number().refine(Number.isInteger).min(1).max(100).default(40),
   cursor: z.string().max(1200).transform((s, ctx) => {
     try { return position.parse(JSON.parse(Buffer.from(s, 'base64url').toString('utf8'))); }
     catch { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Cursor inválido' }); return z.NEVER; }

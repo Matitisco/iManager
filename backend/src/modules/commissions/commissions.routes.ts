@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import { readReason } from '../audit/archive.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -20,8 +21,13 @@ const ruleSchema = z.object({
   basis: z.enum(COMMISSION_BASES).default("PROFIT_PERCENT"),
   rate: z.number().finite().nonnegative().max(99999999),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
-  effectiveFrom: z.union([z.string().datetime({ offset: true }), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
+  effectiveFrom: z.union([dateTimeInput({ offset: true }), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
 }).strict();
+// Zod 4 applies creation defaults through .partial(); PATCH must retain absence.
+const rulePatchSchema = ruleSchema.partial().extend({
+  memberId: ruleSchema.shape.memberId.removeDefault().optional(),
+  basis: ruleSchema.shape.basis.removeDefault().optional(),
+}).refine(value => Object.keys(value).length > 0, "Indicá un cambio");
 const idSchema = z.object({ id: z.string().min(1) });
 
 export async function commissionsRoutes(app: FastifyInstance) {
@@ -61,7 +67,7 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.patch("/rules/:id", { preHandler: admin }, async request => {
     requireMember(request);
-    return { rule: await saveCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), ruleSchema.partial().refine(value => Object.keys(value).length > 0, "Indicá un cambio").parse(request.body) as Partial<CommissionRuleInput>, idSchema.parse(request.params).id) };
+    return { rule: await saveCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), rulePatchSchema.parse(request.body) as Partial<CommissionRuleInput>, idSchema.parse(request.params).id) };
   });
   app.delete("/rules/:id", { preHandler: admin }, async (request, reply) => {
     requireMember(request);

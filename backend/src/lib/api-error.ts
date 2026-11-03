@@ -1,6 +1,15 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { ZodError, type ZodIssue } from "zod";
+import { z, ZodError, type ZodIssue } from "zod";
 import { domainErrorFrom } from "./domain-error.js";
+
+// Zod 4 merges enum/type issues and omits raw inputs from public issues. Mark
+// missing values before that omission; schema-specific Spanish errors take priority.
+// Keep input data out of errors and avoid depending on default English wording.
+z.config({ customError: issue => {
+  if (issue.input == null && (issue.code === "invalid_type"
+    || (issue.code === "invalid_value" && issue.inst instanceof z.ZodEnum))) return "Required";
+  return undefined;
+} });
 
 const GENERIC_INTERNAL_MESSAGE = "Ocurrió un error interno. Probá de nuevo.";
 
@@ -197,46 +206,44 @@ function zodIssue(issue: ZodIssue, url: string): FieldIssue {
 function zodMessage(issue: ZodIssue, label: string): string {
   if (isSpanishMessage(issue.message)) return issue.message;
 
-  if (issue.code === "too_small" && issue.type === "string") {
+  if (issue.code === "too_small" && issue.origin === "string") {
     return Number(issue.minimum) <= 1
       ? phrase(label, "es obligatorio")
       : phrase(label, `tiene que tener al menos ${Number(issue.minimum)} caracteres`);
   }
 
-  if (issue.code === "too_big" && issue.type === "string") {
+  if (issue.code === "too_big" && issue.origin === "string") {
     return phrase(label, `puede tener hasta ${Number(issue.maximum)} caracteres`);
   }
 
-  if (issue.code === "too_small" && (issue.type === "number" || issue.type === "bigint")) {
+  if (issue.code === "too_small" && (issue.origin === "number" || issue.origin === "bigint" || issue.origin === "int")) {
     const minimum = Number(issue.minimum);
     if (minimum === 0) return phrase(label, negative(label));
     const relation = issue.inclusive ? "mayor o igual a" : "mayor a";
     return phrase(label, `tiene que ser ${relation} ${minimum}`);
   }
 
-  if (issue.code === "too_big" && (issue.type === "number" || issue.type === "bigint")) {
+  if (issue.code === "too_big" && (issue.origin === "number" || issue.origin === "bigint" || issue.origin === "int")) {
     return phrase(label, `no puede ser mayor a ${Number(issue.maximum)}`);
   }
 
-  if (issue.code === "too_small" && (issue.type === "array" || issue.type === "set")) {
+  if (issue.code === "too_small" && (issue.origin === "array" || issue.origin === "set")) {
     const count = Number(issue.minimum);
     return phrase(label, `tiene que incluir al menos ${count} ${count === 1 ? "elemento" : "elementos"}`);
   }
 
-  if (issue.code === "too_big" && (issue.type === "array" || issue.type === "set")) {
+  if (issue.code === "too_big" && (issue.origin === "array" || issue.origin === "set")) {
     return phrase(label, `puede tener hasta ${Number(issue.maximum)} elementos`);
   }
 
   if (issue.code === "invalid_type") {
-    if (issue.received === "undefined" || issue.received === "null") return phrase(label, "es obligatorio");
+    if (issue.message === "Required") return phrase(label, "es obligatorio");
     if (issue.expected === "number") return phrase(label, "tiene que ser un número");
     if (issue.expected === "string") return phrase(label, "tiene que ser texto");
     return phrase(label, "no es válido");
   }
 
-  if (issue.code === "invalid_enum_value" || issue.code === "invalid_string" || issue.code === "invalid_literal") {
-    return phrase(label, "no es válido");
-  }
+  if (issue.code === "invalid_value" && issue.message === "Required") return phrase(label, "es obligatorio");
 
   return phrase(label, "no es válido");
 }

@@ -8,7 +8,7 @@ import { restoreCashMovements } from '../cash/service.js';
 
 type Tx = Prisma.TransactionClient;
 const stockState = (item: InventoryItem) => ({ id: item.id, cantidad: item.cantidad, status: item.status, pendingSaleRegistration: item.pendingSaleRegistration, archivedAt: item.archivedAt?.toISOString() ?? null });
-const stockSchema = z.object({ cantidad: z.number().int().nonnegative().optional(), id: z.string(), status: z.string(), pendingSaleRegistration: z.boolean(), archivedAt: z.string().nullable() });
+const stockSchema = z.object({ cantidad: z.number().refine(Number.isInteger).nonnegative().optional(), id: z.string(), status: z.string(), pendingSaleRegistration: z.boolean(), archivedAt: z.string().nullable() });
 const snapshotSchema = z.object({
   status: z.string(), openBalance: z.string().nullable(),
   stock: z.array(z.object({ before: stockSchema, after: stockSchema })),

@@ -38,7 +38,7 @@ const clientCreateSchema = z.object({
   balanceCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   tag: z.string().trim().max(30).nullable().optional(),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 const clientPatchSchema = clientCreateSchema.partial();

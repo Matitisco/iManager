@@ -32,7 +32,7 @@ import {
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
-  cantidad: z.number().int().min(0).max(2147483647).optional(),
+  cantidad: z.number().refine(Number.isInteger).min(0).max(2147483647).optional(),
   imei: zodOptionalImei().optional(),
   model: z.string().trim().min(1).max(100),
   capacity: z.string().trim().max(50),
@@ -46,7 +46,7 @@ const inventoryItemSchema = z.object({
   categoryId: z.string().nullable().optional(),
   entryDate: z.string().max(50).nullable().optional(),
   batteryNote: z.string().max(2000).nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   supplierId: z.string().trim().min(1).nullable().optional(),
 });
@@ -66,8 +66,8 @@ const inventoryPatchSchema = inventoryItemSchema
 
 export async function inventoryRoutes(app: FastifyInstance) {
   const pagedQuerySchema = z.object({
-    skip: z.coerce.number().int().nonnegative().optional(),
-    take: z.coerce.number().int().min(1).max(100).optional(),
+    skip: z.coerce.number().refine(Number.isInteger).nonnegative().optional(),
+    take: z.coerce.number().refine(Number.isInteger).min(1).max(100).optional(),
     search: z.string().trim().optional(),
     supplierId: z.string().trim().min(1).optional(),
     categoryId: z.string().optional().transform(v =>
@@ -234,9 +234,9 @@ export async function inventoryRoutes(app: FastifyInstance) {
         rows: z
           .array(
             z.object({
-              sourceRow: z.number().int().positive().optional(),
+              sourceRow: z.number().refine(Number.isInteger).positive().optional(),
               quantity: z.preprocess(value => typeof value === 'string' && !value.trim() ? 1 : value,
-                z.coerce.number().int().safe().positive().optional()),
+                z.coerce.number().refine(Number.isInteger).safe().positive().optional()),
               entryDate: z.string().nullable().optional(),
               batteryNote: z.string().nullable().optional(),
               supplierName: z.string().optional(),
@@ -253,7 +253,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
               status: z.string().optional(),
               purchasedAt: z.string().trim().optional(),
               purchaseName: z.string().optional(),
-              customFields: z.record(z.unknown()).optional(),
+              customFields: z.record(z.string(), z.unknown()).optional(),
             })
           )
           .max(60_000),

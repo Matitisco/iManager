@@ -15,7 +15,7 @@ const inventoryItemSchema = z.object({
   price: z.number().nonnegative(),
   status: z.string().trim().min(1).max(20),
   categoryId: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 const inventoryPatchSchema = inventoryItemSchema.partial();

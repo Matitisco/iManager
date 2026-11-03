@@ -42,7 +42,7 @@ const tradeSchema = z.object({
   status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
 }).partial().nullable().optional();
 const inputSchema = z.object({
   depositIds: z.array(z.string().min(1)).max(20).optional(),
@@ -51,7 +51,7 @@ const inputSchema = z.object({
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
-  cantidad: z.number().int().min(1).max(2147483647).optional(),
+  cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
   amount: moneyInput().optional(),
@@ -62,11 +62,11 @@ const inputSchema = z.object({
   status: saleStateSchema.refine(value => value !== "CANCELADA").optional(),
   categoryId: z.string().nullable().optional(),
   saleCategoryId: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
   unlistedEquipment: z.object({
     model: z.string().trim().min(1).max(100),
     capacity: z.string().trim().max(50).optional(),
@@ -86,7 +86,7 @@ const inputSchema = z.object({
   changeMethod: z.string().trim().min(1).max(50).optional(),
   creditNoteIds: z.array(z.string().min(1)).max(20).optional(),
   installments: z.object({
-    count: z.number().int().min(2).max(36),
+    count: z.number().refine(Number.isInteger).min(2).max(36),
     frequency: z.enum(["SEMANAL", "QUINCENAL", "MENSUAL"]),
     firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     surcharge: moneyInput().optional(),

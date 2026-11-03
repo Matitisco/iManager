@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 /**
  * GET /admin/inventory-duplicates?storeEmail=... previews the exact plan.
  * POST .../apply with storeEmail, expectStoreName, expectRowsBefore,
@@ -250,20 +251,20 @@ const uniqueStrings = z.array(z.string().min(1)).refine(values => new Set(values
 export const inventoryDuplicatesApplyBody = z.object({
   storeEmail: z.string().trim().email(),
   expectStoreName: z.string(),
-  expectRowsBefore: z.number().int(),
-  expectRowsAfter: z.number().int(),
-  expectUnits: z.number().int(),
+  expectRowsBefore: z.number().refine(Number.isInteger),
+  expectRowsAfter: z.number().refine(Number.isInteger),
+  expectUnits: z.number().refine(Number.isInteger),
   groupKeys: uniqueStrings.refine(keys => keys.length > 0, { message: 'Indicá al menos un groupKey.' }),
 }).strict();
 
 export const inventoryDuplicatesBackup = z.object({
   meta: z.object({
-    storeId: z.string().min(1), storeName: z.string(), createdAt: z.string().datetime(),
+    storeId: z.string().min(1), storeName: z.string(), createdAt: dateTimeInput(),
     tables: z.tuple([z.literal('InventoryItem')]), groupKeys: uniqueStrings,
   }).strict(),
   auditEventIds: uniqueStrings,
   // Physical names (quantity, not Prisma's cantidad); preserve every other column.
-  items: z.array(z.object({ id: z.string().min(1), storeId: z.string().min(1), quantity: z.number().int() }).passthrough()).min(1)
+  items: z.array(z.object({ id: z.string().min(1), storeId: z.string().min(1), quantity: z.number().refine(Number.isInteger) }).passthrough()).min(1)
     .refine(items => new Set(items.map(item => item.id)).size === items.length, { message: 'Hay ids repetidos en el backup.' }),
 }).strict();
 export const inventoryDuplicatesRestoreBody = z.object({

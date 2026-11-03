@@ -36,7 +36,7 @@ export async function cashRoutes(app: FastifyInstance) {
   app.post('/:id/open', async request => { requireMember(request); return startSession(request.appUser.storeId, id(request), await loadActor(request.appUser.userId)); });
   app.get('/:id/movements', async request => {
     balanceAccess(request); requireMember(request);
-    const input = z.object({ from: day.optional(), to: day.optional(), category: z.string().max(80).optional(), offset: z.coerce.number().int().min(0).max(1_000_000).default(0) }).parse(request.query);
+    const input = z.object({ from: day.optional(), to: day.optional(), category: z.string().max(80).optional(), offset: z.coerce.number().refine(Number.isInteger).min(0).max(1_000_000).default(0) }).parse(request.query);
     if (input.from && input.to && input.from > input.to) throw new DomainError('La fecha inicial supera la final');
     return listMovements(request.appUser.storeId, id(request), { ...input, offset: input.offset! });
   });
@@ -61,7 +61,7 @@ export async function cashRoutes(app: FastifyInstance) {
   app.patch('/movements/:id/category', async request => { owner(request); requireMember(request); const input = z.object({ category }).strict().parse(request.body); await changeCategory(request.appUser.storeId, id(request), input.category, await loadActor(request.appUser.userId)); return { ok: true }; });
   app.post('/sessions/:id/count', async request => {
     requireMember(request);
-    const input = z.object({ denominations: z.record(z.number().int().min(0).max(1_000_000)).optional(), counted: amount.refine(n => n >= 0).optional(), note: note.optional() }).strict().parse(request.body);
+    const input = z.object({ denominations: z.record(z.string(), z.number().refine(Number.isInteger).min(0).max(1_000_000)).optional(), counted: amount.refine(n => n >= 0).optional(), note: note.optional() }).strict().parse(request.body);
     return countSession(request.appUser.storeId, id(request), input, await loadActor(request.appUser.userId));
   });
   app.post('/sessions/:id/review', async request => {

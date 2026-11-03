@@ -4,7 +4,7 @@ export const settingsSchema = z.object({
   active: z.boolean().optional(),
   hideWithoutStock: z.boolean().optional(),
   hideReserved: z.boolean().optional(),
-  minBattery: z.number().int().min(0).max(100).nullable().optional(),
+  minBattery: z.number().refine(Number.isInteger).min(0).max(100).nullable().optional(),
   showPrice: z.boolean().optional(),
   priceCurrency: z.enum(['ARS', 'USD', 'ORIGINAL']).optional(),
   logoUrl: z.string().url().max(2000).refine(url => url.startsWith('https://'), 'Usá un logo con URL https').nullable().optional(),
