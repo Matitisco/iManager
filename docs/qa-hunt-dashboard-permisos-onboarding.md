@@ -1,0 +1,31 @@
+# QA exploratorio: dashboard, permisos y onboarding
+
+Base: `origin/test` (`e4fa2a9`), rama `qa/hunt-dashboard-permisos-onboarding`. Datos ficticios; PostgreSQL exclusivamente en loopback, puerto 55461. No se consultaron bases de producción ni Railway, no se imprimieron secretos ni se hizo build. Se conserva #691: STAFF ve costos y finanzas; eso no concede Reportes ni acciones sensibles.
+
+| Bug confirmado | Severidad | Cómo reproducir | Estado | PR |
+| --- | --- | --- | --- | --- |
+| HUNT-01. Dashboard reutiliza un reporte convertido con otra configuración monetaria. | Media | Registrar ventas USD con tienda ARS/cotización 1000; abrir dashboard, cambiar a USD/cotización 2000 en Configuración y volver. Mientras revalida, el snapshot anterior puede mostrar la mitad del importe. También falta reconsulta si cambia la configuración estando montado. | Corregido: caché y respuestas pendientes separadas por moneda/configuración. Tests antes del fix: cinco cambios de configuración y respuesta tardía; E2E 390/1440 con API demorada. | Pendiente de publicación |
+| HUNT-02. Los KPIs financieros llevan a una sección denegada. | Baja | STAFF sin Reportes: tocar Ventas o Margen bruto desde dashboard abre acceso denegado. | Corregido: conserva los importes de #691 y sólo ofrece navegación si tiene Reportes. Regresión de componente y E2E 390/1440; costos visibles y anulación 403 comprobados. | Pendiente de publicación |
+| HUNT-03. Primeros pasos da Equipo por listo con una invitación inválida. | Media | En una tienda nueva, invitar y revocar; recargar Primeros pasos sin otros miembros activos. También ocurre con invitaciones vencidas o aceptadas cuyo miembro fue eliminado. | Corregido: sólo cuentan invitaciones pendientes vigentes o miembros activos. Tres regresiones API antes del fix y E2E 390/1440. | Pendiente de publicación |
+| HUNT-04. Cambiar el costo del remanente reescribe la ganancia histórica. | Alta | Tienda ARS/cotización 1000; stock de 20 a costo USD 450. Vender 10 por USD 6500: ganancia ARS 2.000.000. Cambiar el costo de las 10 restantes a USD 500: la ganancia anterior baja a ARS 1.500.000. | Comportamiento confirmado, sin fix; pendiente definir si editar un remanente debe corregir también el histórico. Preservar el costo original requiere snapshot de costo/moneda y criterio de migración para ventas/devoluciones existentes. E2E `documentado: editar el costo…` tiene falla esperada explícita; un error de preparación sigue fallando y un futuro fix produce pase inesperado. | Pendiente de publicación |
+| HUNT-05. Empleado eliminado queda atrapado en onboarding. | Alta | Eliminar la única membresía STAFF; volver a ingresar y enviar un nombre de tienda. `/api/onboarding` respondía 200 pero seguía devolviendo tienda/membresía null y `onboardingRequired=true`. | Corregido: ambas verificaciones de membresía ignoran eliminadas. Regresión API roja/verde verifica OWNER en la tienda nueva, reintento idempotente e inaccesibilidad de la tienda anterior. | Pendiente de publicación |
+
+## Validación y alcance
+
+- Escenarios sintéticos: mayorista con cantidades >1, venta a cuenta, devoluciones parciales, anulaciones, OWNER/STAFF, cuenta sin tienda y Excel con duplicados/datos inválidos. No se usaron datos ni cuentas reales de Natan, Juan o iPh Concordia.
+- Chromium 390×900 y 1440×900 para las regresiones nuevas; suites existentes de onboarding también usan sus viewports de teléfono/escritorio. Geometría sin scroll horizontal de página y capturas adjuntas a los tests; revisión visual local de las capturas indicadas por los recorridos.
+- Los analizadores externos de texto/IA de las suites existentes usan respuestas controladas. El XLSX sintético pasa por análisis y persistencia reales en PostgreSQL local. No se afirma cobertura de proveedores externos.
+- Mantenimiento de pruebas: dos aserciones antiguas contaban filas en vez de unidades de stock agrupadas; ahora verifican cantidades, precios y moneda. El E2E de STAFF se ajustó a #691. El recorrido móvil se ejecuta en Chromium; WebKit no tiene sus bibliotecas de sistema en este entorno y su suite original se conserva.
+- Aislamiento: la suite amplia detectó que una credencial Resend heredada desviaba la prueba de SMTP ficticio al proveedor externo. Se desactiva explícitamente en el setup de tests y en el servidor QA; la prueba pasa con el SMTP local. No se imprimió la credencial.
+- TypeScript frontend/backend y 150 pruebas frontend relacionadas aprobados. Backend: 1.061 unitarias y 69 integraciones relacionadas aprobadas. Las 788 pruebas de integración completas quedaron cubiertas: dos hooks de limpieza local agotaron el tiempo en la corrida amplia y sus dos archivos (24 pruebas) pasaron al repetirlos aisladamente; sin cambios para ampliar timeouts en la configuración del repositorio.
+- E2E: 43 resultados esperados (42 casos normales y HUNT-04 como falla esperada explícita), con las pruebas de Excel, cambio de moneda, permisos y onboarding móvil/escritorio aprobadas. CI: consultar el check requerido `test` en el PR.
+
+Reejecución: crear la base local vacía `qa_hunt_dashboard_e2e` en PostgreSQL 55461 y ejecutar:
+
+```bash
+npm run test:e2e -- --config e2e/hunt-dashboard-permisos-onboarding.config.ts
+```
+
+La configuración rechaza hosts no locales y otro nombre de base, aplica el schema sólo a esa base y arranca API/Vite locales (3186/4186). Nunca usarla con una base de negocio. La suite general omite los casos nuevos fuera de esta configuración dedicada.
+
+Tests de regresión: `src/desk/screens/DashboardScreen.test.tsx`, `backend/src/test/getting-started.integration.test.ts`, `backend/src/test/auth-onboarding.integration.test.ts` y `e2e/hunt-dashboard-permisos-onboarding.spec.ts`. Evidencia generada en `test-results/` (fuera de git).

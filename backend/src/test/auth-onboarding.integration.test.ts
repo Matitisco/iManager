@@ -6,6 +6,25 @@ import { useIntegrationApp } from "./integration-helpers.js";
 const { getApp } = useIntegrationApp();
 
 describe("auth and onboarding integration", () => {
+  it("permite crear una tienda después de que eliminaron la última membresía", async () => {
+    const { store, user, membership } = await seedStoreContext({ role: 'STAFF' });
+    await prisma.storeMember.update({ where: { id: membership!.id }, data: { removedAt: new Date(), removedBy: 'Dueño ficticio' } });
+    const app = getApp();
+    const headers = buildAuthHeaders();
+    const before = await app.inject({ method: 'GET', url: '/api/me', headers });
+    expect(before.json()).toMatchObject({ onboardingRequired: true, store: null, membership: null });
+    const response = await app.inject({ method: 'POST', url: '/api/onboarding', headers, payload: { storeName: 'Mi nueva tienda ficticia' } });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json().session).toMatchObject({ onboardingRequired: false, store: { name: 'Mi nueva tienda ficticia' }, membership: { role: 'OWNER' } });
+    expect(response.json().session.store.id).not.toBe(store!.id);
+    expect(await prisma.storeMember.count({ where: { userId: user.id, removedAt: null } })).toBe(1);
+    expect((await prisma.storeMember.findUniqueOrThrow({ where: { id: membership!.id } })).removedAt).not.toBeNull();
+    const retry = await app.inject({ method: 'POST', url: '/api/onboarding', headers, payload: { storeName: 'No duplicar' } });
+    expect(retry.json().session.store.id).toBe(response.json().session.store.id);
+    const denied = await app.inject({ method: 'GET', url: `/api/stores/${store!.id}/members`, headers });
+    expect(denied.statusCode).toBe(403);
+  });
+
   it("serves health and protects the app session endpoint", async () => {
     const app = getApp();
 
