@@ -27,6 +27,7 @@ Seguimiento del CI del PR #713:
 - [Corrida inicial sobre `492e2c7`](https://github.com/Matitisco/iManager/actions/runs/41544464750): lint, backend, smoke E2E y PWA aprobados. Frontend: **233 aprobadas y 2 fallidas** por la expectativa anterior; el agregador `test` falló como consecuencia.
 - El ajuste pendiente del worktree se revisó y validó: **97 pruebas aprobadas** entre `void-rows.test.tsx` e `InventoryScreen.test.tsx`; TypeScript frontend y backend aprobados en paralelo.
 - La selección de frontend usada por CI, aplicada al diff completo del PR y al ajuste pendiente, pasó localmente: **235 pruebas en 12 archivos**, con un máximo de dos workers. No se ejecutó un build ni se repitió la suite global.
+- [Corrida remota del fix `ac6dfe5`](https://github.com/Matitisco/iManager/actions/runs/41557861444): **7/7 checks aprobados** (`changes`, `lint`, `backend-tests`, `frontend-unit (1)`, `e2e (0)`, `pwa (android-chromium)` y `test`). El PR permanece abierto contra `test`, sin merge.
 - Esta continuación ejecuta validaciones sin DB ni servicios de producción y mantiene los permisos temporales de STAFF de #691. El defecto de compras de severidad alta sigue **abierto**; los fallos esperados documentados no significan que esté corregido.
 
 **Los fallos esperados no son bugs corregidos.** `QA_HUNT_STRICT=1` los convierte en fallos normales; se verificaron los tres de integración en rojo. Los controles de setup, acceso STAFF a costos y layout se ejecutan antes de marcar la expectativa fallida.
