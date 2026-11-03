@@ -6,7 +6,8 @@ import { captureSaleCancellation, restoreCancelledSale } from './sale-restoratio
 import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { coverSaleWithCredits } from '../returns/returns.service.js';
-import { applyDeposits, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
+import { applyDeposits, receiveDeposit, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
+import { balanceAfterDeposit, depositMoney } from '../deposits/deposit-money.js';
 import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
 import { recordPriceRise } from "../accounts/accounts.service.js";
 import { priceRiseDebt } from "../accounts/ledger.js";
@@ -49,6 +50,7 @@ const toJson = (value?: unknown) => (value ?? {}) as Prisma.InputJsonValue;
 
 export type OperationSource = "inventory" | "sales" | "tradeins" | "clients";
 export type OperationInput = {
+  initialDeposit?: { amount: number; currency: 'ARS' | 'USD' };
   depositIds?: string[];
   sellerMemberId?: string | null;
   exchangeRate?: number;
@@ -195,6 +197,7 @@ function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capa
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || (product ? fullDeviceLabel(product) : ""),
     depositAppliedAmount: toNum(sale.depositAppliedAmount),
+    hasInitialDeposit: sale.hasInitialDeposit,
     openBalance: sale.openBalance == null ? null : toNum(sale.openBalance),
     amount: toNum(sale.amount),
     amountCurrency: sale.amountCurrency ?? null,
@@ -559,6 +562,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
   input = normalizeOperationStates(input);
   const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     if (input.status === "CANCELADA") throw new OperationError("Una operación nueva no puede crearse cancelada", 400);
+    if (input.initialDeposit && (input.draft || hasSettlement(input))) throw new OperationError('La seña se registra sin cuotas ni pagos combinados');
     if (input.draft && hasSettlement(input)) throw new OperationError("Las cuotas y los pagos mixtos se confirman con la venta");
     const currency = currencyOnWrite(input.currency, true, await storeCurrency(storeId, tx));
     const labelCurrency = await copyCurrency(tx, storeId, currency);
@@ -641,6 +645,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     }
     const prior = input.requestKey ? await tx.sale.findFirst({ where: { storeId, requestKey: input.requestKey } }) : null;
     if (prior) return replaySaleResult(tx, storeId, prior, "Operación recuperada");
+    if (input.initialDeposit && !input.requestKey?.trim()) throw new OperationError('La seña requiere una clave de solicitud');
     const tradeInput = input.tradeIn;
     if (!Number.isFinite(input.amount) || (input.amount ?? -1) < 0) throw new OperationError("Monto inválido");
     if (tradeInput && (!tradeInput.deviceReceived?.trim() || !Number.isFinite(tradeInput.takeValue) || tradeInput.takeValue < 0)) throw new OperationError("Datos de canje invalidos o diferencia negativa");
@@ -668,6 +673,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
     const resolvedClient = await getClient(tx, storeId, input);
     const client = resolvedClient.client;
     const clientCreated = resolvedClient.created;
+    if (input.initialDeposit && !client) throw new OperationError('Elegí un cliente para dejar una seña');
     if (tradeInput && !client) throw new OperationError("El canje confirmado requiere un cliente", 400);
     const date = parseArDateOr(input.date);
     let trade: TradeIn | null = null;
@@ -786,15 +792,25 @@ export async function createOperation(storeId: string, source: OperationSource, 
       }
     }
     const dueAmount = trade ? input.amount! - tradeInput!.takeValue : input.amount!;
-    const depositAmount = await applyDeposits(tx, { storeId, clientId: client?.id ?? null, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: dueAmount, productId: product?.id, saleId: sale.id, actor });
-    await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
-    if (depositAmount.gt(0)) sale = await tx.sale.update({ where: { id: sale.id }, data: { depositAppliedAmount: depositAmount } });
+    let depositAmount = await applyDeposits(tx, { storeId, clientId: client?.id ?? null, ids: input.depositIds, currency: labelCurrency, rate: exchangeRate, maximum: dueAmount, productId: product?.id, saleId: sale.id, actor });
     if ((input.creditNoteIds?.length ?? 0) > 0 && (input.tenders?.length || input.installments)) throw new OperationError("Aplicá la nota de crédito en un cobro simple, sin cuotas ni varios medios.");
     const creditCovered = await coverSaleWithCredits(tx, { storeId, clientId: client?.id ?? null, saleId: sale.id, noteIds: input.creditNoteIds ?? [], due: dueAmount - Number(depositAmount), currency: labelCurrency, rate: exchangeRate == null ? null : Number(exchangeRate), actor });
-    const cashDue = Math.max(0, dueAmount - Number(depositAmount) - creditCovered);
+    let cashDue = Decimal.max(0, dec(dueAmount).sub(depositAmount).sub(creditCovered)).toNumber();
+    if (input.initialDeposit) {
+      const receiptInput = { ...input.initialDeposit, exchangeRate, method: sale.paymentMethod, requestKey: `sale-deposit:${sale.id}` };
+      const snapshot = depositMoney(receiptInput);
+      const remainder = balanceAfterDeposit({ ...snapshot, currency: receiptInput.currency }, labelCurrency, exchangeRate, cashDue);
+      const receipt = await receiveDeposit(tx, storeId, client!.id, receiptInput, actor, product);
+      const initial = await applyDeposits(tx, { storeId, clientId: client!.id, ids: [receipt.id], currency: labelCurrency, rate: exchangeRate, maximum: cashDue, productId: product?.id, saleId: sale.id, actor });
+      depositAmount = depositAmount.add(initial);
+      cashDue = remainder.toNumber();
+      sale = await tx.sale.update({ where: { id: sale.id }, data: { hasInitialDeposit: true, openBalance: remainder, status: remainder.gt(0) ? 'PENDIENTE' : 'COMPLETADA' } });
+    }
+    await stampDepositClientCurrency(tx, storeId, client, labelCurrency, depositAmount);
+    if (depositAmount.gt(0)) sale = await tx.sale.update({ where: { id: sale.id }, data: { depositAppliedAmount: depositAmount } });
     const settlement = await settleNewSale(tx, { storeId, saleId: sale.id, clientId: client?.id ?? null, due: cashDue, currency: labelCurrency, exchangeRate: exchangeRate == null ? null : Number(exchangeRate), input, actor });
     if (settlement) sale = await tx.sale.update({ where: { id: sale.id }, data: { status: settlement.status, openBalance: dec(settlement.unpaid), paymentMethod: settlement.method } });
-    const paymentStatus = settlement?.status ?? input.status ?? "COMPLETADA";
+    const paymentStatus = settlement?.status ?? (input.initialDeposit ? sale.status : input.status ?? "COMPLETADA");
     if (!settlement && paymentStatus === 'COMPLETADA') await recordCash(tx, { storeId, amount: cashDue, currency: labelCurrency, method: sale.paymentMethod, sourceType: 'sale', sourceId: sale.id, note: 'Cobro de venta', actor });
     const debt = settlement ? settlement.unpaid : cashDue;
     if (!settlement && client && paymentStatus === "COMPLETADA") {
@@ -832,6 +848,7 @@ export async function createOperation(storeId: string, source: OperationSource, 
 }
 
 export async function confirmTradeOperation(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
+  if (input.initialDeposit) throw new OperationError('Registrá la seña desde una venta nueva');
   input = normalizeOperationStates(input);
   const result = await withSerializableRetry(async (tx: Prisma.TransactionClient) => {
     const trade = await tx.tradeIn.findFirst({ where: { id: tradeId, storeId } });
@@ -1118,7 +1135,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     const clientCreated = resolvedNextClient.created;
     const nextClientId = nextClient?.id ?? null;
     let nextStatus = input.status ?? saleState(sale.status);
-    if (input.depositIds?.length) throw new OperationError("Las señas se aplican al crear una venta", 409);
+    if (input.initialDeposit || input.depositIds?.length) throw new OperationError("Las señas se aplican al crear una venta", 409);
     if (Number(sale.depositAppliedAmount) > 0 && (nextClientId !== sale.clientId || nextProductId !== sale.inventoryItemId || amountChanges || nextCurrency && nextCurrency !== sale.amountCurrency || hasTrade !== Boolean(trade) || moneyChanged(trade?.takeValue ?? 0, nextTakeValue))) throw new OperationError("Esta venta tiene señas aplicadas. Para cambiar cliente, equipo o importes, cancelala y registrá una nueva", 409);
     if (hasTrade && !nextClient) throw new OperationError("El canje confirmado requiere un cliente", 400);
     const nextDebt = Math.max(0, nextAmount - nextTakeValue - Number(sale.depositAppliedAmount));
@@ -1322,6 +1339,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
 }
 
 export async function updateTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
+  if (input.initialDeposit) throw new OperationError('Registrá la seña desde una venta nueva');
   input = normalizeOperationStates(input);
   const draftSnapshot = await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId }, select: { confirmationStatus: true } });
   if (!draftSnapshot) throw new OperationError("Trade-in not found", 404);

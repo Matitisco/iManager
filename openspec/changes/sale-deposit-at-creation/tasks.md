@@ -1,0 +1,4 @@
+- [x] Reutilizar snapshot y registro transaccional de señas; agregar indicador aditivo.
+- [x] Agregar variante A y etiquetas en Ventas, detalle e historial del cliente.
+- [x] Cubrir cálculos, integración, componentes y E2E; ejecutar lint y pruebas relacionadas.
+- [ ] Abrir PR a test, esperar CI y mergear sin tocar main.

@@ -7,6 +7,7 @@ export type OperationSource = 'inventory' | 'sales' | 'tradeins' | 'clients';
 export type OperationSaleStatus = 'COMPLETADA' | 'PENDIENTE';
 
 export interface OperationInput {
+  initialDeposit?: { amount: number; currency: 'ARS' | 'USD' };
   cantidad?: number;
   depositIds?: string[];
   creditNoteIds?: string[];

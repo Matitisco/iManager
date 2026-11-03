@@ -66,6 +66,7 @@ export interface SalePatchInput {
 }
 
 export interface SaleResponse {
+  hasInitialDeposit?: boolean;
   cantidad: number;
   depositAppliedAmount?: number;
   openBalance?: number | null;
@@ -98,6 +99,7 @@ export interface SaleResponse {
 }
 
 type SaleRecord = {
+  hasInitialDeposit?: boolean;
   cantidad?: number;
   depositAppliedAmount?: Decimal;
   openBalance?: Decimal | null;
@@ -201,6 +203,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     productId: sale.inventoryItemId ?? "",
     deviceLabel: sale.deviceLabel || [sale.inventoryItem?.model, sale.inventoryItem?.capacity].filter(Boolean).join(" "),
     depositAppliedAmount: Number(sale.depositAppliedAmount ?? 0),
+    hasInitialDeposit: sale.hasInitialDeposit ?? false,
     openBalance: sale.openBalance == null ? null : Number(sale.openBalance),
     amount: sale.amount.toNumber(),
     amountCurrency: sale.amountCurrency ?? null,
