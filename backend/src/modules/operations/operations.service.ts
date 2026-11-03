@@ -1339,7 +1339,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
   }
 }
 
-export async function updateTradeOperation(storeId: string, tradeId: string, input: OperationInput) {
+export async function updateTradeOperation(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
   if (input.initialDeposit) throw new OperationError('Registrá la seña desde una venta nueva');
   input = normalizeOperationStates(input);
   const draftSnapshot = await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId }, select: { confirmationStatus: true } });
@@ -1411,17 +1411,17 @@ export async function updateTradeOperation(storeId: string, tradeId: string, inp
   if (trade.confirmationStatus !== "CONFIRMED") throw new OperationError("No se puede editar un canje cancelado", 409);
   const sale = await prisma.sale.findFirst({ where: { tradeInId: trade.id, storeId } });
   if (!sale) throw new OperationError("El canje no tiene venta vinculada", 409);
-  return updateSaleOperation(storeId, sale.id, input);
+  return updateSaleOperation(storeId, sale.id, input, actor);
 }
 
-export async function updateTradeFromSale(storeId: string, tradeId: string, input: OperationInput) {
+export async function updateTradeFromSale(storeId: string, tradeId: string, input: OperationInput, actor?: Actor) {
   const trade = await prisma.tradeIn.findFirst({ where: { id: tradeId, storeId }, select: { confirmationStatus: true, operationSource: true } });
   if (!trade) throw new OperationError("Trade-in not found", 404);
   const sale = await prisma.sale.findFirst({ where: { storeId, tradeInId: tradeId }, select: { id: true } });
   if (!sale && !(trade.confirmationStatus === "PENDING" && trade.operationSource === "sales")) {
     throw new OperationError("This trade-in is not linked to a sales operation", 403);
   }
-  return updateTradeOperation(storeId, tradeId, input);
+  return updateTradeOperation(storeId, tradeId, input, actor);
 }
 
 export async function updateTradeFromLegacy(storeId: string, tradeId: string, patch: {
