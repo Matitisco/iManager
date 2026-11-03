@@ -122,9 +122,8 @@ describe.each(['import', 'manual'].flatMap(source => ['OWNER', 'STAFF'].map(role
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: returnedId } })).toMatchObject({ cantidad: 2, acquiredQuantity: 0, stockPurchaseId: purchaseId });
     await verify(11);
     const removed = await getApp().inject({ method: 'DELETE', url: `/api/returns/${claimId}`, headers, payload: { reason: 'QA sintética' } });
-    expect(removed.statusCode, removed.body).toBe(204);
+    expect(removed.statusCode, removed.body).toBe(409); // #717: compensated claims cannot be voided
     await verify(11);
-    // The resolved physical effect persists even when the claim is voided.
     expect((await getApp().inject({ method: 'POST', url: `/api/operations/sales/sales/${saleId}/void`, headers, payload: { reason: 'QA sintética' } })).statusCode).toBe(409);
     const ready = await getApp().inject({ method: 'PATCH', url: `/api/inventory/${returnedId}`, headers, payload: { status: 'DISPONIBLE' } });
     expect(ready.statusCode, ready.body).toBe(200);
