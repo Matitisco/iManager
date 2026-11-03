@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { securityHeaders } from './security-headers.mjs';
+import { cspBuildConfig, inlineScriptHashes, securityHeaders } from './security-headers.mjs';
 import { timingSafeEqual } from 'node:crypto';
 
 const defaultRoot = normalize(join(fileURLToPath(new URL('.', import.meta.url)), '..', 'dist'));
@@ -60,15 +60,29 @@ export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass 
   };
 }
 
-export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim(), basicAuth = createBasicAuthGuard() } = {}) {
+export function createSpaHandler({ root = defaultRoot, fetchImpl = fetch, authDomain = process.env.VITE_FIREBASE_AUTH_DOMAIN?.trim(), catalogApiBase = process.env.VITE_API_BASE_URL?.trim(), basicAuth = createBasicAuthGuard(), cspReportOnly = process.env.CSP_REPORT_ONLY === 'true' } = {}) {
+  // Read release config once. Build origins win over runtime VITE_* values: the
+  // browser bundle already contains them. Legacy builds retain runtime support.
+  const csp = Promise.all([
+    readFile(join(root, 'index.html'), 'utf8').catch(() => ''),
+    readFile(join(root, 'csp-config.json'), 'utf8').then(JSON.parse).catch(error => {
+      if (error.code !== 'ENOENT') throw error;
+      return {};
+    }),
+  ]).then(([html, built]) => ({ config: { ...cspBuildConfig(process.env), ...built }, scriptHashes: inlineScriptHashes(html) }));
   return async (request, response) => {
+    const policy = await csp;
+    let firebaseHelper = false;
     // Merge at writeHead so headers cover errors, the basic-auth gate and proxies.
     const writeHead = response.writeHead.bind(response);
-    response.writeHead = (status, headers = {}) => writeHead(status, { ...securityHeaders({ firebaseHelper: (request.url || '').startsWith('/__/auth/') }), ...headers });
+    response.writeHead = (status, headers = {}) => writeHead(status, { ...securityHeaders({ ...policy, reportOnly: cspReportOnly, firebaseHelper }), ...headers });
     if (!basicAuth(request, response)) return;
     let url;
     try { url = new URL(request.url || '/', 'http://localhost'); }
     catch { response.writeHead(400, { 'cache-control': 'no-store' }); response.end(); return; }
+    // Use the same normalized path as routing. A raw /__/auth/../../ must
+    // never grant the helper's CSP exception to the application shell.
+    firebaseHelper = url.pathname.startsWith('/__/auth/');
     // Same-origin Firebase helpers allow iOS redirect auth without third-party storage.
     // These endpoints must NEVER fall through to the SPA or static cache.
     if (url.pathname.startsWith('/__/auth/') || url.pathname === '/__/firebase/init.json') {
