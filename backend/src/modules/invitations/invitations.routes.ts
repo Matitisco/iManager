@@ -92,7 +92,7 @@ export async function invitationsRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: "No tenes permisos para ver las invitaciones" });
     }
 
-    const invitations = await listInvitations(request.appUser.storeId);
+    const invitations = await listInvitations(request.appUser.storeId, request.appUser.role);
     request.log.info(
       {
         event: "invite_list_ok",
