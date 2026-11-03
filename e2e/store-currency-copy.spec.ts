@@ -42,7 +42,7 @@ test('a dollar store prints US$ on trade copy and notices, desktop and phone', a
   await form.getByLabel('Valor tomado').fill('200');
   await form.getByRole('combobox', { name: 'Equipo' }).fill('iPhone 14');
   await form.getByLabel('Precio completo de salida').fill('1075');
-  await expect(form.getByLabel('Diferencia')).toHaveValue('US$ 875');
+  await expect(form.getByLabel('Diferencia')).toHaveText('US$ 875');
   await expect(form.getByText('Diferencia a cobrar: US$ 875')).toBeVisible();
   await form.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(form).toBeHidden();
