@@ -41,7 +41,9 @@ describe('issue #71 — invitations and section permissions', () => {
       }
     }
     const list = await getApp().inject({ method: 'GET', url: '/api/invitations', headers: headers('socio') });
-    expect(list.json().invitations).toHaveLength(3);
+    // MANAGER links are membership capabilities reserved to OWNER.
+    expect(list.json().invitations).toHaveLength(2);
+    expect(list.json().invitations.every((invite: { role: string }) => invite.role === 'STAFF')).toBe(true);
     expect(list.json().invitations.every((invite: { inviteUrl: string }) => invite.inviteUrl.includes('/invite/'))).toBe(true);
   });
 
