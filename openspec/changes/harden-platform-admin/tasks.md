@@ -3,4 +3,4 @@
 - [x] Aplicar fixes mínimos y verificar casos legítimos.
 - [x] Registrar pendientes y validación en docs/security/admin-plataforma.md.
 - [x] Ejecutar TypeScript y tests relacionados.
-- [ ] Abrir PR contra test y seguir CI; merge condicionado a checks verdes y rebase.
+- [x] Abrir PR #721 contra test con merge condicionado a CI verde, sin schema/migraciones y rebase.

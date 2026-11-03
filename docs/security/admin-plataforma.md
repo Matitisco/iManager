@@ -1,6 +1,6 @@
 # Seguridad — admin-plataforma
 
-2026-11-03. Entrega: PR pendiente de numerar, `sec/admin-plataforma` → `test`.
+2026-11-03. Entrega: [PR #721](https://github.com/Matitisco/iManager/pull/721), `sec/admin-plataforma` → `test`.
 
 ## Corregido
 
