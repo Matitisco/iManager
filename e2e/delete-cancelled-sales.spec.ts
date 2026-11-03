@@ -7,6 +7,9 @@ const api = process.env.PLAYWRIGHT_API_BASE_URL?.trim() || 'http://127.0.0.1:310
 const shots = process.env.ISSUE_328_SHOTS?.trim();
 const { defaultBrowserType, ...iphone } = devices['iPhone 13'];
 test.use({ defaultBrowserType });
+// These cases prepare many financial transactions in the same disposable database.
+// Keep their fixtures sequential; failures remain independent (default mode).
+test.describe.configure({ mode: 'default' });
 
 for (const device of [
   { name: 'desktop', mobile: false, options: { viewport: { width: 1440, height: 900 } } },
@@ -17,6 +20,8 @@ for (const device of [
     test('keeps annulled history visible and prevents repeated bulk annulment', async ({ page, request }, testInfo) => {
       const email = buildTestEmail(testInfo, `delete-cancelled-${device.name}`);
       await bootstrapStoreViaApi(page, request, email, 'iManager · Ventas');
+      // Dashboard/report reads are irrelevant while preparing cancellation fixtures.
+      await page.goto('about:blank');
       const headers = authHeaders(email);
       const { client } = await createClientViaApi(request, email, { name: 'Ana Pérez', dni: '30111222', pendingBalance: 50 });
       for (let index = 0; index < 3; index++) {
@@ -28,7 +33,8 @@ for (const device of [
         expect(created.status()).toBe(201);
         const { sale } = await created.json();
         if (index === 0) expect((await request.post(`${api}/api/clients/${client.id}/payments`, { headers, data: { amount: 300000, method: 'EFECTIVO' } })).status()).toBe(201);
-        expect((await request.post(`${api}/api/operations/sales/sales/${sale.id}/cancel`, { headers, data: {} })).status()).toBe(200);
+        const cancelled = await request.post(`${api}/api/operations/sales/sales/${sale.id}/cancel`, { headers, data: {} });
+        expect(cancelled.status(), await cancelled.text()).toBe(200);
       }
       const snapshot = async () => ({
         // soldAt and saleId are projections from the sale being deleted, not stock/trade mutations.
@@ -40,7 +46,7 @@ for (const device of [
       const before = await snapshot();
       const sales = (await fetchSales(request, email)).sales;
       expect(sales).toHaveLength(3);
-      await page.reload();
+      await page.goto('/');
       await openDeskSection(page, 'sales');
       const code = `V-${String(sales[0].saleNumber).padStart(4, '0')}`;
       const record = device.mobile ? page.locator('.phone-row').filter({ hasText: code }) : page.getByRole('row').filter({ hasText: code });

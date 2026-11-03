@@ -109,7 +109,7 @@ test('client cards keep name, DNI and balance on two lines at 393px', async ({ p
   }
 });
 
-test('Instalar app does not cover Importar on Ventas', async ({ page }, info) => {
+test('Instalar app does not cover Registrar venta on Ventas', async ({ page }, info) => {
   test.skip(info.project.name !== 'android-chromium');
   await page.setViewportSize({ width: 393, height: 852 });
   await page.clock.install();
@@ -122,6 +122,9 @@ test('Instalar app does not cover Importar on Ventas', async ({ page }, info) =>
   await page.evaluate(() => { window.location.hash = '#/ven'; });
   await expect(page.getByRole('heading', { level: 1, name: 'Ventas', exact: true })).toBeVisible();
   await expect(page.getByTestId('install-app')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Importar' })).toBeVisible();
+  const action = page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar venta', exact: true });
+  await expect(action).toBeInViewport({ ratio: 1 });
+  await action.click();
+  await expect(page.getByRole('dialog', { name: 'Registrar venta' })).toBeVisible();
   await shot(page, 'qa-mobile-ventas-sin-invitacion.png');
 });

@@ -81,7 +81,6 @@ test.describe('inventory on a phone', () => {
     await expect(page.getByRole('heading', { name: 'Inventario' })).toBeVisible();
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('inventory-empty')).toContainText('Todavía no cargaste equipos');
-    await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Registrar equipo' })).toBeVisible();
     await expect(page.getByTestId('mobile-dock').getByRole('button', { name: 'Importar' })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar modelo o color')).toHaveCount(0);

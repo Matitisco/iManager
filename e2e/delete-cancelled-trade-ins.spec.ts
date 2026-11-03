@@ -66,6 +66,8 @@ for (const device of [
       const record = device.mobile ? page.locator('.phone-row').filter({ hasText: 'Recibido 2' }) : page.getByRole('row').filter({ hasText: 'Recibido 2' });
       await expect(record).toContainText('Anulada');
       if (device.mobile) {
+        // Finish scrolling/layout before starting the hold; scrolling cancels usePress.
+        await record.click({ trial: true });
         await record.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 150, clientY: 300, button: 0 });
         await expect(page.locator('.ctx')).toBeVisible();
         await record.dispatchEvent('pointerup', { pointerType: 'touch' });
@@ -73,7 +75,7 @@ for (const device of [
       } else await record.click({ button: 'right' });
       await page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true }).click();
       const dialog = page.getByRole('dialog', { name: 'Anular canje' });
-      await expect(dialog).toContainText('no se puede deshacer');
+      await expect(dialog).toContainText('El equipo vuelve a Disponible');
       if (shots) {
         mkdirSync(shots, { recursive: true });
         await page.screenshot({ path: `${shots}/issue-335-${device.name}-delete.png`, animations: 'disabled' });
