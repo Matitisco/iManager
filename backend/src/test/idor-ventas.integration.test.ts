@@ -61,7 +61,8 @@ describe("sales authorization and tenant isolation", () => {
     ];
     for (const attempt of attempts) {
       const res = await getApp().inject({ method: "PATCH", headers: f.staffHeaders, ...attempt });
-      expect.soft(res.statusCode, `${attempt.url}: ${res.body}`).toBe(403);
+      // Unknown status aliases are now rejected by validation (400, #724); known ones by permission (403). Either way nothing is written.
+      expect.soft([400, 403], `${attempt.url}: ${res.body}`).toContain(res.statusCode);
     }
     expect(await prisma.sale.findUniqueOrThrow({ where: { id: sale.id } })).toEqual(storedSale);
     expect(await prisma.tradeIn.findUniqueOrThrow({ where: { id: tradeId } })).toEqual(before);
@@ -85,7 +86,8 @@ describe("sales authorization and tenant isolation", () => {
     ];
     for (const attempt of attempts) {
       const res = await getApp().inject({ headers: f.staffHeaders, ...attempt });
-      expect.soft(res.statusCode, `${attempt.url}: ${res.body}`).toBe(403);
+      // Unknown status aliases are now rejected by validation (400, #724); known ones by permission (403). Either way nothing is written.
+      expect.soft([400, 403], `${attempt.url}: ${res.body}`).toContain(res.statusCode);
     }
     expect(await prisma.sale.count()).toBe(0);
     expect(await prisma.tradeIn.count()).toBe(1);
