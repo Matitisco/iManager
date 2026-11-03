@@ -361,6 +361,14 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-amt { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 58%; text-align: right; color: var(--primary); }
 .sale-amt b { color: var(--primary); font-size: 16px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .sale-amt small { display: block; margin-top: 2px; color: var(--secondary); font-size: 11px; font-weight: 700; }
+.sale-profit { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--secondary); font-size: 12px; font-weight: 600; }
+.sale-profit-values { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px 6px; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.sale-profit-values del { overflow-wrap: anywhere; }
+.sale-profit-net { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 800; }
+.sale-profit-net svg { flex: none; }
+.sale-profit-net.positive { color: var(--theme-ok, #1C7F51); }
+.sale-profit-net.adjusted { color: var(--theme-warn, #B87812); }
+.sale-profit-net.negative { color: var(--theme-err, var(--err)); }
 .phone-row:has(.cj-card) { align-items: stretch; }
 .cj-card .sale-top { flex-wrap: wrap; }
 .cj-card .spill { white-space: normal; max-width: 100%; }

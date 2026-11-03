@@ -8,7 +8,8 @@ import { AssignSellerSheet } from '../AssignSellerSheet';
 import { CommissionAvatar } from '../CommissionAvatar';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Undo2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, PhoneRecord } from '../section-notice-view';
@@ -45,7 +46,8 @@ import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
-import type { Sale } from '../../types';
+import type { Product, Sale } from '../../types';
+import type { ReturnCaseView } from '../../services/returns-api';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
 import { summarizeSaleProfit } from '../sale-profit';
@@ -263,7 +265,8 @@ export function SalesScreen() {
                       onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)}
+                        profit={seeFinancials ? <SaleCardProfit sale={sale} inventory={inventory} returns={returns === null ? null : issuedReturns.filter(row => row.saleId === sale.id)} /> : null} />
                     </PhoneRecord>
                   </div>
                 );
@@ -421,7 +424,7 @@ function soldQualityLabel(sale: Sale, inventory: { id: string; condition: string
   return value ? `Calidad ${qualityDetail(value)}` : '';
 }
 
-function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount, approx }: {
+function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount, approx, profit }: {
   sale: Sale;
   buyer: string;
   equipment: string;
@@ -430,6 +433,7 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
   sellerRole: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE';
   amount: string;
   approx: string | null;
+  profit: ReactNode;
 }) {
   return (
     <span className="sale-card">
@@ -445,6 +449,34 @@ function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount
         </span>
       </span>
       <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b>{approx ? <small data-ph-mask>{approx}</small> : null}</span></span>
+      {profit}
+    </span>
+  );
+}
+
+function SaleCardProfit({ sale, inventory, returns }: {
+  sale: Sale;
+  inventory: Product[];
+  returns: ReturnCaseView[] | null;
+}) {
+  const money = useMoney();
+  const summary = returns === null ? null : summarizeSaleProfit([sale], inventory, money.active, money.rate, returns);
+  const net = summary && (summary.costedSales > 0 || summary.costedReturns > 0) ? summary.grossProfit : null;
+  const original = summary && summary.costedSales > 0 && returns?.length
+    ? summarizeSaleProfit([sale], inventory, money.active, money.rate).grossProfit : null;
+  const adjusted = net !== null && original !== null && net !== original;
+  const tone = net === null ? 'unavailable' : net < 0 ? 'negative' : adjusted ? 'adjusted' : 'positive';
+
+  return (
+    <span className="sale-profit">
+      <span>Ganancia</span>
+      <span className="sale-profit-values">
+        {adjusted ? <del data-ph-mask aria-label="Ganancia antes de devoluciones">{money.showActive(original)}</del> : null}
+        <b data-ph-mask className={`sale-profit-net ${tone}`} aria-label="Ganancia neta">
+          {adjusted ? <Undo2 size={13} aria-hidden="true" /> : null}
+          {net === null ? '—' : money.showActive(net)}
+        </b>
+      </span>
     </span>
   );
 }
