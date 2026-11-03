@@ -7,7 +7,7 @@ import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
-import { requireSensitiveActor } from "../stores/sensitive-access.js";
+import { requireStatusAccess, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { cancelTradeOperation, createOperation, isIntegratedTradeIn, updateTradeFromLegacy } from "../operations/operations.service.js";
 import type { TradeInInput } from "./trade-ins.service.js";
 import {
@@ -107,6 +107,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const body = tradeInCreateSchema.parse(request.body);
+      if (!requireStatusAccess(request.appUser, reply, body.status)) return;
 
       const payload = request.body as TradeInInput & { draft?: boolean };
       const takeValue = body.takeValue ?? 0;
@@ -143,6 +144,7 @@ export async function tradeInsRoutes(app: FastifyInstance) {
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
       const body = tradeInPatchSchema.parse(request.body);
+      if (!requireStatusAccess(request.appUser, reply, body.status)) return;
 
       if (await isIntegratedTradeIn(request.appUser.storeId, params.id)) {
         const operation = await updateTradeFromLegacy(request.appUser.storeId, params.id, body);

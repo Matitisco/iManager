@@ -11,6 +11,19 @@ export function canManageSensitive(member: { role: string; sensitiveAccess?: boo
   return member.role === "MANAGER";
 }
 
+/** Legacy status fields also accept the cancellation aliases displayed by Desk.
+ * Check both sale and nested trade status before any mutation, including drafts. */
+export function requireStatusAccess(
+  member: Parameters<typeof canManageSensitive>[0],
+  reply: FastifyReply,
+  ...statuses: Array<string | null | undefined>
+): boolean {
+  const cancelling = statuses.some(status => ["CANCELADA", "CANCELADO", "CANCELLED", "ANULADA", "ANULADO"].includes(status?.trim().toUpperCase() ?? ""));
+  if (!cancelling || canManageSensitive(member)) return true;
+  reply.code(403).send({ error: SENSITIVE_DENIED });
+  return false;
+}
+
 export async function requireSensitiveActor(
   member: { userId: string; role: string; sensitiveAccess?: boolean | null } | null | undefined,
   reply: FastifyReply,
