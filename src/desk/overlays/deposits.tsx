@@ -154,7 +154,7 @@ export function RepairDepositSheet({ repairId }: { repairId: string }) {
   const [error, setError] = useState('');
   if (!order) return null;
   const currency = order.currency ?? money.active;
-  const maximum = (order.estimate ?? 0) - order.deposit;
+  const maximum = Math.max(0, (order.estimate ?? 0) - order.deposit);
   const back = () => { if (!saving.current) open({ type: 'ot', id: repairId }); };
   const apply = async () => {
     if (saving.current || !selected || !order.clientId) return;
