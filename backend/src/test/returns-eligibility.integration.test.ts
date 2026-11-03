@@ -91,7 +91,7 @@ describe('reclamos: cobro, origen y permisos', () => {
     expect(await prisma.inventoryItem.findUniqueOrThrow({ where: { id: f.inventoryItem.id } })).toMatchObject({ cantidad: 5, status: 'DISPONIBLE' });
     expect((await open(sale.id, 3)).statusCode).toBe(201);
     expect((await open(sale.id)).statusCode).toBe(409);
-    expect((await request('DELETE', `/api/returns/${id}`)).statusCode).toBe(204);
+    expect((await request('DELETE', `/api/returns/${id}`)).statusCode).toBe(409);
     expect((await open(sale.id)).statusCode).toBe(409);
   });
 

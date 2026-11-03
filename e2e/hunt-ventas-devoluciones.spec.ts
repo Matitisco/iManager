@@ -68,6 +68,21 @@ for (const width of [1440, 390]) {
       expect(inventory.inventory.reduce((sum: number, row: { cantidad: number }) => sum + row.cantidad, 0)).toBe(7);
       const overview = await (await request.get(`${api}/api/reports/overview?rangeKey=all_time`, { headers })).json();
       expect(overview.overview.summary).toMatchObject({ revenue: 375000, grossProfit: 150000, returnsAmount: 125000 });
+      // HVD-04: el rechazo debe quedar visible y conservar todos los efectos.
+      if (width > 760) await page.getByTestId(`return-${claim.id}`).click({ button: 'right' });
+      else await page.locator('.press-host').filter({ has: page.getByTestId(`return-${claim.id}`) }).getByRole('button', { name: 'Más acciones' }).click();
+      await page.getByRole('menuitem', { name: 'Anular', exact: true }).click();
+      const confirmation = page.getByRole('dialog', { name: '¿Anular reclamo?' });
+      await confirmation.getByRole('button', { name: 'Anular', exact: true }).click();
+      await expect(confirmation.getByRole('alert')).toContainText('Anulá primero el reintegro o la nota de crédito');
+      await expect(confirmation).toBeVisible();
+      await confirmation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+      await page.reload();
+      await expect(page.getByTestId(`return-${claim.id}`)).toBeVisible();
+      const after = await (await request.get(`${api}/api/reports/overview?rangeKey=all_time`, { headers })).json();
+      expect(after.overview.summary).toEqual(overview.overview.summary);
+      expect((await (await request.get(`${api}/api/inventory`, { headers })).json()).inventory).toEqual(inventory.inventory);
+      expect((await (await request.get(`${api}/api/clients`, { headers })).json()).clients.find((row: { id: string }) => row.id === client.id).totalSpent).toBe(375000);
       expect(errors).toEqual([]);
     });
   });
