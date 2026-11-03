@@ -182,7 +182,7 @@ export async function fetchInventory(request: APIRequestContext, email: string) 
     headers: authHeaders(email),
   });
   const body = await assertOk(response, 'Fetch inventory');
-  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cost: number; price: number; soldAt?: string | null; pendingSaleRegistration?: boolean; needsCompletion?: boolean; customFields?: Record<string, unknown> }> };
+  return JSON.parse(body) as { inventory: Array<{ id: string; imei: string; model: string; capacity: string; color: string; condition: string; grade: string; batteryHealth: string; status: string; cantidad?: number; cost: number; price: number; soldAt?: string | null; pendingSaleRegistration?: boolean; needsCompletion?: boolean; customFields?: Record<string, unknown> }> };
 }
 
 export async function fetchClients(request: APIRequestContext, email: string) {

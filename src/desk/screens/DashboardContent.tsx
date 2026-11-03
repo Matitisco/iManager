@@ -46,7 +46,11 @@ export function DashboardSkeleton() {
 
 export function DashboardContent() {
   const { appSession, user } = useAppContext();
-  const scope = JSON.stringify([appSession?.store?.id, user?.uid, appSession?.membership?.role, appSession?.membership?.sections]);
+  const store = appSession?.store;
+  // A report is already converted by the API. Do not reuse it (or an in-flight
+  // response) after changing the store's currency or conversion settings.
+  const scope = JSON.stringify([store?.id, user?.uid, appSession?.membership?.role, appSession?.membership?.sections,
+    store?.currency, store?.exchangeMode, store?.exchangeSource, store?.manualBuy, store?.manualSell]);
   return <ScopedDashboardContent key={scope} scope={scope} />;
 }
 
@@ -163,8 +167,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     {current?.data && current.key !== queryKey && failedPeriodKey === queryKey ? <div className="ferr" role="alert">No se pudo aplicar el período. Se muestran datos del período anterior.{' '}<button className="wlink" type="button" onClick={() => { setFailedPeriodKey(null); setPeriodRetry(value => value + 1); }}>Reintentar</button></div> : null}
     {kpiCount > 0 ? <div className="dstats" data-count={kpiCount}>
       {seeFinancials ? <>
-        <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>
-        <Kpi label="Margen bruto" note={overview?.summary.salesWithoutCost ? `${overview.summary.salesWithoutCost} ${overview.summary.salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}` : undefined} value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
+        <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={can('reports') ? () => go('reports') : undefined}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>
+        <Kpi label="Margen bruto" note={overview?.summary.salesWithoutCost ? `${overview.summary.salesWithoutCost} ${overview.summary.salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}` : undefined} value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={can('reports') ? () => go('reports') : undefined}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
       </> : null}
       {showUnits ? <Kpi label="Equipos vendidos" value={seeFinancials ? overview?.summary.unitsSold ?? '—' : listsLoadFailed ? '—' : units} loading={seeFinancials ? periodLoading : initialLoading} onClick={can('sales') ? () => go('sales') : undefined}>{comparable ? <Delta value={overview?.comparison.unitsChange} /> : null}</Kpi> : null}
       {showStock ? <Kpi label="Stock disponible" value={listsLoadFailed ? '—' : available} suffix={!listsLoadFailed && inventory.length ? `de ${stockTotal}` : undefined} loading={initialLoading} onClick={can('inventory') ? () => go('inventory') : undefined}>

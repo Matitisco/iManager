@@ -51,7 +51,7 @@ export async function getGettingStarted(member: Member) {
         ? prisma.storeMember.count({ where: { storeId, removedAt: null } })
         : 0,
       firstStepsVisibleTo(role)
-        ? prisma.storeInvitation.count({ where: { storeId } })
+        ? prisma.storeInvitation.count({ where: { storeId, status: "PENDING", expiresAt: { gt: new Date() } } })
         : 0,
       can("publicCatalog")
         ? prisma.storePublicCatalog.findUnique({ where: { storeId } })

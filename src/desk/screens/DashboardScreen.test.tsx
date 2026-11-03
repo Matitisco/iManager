@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.f
 const context = vi.hoisted(() => ({
   appSession: {
     user: { displayName: 'Luis', email: 'luis@test.com' },
-    store: { id: 'store-1', name: 'Centro', currency: 'ARS' as const },
+    store: { id: 'store-1', name: 'Centro', currency: 'ARS' as 'ARS' | 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualSell: 1555, manualBuy: 1500 },
     membership: { role: 'OWNER', sections: null as string[] | null },
     onboardingRequired: false,
   },
@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-22T12:00:00-03:00'));
   context.appSession.membership = { role: 'OWNER', sections: null };
   context.appSession.store.id = 'store-1';
+  Object.assign(context.appSession.store, { currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualSell: 1555, manualBuy: 1500 });
   context.appSession.onboardingRequired = false;
   context.backendStatus = 'ready'; context.sessionConfirmed = true; context.listsLoaded = true; context.listsSettled = true; context.listsLoadFailed = false; context.gettingStartedLoaded = true; context.gettingStarted = null;
   context.sales = []; context.inventory = []; context.tradeIns = []; context.clients = []; context.operationNotifications = [];
@@ -75,6 +76,45 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([
+    { currency: 'USD' as const }, { manualSell: 1600 }, { manualBuy: 1400 },
+    { exchangeMode: 'auto' }, { exchangeSource: 'mep' },
+  ])('consulta otra vez al cambiar la configuración monetaria: %j', async patch => {
+    const pending = deferred<ReportsOverview>();
+    const view = renderScreen();
+    await screen.findByText('$ 12,69M');
+    api.fetchReportsOverview.mockReturnValueOnce(pending.promise);
+    Object.assign(context.appSession.store, patch);
+    view.rerender(dashboardView(context.appSession.store.currency));
+    await waitFor(() => expect(api.fetchReportsOverview).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    await act(async () => pending.resolve({ ...report, currency: context.appSession.store.currency, summary: { ...report.summary, revenue: 650 } }));
+    expect(await screen.findByText(context.appSession.store.currency === 'USD' ? 'US$ 650' : '$ 650')).toBeVisible();
+  });
+
+  it('descarta una respuesta pendiente de la moneda anterior', async () => {
+    const old = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(old.promise);
+    const view = renderScreen();
+    Object.assign(context.appSession.store, { currency: 'USD' });
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, currency: 'USD', summary: { ...report.summary, revenue: 650 } });
+    view.rerender(dashboardView('USD'));
+    expect(await screen.findByText('US$ 650')).toBeVisible();
+    await act(async () => old.resolve(report));
+    expect(screen.getByText('US$ 650')).toBeVisible();
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+  });
+
+  it('STAFF conserva finanzas de #691 sin enlaces a Reportes cuando no tiene permiso', async () => {
+    context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
+    renderScreen();
+    const revenue = await screen.findByText('$ 12,69M');
+    expect(revenue.closest('.dstat')?.tagName).toBe('DIV');
+    expect(screen.getByText('$ 3,42M').closest('.dstat')?.tagName).toBe('DIV');
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
+  });
+
   it.each([false, true])('conserva ventas USD y cantidades al aplicar cada preset (móvil=%s)', async phone => {
     if (phone) phoneMedia();
     vi.setSystemTime(new Date('2026-11-02T15:00:00Z'));
@@ -290,7 +330,9 @@ describe('Dashboard aprobado', () => {
   ])('remonta con skeleton del reporte si la clave de los últimos siete días no existe al llegar %s', async (today, start) => {
     api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez' } }]);
     const view = renderScreen(); await screen.findByText('$ 12,69M');
-    const scope = JSON.stringify([context.appSession.store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections]);
+    const store = context.appSession.store;
+    const scope = JSON.stringify([store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections,
+      store.currency, store.exchangeMode, store.exchangeSource, store.manualBuy, store.manualSell]);
     await waitFor(() => expect(readLatestDashboardCache(scope)?.initialResolved).toBe(true));
     view.unmount();
     vi.setSystemTime(new Date(`${today}T12:00:00-03:00`));
@@ -371,7 +413,8 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     renderScreen();
     expect(await screen.findByText('$ 12,69M')).toBeVisible();
-    expect(screen.getAllByRole('button', { name: /^Ventas|Margen bruto/ })).toHaveLength(2);
+    expect(screen.getByText('$ 12,69M').closest('.dstat')).toBeVisible();
+    expect(screen.getByText('$ 3,42M').closest('.dstat')).toBeVisible();
     expect(screen.getByText('Tendencia de ventas')).toBeVisible();
     expect(screen.getByText('Medios de pago')).toBeVisible();
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
@@ -473,7 +516,7 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales'] };
     view.rerender(dashboardView());
     await act(async () => resolvers[1](report));
-    expect(screen.getByRole('button', { name: /^Ventas/ })).toBeVisible();
+    expect(screen.getByText('Ventas', { selector: '.eb' }).closest('.dstat')).toBeVisible();
     expect(screen.queryByText('$ 12,69M')).toBeNull();
   });
 
