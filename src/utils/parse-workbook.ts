@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { assertImportFileSize, safeXlsxBytes } from '../../backend/src/lib/import-shared/safe-xlsx';
 import { prepareImportSheets } from './import-limits';
 import { readWorksheet, trimRows } from '../../backend/src/lib/import-shared/workbook-grid';
 export { cellText } from '../../backend/src/lib/import-shared/workbook-grid';
@@ -27,26 +28,51 @@ async function parseCsv(file: File): Promise<ParsedWorkbook> {
   const delimiter = [...counts].sort((left, right) => right[1] - left[1])[0][0];
   const parsed: string[][] = [];
   let row: string[] = [];
-  let cell = '';
+  const cellParts: string[] = [];
+  const cellChars: string[] = [];
+  let cellHasText = false;
+  const appendCell = (char: string) => {
+    cellChars.push(char);
+    if (/\S/.test(char)) cellHasText = true;
+    if (cellChars.length === 4096) { cellParts.push(cellChars.join('')); cellChars.length = 0; }
+  };
+  let column = 0;
+  let rowNumber = 1;
+  const finishCell = () => {
+    const value = [...cellParts, cellChars.join('')].join('').trim();
+    if (value && column >= 40) throw new Error('La hoja Hoja 1 tiene más de 40 columnas con datos. Quitá las que no necesitás.');
+    // Empty right padding must not allocate an unbounded array of cells.
+    if (column < 40) row.push(value);
+    column++;
+    cellParts.length = 0;
+    cellChars.length = 0;
+    cellHasText = false;
+  };
+  const finishRow = () => {
+    if (rowNumber > 5000) {
+      if (row.some(Boolean)) throw new Error('El archivo supera las 5000 filas.');
+    } else parsed.push(row);
+    row = [];
+    column = 0;
+    rowNumber++;
+  };
   quoted = false;
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
-    if (char === '"' && (quoted || !cell.trim())) {
-      if (quoted && text[index + 1] === '"') { cell += '"'; index += 1; }
+    if (char === '"' && (quoted || !cellHasText)) {
+      if (quoted && text[index + 1] === '"') { appendCell('"'); index += 1; }
       else quoted = !quoted;
     } else if (!quoted && (char === delimiter || char === '\r' || char === '\n')) {
-      row.push(cell.trim());
-      cell = '';
+      finishCell();
       if (char !== delimiter) {
-        parsed.push(row);
-        row = [];
+        finishRow();
         if (char === '\r' && text[index + 1] === '\n') index += 1;
       }
-    } else cell += char;
+    } else appendCell(char);
   }
   if (quoted) throw new Error('El CSV tiene comillas sin cerrar. Revisá el archivo y volvé a subirlo.');
-  row.push(cell.trim());
-  parsed.push(row);
+  finishCell();
+  finishRow();
   const rows = trimRows(parsed);
 
   return {
@@ -56,8 +82,9 @@ async function parseCsv(file: File): Promise<ParsedWorkbook> {
 }
 
 async function parseXlsx(file: File): Promise<ParsedWorkbook> {
+  const bytes = safeXlsxBytes(new Uint8Array(await file.arrayBuffer()));
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await file.arrayBuffer());
+  await workbook.xlsx.load(bytes as unknown as ExcelJS.Buffer);
   const sheetMap = new Map<string, string[][]>();
   workbook.worksheets.forEach((worksheet) => {
     sheetMap.set(worksheet.name, readWorksheet(worksheet));
@@ -70,11 +97,12 @@ async function parseXlsx(file: File): Promise<ParsedWorkbook> {
 }
 
 export async function parseWorkbook(file: File): Promise<ParsedWorkbook> {
+  assertImportFileSize(file.size);
   const ext = file.name.split('.').pop()?.toLowerCase();
   if (ext === 'csv' || ext === 'xlsx') {
     const workbook = await (ext === 'csv' ? parseCsv(file) : parseXlsx(file));
-    // Parse first: the screen keeps its total-file limit, and the HTTP service
-    // enforces the API's per-sheet row limit with a sheet-specific message.
+    // Per-sheet bounds are enforced during parsing; the screen also checks
+    // the combined row count across all included sheets.
     const sheets = prepareImportSheets(workbook.sheetNames.map(name => ({ name, rows: workbook.getSheet(name) })), { checkRowLimit: false });
     return { sheetNames: sheets.map(sheet => sheet.name), getSheet: name => sheets.find(sheet => sheet.name === name)?.rows ?? [] };
   }
