@@ -44,6 +44,9 @@ Los precios manuales enviados son cambios por equipo: null elimina el precio
 manual, omitir un equipo conserva el valor. Se verifican pertenencia y archivado
 antes de guardar cualquier cambio. Escrituras y auditoría comparten transacción;
 un lock por tienda serializa el límite y la configuración.
+El frontend aplica la respuesta canónica del guardado: no depende de una segunda
+lectura que podría fallar después de crear y provocar duplicados al reintentar.
+Las lecturas anteriores a una escritura y las respuestas de otra tienda se descartan.
 
 ## Migración
 

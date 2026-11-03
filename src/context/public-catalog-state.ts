@@ -11,6 +11,7 @@ export function usePublicCatalogState(user: AuthUserLike | null, session: AppSes
   const ready = backendStatus === 'ready' && !!session?.store && !session.onboardingRequired;
   const scope = `${user?.uid}:${session?.store?.id}:${session?.membership?.role}:${JSON.stringify(session?.membership?.sections)}`;
   const current = useRef(scope); current.current = scope;
+  const listVersion = useRef(0);
   useEffect(() => { setCatalog(null); setStoreCatalogs([]); }, [scope]);
   const auth = () => {
     if (!user || !ready) throw new Error('El backend todavía no está listo. Volvé a intentar.');
@@ -24,25 +25,32 @@ export function usePublicCatalogState(user: AuthUserLike | null, session: AppSes
   }, [user?.uid, ready, scope]);
   const loadStoreCatalogs = useCallback(async () => {
     const expected = scope;
+    const version = ++listVersion.current;
     const data = await fetchStoreCatalogs(auth());
-    if (current.current === expected) { setStoreCatalogs(data); const defaultCatalog = data.find(row => row.isDefault) ?? null; setCatalog(defaultCatalog); updateInventory(defaultCatalog); }
+    if (current.current === expected && listVersion.current === version) { setStoreCatalogs(data); const defaultCatalog = data.find(row => row.isDefault) ?? null; setCatalog(defaultCatalog); updateInventory(defaultCatalog); }
     return data;
   }, [user?.uid, ready, scope]);
+  const acceptSavedCatalog = (expected: string, saved: NamedCatalog) => {
+    if (current.current !== expected) return;
+    ++listVersion.current; // An older list response must not undo a completed write.
+    setStoreCatalogs(rows => rows.some(row => row.id === saved.id) ? rows.map(row => row.id === saved.id ? saved : row) : [...rows, saved]);
+    if (saved.isDefault) { setCatalog(saved); updateInventory(saved); }
+  };
   const saveNamedCatalog = async (id: string | null, input: CatalogEdit) => {
     const expected = scope;
     const saved = await saveStoreCatalog(auth(), id, input);
-    if (current.current === expected) await loadStoreCatalogs();
+    acceptSavedCatalog(expected, saved);
     return saved;
   };
   const regenerateNamedCatalog = async (id: string) => {
     const expected = scope;
-    await regenerateStoreCatalog(auth(), id);
-    if (current.current === expected) await loadStoreCatalogs();
+    const saved = await regenerateStoreCatalog(auth(), id);
+    acceptSavedCatalog(expected, saved);
   };
   const deleteNamedCatalog = async (id: string) => {
     const expected = scope;
     await deleteStoreCatalog(auth(), id);
-    if (current.current === expected) await loadStoreCatalogs();
+    if (current.current === expected) { ++listVersion.current; setStoreCatalogs(rows => rows.filter(row => row.id !== id)); }
   };
   const previewNamedCatalog = (id: string | null, input: CatalogEdit, signal?: AbortSignal) => previewStoreCatalog(auth(), id, input, signal);
   const savePublicCatalog = async (input: Partial<CatalogSettings>) => {
