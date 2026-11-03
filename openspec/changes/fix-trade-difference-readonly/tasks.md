@@ -1,0 +1,3 @@
+- [x] Agregar regresiones de render desktop/mobile y comprobar rojo.
+- [x] Mostrar Diferencia como output sin aspecto editable, con ayuda cuando falta el precio.
+- [x] Actualizar expectativas existentes (incluidos E2E para CI); verificar 30 tests relacionados con máximo 2 workers y TypeScript frontend/backend. Tras rebase a test, frontend y 30 tests pasan; backend requiere Zod 4 de la nueva base, pero node_modules local sigue en Zod 3. CI verificará con las dependencias del lockfile.
