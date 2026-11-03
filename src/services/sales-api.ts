@@ -21,6 +21,7 @@ export async function updateBackendSale(user: AuthUserLike, sale: Sale, reason?:
       ...(reason == null ? {} : { reason }),
       clientId: sale.clientId,
       ...(sale.sellerMemberId !== undefined ? { sellerMemberId: sale.sellerMemberId } : {}),
+      ...(sale.resellerId !== undefined ? { resellerId: sale.resellerId } : {}),
       ...(sale.exchangeRate != null ? { exchangeRate: sale.exchangeRate } : {}),
       ...(sale.clientName !== undefined ? { clientName: sale.clientName } : {}),
       productId: sale.productId,

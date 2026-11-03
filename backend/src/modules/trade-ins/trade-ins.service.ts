@@ -62,6 +62,7 @@ export interface TradeInResponse {
   draftPaymentMethod: string | null;
   draftPaymentStatus: string | null;
   draftSellerMemberId: string | null;
+  draftResellerId: string | null;
   draftWarrantyDays: number | null;
   cancelledBy: string | null;
   cancelledAt: string | null;
@@ -124,6 +125,7 @@ type TradeInRecord = {
   draftPaymentMethod: string | null;
   draftPaymentStatus: string | null;
   draftSellerMemberId: string | null;
+  draftResellerId: string | null;
   draftWarrantyDays: number | null;
   cancelledBy?: string | null;
   cancelledAt?: Date | null;
@@ -206,6 +208,7 @@ function serializeTradeIn(tradeIn: TradeInRecord): TradeInResponse {
     draftPaymentMethod: tradeIn.draftPaymentMethod,
     draftPaymentStatus: tradeIn.draftPaymentStatus,
     draftSellerMemberId: tradeIn.draftSellerMemberId,
+    draftResellerId: tradeIn.draftResellerId,
     draftWarrantyDays: tradeIn.draftWarrantyDays,
     cancelledBy: tradeIn.cancelledBy ?? null,
     cancelledAt: tradeIn.cancelledAt ? tradeIn.cancelledAt.toISOString() : null,

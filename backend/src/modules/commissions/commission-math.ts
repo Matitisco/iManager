@@ -95,6 +95,7 @@ export function nextPeriod(period: string) {
 export interface RuleSnapshot {
   id: string;
   memberId: string | null;
+  resellerId?: string | null;
   basis: CommissionBasis;
   rate: number;
   currency: Currency | null;
@@ -105,13 +106,14 @@ function latest(rules: RuleSnapshot[]) {
   return [...rules].sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime()
     || b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))[0] ?? null;
 }
-export function ruleForSale(rules: RuleSnapshot[], memberId: string, soldAt: Date) {
+export function ruleForSale(rules: RuleSnapshot[], memberId: string | null, soldAt: Date, resellerId: string | null = null) {
   const applicable = rules.filter(rule => rule.effectiveFrom <= soldAt);
-  return latest(applicable.filter(rule => rule.memberId === memberId))
-    ?? latest(applicable.filter(rule => rule.memberId === null));
+  return latest(applicable.filter(rule => (resellerId ? rule.resellerId === resellerId : rule.memberId === memberId && !rule.resellerId)))
+    ?? latest(applicable.filter(rule => rule.memberId === null && !rule.resellerId));
 }
 export function commissionForSale(sale: {
   sellerMemberId: string | null;
+  resellerId?: string | null;
   status: string;
   amount: number;
   cost: number;
@@ -119,7 +121,7 @@ export function commissionForSale(sale: {
   currency: Currency;
   exchangeRate: number;
 }, rule: RuleSnapshot | null) {
-  if (!sale.sellerMemberId || !rule || ["CANCELADA", "CANCELLED"].includes(sale.status)) return 0;
+  if ((!sale.sellerMemberId && !sale.resellerId) || !rule || ["CANCELADA", "CANCELLED"].includes(sale.status)) return 0;
   if (rule.basis === "FIXED_PER_UNIT") return convert(rule.rate, rule.currency ?? sale.currency, sale.currency, sale.exchangeRate);
   const base = rule.basis === "SALE_PERCENT" ? new Decimal(sale.amount)
     : new Decimal(sale.amount).minus(sale.cost).minus(sale.takeValue);

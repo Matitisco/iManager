@@ -2,7 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../commissions/commission-ledger.js", () => ({
-  assertSeller: vi.fn(), recordSaleCommission: vi.fn(), refreshSaleCommission: vi.fn(), voidSaleCommission: vi.fn(),
+  assertSeller: vi.fn(), assertBeneficiary: vi.fn(), recordSaleCommission: vi.fn(), refreshSaleCommission: vi.fn(), voidSaleCommission: vi.fn(),
 }));
 
 vi.mock("../operations/sale-restoration.js", () => ({ captureSaleCancellation: vi.fn(async () => async () => undefined) }));

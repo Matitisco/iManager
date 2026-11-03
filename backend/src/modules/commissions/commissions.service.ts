@@ -5,11 +5,12 @@ import { currentBlueRate } from "../../lib/blue-rate.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { saleCode } from "../audit/archive.js";
-import { assertSeller, loadCommissionBatch, refreshSaleCommission } from "./commission-ledger.js";
+import { assertBeneficiary, beneficiaryWhere, loadCommissionBatch, refreshSaleCommission } from "./commission-ledger.js";
 import { convert, currentPeriodKey, emptyTotals, projectBalance, monthBounds, roundMoney, zonedDayStart, type CommissionBasis, type Currency, type CurrencyTotals } from "./commission-math.js";
 
 export interface CommissionRuleInput {
   memberId: string | null;
+  resellerId?: string | null;
   basis: CommissionBasis;
   rate: number;
   currency?: Currency | null;
@@ -17,7 +18,8 @@ export interface CommissionRuleInput {
   active?: boolean;
 }
 export interface CommissionPaymentInput {
-  memberId: string;
+  memberId?: string | null;
+  resellerId?: string | null;
   period: string;
   amount: number;
   currency: Currency;
@@ -74,24 +76,26 @@ function paidAccruals(rows: CommissionAccrual[], payments: CommissionPayment[]) 
   return allocated;
 }
 
-export async function getCommissionPeriod(storeId: string, periodKey?: string, financials = false, memberId?: string) {
+export async function getCommissionPeriod(storeId: string, periodKey?: string, financials = false, memberId?: string, resellerId?: string) {
   const { period, store } = await periodContext(storeId, periodKey);
-  const [members, rows, payments, unassignedSalesCount] = await Promise.all([
+  const [members, rows, payments, unassignedSalesCount, resellers] = await Promise.all([
     prisma.storeMember.findMany({ where: { storeId, ...(memberId ? { id: memberId } : {}) }, include: { user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } }),
-    prisma.commissionAccrual.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
-    prisma.commissionPayment.findMany({ where: { storeId, ...(memberId ? { memberId } : {}), period: { lte: period.key } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
-    memberId ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, voidedAt: null, sellerMemberId: null, status: { notIn: ["CANCELADA", "CANCELLED"] }, soldAt: { gte: period.start, lt: period.end } } }),
+    prisma.commissionAccrual.findMany({ where: { storeId, ...(memberId || resellerId ? beneficiaryWhere(memberId, resellerId) : {}), period: { lte: period.key } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
+    prisma.commissionPayment.findMany({ where: { storeId, ...(memberId || resellerId ? beneficiaryWhere(memberId, resellerId) : {}), period: { lte: period.key } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
+    (memberId || resellerId) ? Promise.resolve(0) : prisma.sale.count({ where: { storeId, voidedAt: null, sellerMemberId: null, resellerId: null, status: { notIn: ["CANCELADA", "CANCELLED"] }, soldAt: { gte: period.start, lt: period.end } } }),
+    prisma.storeReseller.findMany({ where: { storeId, ...(resellerId ? { id: resellerId } : {}) }, orderBy: { createdAt: "asc" } }),
   ]);
   // Only legacy accruals need the current quote; historical entries use their frozen rate.
   const needsRate = rows.some(row => row.exchangeRate == null);
   const currentRate = needsRate ? await currentBlueRate() : null;
-  return projectCommissionPeriod(period, store.timezone, members, rows, payments, currentRate, financials, unassignedSalesCount);
+  return projectCommissionPeriod(period, store.timezone, [...(resellerId ? [] : members), ...(memberId ? [] : resellers.map(resellerPerson))], rows, payments, currentRate, financials, unassignedSalesCount);
 }
 
+const resellerPerson = (reseller: { id: string; name: string }) => ({ id: reseller.id, resellerId: reseller.id, userId: null, role: "RESELLER" as const, user: { displayName: reseller.name, email: null } });
 type CommissionMember = Prisma.StoreMemberGetPayload<{ include: { user: { select: { displayName: true; email: true } } } }>;
 function projectCommissionPeriod(
   period: NonNullable<ReturnType<typeof monthBounds>>, timezone: string,
-  members: CommissionMember[], rows: CommissionAccrual[], payments: CommissionPayment[],
+  members: Array<CommissionMember | ReturnType<typeof resellerPerson>>, rows: CommissionAccrual[], payments: CommissionPayment[],
   currentRate: number | null, financials = false, unassignedSalesCount = 0,
 ) {
   const people = members.map(member => {
@@ -102,8 +106,8 @@ function projectCommissionPeriod(
     const pending = emptyTotals();
     const converted = { earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals() };
     const balanceEvents: Parameters<typeof projectBalance>[0] = [];
-    const memberRows = rows.filter(row => row.memberId === member.id);
-    const memberPayments = payments.filter(payment => payment.memberId === member.id && !payment.voidedAt);
+    const memberRows = rows.filter(row => ("resellerId" in member ? row.resellerId === member.id : row.memberId === member.id && !row.resellerId));
+    const memberPayments = payments.filter(payment => ("resellerId" in member ? payment.resellerId === member.id : payment.memberId === member.id && !payment.resellerId) && !payment.voidedAt);
     const allocations = paidAccruals(memberRows, memberPayments);
     const adjustments = memberRows.filter(row => row.voidedAt && row.adjustmentPeriod === period.key && (allocations.get(row.id) ?? 0) > 0);
     for (const row of memberRows) {
@@ -136,7 +140,7 @@ function projectCommissionPeriod(
     }
     converted.pending = projectBalance(balanceEvents);
     return {
-      memberId: member.id, userId: member.userId, name: member.user.displayName || member.user.email || "Usuario", role: member.role,
+      memberId: "resellerId" in member ? null : member.id, resellerId: "resellerId" in member ? member.id : null, userId: member.userId, name: member.user.displayName || member.user.email || "Usuario", role: member.role,
       salesCount: memberRows.filter(row => row.period === period.key && !row.voidedAt).length,
       previousBalance, earned, adjustmentsTotal: adjusted, paid, pending, carry: { ...pending }, converted,
       sales: memberRows.filter(row => row.period === period.key).map(row => saleLine(row, financials)),
@@ -144,7 +148,7 @@ function projectCommissionPeriod(
         accrualId: row.id, saleId: row.sourceSaleId, saleNumber: row.saleNumber, period: row.adjustmentPeriod!,
         amount: -(allocations.get(row.id) ?? 0), currency: row.currency, label: "A descontar", reason: row.voidReason,
       })),
-      payments: payments.filter(payment => payment.memberId === member.id && payment.period === period.key).map(presentPayment),
+      payments: payments.filter(payment => ("resellerId" in member ? payment.resellerId === member.id : payment.memberId === member.id && !payment.resellerId) && payment.period === period.key).map(presentPayment),
     };
   });
   const summary = { converted: { earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals() }, earned: emptyTotals(), paid: emptyTotals(), pending: emptyTotals(), adjustmentsTotal: emptyTotals(), salesCount: 0, unassignedSalesCount };
@@ -161,8 +165,9 @@ function projectCommissionPeriod(
 }
 
 export async function getCommissionPerson(storeId: string, memberId: string, period?: string, financials = false) {
-  await assertSeller(prisma, storeId, memberId);
-  const data = await getCommissionPeriod(storeId, period, financials, memberId);
+  const resellerId = memberId.startsWith("reseller:") ? memberId.slice(9) : undefined;
+  await assertBeneficiary(prisma, storeId, resellerId ? null : memberId, resellerId, true);
+  const data = await getCommissionPeriod(storeId, period, financials, resellerId ? undefined : memberId, resellerId);
   return { period: data.period, person: data.people[0] };
 }
 
@@ -175,11 +180,11 @@ export async function saveCommissionRule(storeId: string, actor: Actor, input: P
     const existing = id ? await tx.commissionRule.findFirst({ where: { id, storeId, deletedAt: null } }) : null;
     if (id && !existing) throw new DomainError("Regla no encontrada", 404);
     const config = {
-      memberId: existing?.memberId ?? null, basis: existing?.basis ?? "PROFIT_PERCENT",
+      memberId: existing?.memberId ?? null, resellerId: existing?.resellerId ?? null, basis: existing?.basis ?? "PROFIT_PERCENT",
       rate: existing ? Number(existing.rate) : undefined, currency: existing?.currency as Currency | null,
       effectiveFrom: existing?.effectiveFrom.toISOString(), ...input,
     };
-    await assertSeller(tx, storeId, config.memberId);
+    await assertBeneficiary(tx, storeId, config.memberId, config.resellerId, existing?.resellerId === config.resellerId);
     if (config.rate === undefined || !Number.isFinite(config.rate) || config.rate < 0) throw new DomainError("Indicá una tasa válida");
     if (config.basis === "FIXED_PER_UNIT" && !config.currency) throw new DomainError("Indicá la moneda del monto fijo");
     if (config.basis !== "FIXED_PER_UNIT" && config.rate > 100) throw new DomainError("El porcentaje no puede superar 100");
@@ -192,7 +197,7 @@ export async function saveCommissionRule(storeId: string, actor: Actor, input: P
       effectiveFrom = zonedDayStart(year, month, day, store.timezone);
     }
     if (Number.isNaN(effectiveFrom.getTime())) throw new DomainError("Fecha de vigencia inválida");
-    const data = { active: input.active ?? existing?.active ?? true, memberId: config.memberId, basis: config.basis, rate: config.rate,
+    const data = { active: input.active ?? existing?.active ?? true, memberId: config.memberId, resellerId: config.resellerId, basis: config.basis, rate: config.rate,
       currency: config.basis === "FIXED_PER_UNIT" ? config.currency : null, effectiveFrom, createdBy: existing?.createdBy ?? actor.userId };
     const rule = id ? await tx.commissionRule.update({ where: { id }, data }) : await tx.commissionRule.create({ data: { ...data, storeId } });
     await writeAudit(tx, { storeId, actor, action: id ? (input.active !== undefined && input.active !== existing?.active ? (input.active ? "commission.rule.activated" : "commission.rule.deactivated") : "commission.rule.updated") : "commission.rule.created", entityType: "commissionRule", entityId: rule.id });
@@ -222,15 +227,16 @@ export async function voidCommissionPayment(storeId: string, actor: Actor, id: s
   });
 }
 
-export async function listCommissionPayments(storeId: string, period?: string, memberId?: string) {
+export async function listCommissionPayments(storeId: string, period?: string, memberId?: string, resellerId?: string) {
   if (period) await periodContext(storeId, period);
-  if (memberId) await assertSeller(prisma, storeId, memberId);
-  return (await prisma.commissionPayment.findMany({ where: { storeId, ...(period ? { period } : {}), ...(memberId ? { memberId } : {}) }, orderBy: { createdAt: "desc" } })).map(presentPayment);
+  await assertBeneficiary(prisma, storeId, memberId, resellerId, true);
+  return (await prisma.commissionPayment.findMany({ where: { storeId, ...(period ? { period } : {}), ...(memberId || resellerId ? beneficiaryWhere(memberId, resellerId) : {}) }, orderBy: { createdAt: "desc" } })).map(presentPayment);
 }
 
 export async function createCommissionPayment(storeId: string, actor: Actor, input: CommissionPaymentInput) {
   return withSerializableRetry(async tx => {
-    await assertSeller(tx, storeId, input.memberId);
+    if (!input.memberId && !input.resellerId) throw new DomainError("Elegí un beneficiario");
+    await assertBeneficiary(tx, storeId, input.memberId, input.resellerId, true);
     await periodContext(storeId, input.period, tx);
     if (!Number.isFinite(input.amount) || input.amount <= 0 || !Number.isFinite(input.exchangeRate) || input.exchangeRate <= 0) throw new DomainError("Pago o cotización inválidos");
     const payment = await tx.commissionPayment.create({ data: { storeId, ...input, createdBy: actor.userId } });
@@ -240,22 +246,22 @@ export async function createCommissionPayment(storeId: string, actor: Actor, inp
   });
 }
 
-export async function bulkAssignSeller(storeId: string, actor: Actor, saleIds: string[], sellerMemberId: string | null) {
+export async function bulkAssignSeller(storeId: string, actor: Actor, saleIds: string[], sellerMemberId: string | null, resellerId: string | null = null) {
   return withSerializableRetry(async tx => {
-    await assertSeller(tx, storeId, sellerMemberId);
+    await assertBeneficiary(tx, storeId, sellerMemberId, resellerId);
     const ids = [...new Set(saleIds)];
     const batch = await loadCommissionBatch(tx, storeId, ids);
     const sales = [...batch.sales.values()];
     if (sales.length !== ids.length) throw new DomainError("Una venta no pertenece a la tienda", 404);
-    const changed = sales.filter(sale => sale.sellerMemberId !== sellerMemberId);
-    await tx.sale.updateMany({ where: { storeId, id: { in: changed.map(sale => sale.id) } }, data: { sellerMemberId } });
+    const changed = sales.filter(sale => (sale.sellerMemberId !== sellerMemberId || sale.resellerId !== resellerId));
+    await tx.sale.updateMany({ where: { storeId, id: { in: changed.map(sale => sale.id) } }, data: { sellerMemberId, resellerId } });
     for (const sale of sales) {
-      if (sale.sellerMemberId === sellerMemberId) continue;
-      batch.sales.set(sale.id, { ...sale, sellerMemberId });
+      if (sale.sellerMemberId === sellerMemberId && sale.resellerId === resellerId) continue;
+      batch.sales.set(sale.id, { ...sale, sellerMemberId, resellerId });
       await refreshSaleCommission(tx, storeId, sale.id, batch);
       await writeAudit(tx, { storeId, actor, action: "sale.seller.changed", entityType: "sale", entityId: sale.id,
         entityLabel: saleCode(sale.saleNumber),
-        detail: `${sale.sellerMemberId ?? "Sin vendedor"} → ${sellerMemberId ?? "Sin vendedor"}` });
+        detail: `${sale.resellerId ? `Revendedor ${sale.resellerId}` : sale.sellerMemberId ?? "Sin vendedor"} → ${resellerId ? `Revendedor ${resellerId}` : sellerMemberId ?? "Sin vendedor"}` });
     }
     return { updated: sales.length };
   });
@@ -268,18 +274,19 @@ export async function getCommissionReport(storeId: string, from: string, to: str
   const start = Number(from.slice(0, 4)) * 12 + Number(from.slice(5));
   const end = Number(to.slice(0, 4)) * 12 + Number(to.slice(5));
   if (end - start > 119) throw new DomainError("El reporte admite hasta 120 meses");
-  const [members, accruals, payments] = await Promise.all([
+  const [members, accruals, payments, resellers] = await Promise.all([
     prisma.storeMember.findMany({ where: { storeId }, include: { user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.commissionAccrual.findMany({ where: { storeId, period: { lte: to } }, orderBy: [{ soldAt: "asc" }, { id: "asc" }] }),
     prisma.commissionPayment.findMany({ where: { storeId, period: { lte: to } }, orderBy: [{ period: "asc" }, { createdAt: "asc" }] }),
+    prisma.storeReseller.findMany({ where: { storeId }, orderBy: { createdAt: "asc" } }),
   ]);
   const currentRate = accruals.some(row => row.exchangeRate == null) ? await currentBlueRate() : null;
   const rows = [];
   for (let n = start; n <= end; n++) {
     const period = `${Math.floor((n - 1) / 12)}-${String((n - 1) % 12 + 1).padStart(2, "0")}`;
     const bounds = monthBounds(period, new Date(), store.timezone)!;
-    const data = projectCommissionPeriod(bounds, store.timezone, members, accruals.filter(row => row.period <= period), payments.filter(row => row.period <= period), currentRate);
-    rows.push(...data.people.map(({ memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted }) => ({ period, memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted })));
+    const data = projectCommissionPeriod(bounds, store.timezone, [...members, ...resellers.map(resellerPerson)], accruals.filter(row => row.period <= period), payments.filter(row => row.period <= period), currentRate);
+    rows.push(...data.people.map(({ memberId, resellerId, role, name, salesCount, earned, paid, pending, adjustmentsTotal, converted }) => ({ period, memberId, resellerId, role, name, salesCount, earned, paid, pending, adjustmentsTotal, converted })));
   }
   return { from, to, rows };
 }
@@ -293,5 +300,6 @@ export async function getMyCommissions(storeId: string, userId: string, period?:
 /** Minimal directory for manual seller selection, including staff creating sales. */
 export async function listCommissionSellers(storeId: string) {
   const members = await prisma.storeMember.findMany({ where: { storeId }, select: { id: true, role: true, user: { select: { displayName: true, email: true } } }, orderBy: { createdAt: "asc" } });
-  return members.map(member => ({ id: member.id, role: member.role, name: member.user.displayName || member.user.email || "Miembro" }));
+  const resellers = await prisma.storeReseller.findMany({ where: { storeId }, orderBy: [{ sales: { _count: "desc" } }, { name: "asc" }] });
+  return [...members.map(member => ({ id: member.id, role: member.role, name: member.user.displayName || member.user.email || "Miembro" })), ...resellers.map(person => ({ id: `reseller:${person.id}`, resellerId: person.id, role: "RESELLER" as const, name: person.name, archivedAt: person.archivedAt?.toISOString() ?? null }))];
 }

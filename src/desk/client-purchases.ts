@@ -93,7 +93,7 @@ export function clientPurchases(input: {
         imei,
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),
-        detail: [sale.hasInitialDeposit ? 'Seña' : null, sellerName(sale.sellerMemberId, input.sellers)].filter(Boolean).join(' · '),
+        detail: [sale.hasInitialDeposit ? 'Seña' : null, sellerName(sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId, input.sellers)].filter(Boolean).join(' · '),
         amount: sale.amount - (annulled ? 0 : refunds.get(sale.id) ?? 0),
         currency: sale.amountCurrency ?? null,
         negative: false,

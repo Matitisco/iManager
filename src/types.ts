@@ -56,6 +56,7 @@ export interface Sale {
   depositAppliedAmount?: number;
   hasInitialDeposit?: boolean;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: number | null;
   id: string;
@@ -174,6 +175,7 @@ export interface TradeIn {
   draftSaleCategoryId?: string | null;
   draftPaymentMethod?: string | null;
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
+  draftResellerId?: string | null;
   draftSellerMemberId?: string | null;
   draftWarrantyDays?: number | null;
   cancelledBy?: string | null;

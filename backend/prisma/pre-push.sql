@@ -57,3 +57,57 @@ WHERE i.id = r.id AND i."acquiredQuantity" IS NULL AND r.units BETWEEN 0 AND 214
 
   END IF;
 END $$;
+
+-- #746: compatible startup path; relax memberId only as explicitly authorized.
+DO $$
+BEGIN
+IF to_regclass('public."Store"') IS NOT NULL THEN
+-- Additive directory; no existing business rows are rewritten.
+CREATE TABLE IF NOT EXISTS "StoreReseller" (
+ "id" TEXT PRIMARY KEY, "storeId" TEXT NOT NULL, "name" VARCHAR(80) NOT NULL,
+ "archivedAt" TIMESTAMP(3), "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ "updatedAt" TIMESTAMP(3) NOT NULL,
+ CONSTRAINT "StoreReseller_storeId_fkey" FOREIGN KEY ("storeId") REFERENCES "Store"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "StoreReseller_storeId_idx" ON "StoreReseller"("storeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "StoreReseller_storeId_name_key" ON "StoreReseller"("storeId", "name");
+CREATE UNIQUE INDEX IF NOT EXISTS "StoreReseller_storeId_name_ci_key" ON "StoreReseller"("storeId", lower("name"));
+ALTER TABLE "TradeIn" ADD COLUMN IF NOT EXISTS "draftResellerId" TEXT;
+ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Sale_resellerId_fkey') THEN
+ALTER TABLE "Sale" ADD CONSTRAINT "Sale_resellerId_fkey" FOREIGN KEY ("resellerId") REFERENCES "StoreReseller"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+END IF;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Sale_beneficiary_check') THEN
+ALTER TABLE "Sale" ADD CONSTRAINT "Sale_beneficiary_check" CHECK (NOT ("sellerMemberId" IS NOT NULL AND "resellerId" IS NOT NULL));
+END IF;
+CREATE INDEX IF NOT EXISTS "Sale_storeId_resellerId_idx" ON "Sale"("storeId", "resellerId");
+ALTER TABLE "CommissionRule" ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionRule_resellerId_fkey') THEN
+ALTER TABLE "CommissionRule" ADD CONSTRAINT "CommissionRule_resellerId_fkey" FOREIGN KEY ("resellerId") REFERENCES "StoreReseller"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+END IF;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionRule_beneficiary_check') THEN
+ALTER TABLE "CommissionRule" ADD CONSTRAINT "CommissionRule_beneficiary_check" CHECK (NOT ("memberId" IS NOT NULL AND "resellerId" IS NOT NULL));
+END IF;
+CREATE INDEX IF NOT EXISTS "CommissionRule_storeId_resellerId_effectiveFrom_idx" ON "CommissionRule"("storeId", "resellerId", "effectiveFrom");
+ALTER TABLE "CommissionPayment" ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionPayment_resellerId_fkey') THEN
+ALTER TABLE "CommissionPayment" ADD CONSTRAINT "CommissionPayment_resellerId_fkey" FOREIGN KEY ("resellerId") REFERENCES "StoreReseller"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+END IF;
+-- Authorized relaxation: retains all historical member IDs unchanged.
+ALTER TABLE "CommissionPayment" ALTER COLUMN "memberId" DROP NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionPayment_beneficiary_check') THEN
+ALTER TABLE "CommissionPayment" ADD CONSTRAINT "CommissionPayment_beneficiary_check" CHECK ((("memberId" IS NOT NULL)::int + ("resellerId" IS NOT NULL)::int) = 1);
+END IF;
+CREATE INDEX IF NOT EXISTS "CommissionPayment_storeId_resellerId_period_idx" ON "CommissionPayment"("storeId", "resellerId", "period");
+ALTER TABLE "CommissionAccrual" ADD COLUMN IF NOT EXISTS "resellerId" TEXT;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionAccrual_resellerId_fkey') THEN
+ALTER TABLE "CommissionAccrual" ADD CONSTRAINT "CommissionAccrual_resellerId_fkey" FOREIGN KEY ("resellerId") REFERENCES "StoreReseller"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+END IF;
+-- Authorized relaxation: retains all historical member IDs unchanged.
+ALTER TABLE "CommissionAccrual" ALTER COLUMN "memberId" DROP NOT NULL;
+IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CommissionAccrual_beneficiary_check') THEN
+ALTER TABLE "CommissionAccrual" ADD CONSTRAINT "CommissionAccrual_beneficiary_check" CHECK ((("memberId" IS NOT NULL)::int + ("resellerId" IS NOT NULL)::int) = 1);
+END IF;
+CREATE INDEX IF NOT EXISTS "CommissionAccrual_storeId_resellerId_period_idx" ON "CommissionAccrual"("storeId", "resellerId", "period");
+END IF;
+END $$;

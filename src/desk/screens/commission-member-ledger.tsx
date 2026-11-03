@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -48,7 +49,7 @@ export function CommissionMemberLedger({ person, period, financials, onLayerChan
   const voidPayment = async (reason: string) => {
     if (!paymentToVoid || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
-    try { await voidCommissionPayment(paymentToVoid.id, person.memberId, period, reason); setPaymentToVoid(null); onLayerChange(all); }
+    try { await voidCommissionPayment(paymentToVoid.id, beneficiaryKey(person), period, reason); setPaymentToVoid(null); onLayerChange(all); }
     catch (cause) { setError(toActionMessage(cause, 'No se pudo anular el pago')); }
     finally { submitting.current = false; setBusy(false); }
   };

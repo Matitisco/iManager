@@ -3,6 +3,19 @@ import { DomainError } from "../../lib/domain-error.js";
 import { currentBlueRate } from "../../lib/blue-rate.js";
 import { commissionForSale, convert, currentPeriodKey, nextPeriod, type Currency, type RuleSnapshot } from "./commission-math.js";
 
+export function beneficiaryWhere(memberId?: string | null, resellerId?: string | null) {
+  return { memberId: memberId ?? null, resellerId: resellerId ?? null };
+}
+
+/** Validate both IDs, including archived history when the assignment is unchanged. */
+export async function assertBeneficiary(tx: Prisma.TransactionClient, storeId: string, memberId?: string | null, resellerId?: string | null, allowArchived = false) {
+  if (memberId && resellerId) throw new DomainError("Elegí vendedor o revendedor, nunca ambos");
+  await assertSeller(tx, storeId, memberId);
+  if (resellerId && !await tx.storeReseller.findFirst({ where: { id: resellerId, storeId, ...(allowArchived ? {} : { archivedAt: null }) }, select: { id: true } })) {
+    throw new DomainError("El revendedor no está disponible en esta tienda", 404);
+  }
+}
+
 type CommissionSale = Prisma.SaleGetPayload<{ include: { inventoryItem: true; tradeIn: true } }>;
 type CommissionBatch = {
   sales: Map<string, CommissionSale>;
@@ -20,7 +33,7 @@ export async function loadCommissionBatch(tx: Prisma.TransactionClient, storeId:
     tx.commissionAccrual.findMany({ where: { storeId, sourceSaleId: { in: saleIds }, voidedAt: null }, orderBy: { createdAt: "desc" } }),
     tx.commissionRule.findMany({ where: { storeId, active: true, deletedAt: null }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] }),
   ]);
-  const payments = await tx.commissionPayment.findMany({ where: { storeId, memberId: { in: [...new Set(accruals.map(row => row.memberId))] }, voidedAt: null } });
+  const payments = await tx.commissionPayment.findMany({ where: { storeId, OR: accruals.map(row => beneficiaryWhere(row.memberId, row.resellerId)), voidedAt: null } });
   return { sales: new Map(sales.map(sale => [sale.id, sale])), store, accruals, rules, payments };
 }
 
@@ -38,7 +51,7 @@ export async function voidSaleCommission(tx: Prisma.TransactionClient, storeId: 
   if (!rows.length) return;
   const store = batch?.store ?? await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { timezone: true } });
   for (const row of rows) {
-    const paid = batch ? batch.payments.some(payment => payment.memberId === row.memberId && payment.period >= row.period && payment.settlesCurrency === row.currency && payment.createdAt <= now) : await tx.commissionPayment.count({ where: { storeId, memberId: row.memberId, period: { gte: row.period }, voidedAt: null, settlesCurrency: row.currency, createdAt: { lte: now } } });
+    const paid = batch ? batch.payments.some(payment => payment.memberId === row.memberId && payment.resellerId === row.resellerId && payment.period >= row.period && payment.settlesCurrency === row.currency && payment.createdAt <= now) : await tx.commissionPayment.count({ where: { storeId, ...beneficiaryWhere(row.memberId, row.resellerId), period: { gte: row.period }, voidedAt: null, settlesCurrency: row.currency, createdAt: { lte: now } } });
     const adjustmentPeriod = paid ? nextPeriod([row.period, currentPeriodKey(now, store.timezone)].sort().at(-1)!) : null;
     await tx.commissionAccrual.update({ where: { id: row.id }, data: { voidedAt: now, voidReason: reason, adjustmentPeriod } });
   }
@@ -48,7 +61,7 @@ export async function voidSaleCommission(tx: Prisma.TransactionClient, storeId: 
 export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string, batch?: CommissionBatch) {
   const sale = batch ? batch.sales.get(saleId) : await tx.sale.findFirst({ where: { id: saleId, storeId }, include: { inventoryItem: true, tradeIn: true } });
   if (!sale) return;
-  if (!sale.sellerMemberId || ["CANCELADA", "CANCELLED"].includes(sale.status)) return;
+  if ((!sale.sellerMemberId && !sale.resellerId) || ["CANCELADA", "CANCELLED"].includes(sale.status)) return;
   const existing = batch ? batch.accruals.find(row => row.sourceSaleId === saleId) : await tx.commissionAccrual.findFirst({ where: { storeId, sourceSaleId: saleId, voidedAt: null }, orderBy: { createdAt: "desc" } });
   const store = batch?.store ?? await tx.store.findUniqueOrThrow({ where: { id: storeId } });
   const currency = (sale.amountCurrency ?? store.currency) as Currency;
@@ -57,34 +70,34 @@ export async function recordSaleCommission(tx: Prisma.TransactionClient, storeId
   const takeValue = convert(Number(sale.tradeIn?.takeValue ?? 0), (sale.tradeIn?.currency ?? store.currency) as Currency, currency, exchangeRate);
   const amount = Number(sale.amount);
   // Preserve the applied rule for financial edits; changing seller/date reselects by sale date.
-  const sameAssignment = existing?.memberId === sale.sellerMemberId && existing.soldAt.getTime() === sale.soldAt.getTime();
+  const sameAssignment = existing?.memberId === sale.sellerMemberId && existing?.resellerId === sale.resellerId && existing.soldAt.getTime() === sale.soldAt.getTime();
   if (existing && sameAssignment && Number(existing.total) === amount && Number(existing.cost) === cost
     && Number(existing.takeValue) === takeValue && existing.currency === currency
     && Number(existing.exchangeRate ?? exchangeRate) === exchangeRate) return;
   let rule: RuleSnapshot | null;
   if (existing && sameAssignment) {
-    rule = existing.basis ? { id: existing.ruleId!, memberId: existing.memberId, basis: existing.basis,
+    rule = existing.basis ? { id: existing.ruleId!, memberId: existing.memberId, resellerId: existing.resellerId, basis: existing.basis,
       rate: Number(existing.rate), currency: existing.ruleCurrency as Currency | null,
       effectiveFrom: existing.soldAt, createdAt: existing.createdAt } : null;
   } else {
-    const personal = batch ? batch.rules.find(rule => rule.memberId === sale.sellerMemberId && rule.effectiveFrom <= sale.soldAt) : await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, memberId: sale.sellerMemberId, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
-    const selected = personal ?? (batch ? batch.rules.find(rule => rule.memberId === null && rule.effectiveFrom <= sale.soldAt) : await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, memberId: null, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] }));
+    const personal = batch ? batch.rules.find(rule => rule.memberId === sale.sellerMemberId && rule.resellerId === sale.resellerId && rule.effectiveFrom <= sale.soldAt) : await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, ...beneficiaryWhere(sale.sellerMemberId, sale.resellerId), effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] });
+    const selected = personal ?? (batch ? batch.rules.find(rule => rule.memberId === null && rule.resellerId === null && rule.effectiveFrom <= sale.soldAt) : await tx.commissionRule.findFirst({ where: { storeId, active: true, deletedAt: null, memberId: null, resellerId: null, effectiveFrom: { lte: sale.soldAt } }, orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }, { id: "desc" }] }));
     rule = selected ? { ...selected, rate: Number(selected.rate), currency: selected.currency as Currency | null } : null;
   }
   if (existing) await voidSaleCommission(tx, storeId, saleId, "EDITED", new Date(), batch);
   await tx.commissionAccrual.create({ data: {
-    storeId, memberId: sale.sellerMemberId, sourceSaleId: sale.id, saleNumber: sale.saleNumber,
+    storeId, ...beneficiaryWhere(sale.sellerMemberId, sale.resellerId), sourceSaleId: sale.id, saleNumber: sale.saleNumber,
     soldAt: sale.soldAt, period: currentPeriodKey(sale.soldAt, store.timezone),
     deviceLabel: sale.deviceLabel || sale.inventoryItem?.model || "Equipo", currency,
     exchangeRate: sale.exchangeRate, total: amount, cost, takeValue, grossProfit: amount - cost - takeValue,
-    commission: commissionForSale({ sellerMemberId: sale.sellerMemberId, status: sale.status, amount, cost, takeValue, currency, exchangeRate }, rule),
+    commission: commissionForSale({ sellerMemberId: sale.sellerMemberId, resellerId: sale.resellerId, status: sale.status, amount, cost, takeValue, currency, exchangeRate }, rule),
     ruleId: rule?.id, basis: rule?.basis, rate: rule?.rate, ruleCurrency: rule?.currency,
   } });
 }
 
 export async function refreshSaleCommission(tx: Prisma.TransactionClient, storeId: string, saleId: string, batch?: CommissionBatch) {
-  const sale = batch ? batch.sales.get(saleId) : await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { sellerMemberId: true, status: true } });
-  if (!sale?.sellerMemberId || ["CANCELADA", "CANCELLED"].includes(sale.status)) {
+  const sale = batch ? batch.sales.get(saleId) : await tx.sale.findFirst({ where: { id: saleId, storeId }, select: { sellerMemberId: true, resellerId: true, status: true } });
+  if ((!sale?.sellerMemberId && !sale?.resellerId) || ["CANCELADA", "CANCELLED"].includes(sale.status)) {
     await voidSaleCommission(tx, storeId, saleId, !sale ? "DELETED" : ["CANCELADA", "CANCELLED"].includes(sale.status) ? "CANCELLED" : "EDITED", new Date(), batch);
   } else await recordSaleCommission(tx, storeId, saleId, batch);
 }

@@ -48,6 +48,7 @@ const inputSchema = z.object({
   initialDeposit: z.object({ amount: moneyInput({ positive: true }), currency: z.enum(['ARS', 'USD']) }).optional(),
   depositIds: z.array(z.string().min(1)).max(20).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
   exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
