@@ -3,9 +3,11 @@ import { openDeskSection } from './navigation';
 import { sheetAction } from './sheet-actions';
 import { bootstrapStoreViaApi, buildTestEmail, fetchInventory, fetchSales } from './utils';
 
+test.use({ browserName: 'chromium' });
+
 for (const width of [390, 1440]) {
   test.describe(`costo desde venta a ${width}px`, () => {
-    test.use({ browserName: 'chromium', viewport: { width, height: 900 } });
+    test.use({ viewport: { width, height: 900 } });
     test('@smoke encargue, ganancia en vivo, edición y persistencia', async ({ page, request }, info) => {
       const email = buildTestEmail(info, 'sale-cost');
       await bootstrapStoreViaApi(page, request, email, 'Costo de venta ficticia');
