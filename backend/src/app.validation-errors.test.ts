@@ -232,6 +232,18 @@ describe("validation errors", () => {
     } finally { await app.close(); }
   });
 
+  it("rejects oversized invalid collections before visiting elements (Zod 4 security cap)", async () => {
+    const app = buildApp();
+    try {
+      const response = await app.inject({ method: "POST", url: "/api/repairs", payload: { device: "iPhone", faultTags: Array(9).fill("") } });
+      const message = "La falla puede tener hasta 8 elementos";
+      expect(response.statusCode).toBe(400);
+      // Zod 3 also listed faultTags.0..8 errors. Zod 4 deliberately avoids
+      // traversing oversized input; restoring that traversal defeats its fix.
+      expect(response.json()).toEqual({ statusCode: 400, error: message, message, fields: { faultTags: message } });
+    } finally { await app.close(); }
+  });
+
   it("keeps omitted commission fields absent in PATCH", async () => {
     const app = buildApp();
     try {
