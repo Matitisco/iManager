@@ -21,16 +21,20 @@ const querySchema = z.object({
 
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook("onRequest", async (_request, reply) => { reply.header("cache-control", "no-store"); });
-  app.get('/inventory-duplicates', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  // Authorize before reading/parsing bodies (imports and backups allow 16 MiB).
+  // Plugin-scoped hooks also protect any future admin route by default.
+  app.addHook('onRequest', authenticate);
+  app.addHook('onRequest', requirePlatformAdmin);
+  app.get('/inventory-duplicates', async (request) => {
     return listInventoryDuplicates(inventoryDuplicatesQuery.parse(request.query));
   });
-  app.post('/inventory-duplicates/apply', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  app.post('/inventory-duplicates/apply', async (request) => {
     return applyInventoryDuplicates(inventoryDuplicatesApplyBody.parse(request.body));
   });
-  app.post('/inventory-duplicates/restore', { bodyLimit: 16 * 1024 * 1024, preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  app.post('/inventory-duplicates/restore', { bodyLimit: 16 * 1024 * 1024 }, async (request) => {
     return restoreInventoryDuplicates(inventoryDuplicatesRestoreBody.parse(request.body));
   });
-  app.post('/inventory-import', { bodyLimit: 16 * 1024 * 1024, preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+  app.post('/inventory-import', { bodyLimit: 16 * 1024 * 1024 }, async (request, reply) => {
     try {
       return await adminInventoryImport(inventoryImportBody.parse(request.body), { email: request.auth!.email! });
     } catch (error) {
@@ -38,27 +42,27 @@ export async function adminRoutes(app: FastifyInstance) {
       throw error;
     }
   });
-  app.post('/sale-corrections', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  app.post('/sale-corrections', async (request) => {
     return correctSales(saleCorrectionsBody.parse(request.body), { email: request.auth!.email! });
   });
-  app.post('/store-reset', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  app.post('/store-reset', async (request) => {
     return resetStore(storeResetBody.parse(request.body), { email: request.auth!.email! });
   });
-  app.get('/imei-tac-misses', { preHandler: [authenticate, requirePlatformAdmin] }, async (request) => {
+  app.get('/imei-tac-misses', async (request) => {
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(500).default(100) }).strict().parse(request.query);
     return listTacMisses(limit);
   });
-  app.get('/funnel', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+  app.get('/funnel', async (request, reply) => {
     reply.header('cache-control', 'no-store');
     const query = z.object({ range: z.enum(['7d', '30d', 'all']).default('30d'), tests: z.enum(['hide', 'show']).default('hide') }).strict().parse(request.query);
     return getFunnel(query.range, query.tests);
   });
-  app.get('/stores/:id/history', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+  app.get('/stores/:id/history', async (request, reply) => {
     const { id } = z.object({ id: z.string().min(1).max(160) }).parse(request.params);
     const result = await getStoreHistory(id, historyQuery.parse(request.query));
     return result ?? reply.code(404).send({ error: 'Not found' });
   });
-  app.get('/stores/:id/timeline', { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+  app.get('/stores/:id/timeline', async (request, reply) => {
     reply.header('cache-control', 'no-store');
     const { id } = z.object({ id: z.string().min(1).max(160) }).parse(request.params);
     const result = await getTimeline(id);
@@ -66,7 +70,7 @@ export async function adminRoutes(app: FastifyInstance) {
   });
   // INTERNAL marks every store that predates subscriptions. It does not identify a person.
   // Only verified token emails in ADMIN_EMAILS can read internal activity.
-  app.get("/store-activity", { preHandler: [authenticate, requirePlatformAdmin] }, async (request, reply) => {
+  app.get("/store-activity", async (request, reply) => {
     reply.header("cache-control", "no-store");
     const query = querySchema.parse(request.query);
     return listStoreActivity(query.range ?? "30d");

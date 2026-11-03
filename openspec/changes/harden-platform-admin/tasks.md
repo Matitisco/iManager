@@ -1,0 +1,6 @@
+- [x] Revisar rutas admin, health, webhooks, jobs y scripts.
+- [x] Reproducir ataques con PostgreSQL local exclusivo y regresiones rojo → verde.
+- [x] Aplicar fixes mínimos y verificar casos legítimos.
+- [x] Registrar pendientes y validación en docs/security/admin-plataforma.md.
+- [x] Ejecutar TypeScript y tests relacionados.
+- [x] Abrir PR #721 contra test con merge condicionado a CI verde, sin schema/migraciones y rebase.
