@@ -90,6 +90,7 @@ export interface SaleResponse {
   voidReason: string | null;
   warrantyDays: number | null;
   soldAt: string;
+  createdAt: string | null;
 }
 
 type SaleRecord = {
@@ -112,6 +113,7 @@ type SaleRecord = {
   status: string;
   categoryId: string | null;
   soldAt: Date;
+  createdAt?: Date;
   customFields: Prisma.JsonValue | null;
   tradeInId: string | null;
   integratedOperation: boolean;
@@ -211,6 +213,7 @@ function serializeSale(sale: SaleRecord): SaleResponse {
     voidReason: sale.voidReason ?? null,
     warrantyDays: sale.warrantyDays ?? null,
     soldAt: sale.soldAt.toISOString(),
+    createdAt: sale.createdAt?.toISOString() ?? null,
   };
 }
 
@@ -221,7 +224,7 @@ export async function listSales(storeId: string, options?: { voided?: boolean; c
       ...(options?.clientId ? { clientId: options.clientId } : {}),
       ...(!options?.includeVoided ? { voidedAt: options?.voided ? { not: null } : null } : {}),
     },
-    orderBy: { soldAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { saleNumber: "desc" }, { id: "desc" }],
     include: { inventoryItem: { select: { model: true, capacity: true } } },
   });
 

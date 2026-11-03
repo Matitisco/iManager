@@ -52,6 +52,8 @@ import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
 import { summarizeSaleProfit } from '../sale-profit';
 import { compensatedReturns, compensationDate } from '../return-financials';
+import { projectAmount } from '../money';
+import { SALE_LOAD_ORDER, SALE_SORT_LABELS, sortSales, type SaleSortColumn } from '../sale-sort';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
@@ -83,6 +85,7 @@ export function SalesScreen() {
   const notices = useSectionNotices('sales');
   const [query, setQuery] = useNavigationState('Sales.query', '');
   const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
+  const [sort, setSort] = useNavigationState('Sales.sort', SALE_LOAD_ORDER);
   const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
   const [columns, setColumns] = useNavigationState<SaleColumnFilters>('Sales.columns', EMPTY_SALE_FILTERS);
   const { rows: voidedSales } = useArchivedRows(sales, fetchVoidedSales, rememberVoidedSales);
@@ -144,9 +147,38 @@ export function SalesScreen() {
   const narrowed = statusOn ? rows.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : rows;
   const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
-  const prioritized = notices.prioritize(narrowed);
-  const shown = [...prioritized.filter(sale => !isVoidRow(sale)), ...prioritized.filter(isVoidRow)];
-  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
+  const sortValue = (sale: Sale): string | number | null => {
+    switch (sort.slice(0, -2) as SaleSortColumn) {
+      case 'Venta': return sale.saleNumber ?? 0;
+      case 'Fecha': return parseAppDate(sale.date)?.getTime() ?? null;
+      case 'Cliente': return saleBuyer(sale, clients);
+      case 'Equipo': return saleEquipment(sale, inventory);
+      case 'Cant.': return saleQuantity(sale);
+      case 'Vendedor': return sellerName(sale);
+      case 'Precio unit.': {
+        const price = projectAmount(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, money.active, money.rate, 2);
+        return price.blocked ? null : price.value;
+      }
+      case 'Total': return money.number(sale.amount, sale.amountCurrency);
+      case 'Ganancia': {
+        if (!seeFinancials || returns === null) return null;
+        const profit = summarizeSaleProfit([sale], inventory, money.active, money.rate, issuedReturns.filter(row => row.saleId === sale.id));
+        return profit.costedSales > 0 || profit.costedReturns > 0 ? profit.grossProfit : null;
+      }
+      case 'Estado': return statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status);
+      default: return null;
+    }
+  };
+  const ordered = sortSales(narrowed, sort.endsWith('↓') ? 'desc' : 'asc', sort === SALE_LOAD_ORDER ? undefined : sortValue);
+  const shown = [...ordered.filter(sale => !isVoidRow(sale)), ...ordered.filter(isVoidRow)];
+  const sortAria = (label: SaleSortColumn) => sort === `${label} ↑` ? 'ascending' as const : sort === `${label} ↓` ? 'descending' as const : 'none' as const;
+  const sortHeader = (label: SaleSortColumn) => (
+    <button type="button" className="thsort" aria-label={`Ordenar por ${label.toLowerCase()}`} onClick={() => setSort(current => current === `${label} ↑` ? `${label} ↓` : `${label} ↑`)}>
+      {label}{sort.startsWith(`${label} `) ? ` ${sort.slice(-1)}` : ''}
+    </button>
+  );
+  const sortControl = <MenuButton testId="sales-sort" label={sort === SALE_LOAD_ORDER ? 'Ordenar' : sort} options={[SALE_LOAD_ORDER, ...SALE_SORT_LABELS.filter(label => seeFinancials || label !== 'Ganancia').flatMap(label => [`${label} ↑`, `${label} ↓`])]} value={sort} active={sort !== SALE_LOAD_ORDER} onChange={setSort} />;
+  const page = usePagedRows(shown, `${query}|${period}|${sort}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
   const statuses = [...new Set([...listed.map((sale) => isVoidRow(sale) ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'ANULADA'])].filter(Boolean);
@@ -182,6 +214,7 @@ export function SalesScreen() {
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" /></div> : null}
       {phone ? (
         <div className="dbar sale-pills">
+          {sortControl}
           <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
           <SellerChip phone label={sellerChipLabel(columns.sellers, sellerOptions, true)} active={columns.sellers.length > 0} onOpen={() => { setSellerDraft(columns.sellers); setSellerOpen(true); }} onClear={() => setColumn({ sellers: [] })} />
           <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Anulada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
@@ -280,6 +313,7 @@ export function SalesScreen() {
         <div className="dch pad">
           <h3>Ventas del período</h3>
           <span className="sale-filter-meta">
+            {sortControl}
             {columns.sellers.length > 0 ? <SellerChip label={sellerChipLabel(columns.sellers, sellerOptions, false)} active onOpen={() => undefined} onClear={() => setColumn({ sellers: [] })} /> : null}
             <span className="mut" data-testid="sales-filter-summary">{summaryText}</span>
             {filtersOn ? <button className="wlink" type="button" onClick={clearFilters}>Limpiar filtros</button> : null}
@@ -289,28 +323,28 @@ export function SalesScreen() {
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={shown.length} /></th>
-                <th><span className="thf">Venta
+                <th aria-sort={sortAria('Venta')}><span className="thf">{sortHeader('Venta')}
                   <ColumnFilter label="venta" {...menu('venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Fecha
+                <th aria-sort={sortAria('Fecha')}><span className="thf">{sortHeader('Fecha')}
                   <ColumnFilter label="fecha" {...menu('fecha')} active={saleColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
                     <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Cliente
+                <th aria-sort={sortAria('Cliente')}><span className="thf">{sortHeader('Cliente')}
                   <ColumnFilter label="cliente" {...menu('cliente')} active={saleColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.client} onChange={(event) => setColumn({ client: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Equipo
+                <th aria-sort={sortAria('Equipo')}><span className="thf">{sortHeader('Equipo')}
                   <ColumnFilter label="equipo" {...menu('equipo')} active={saleColumnActive(columns, 'equipment')} onClear={() => setColumn({ equipment: '' })}>
                     <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th className="sale-quantity-cell" scope="col">Cant.</th>
-                <th><span className="thf">Vendedor
+                <th className="sale-quantity-cell" scope="col" aria-sort={sortAria('Cant.')}>{sortHeader('Cant.')}</th>
+                <th aria-sort={sortAria('Vendedor')}><span className="thf">{sortHeader('Vendedor')}
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
                       {sellerOptions.map((option) => (
@@ -319,14 +353,14 @@ export function SalesScreen() {
                     </div>
                   </ColumnFilter>
                 </span></th>
-                <th className="r" scope="col">Precio unit.</th>
-                <th className="r"><span className="thf">Total
+                <th className="r" scope="col" aria-sort={sortAria('Precio unit.')}>{sortHeader('Precio unit.')}</th>
+                <th className="r" aria-sort={sortAria('Total')}><span className="thf">{sortHeader('Total')}
                   <ColumnFilter label="total" align="right" {...menu('total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
                     <MoneyRange min={columns.amountMin} max={columns.amountMax} onMin={(amountMin) => setColumn({ amountMin })} onMax={(amountMax) => setColumn({ amountMax })} />
                   </ColumnFilter>
                 </span></th>
-                {seeFinancials ? <th className="r" scope="col">Ganancia</th> : null}
-                <th><span className="thf">Estado
+                {seeFinancials ? <th className="r" scope="col" aria-sort={sortAria('Ganancia')}>{sortHeader('Ganancia')}</th> : null}
+                <th aria-sort={sortAria('Estado')}><span className="thf">{sortHeader('Estado')}
                   <ColumnFilter label="estado" align="right" {...menu('estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                     <div className="opts">
                       {statuses.map((status) => (
