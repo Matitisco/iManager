@@ -73,12 +73,12 @@ test('the owner edits the budget and deletes the order, and an employee without 
 
   await page.locator('[data-testid^="repair-card-"]').first().click();
   const detail = page.getByRole('dialog', { name: /#OT-0001/ });
-  await expect(detail.getByLabel('Presupuesto')).toHaveCount(0);
+  await expect(detail.getByLabel('Costo del arreglo')).toHaveCount(0);
   await expect(detail.getByRole('button', { name: 'Eliminar orden' })).toHaveCount(0);
   await (await sheetAction(detail, 'Editar')).click();
   const editor = page.getByRole('dialog', { name: 'Editar orden' });
-  await editor.getByLabel('Presupuesto').fill('80000');
-  await editor.getByLabel('Seña').fill('15000');
+  await editor.getByLabel('Costo del arreglo').fill('80000');
+  await editor.getByLabel('Lo que abonó el cliente').fill('15000');
   await editor.getByRole('button', { name: 'Guardar' }).click();
   await expect(editor).toBeHidden();
   await expect(page.getByText('Orden actualizada')).toBeVisible();
@@ -96,10 +96,10 @@ test('the owner edits the budget and deletes the order, and an employee without 
     const staffDetail = staff.getByRole('dialog', { name: /#OT-0001/ });
     await expect(staffDetail.getByText('$ 80.000')).toBeVisible();
     await expect(staffDetail.getByText('$ 15.000')).toBeVisible();
-    await expect(staffDetail.getByLabel('Presupuesto')).toHaveCount(0);
+    await expect(staffDetail.getByLabel('Costo del arreglo')).toHaveCount(0);
     await (await sheetAction(staffDetail, 'Editar')).click();
     const staffEditor = staff.getByRole('dialog', { name: 'Editar orden' });
-    await expect(staffEditor.getByLabel('Presupuesto')).toBeDisabled();
+    await expect(staffEditor.getByLabel('Costo del arreglo')).toBeDisabled();
     await expect(staffEditor.getByTestId('repair-delete')).toBeDisabled();
     await expect(staffEditor.getByText(/Acciones sensibles/)).toBeVisible();
   } finally {

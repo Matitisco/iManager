@@ -179,18 +179,6 @@ describe('financial concurrency #461', () => {
 });
 
 describe('repair and archival concurrency #461', () => {
-  it.each(['patch', 'collection'])('validates estimate against the latest %s deposit', async mode => {
-    const f = await fixture();
-    const repair = await createRepair(f.storeId, { clientId: f.client.id, device: 'Equipo', estimate: 100, deposit: 10 }, f.actor);
-    const result = await overlap('RepairOrder', () => updateRepair(f.storeId, repair.order.id, { estimate: 50 }), () => mode === 'patch'
-      ? updateRepair(f.storeId, repair.order.id, { deposit: 80 })
-      : collectAccount(f.storeId, { clientId: f.client.id, repairId: repair.order.id, amount: 70, method: 'EFECTIVO' }, f.actor));
-    expect(result.status).toBe('rejected');
-    const row = await prisma.repairOrder.findUniqueOrThrow({ where: { id: repair.order.id } });
-    expect(Number(row.estimate)).toBe(100);
-    expect(Number(row.deposit)).toBe(80);
-    expect(await cash(f.storeId)).toBe(80);
-  });
   it('emits status history once for simultaneous identical transitions', async () => {
     const f = await fixture();
     const repair = await createRepair(f.storeId, { device: 'Equipo' }, f.actor);

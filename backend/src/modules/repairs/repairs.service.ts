@@ -14,7 +14,6 @@ import { SENSITIVE_DENIED } from "../stores/sensitive-access.js";
 import { isRetiredRepairStatus, retireRepairStatuses } from "./retire-repair-statuses.js";
 import { REPAIR_READY, REPAIR_RECEIVED, repairCode, repairReadyMessage, repairWhatsappUrl } from "./repairs.whatsapp.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
-import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
 import { coverageState, repairDaysFromStore, warrantyUntil } from "../warranty/warranty.js";
 
 export interface RepairOrderInput {
@@ -203,7 +202,6 @@ export async function createRepair(storeId: string, input: RepairOrderInput, act
   const name = await storeName(storeId);
   const status = input.status?.trim() || REPAIR_RECEIVED;
   if (isRetiredRepairStatus(status)) throw new RepairError("Ese estado ya no está en el flujo");
-  if (depositExceedsEstimate(input.estimate, input.deposit ?? 0)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
   const created = await prisma.$transaction(async (tx) => {
     const client = await resolveRepairClient(tx, storeId, input);
     const clientId = client.clientId;
@@ -271,12 +269,6 @@ export async function updateRepair(
     if ((estimateChanged || depositChanged || currencyChanged) && !options.canChangePrice) {
       throw new RepairError(SENSITIVE_DENIED, 403);
     }
-    const touchesBudget = input.estimate !== undefined || input.deposit !== undefined;
-    if (touchesBudget) {
-      const nextEstimate = input.estimate !== undefined ? input.estimate : money(current.estimate);
-      const nextDeposit = input.deposit !== undefined ? input.deposit : (money(current.deposit) ?? 0);
-      if (depositExceedsEstimate(nextEstimate, nextDeposit)) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
-    }
     const data: {
       clientId?: string | null;
       clientName?: string | null;
@@ -307,7 +299,6 @@ export async function updateRepair(
     const latest = current;
     if (applications && (input.deposit !== undefined && moneyChanged(latest.deposit, input.deposit) || input.currency != null && input.currency !== latest.currency || input.clientId !== undefined && input.clientId !== latest.clientId || input.clientName !== undefined && input.clientName !== latest.clientName)) throw new RepairError('La orden tiene señas aplicadas. Conservá cliente, moneda y anticipo', 409);
     if (applications) {
-      if (input.estimate !== undefined && (input.estimate == null || input.estimate < Number(latest.deposit))) throw new RepairError(DEPOSIT_OVER_ESTIMATE);
       if (latest.currency) data.currency = latest.currency;
     }
     if (touchesClient) {

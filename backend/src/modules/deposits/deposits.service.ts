@@ -122,7 +122,7 @@ export async function applyDepositToRepair(storeId: string, clientId: string, id
     if (repair.estimate == null) throw new DomainError('Completá el presupuesto de la reparación antes de aplicar una seña');
     if (repair.status === 'ENTREGADO' || repair.status === 'ENTREGADA' || repair.status === 'CANCELADO') throw new DomainError('La reparación ya está cerrada', 409);
     const currency = repair.currency ?? await storeCurrency(storeId, tx);
-    const amount = await applyDeposits(tx, { storeId, clientId, ids: [id], currency, rate: exchangeRate, maximum: Number(repair.estimate.sub(repair.deposit)), repairId, actor });
+    const amount = await applyDeposits(tx, { storeId, clientId, ids: [id], currency, rate: exchangeRate, maximum: Math.max(0, Number(repair.estimate.sub(repair.deposit))), repairId, actor });
     await tx.repairOrder.update({ where: { id: repairId }, data: { deposit: repair.deposit.add(amount), currency } });
     await tx.repairStatusEvent.create({ data: { storeId, orderId: repairId, status: repair.status } });
     return { deposit: serializeDeposit((await tx.clientDeposit.findFirst({ where: { id, storeId, clientId } }))!), repairDeposit: Number(repair.deposit.add(amount)), repairCurrency: currency };

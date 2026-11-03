@@ -9,7 +9,6 @@ import { FX_WARNING } from '../money';
 import { DeskProvider } from '../ui';
 import { DeskOverlays } from '../DeskOverlays';
 import { RepairOrderDetail, RepairOrderEditor, RepairOrderForm } from '../RepairForms';
-import { DEPOSIT_OVER_ESTIMATE } from '../repairs';
 import { ServiceScreen } from './ServiceScreen';
 
 const open = vi.fn();
@@ -369,26 +368,21 @@ describe('servicio técnico', () => {
     await waitFor(() => expect(close).toHaveBeenCalled());
   });
 
-  it('blocks a deposit above the budget and allows one within it', async () => {
+  it('allows a paid amount above the repair cost', async () => {
     const user = userEvent.setup();
     addRepairOrder.mockResolvedValue(order('110', 'RECIBIDO'));
     desk(<RepairOrderForm busy={false} error={null} />);
     expect(screen.queryByText('Arranca en «Recibido».')).not.toBeInTheDocument();
     await user.type(screen.getByPlaceholderText('iPhone 13'), 'iPhone 13');
     await user.click(screen.getByRole('button', { name: 'Pantalla' }));
-    await user.type(screen.getByLabelText('Presupuesto estimado'), '85000');
-    const deposit = screen.getByLabelText('Seña');
+    await user.type(screen.getByLabelText('Costo del arreglo'), '85000');
+    const deposit = screen.getByLabelText('Lo que abonó el cliente');
     await user.clear(deposit);
     await user.type(deposit, '100000');
     await user.click(screen.getByRole('button', { name: 'Crear orden' }));
-    expect(screen.getByText(DEPOSIT_OVER_ESTIMATE)).toBeInTheDocument();
-    expect(addRepairOrder).not.toHaveBeenCalled();
-    await user.clear(screen.getByLabelText('Seña'));
-    await user.type(screen.getByLabelText('Seña'), '85000');
-    await user.click(screen.getByRole('button', { name: 'Crear orden' }));
     await waitFor(() => expect(addRepairOrder).toHaveBeenCalledWith(expect.objectContaining({
       estimate: 85000,
-      deposit: 85000,
+      deposit: 100000,
     })));
   });
 
@@ -398,29 +392,23 @@ describe('servicio técnico', () => {
     desk(<RepairOrderForm busy={false} error={null} />);
     await user.type(screen.getByPlaceholderText('iPhone 13'), 'iPhone 13');
     await user.click(screen.getByRole('button', { name: 'Batería' }));
-    await user.clear(screen.getByLabelText('Seña'));
-    await user.type(screen.getByLabelText('Seña'), '100000');
+    await user.clear(screen.getByLabelText('Lo que abonó el cliente'));
+    await user.type(screen.getByLabelText('Lo que abonó el cliente'), '100000');
     await user.click(screen.getByRole('button', { name: 'Crear orden' }));
     await waitFor(() => expect(addRepairOrder).toHaveBeenCalledWith(expect.objectContaining({
       estimate: null,
       deposit: 100000,
     })));
-    expect(screen.queryByText(DEPOSIT_OVER_ESTIMATE)).not.toBeInTheDocument();
   });
 
-  it('blocks an edited deposit that is higher than the budget', async () => {
+  it('allows an edited paid amount higher than the repair cost', async () => {
     const user = userEvent.setup();
     state.repairOrders = [order('95', 'EN_REPARACION', { estimate: 85000, deposit: 0 })];
     desk(<RepairOrderEditor id="95" busy={false} />);
-    await user.clear(screen.getByLabelText('Seña'));
-    await user.type(screen.getByLabelText('Seña'), '100000');
+    await user.clear(screen.getByLabelText('Lo que abonó el cliente'));
+    await user.type(screen.getByLabelText('Lo que abonó el cliente'), '100000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
-    expect(screen.getByText(DEPOSIT_OVER_ESTIMATE)).toBeInTheDocument();
-    expect(updateRepairOrder).not.toHaveBeenCalled();
-    await user.clear(screen.getByLabelText('Presupuesto'));
-    await user.type(screen.getByLabelText('Presupuesto'), '100000');
-    await user.click(screen.getByRole('button', { name: 'Guardar' }));
-    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 100000, deposit: 100000 }));
+    expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ deposit: 100000 }));
   });
 
   it('advances the status and keeps the history visible', async () => {
@@ -467,10 +455,10 @@ describe('servicio técnico', () => {
     });
     deleteRepairOrder.mockResolvedValue(undefined);
     desk(<RepairOrderEditor id="95" busy={false} />);
-    await user.clear(screen.getByLabelText('Presupuesto'));
-    await user.type(screen.getByLabelText('Presupuesto'), '150000');
-    await user.clear(screen.getByLabelText('Seña'));
-    await user.type(screen.getByLabelText('Seña'), '20000');
+    await user.clear(screen.getByLabelText('Costo del arreglo'));
+    await user.type(screen.getByLabelText('Costo del arreglo'), '150000');
+    await user.clear(screen.getByLabelText('Lo que abonó el cliente'));
+    await user.type(screen.getByLabelText('Lo que abonó el cliente'), '20000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 150000, deposit: 20000, currency: null }));
     expect(close).toHaveBeenCalled();
@@ -494,16 +482,16 @@ describe('servicio técnico', () => {
     desk(<RepairOrderEditor id="95" busy={false} />);
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(await screen.findByText('No tenés permiso para esta acción')).toBeInTheDocument();
-    expect(screen.getByLabelText('Presupuesto')).toBeInTheDocument();
+    expect(screen.getByLabelText('Costo del arreglo')).toBeInTheDocument();
     expect(close).not.toHaveBeenCalled();
   });
 
   it('disables budget and delete for a member without sensitive actions', async () => {
     desk(<RepairOrderEditor id="95" busy={false} />, false);
-    expect(screen.getByLabelText('Presupuesto')).toBeDisabled();
-    expect(screen.getByLabelText('Seña')).toBeDisabled();
+    expect(screen.getByLabelText('Costo del arreglo')).toBeDisabled();
+    expect(screen.getByLabelText('Lo que abonó el cliente')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Archivar orden' })).toBeDisabled();
-    expect(screen.getByText('Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o archivar la orden.')).toBeInTheDocument();
+    expect(screen.getByText('Solo quien tiene Acciones sensibles puede cambiar el costo del arreglo, lo que abonó el cliente o archivar la orden.')).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.not.objectContaining({ estimate: expect.anything() }));
     expect(updateRepairOrder.mock.calls[0]?.[1]).not.toHaveProperty('deposit');
@@ -516,10 +504,10 @@ describe('servicio técnico', () => {
     deskMoney(<RepairOrderDetail id="95" busy={false} />, ARS);
     expect(screen.getByText('$ 100.000')).toBeInTheDocument();
     expect(screen.getByText('$ 10.000')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Presupuesto')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Costo del arreglo')).not.toBeInTheDocument();
     deskMoney(<RepairOrderEditor id="95" busy={false} />, ARS);
-    expect(screen.getByLabelText('Presupuesto')).toHaveValue('100.000');
-    expect(screen.getByLabelText('Seña')).toHaveValue('10.000');
+    expect(screen.getByLabelText('Costo del arreglo')).toHaveValue('100.000');
+    expect(screen.getByLabelText('Lo que abonó el cliente')).toHaveValue('10.000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 100, deposit: 10, currency: 'USD' }));
   });
@@ -529,8 +517,8 @@ describe('servicio técnico', () => {
     updateRepairOrder.mockResolvedValue(order('95', 'ESPERANDO_REPUESTO'));
     state.repairOrders = [order('95', 'ESPERANDO_REPUESTO', { estimate: 100, deposit: 10, currency: 'USD' })];
     deskMoney(<RepairOrderEditor id="95" busy={false} />, ARS);
-    await user.clear(screen.getByLabelText('Presupuesto'));
-    await user.type(screen.getByLabelText('Presupuesto'), '200000');
+    await user.clear(screen.getByLabelText('Costo del arreglo'));
+    await user.type(screen.getByLabelText('Costo del arreglo'), '200000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 200000, deposit: 10000, currency: 'ARS' }));
   });
@@ -542,8 +530,8 @@ describe('servicio técnico', () => {
     expect(screen.getByText('US$ 100')).toBeInTheDocument();
     expect(screen.getByText('US$ 10')).toBeInTheDocument();
     deskMoney(<RepairOrderEditor id="95" busy={false} />, { ...ARS, manualBuy: null, manualSell: null });
-    await user.clear(screen.getByLabelText('Presupuesto'));
-    await user.type(screen.getByLabelText('Presupuesto'), '200');
+    await user.clear(screen.getByLabelText('Costo del arreglo'));
+    await user.type(screen.getByLabelText('Costo del arreglo'), '200');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(screen.getByText(FX_WARNING)).toBeInTheDocument();
     expect(updateRepairOrder).not.toHaveBeenCalled();
@@ -788,25 +776,24 @@ describe('servicio técnico en el celular', () => {
       return next;
     });
     desk(<RepairOrderEditor id="95" busy={false} />);
-    await user.clear(screen.getByLabelText('Presupuesto'));
-    await user.type(screen.getByLabelText('Presupuesto'), '150000');
+    await user.clear(screen.getByLabelText('Costo del arreglo'));
+    await user.type(screen.getByLabelText('Costo del arreglo'), '150000');
     await user.click(screen.getByRole('button', { name: 'Guardar' }));
     expect(updateRepairOrder).toHaveBeenCalledWith('95', expect.objectContaining({ estimate: 150000, deposit: 0, currency: null }));
     expect(screen.getByRole('button', { name: 'Archivar orden' })).toBeEnabled();
   });
 
-  it('shows the deposit warning on the phone sheet', async () => {
+  it('lets the phone sheet save a paid amount above the cost', async () => {
     const user = userEvent.setup();
+    addRepairOrder.mockResolvedValue(order('111', 'RECIBIDO'));
     desk(<RepairOrderForm busy={false} error={null} />);
-    expect(screen.getByRole('button', { name: 'Recibido' })).toHaveClass('on');
     await user.type(screen.getByPlaceholderText('iPhone 13'), 'iPhone 13');
     await user.click(screen.getByRole('button', { name: 'Pantalla' }));
-    await user.type(screen.getByLabelText('Presupuesto estimado'), '85000');
-    await user.clear(screen.getByLabelText('Seña'));
-    await user.type(screen.getByLabelText('Seña'), '100000');
+    await user.type(screen.getByLabelText('Costo del arreglo'), '85000');
+    await user.clear(screen.getByLabelText('Lo que abonó el cliente'));
+    await user.type(screen.getByLabelText('Lo que abonó el cliente'), '100000');
     await user.click(screen.getByRole('button', { name: 'Crear orden' }));
-    expect(screen.getByText(DEPOSIT_OVER_ESTIMATE)).toBeInTheDocument();
-    expect(addRepairOrder).not.toHaveBeenCalled();
+    await waitFor(() => expect(addRepairOrder).toHaveBeenCalled());
   });
 });
 
