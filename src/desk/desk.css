@@ -321,7 +321,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 }
 .sale-hero-grid .mid { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
 .sale-hero-grid small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; font-weight: 600; }
-.sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }
+.sale-pills { justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; max-width: 100%; }
 .sale-pills .dsel { flex: none; }
 .sales-screen .dsel .menu { max-height: min(420px, 60dvh); overflow-y: auto; }
 .sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }

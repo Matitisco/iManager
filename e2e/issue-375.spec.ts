@@ -240,7 +240,7 @@ test.describe('issue 375 ventas, garantía y ficha en escritorio', () => {
     test.setTimeout(120_000);
     const seeded = await seed(page, request, testInfo);
     await openSales(page);
-    await expect(page.getByRole('columnheader', { name: /Vendedor/ })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /ordenar por vendedor\b/i })).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Lucía' }).first()).toBeVisible();
     await expect(page.getByRole('cell', { name: 'Sin vendedor' })).toBeVisible();
 

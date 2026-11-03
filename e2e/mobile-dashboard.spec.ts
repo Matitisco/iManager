@@ -106,7 +106,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('dashboard-register-sale').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
-    await expect(page.getByRole('columnheader', { name: 'Venta' })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: /(?:ordenar por )?venta\b/i })).toHaveCount(0);
     const columns = await page.locator('.dashboard-screen .dstats').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(2);
     await expectFits(page);

@@ -1,0 +1,1 @@
+Usar selectores por rol con el nombre accesible «Ordenar por…», tolerantes a mayúsculas y al botón de filtro del encabezado. Aplicar flex-wrap sólo a la barra sale-pills. Verificar los límites de sus controles con Vitest y Chromium a 360 y 390 px; ejecutar los e2e mediante CI completa sobre la rama.

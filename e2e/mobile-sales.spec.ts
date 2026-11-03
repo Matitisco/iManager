@@ -63,7 +63,7 @@ test.describe('desktop sales stays put', () => {
     await expect(page.getByTestId('sales-empty')).toHaveCount(0);
     await expect(page.getByTestId('sale-trade-fold')).toHaveCount(0);
     await expect(page.getByText('No encontré ventas.')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /Venta/ })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /ordenar por venta\b/i })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar cliente, equipo o número')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Importar', exact: true })).toHaveCount(IMPORT_SALES_ENABLED ? 1 : 0);
