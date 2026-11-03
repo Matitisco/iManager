@@ -1,3 +1,4 @@
+import { registerSecurityRateLimits } from "./middleware/security-rate-limit.js";
 import { customFieldRoutes } from './modules/custom-fields/custom-fields.routes.js';
 import { imeiTacMissRoutes } from './modules/imei-tac-misses/routes.js';
 import { sectionViewsRoutes } from './modules/section-views/routes.js';
@@ -44,6 +45,8 @@ import { canSeeFinancials } from "./modules/stores/sections.js";
 export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLimit?: number } = {}) {
   const app = Fastify({
     logger: env.NODE_ENV === "test" ? false : true,
+    bodyLimit: 1024 * 1024,
+    trustProxy: env.TRUST_PROXY_CIDRS?.length ? env.TRUST_PROXY_CIDRS : false,
   });
 
   const allowedOrigins = env.CORS_ALLOWED_ORIGINS
@@ -63,6 +66,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   });
 
   app.register(sensible);
+  registerSecurityRateLimits(app);
 
   app.addHook("onRequest", async (request, reply) => {
     if (request.url.startsWith("/api")) reply.header("cache-control", "no-store");

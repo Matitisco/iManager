@@ -25,14 +25,34 @@ function sameSecret(received, expected) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-// Optional gate for non-production environments. Inactive unless both variables are set.
-export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass = process.env.BASIC_AUTH_PASS } = {}) {
-  if (!user || !pass) return () => true;
+// Optional gate: both absent disables it; partial configuration must not open the site.
+export function createBasicAuthGuard({ user = process.env.BASIC_AUTH_USER, pass = process.env.BASIC_AUTH_PASS, now = Date.now } = {}) {
+  if (!!user !== !!pass) throw new Error('BASIC_AUTH_USER and BASIC_AUTH_PASS must both be configured');
+  if (!user && !pass) return () => true;
+  const failures = new Map();
+  let nextSweep = 0;
   return (request, response) => {
     const header = request.headers.authorization || '';
     const decoded = header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString('utf8') : '';
     const separator = decoded.indexOf(':');
     if (separator >= 0 && sameSecret(decoded.slice(0, separator), user) && sameSecret(decoded.slice(separator + 1), pass)) return true;
+    // Only failed guesses consume quota; employees with valid credentials share NATs.
+    // Forwarding headers are not trusted by this standalone HTTP server.
+    const time = now();
+    if (time >= nextSweep || failures.size >= 10000) {
+      for (const [key, entry] of failures) if (entry.expires <= time) failures.delete(key);
+      nextSweep = time + 60000;
+    }
+    const ip = request.socket?.remoteAddress || 'unknown';
+    let entry = failures.get(ip);
+    if (entry?.expires <= time) { failures.delete(ip); entry = undefined; }
+    if ((!entry && failures.size >= 10000) || (entry && entry.count >= 30)) {
+      response.writeHead(429, { 'retry-after': String(Math.max(1, Math.ceil(((entry?.expires ?? time + 60000) - time) / 1000))), 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' });
+      response.end('Demasiados intentos. Volvé a intentar en un minuto.');
+      return false;
+    }
+    if (!entry) { entry = { count: 0, expires: time + 60000 }; failures.set(ip, entry); }
+    entry.count++;
     response.writeHead(401, { 'www-authenticate': 'Basic realm="iManager test", charset="UTF-8"', 'cache-control': 'no-store', 'content-type': 'text/plain; charset=utf-8' });
     response.end('Acceso restringido');
     return false;
