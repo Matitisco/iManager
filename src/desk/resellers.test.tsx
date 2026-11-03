@@ -96,6 +96,7 @@ describe.each([390, 1440])('selector y lista de revendedores a %i', width => {
     expect(within(row).queryByText('Dueño Ejemplo')).not.toBeInTheDocument();
     await userEvent.click(width === 390 ? screen.getByTestId('sales-seller-chip') : screen.getByRole('button', { name: 'Filtrar vendedor' }));
     const filter = width === 390 ? within(screen.getByRole('dialog', { name: 'Vendedor' })) : screen;
+    expect(filter.getByRole('checkbox', { name: /Diego Ejemplo/ }).closest('label')?.querySelector('.av-c')).toHaveStyle({ background: '#FFD000' });
     await userEvent.click(filter.getByRole('checkbox', { name: /Diego Ejemplo/ }));
     if (width === 390) await userEvent.click(filter.getByRole('button', { name: 'Ver 1 venta' }));
     expect(screen.queryByText('Cliente libre')).not.toBeInTheDocument();

@@ -349,7 +349,7 @@ export function SalesScreen() {
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
                       {sellerOptions.map((option) => (
-                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} /><span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span><em>{option.count}</em></label>
+                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} />{option.role === 'RESELLER' ? <CommissionAvatar id={option.id} name={option.name} role={option.role} /> : null}<span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span><em>{option.count}</em></label>
                       ))}
                     </div>
                   </ColumnFilter>
