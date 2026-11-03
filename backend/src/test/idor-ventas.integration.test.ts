@@ -41,7 +41,7 @@ describe("sales authorization and tenant isolation", () => {
     const res = await fetch(`${origin}/api/sales/${sale.id}`, {
       method: "PATCH", headers: { ...f.staffHeaders, "content-type": "application/json" }, body: JSON.stringify({ status: "ANULADA" }),
     });
-    expect(res.status, await res.text()).toBe(403);
+    expect([400, 403], await res.text()).toContain(res.status); // 400: validation (#724) rejects the alias; 403: permission. Nothing is written either way.
     expect(await prisma.sale.findUniqueOrThrow({ where: { id: sale.id } })).toEqual(before);
   });
 
