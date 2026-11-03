@@ -1,6 +1,6 @@
 # Seguridad: headers-deps-pwa-front — 2026-11-03
 
-Entrega: PR de `sec/headers-deps-pwa-front` hacia `test` (enlace actualizado al abrirlo). Sin producción, migraciones, cambios de schema ni reversión de #691.
+Entrega: [PR #727](https://github.com/Matitisco/iManager/pull/727), `sec/headers-deps-pwa-front` → `test`. Sin producción, migraciones, cambios de schema ni reversión de #691.
 
 | Severidad | Hallazgo y reproducción local | Estado / decisión |
 |---|---|---|
