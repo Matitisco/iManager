@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NamedCatalog } from '../../types/public-catalog';
 import { DeskProvider } from '../ui';
 import { StoreCatalogList } from './StoreCatalogList';
@@ -35,6 +35,7 @@ beforeEach(() => {
   context.saveNamedCatalog.mockResolvedValue(catalog());
   context.previewNamedCatalog.mockResolvedValue({ store: { name: 'Tienda de prueba', phone: null, address: null, logoUrl: null, hours: null }, active: true, showPrice: true, priceCurrency: 'USD', items: context.storeCatalogs[0].items });
 });
+afterEach(() => vi.restoreAllMocks());
 describe('multiple catalogs list and editor', () => {
   it('shows each name, link, rule summary and count, and copies the selected link', async () => {
     const user = userEvent.setup();
@@ -133,6 +134,19 @@ describe('multiple catalogs list and editor', () => {
     await user.clear(adjustment); await user.type(adjustment, '-15');
     await waitFor(() => expect(context.previewNamedCatalog).toHaveBeenLastCalledWith('resellers', expect.objectContaining({ priceAdjustPercent: -15 }), expect.any(AbortSignal)));
     expect(context.saveNamedCatalog).not.toHaveBeenCalled();
+  });
+  it('places the new catalog action below the list on mobile and opens a full screen editor with back', async () => {
+    const media = window.matchMedia('(max-width:760px)');
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ ...media, media: query, matches: query.includes('760') }));
+    renderList();
+    const add = screen.getByRole('button', { name: 'Nuevo catálogo' });
+    await waitFor(() => expect(add).toBeEnabled());
+    expect(add).toHaveClass('cat-new-mobile');
+    const list = screen.getByRole('article', { name: 'Revendedores' });
+    expect(list.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(add);
+    const sheet = screen.getByRole('dialog', { name: 'Nuevo catálogo' });
+    expect(within(sheet).getByRole('button', { name: 'Volver' })).toBeInTheDocument();
   });
   it('shows a load failure and does not replace it with an empty successful state', async () => {
     context.storeCatalogs = []; context.loadStoreCatalogs.mockRejectedValueOnce(new Error('No se pudieron cargar los catálogos'));

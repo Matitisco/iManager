@@ -90,7 +90,7 @@ export function CatalogEquipmentScreen({ catalogOverride, embedded = false }: { 
     rows.forEach(item => { if (allFilteredSelected) next.delete(item.id); else next.add(item.id); });
     return next;
   });
-  return <div className="dscreen catalog-screen" data-testid="catalog-screen" aria-busy={loading}>
+  return <div className="dscreen catalog-screen" data-testid={embedded ? 'catalog-equipment-screen' : 'catalog-screen'} aria-busy={loading}>
     {!embedded && <PageHead title="Catálogo" back={back} action={catalog && !phone ? <div className="cat-header-actions"><button className="cat-button" onClick={() => setRules(true)}><Settings2 size={16} />Reglas y precio</button><a className="cat-button dark" href={share} target="_blank" rel="noopener noreferrer"><MessageCircle size={16} />Compartir por WhatsApp</a></div> : undefined} />}
     {error ? <div className="ferr" role="alert">{error}</div> : null}
     {!embedded && !unavailable && !storePhone && <p className="cat-phone-warn" role="status">Cargá un WhatsApp válido para que tus clientes te escriban. <button type="button" onClick={() => open({ type: 'store', focus: 'phone' })}>Configuración de la tienda</button></p>}

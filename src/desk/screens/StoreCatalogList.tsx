@@ -5,6 +5,7 @@ import type { CatalogEdit, NamedCatalog, PublicCatalog } from '../../types/publi
 import { toActionMessage } from '../../lib/user-message';
 import { PriceList } from '../../catalog/PriceList';
 import { canSeeFinancials } from '../sections';
+import { usePhoneLayout } from '../section-notices';
 import { DeskSelect } from '../select';
 import { Actions, Dialog, PageHead, Sheet, useDesk } from '../ui';
 import { TablePager, usePagedRows } from '../pager';
@@ -29,6 +30,7 @@ export function catalogSummary(catalog: NamedCatalog, financials = true) {
 export function StoreCatalogList() {
   const { storeCatalogs, loadStoreCatalogs, saveNamedCatalog, appSession } = useAppContext();
   const { back, toast } = useDesk();
+  const phone = usePhoneLayout();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -50,12 +52,12 @@ export function StoreCatalogList() {
     finally { pending.current = false; setBusy(false); }
   };
   const copy = async (slug: string) => {
-    try { await navigator.clipboard.writeText(`${window.location.origin}/c/${slug}`); toast('Link copiado'); }
-    catch { setError('No se pudo copiar el link. Podés abrirlo y copiar la dirección.'); }
+    try { await navigator.clipboard.writeText(`${window.location.origin}/c/${slug}`); toast('Link copiado'); return true; }
+    catch { setError('No se pudo copiar el link. Podés abrirlo y copiar la dirección.'); return false; }
   };
   const current = storeCatalogs.find(row => row.id === editing) ?? null;
   return <div className="dscreen catalog-screen" data-testid="catalog-screen" aria-busy={loading}>
-    <PageHead title="Catálogos" back={back} action={<button className="cat-button dark" disabled={loading || busy || storeCatalogs.length >= 10} onClick={() => setEditing('new')}>Nuevo catálogo</button>} />
+    <PageHead title="Catálogos" back={back} action={!phone ? <button className="cat-button dark" disabled={loading || busy || storeCatalogs.length >= 10} onClick={() => setEditing('new')}>Nuevo catálogo</button> : undefined} />
     {error && <div className="ferr" role="alert">{error}</div>}
     {loading && !storeCatalogs.length ? <ListSkeleton variant="rows" rows={3} testId="catalog-loading" /> : <div className="cat-catalog-list">
       {storeCatalogs.map(catalog => <article className="cat-catalog-row" key={catalog.id} aria-label={catalog.name}>
@@ -65,12 +67,13 @@ export function StoreCatalogList() {
         <div className="cat-catalog-actions"><button className="cat-button" onClick={() => void copy(catalog.slug)}>Copiar link</button>{owner && <CatalogToggle label={`Catálogo activo: ${catalog.name}`} checked={catalog.active} disabled={busy} onChange={() => void toggle(catalog)} />}<button className="cat-edit" onClick={() => setEditing(catalog.id)}>Editar ›</button></div>
       </article>)}
     </div>}
+    {phone && <button className="cat-button dark cat-new-mobile" disabled={loading || busy || storeCatalogs.length >= 10} onClick={() => setEditing('new')}>Nuevo catálogo</button>}
     {storeCatalogs.length >= 10 && <p className="cat-empty">Llegaste al límite de 10 catálogos.</p>}
     {(editing === 'new' || current) && createPortal(<StoreCatalogEditor key={editing} catalog={current} copy={copy} onClose={() => setEditing(null)} />, document.querySelector('.desk-app') ?? document.body)}
   </div>;
 }
 
-function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog | null; copy: (slug: string) => Promise<void>; onClose: () => void }) {
+function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog | null; copy: (slug: string) => Promise<boolean>; onClose: () => void }) {
   const { regenerateNamedCatalog, saveNamedCatalog, deleteNamedCatalog, previewNamedCatalog, appSession } = useAppContext();
   const owner = appSession?.membership?.role === 'OWNER';
   const financials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -119,7 +122,7 @@ function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog 
     {!confirmDelete && !confirmRegenerate && error && <div className="ferr" role="alert">{error}</div>}
     <div className="cat-rule-box cat-catalog-fields">
       <label className="cat-rule-row"><b>Nombre</b><input aria-label="Nombre" maxLength={100} value={draft.name ?? ''} disabled={busy} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></label>
-      <div className="cat-rule-row"><b>Link</b>{catalog ? <><a className="cat-editor-link" href={`/c/${catalog.slug}`} target="_blank" rel="noreferrer">/c/{catalog.slug}</a><button className="cat-button dark" onClick={() => void copy(catalog.slug)}>Copiar</button></> : <small>Se crea al guardar.</small>}</div>
+      <div className="cat-rule-row"><b>Link</b>{catalog ? <><a className="cat-editor-link" href={`/c/${catalog.slug}`} target="_blank" rel="noreferrer">/c/{catalog.slug}</a><button className="cat-button dark" onClick={() => { void copy(catalog.slug).then(copied => { if (!copied) setError('No se pudo copiar el link. Podés abrirlo y copiar la dirección.'); }); }}>Copiar</button></> : <small>Se crea al guardar.</small>}</div>
     </div>
     <div className="cat-label">Qué equipos se muestran <span>{catalog?.counts.visible ?? 0} visibles</span></div>
     <div className="cat-rule-box">{rule('hideWithoutStock', 'Ocultar sin stock y vendidos')}{rule('hideReserved', 'Ocultar reservados')}
