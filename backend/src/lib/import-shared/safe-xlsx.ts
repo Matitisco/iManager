@@ -35,6 +35,41 @@ export function safeXlsxBytes(input: Uint8Array): Uint8Array {
   let mergedCells = 0;
   let merges = 0;
   let columns = 0;
+  let referencedCells = 0;
+  let metadataRanges = 0;
+  const checkRange = (value: string) => {
+    const parts = value.replace(/\$/g, '').split(':');
+    if (parts.length > 2 || ++metadataRanges > 10_000) reject();
+    const [top, left] = address(parts[0]);
+    const [bottom, right] = address(parts[1] ?? parts[0]);
+    referencedCells += (Math.abs(bottom - top) + 1) * (Math.abs(right - left) + 1);
+    if (referencedCells > 200_000) reject();
+  };
+  const checkDefinedName = (name: string, text: string) => {
+    // Print metadata is handled as ranges by ExcelJS without creating cells.
+    if (name === '_xlnm.Print_Area' || name === '_xlnm.Print_Titles') return;
+    if (['__proto__', 'constructor', 'prototype'].includes(name)) reject();
+    const ranges: string[] = [];
+    let quoted = false, start = 0;
+    for (let index = 0; index <= text.length; index++) {
+      if (text[index] === "'") quoted = !quoted;
+      if (index === text.length || (text[index] === ',' && !quoted)) {
+        ranges.push(text.slice(start, index)); start = index + 1;
+      }
+    }
+    for (const range of ranges) {
+      const bang = range.lastIndexOf('!');
+      const reference = range.slice(bang + 1);
+      // ExcelJS only materializes defined names containing absolute references.
+      if (!/[$](\w+)[$](\d+)/.test(reference)) continue;
+      if (bang >= 0) {
+        const sheet = range.slice(0, bang);
+        if (!/^(?:'(?:[^']|'')*'|[^'^ !]*)$/.test(sheet)) reject();
+        if (['__proto__', 'constructor', 'prototype'].includes(sheet.replace(/^'|'$/g, '').replace(/''/g, "'"))) reject();
+      }
+      checkRange(reference);
+    }
+  };
   const names = new Set<string>();
   const files: Record<string, Uint8Array> = Object.create(null) as Record<string, Uint8Array>;
   try {
@@ -47,14 +82,24 @@ export function safeXlsxBytes(input: Uint8Array): Uint8Array {
       const chunks: Uint8Array[] = [];
       let size = 0;
       let depth = 0;
-      const xml = file.name.endsWith('.xml') || file.name.endsWith('.rels');
-      const worksheet = file.name.startsWith('xl/worksheets/') && xml;
+      let definedName: { name: string; text: string } | null = null;
+      // ExcelJS uses unanchored filename matches, including .xml suffix aliases.
+      // Apply the same worksheet checks even to prefixed/suffixed entry names.
+      const worksheet = /xl\/worksheets\/sheet\d+[.]xml/.test(file.name);
+      const xml = worksheet || file.name.includes('.xml') || file.name.includes('.rels') || file.name.includes('.vml');
       const decoder = new TextDecoder('utf-8', { fatal: true });
       const parser = xml ? new SaxesParser() : null;
       parser?.on('doctype', reject);
       parser?.on('opentag', tag => {
         if (++nodes > 2_000_000 || ++depth > 64) reject();
+        if (file.name === 'xl/workbook.xml' && tag.name === 'definedName') {
+          definedName = { name: String(tag.attributes.name), text: '' };
+        }
         if (!worksheet) return;
+        if (tag.name === 'dataValidation') {
+          const refs = String(tag.attributes.sqref).trim().split(/\s+/);
+          for (const ref of refs) checkRange(ref);
+        }
         if (tag.name === 'row') {
           const row = Number(tag.attributes.r);
           if (!Number.isInteger(row) || row < 1 || row > 1048576) reject();
@@ -74,7 +119,21 @@ export function safeXlsxBytes(input: Uint8Array): Uint8Array {
           if (bottom < top || right < left || ++merges > 2000 || mergedCells > 200_000) reject();
         }
       });
-      parser?.on('closetag', () => { depth--; });
+      const collectName = (text: string) => {
+        if (definedName) {
+          definedName.text += text;
+          if (definedName.text.length > 16384) reject();
+        }
+      };
+      parser?.on('text', collectName);
+      parser?.on('cdata', collectName);
+      parser?.on('closetag', tag => {
+        if (tag.name === 'definedName' && definedName) {
+          checkDefinedName(definedName.name, definedName.text);
+          definedName = null;
+        }
+        depth--;
+      });
       file.ondata = (error, chunk, final) => {
         if (error) reject();
         size += chunk.byteLength;

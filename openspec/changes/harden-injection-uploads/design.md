@@ -1,5 +1,5 @@
 ## Approach
-Inspeccionar el ZIP con descompresión incremental acotada antes de ExcelJS, contando bytes reales, entradas y complejidad de XML/merges. No confiar solo en tamaños declarados. Leer únicamente celdas presentes y materializar la grilla después de comprobar dimensiones con datos. Mantener padding vacío, fórmulas como texto y valores legítimos.
+Inspeccionar el ZIP con descompresión incremental acotada antes de ExcelJS, contando bytes reales, entradas y complejidad de XML/merges/rangos nombrados/validaciones. Bloquear nombres reservados que ExcelJS usa como claves de matrices para impedir contaminación de prototipos; considerar los alias de rutas que reconoce la dependencia. No confiar solo en tamaños declarados. Leer únicamente celdas presentes y materializar la grilla después de comprobar dimensiones con datos. Mantener padding vacío, fórmulas como texto y valores legítimos.
 
 ## Validation
 Casos sintéticos de expansión, merges, padding y CSV; pruebas HTTP en DB descartable exclusiva; TypeScript y suites relacionadas con hasta dos workers. Sin builds, servicios remotos de negocio ni suite completa.

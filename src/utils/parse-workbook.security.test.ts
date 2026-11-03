@@ -41,3 +41,14 @@ it('rejects CSV data outside grid limits while ignoring empty trailing padding',
   const parsed = await parseWorkbook(new File([`Modelo${','.repeat(100_000)}\n${'\n'.repeat(10_000)}`], 'stock.csv'));
   expect(parsed.getSheet('Hoja 1')).toEqual([['Modelo']]);
 });
+
+it('preserves cached formula results, named ranges and ordinary data validation', async () => {
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('Stock');
+  sheet.addRow(['Modelo', 'Precio', 'Costo']);
+  sheet.addRow(['iPhone sintético', { formula: 'PrecioBase+40', result: 100 }, 60]);
+  book.definedNames.add('Stock!$C$2', 'PrecioBase');
+  sheet.getCell('B2').dataValidation = { type: 'decimal', operator: 'greaterThan', formulae: [0] };
+  const parsed = await parseWorkbook(new File([await book.xlsx.writeBuffer()], 'stock.xlsx'));
+  expect(parsed.getSheet('Stock')[1]).toEqual(['iPhone sintético', '100', '60']);
+});

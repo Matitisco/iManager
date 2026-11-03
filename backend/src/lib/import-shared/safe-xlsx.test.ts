@@ -24,6 +24,31 @@ describe('bounded XLSX preflight', () => {
     expect(() => safeXlsxBytes(xml(body))).toThrow('límites');
   });
 
+  it.each(['other/xl/worksheets/sheet1.xml', 'xl/worksheets/sheet1.xml.backup'])('checks the same worksheet filename aliases ExcelJS recognizes: %s', name => {
+    const input = zipSync({ ...content, [name]: strToU8('<worksheet><mergeCell ref="A1:XFD1048576"/></worksheet>') });
+    expect(() => safeXlsxBytes(input)).toThrow('límites');
+  });
+
+  it.each([
+    '<dataValidation sqref="A1:XFD1048576"/>',
+    '<dataValidation sqref="A1:ZZZ1"/>',
+  ])('bounds validation ranges before ExcelJS expands them: %s', body => {
+    expect(() => safeXlsxBytes(xml(body))).toThrow('límites');
+  });
+
+  it.each([
+    'Stock!$A$1:$XFD$1048576',
+    "'__proto__'!$A$1",
+  ])('bounds named ranges before ExcelJS creates cell matrices: %s', range => {
+    const input = zipSync({ ...content, 'xl/workbook.xml': strToU8(`<workbook><definedNames><definedName name="StockRange">${range}</definedName></definedNames></workbook>`) });
+    expect(() => safeXlsxBytes(input)).toThrow('límites');
+  });
+
+  it('keeps ordinary named ranges and print metadata', () => {
+    const input = zipSync({ ...content, 'xl/workbook.xml': strToU8(`<workbook><definedNames><definedName name="StockRange">'Stock, usada'!$A$1:$B$10,Stock!$A$20</definedName><definedName name="_xlnm.Print_Area">Stock!$A$1:$XFD$1048576</definedName></definedNames></workbook>`) });
+    expect(unzipSync(safeXlsxBytes(input))).toEqual(unzipSync(input));
+  });
+
   it.each(['../outside', '/absolute', 'xl/../outside', 'xl\\outside', '__proto__/../bad'])('rejects ambiguous entry paths: %s', name => {
     expect(() => safeXlsxBytes(zipSync({ ...content, [name]: strToU8('test') }))).toThrow('límites');
   });

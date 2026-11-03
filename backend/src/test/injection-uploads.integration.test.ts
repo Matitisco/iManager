@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { unzipSync, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { prisma } from '../plugins/prisma.js';
 import { buildAuthHeaders, seedStoreContext } from './db.js';
@@ -35,6 +35,18 @@ describe('injection and uploads security over real PostgreSQL', () => {
     expect(response.statusCode).toBe(400);
     expect(await prisma.inventoryItem.count()).toBe(0);
     expect(await prisma.auditEvent.count()).toBe(0);
+  });
+
+  it('rejects named ranges that would pollute Object.prototype', async () => {
+    await seedStoreContext({ firebaseUid: 'qa-sec-1', email });
+    const entries = unzipSync(await workbook());
+    const xml = strFromU8(entries['xl/workbook.xml']).replace('</workbook>', `<definedNames><definedName name="QaRange">'__proto__'!$A$123456</definedName></definedNames></workbook>`);
+    try {
+      const response = await postFile({ 'xl/workbook.xml': strToU8(xml) });
+      expect(Object.hasOwn(Object.prototype, '123456')).toBe(false);
+      expect(response.statusCode).toBe(400);
+      expect(await prisma.inventoryItem.count()).toBe(0);
+    } finally { Reflect.deleteProperty(Object.prototype, '123456'); }
   });
 
   it('preserves a normal XLSX dry-run and rolls it back', async () => {
