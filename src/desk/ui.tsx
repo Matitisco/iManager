@@ -25,10 +25,10 @@ export function useDesk() {
   return value;
 }
 
-export function Pill({ status, kind }: { status: string; kind?: CatalogKind }) {
+export function Pill({ status, kind, label: explicitLabel }: { status: string; kind?: CatalogKind; label?: string }) {
   const catalogs = useCatalogs();
   const row = kind && !isVoidRow({ status }) ? catalogs?.options.find((option) => option.kind === kind && option.value === status) : undefined;
-  const label = row?.label ?? statusLabel(status);
+  const label = explicitLabel ?? row?.label ?? statusLabel(status);
   const icon = statusIcon(status) ?? statusIcon(label);
   return (
     <span className="spill cst" style={{ ['--pc' as string]: kind === 'INVENTORY_STATUS' && status === 'RESERVADO' ? 'var(--secondary)' : row?.color || statusColor(status) }}>

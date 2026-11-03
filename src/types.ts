@@ -55,6 +55,7 @@ export interface Sale {
   cantidad?: number;
   stockDeducted?: boolean;
   depositAppliedAmount?: number;
+  hasInitialDeposit?: boolean;
   sellerMemberId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: number | null;

@@ -74,6 +74,22 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
 
   afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
+  it('etiqueta Seña en la lista conservando el filtro Pendiente', async () => {
+    context.sales = [sale(1, { hasInitialDeposit: true }), sale(2)];
+    renderScreen();
+    const row = screen.getByText('Cliente 1').closest(width === 390 ? '.sale-card' : 'tr')!;
+    expect(within(row as HTMLElement).getByText('Seña', { exact: true })).toBeVisible();
+    if (width === 390) {
+      await userEvent.click(within(screen.getByTestId('sales-status')).getByRole('button', { name: 'Estado' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pendiente' }));
+    } else {
+      await userEvent.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Pendiente' }));
+    }
+    expect(screen.getByText('Cliente 1')).toBeVisible();
+    expect(screen.queryByText('Cliente 2')).not.toBeInTheDocument();
+  });
+
   it('conserva los centavos USD en precio unitario y total de cada venta', () => {
     const amounts = [25.8, 1.5, 1.6, 100];
     context.sales = amounts.map((amount, index) => sale(index + 1, { amount, amountCurrency: 'USD', status: 'COMPLETADA' }));
