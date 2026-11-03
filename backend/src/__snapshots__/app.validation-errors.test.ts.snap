@@ -200,11 +200,11 @@ exports[`validation errors > preserves the 400 contract: strict query 1`] = `
 
 exports[`validation errors > preserves the 400 contract: too many repair tags 1`] = `
 {
-  "error": "La falla puede tener hasta 8 elementos",
+  "error": "La falla puede tener hasta 12 elementos",
   "fields": {
-    "faultTags": "La falla puede tener hasta 8 elementos",
+    "faultTags": "La falla puede tener hasta 12 elementos",
   },
-  "message": "La falla puede tener hasta 8 elementos",
+  "message": "La falla puede tener hasta 12 elementos",
   "statusCode": 400,
 }
 `;

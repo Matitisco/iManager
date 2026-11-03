@@ -206,7 +206,7 @@ describe("validation errors", () => {
     ["empty commission patch", "PATCH", "/api/commissions/rules/rule-1", {}],
     ["strict commission patch", "PATCH", "/api/commissions/rules/rule-1", { unexpected: true }],
     ["nested repair tags", "POST", "/api/repairs", { device: "iPhone", faultTags: [""] }],
-    ["too many repair tags", "POST", "/api/repairs", { device: "iPhone", faultTags: Array(9).fill("Falla") }],
+    ["too many repair tags", "POST", "/api/repairs", { device: "iPhone", faultTags: Array(13).fill("Falla") }],
     ["repair refinement", "POST", "/api/repairs", { device: "iPhone" }],
     ["strict catalog", "PATCH", "/api/catalog", { unexpected: true }],
   ] as const)("preserves the 400 contract: %s", async (_name, method, url, payload) => {
@@ -235,8 +235,8 @@ describe("validation errors", () => {
   it("rejects oversized invalid collections before visiting elements (Zod 4 security cap)", async () => {
     const app = buildApp();
     try {
-      const response = await app.inject({ method: "POST", url: "/api/repairs", payload: { device: "iPhone", faultTags: Array(9).fill("") } });
-      const message = "La falla puede tener hasta 8 elementos";
+      const response = await app.inject({ method: "POST", url: "/api/repairs", payload: { device: "iPhone", faultTags: Array(13).fill("") } });
+      const message = "La falla puede tener hasta 12 elementos";
       expect(response.statusCode).toBe(400);
       // Zod 3 also listed faultTags.0..8 errors. Zod 4 deliberately avoids
       // traversing oversized input; restoring that traversal defeats its fix.
