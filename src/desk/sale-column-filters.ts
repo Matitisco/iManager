@@ -18,8 +18,8 @@ export type SaleColumnFilters = {
 /** Ventas sin vendedor asignado. */
 export const UNASSIGNED_SELLER = 'none';
 
-export function saleSellerKey(sale: Pick<Sale, 'sellerMemberId'>) {
-  return sale.sellerMemberId || UNASSIGNED_SELLER;
+export function saleSellerKey(sale: Pick<Sale, 'sellerMemberId' | 'resellerId'>) {
+  return sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId || UNASSIGNED_SELLER;
 }
 
 export const EMPTY_SALE_FILTERS: SaleColumnFilters = {

@@ -1,5 +1,7 @@
 import { SaleCostField } from '../SaleCostField';
 import { canSeeFinancials } from '../sections';
+import { CommissionAvatar } from '../CommissionAvatar';
+import { beneficiaryInput } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
 import { depositAmount, depositAvailable, initialDepositPreview } from '../deposits';
@@ -110,7 +112,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const newSale = !saleId && !tradeId && !currentSale && !currentTrade && !startWithTrade;
   const defaultSellerId = context.commissionSellers?.find(person => person.id === context.appSession?.membership?.id)?.id ?? '';
   const sellerInitialized = useRef(false);
-  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? (newSale ? defaultSellerId : ''));
+  const [sellerMemberId, setSellerMemberId] = useState((currentSale?.resellerId ? `reseller:${currentSale.resellerId}` : currentSale?.sellerMemberId) ?? (currentTrade?.draftResellerId ? `reseller:${currentTrade.draftResellerId}` : currentTrade?.draftSellerMemberId) ?? (newSale ? defaultSellerId : ''));
   useEffect(() => {
     // The directory can arrive after opening; never replace a manual choice (including no seller).
     if (!newSale || sellerInitialized.current || dirty.current.has('sellerMemberId') || !defaultSellerId) return;
@@ -191,7 +193,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   useEffect(() => {
     const update = (key: string, action: () => void) => { if (!dirty.current.has(key)) action(); };
     if (currentSale) {
-      update('sellerMemberId', () => setSellerMemberId(currentSale.sellerMemberId ?? ''));
+      update('sellerMemberId', () => setSellerMemberId(currentSale.resellerId ? `reseller:${currentSale.resellerId}` : currentSale.sellerMemberId ?? ''));
       update('clientId', () => setClientId(currentSale.clientId || ''));
       update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
       update('cantidad', () => setCantidad(String(currentSale.cantidad ?? 1)));
@@ -203,7 +205,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     }
     if (currentTrade) {
       if (!currentSale) update('cantidad', () => setCantidad(String(currentTrade.draftCantidad ?? 1)));
-      if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftSellerMemberId ?? ''));
+      if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftResellerId ? `reseller:${currentTrade.draftResellerId}` : currentTrade.draftSellerMemberId ?? ''));
       update('hasTrade', () => setHasTrade(true));
       update('clientId', () => setClientId(currentTrade.clientId || ''));
       update('buyer', () => setBuyer(currentTrade.clientName?.trim() || clients.find((client) => client.id === currentTrade.clientId)?.name || ''));
@@ -329,7 +331,8 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     ...(!draft && takingDeposit ? { initialDeposit: { amount: parseMoney(initialDeposit), currency: depositCurrency } } : {}),
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     ...(!currentSale && !draft && creditNoteIds.length ? { creditNoteIds } : {}),
-    sellerMemberId: sellerMemberId || null,
+    sellerMemberId: beneficiaryInput(sellerMemberId).memberId,
+    resellerId: beneficiaryInput(sellerMemberId).resellerId ?? null,
     ...(!currentSale && (settlement.payload?.exchangeRate || money.rate) ? { exchangeRate: settlement.payload?.exchangeRate || money.rate || undefined } : {}),
     date: arFromIso(saleDate),
     clientId: clientId || null,
@@ -802,7 +805,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Cantidad</span><b>{sale.cantidad ?? 1}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
-      <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
+      <div className="kv"><span>Vendedor</span><b>{sale.resellerId ? <CommissionAvatar id={`reseller:${sale.resellerId}`} name={commissionSellers.find(person => person.resellerId === sale.resellerId)?.name ?? 'Revendedor'} role="RESELLER" /> : null}{commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId))?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}{sale.resellerId ? <small className="mut"> · Revendedor</small> : null}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       {typeof sale.customFields?.importReview === 'string' && <div className="sales-import-note"><span className="spill mid">Por revisar</span><p>{sale.customFields.importReview}</p></div>}
       {typeof sale.customFields?.notas === 'string' && sale.customFields.notas && <div className="kv"><span>Notas</span><b className="sales-import-note" data-ph-mask>{sale.customFields.notas}</b></div>}

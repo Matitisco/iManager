@@ -3,6 +3,7 @@ export type CommissionBasis = 'PROFIT_PERCENT' | 'SALE_PERCENT' | 'FIXED_PER_UNI
 export type CommissionTotals = Record<CommissionCurrency, number>;
 export interface CommissionRuleInput {
   memberId: string | null;
+  resellerId?: string | null;
   active?: boolean;
   basis?: CommissionBasis;
   rate: number;
@@ -19,7 +20,8 @@ export interface CommissionRule extends CommissionRuleInput {
   createdAt: string;
 }
 export interface CommissionPaymentInput {
-  memberId: string;
+  memberId: string | null;
+  resellerId?: string | null;
   period: string;
   amount: number;
   currency: CommissionCurrency;
@@ -66,10 +68,11 @@ export interface CommissionAdjustment {
   reason: CommissionSale['voidReason'];
 }
 export interface CommissionPerson {
-  memberId: string;
-  userId: string;
+  memberId: string | null;
+  resellerId?: string | null;
+  userId: string | null;
   name: string;
-  role: 'OWNER' | 'MANAGER' | 'STAFF';
+  role: 'OWNER' | 'MANAGER' | 'STAFF' | 'RESELLER';
   salesCount: number;
   previousBalance: CommissionTotals;
   earned: CommissionTotals;
@@ -99,7 +102,15 @@ export interface CommissionDetail {
 export interface CommissionReport {
   from: string;
   to: string;
-  rows: Array<Pick<CommissionPerson, 'memberId' | 'name' | 'salesCount' | 'earned' | 'paid' | 'pending' | 'adjustmentsTotal' | 'converted'> & { period: string }>;
+  rows: Array<Pick<CommissionPerson, 'memberId' | 'resellerId' | 'role' | 'name' | 'salesCount' | 'earned' | 'paid' | 'pending' | 'adjustmentsTotal' | 'converted'> & { period: string }>;
 }
 
-export interface CommissionSeller { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' }
+export interface CommissionSeller { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' | 'RESELLER'; resellerId?: string; archivedAt?: string | null }
+
+/** Stable UI identity only; persistence always sends real, separate foreign keys. */
+export function beneficiaryKey(person: { memberId?: string | null; resellerId?: string | null }) {
+  return person.resellerId ? `reseller:${person.resellerId}` : person.memberId ?? '';
+}
+export function beneficiaryInput(key: string | null) {
+  return key?.startsWith('reseller:') ? { memberId: null, resellerId: key.slice(9) } : { memberId: key || null };
+}

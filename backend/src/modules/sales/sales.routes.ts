@@ -37,6 +37,7 @@ const operationTradeInSchema = z.object({
 const saleCreateSchema = z.object({
   requestKey: z.string().trim().min(1).max(120).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
   exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
@@ -58,6 +59,7 @@ const saleCreateSchema = z.object({
 const salePatchSchema = z
   .object({
     sellerMemberId: z.string().min(1).nullable().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
     exchangeRate: moneyInput({ positive: true }).optional(),
     clientId: z.string().trim().max(50).nullable().optional(),
     clientName: z.string().trim().max(120).nullable().optional(),
@@ -107,6 +109,7 @@ export async function salesRoutes(app: FastifyInstance) {
         _rateDate: z.string().optional(),
         notes: z.string().optional(),
         sellerMemberId: z.string().min(1).nullable().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
         exchangeRate: z.number().finite().positive().optional(),
         date:          z.string().trim().optional(),
         clientName:    z.string().trim().optional(),

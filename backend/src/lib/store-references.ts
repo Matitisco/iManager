@@ -4,6 +4,11 @@ import { DomainError } from './domain-error.js';
 /** Actual FKs plus soft references intentionally retained after parent deletion.
  * Keep this manifest aligned with schema.prisma and the migration audit. */
 export const STORE_REFERENCES = [
+  {"table": "Sale", "field": "resellerId", "parent": "StoreReseller", "historical": false},
+  {"table": "CommissionRule", "field": "resellerId", "parent": "StoreReseller", "historical": false},
+  {"table": "CommissionPayment", "field": "resellerId", "parent": "StoreReseller", "historical": false},
+  {"table": "CommissionAccrual", "field": "resellerId", "parent": "StoreReseller", "historical": false},
+  {"table": "TradeIn", "field": "draftResellerId", "parent": "StoreReseller", "historical": true},
   {"table": "Client", "field": "categoryId", "parent": "ClientCategory", "historical": false},
   {"table": "InventoryItem", "field": "supplierId", "parent": "Supplier", "historical": false},
   {"table": "InventoryItem", "field": "stockPurchaseId", "parent": "StockPurchase", "historical": false},

@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Check, ChevronDown, X } from 'lucide-react';
@@ -10,12 +10,14 @@ export interface SelectOption {
   label: string;
   disabled?: boolean;
   icon?: ReactNode;
+  group?: string;
   className?: string;
 }
 
 interface Props {
   className?: string;
   triggerClassName?: string;
+  popupClassName?: string;
   displayValue?: ReactNode;
   id?: string;
   label: string;
@@ -36,7 +38,7 @@ interface Props {
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 
 /** Controlled single select. The native control only handles form data/validation. */
-export function DeskSelect({ className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId, maskValues = false }: Props) {
+export function DeskSelect({ popupClassName, className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId, maskValues = false }: Props) {
   const autoId = useId();
   const id = suppliedId ?? autoId;
   const listId = `${id}-list`;
@@ -208,16 +210,16 @@ export function DeskSelect({ className, triggerClassName, displayValue, id: supp
               close();
             }}
             onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && phone) { event.preventDefault(); close(); } }}>
-            <motion.div ref={popup} id={`${id}-popup`} className={`ds-select-popup${phone ? ' phone' : ''}`} style={phone ? undefined : position}
+            <motion.div ref={popup} id={`${id}-popup`} className={`ds-select-popup${phone ? ' phone' : ''}${popupClassName ? ` ${popupClassName}` : ''}`} style={phone ? undefined : position}
               role={phone ? 'dialog' : undefined} aria-modal={phone ? true : undefined} aria-label={phone ? sheetTitle : undefined}
               initial={{ opacity: 0, y: reducedMotion ? 0 : phone ? 18 : 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : .16 }} onKeyDown={phone ? keys : undefined}>
               {phone && <><div className="ds-select-grab" aria-hidden="true" /><div className="ds-select-heading"><h3>{sheetTitle}</h3><button ref={closeButton} type="button" aria-label="Cerrar selector" onClick={() => close()}><X size={20} /></button></div></>}
               <div ref={list} id={listId} role="listbox" aria-label={label} tabIndex={phone ? 0 : -1} aria-activedescendant={phone ? activeId : undefined} className="ds-select-list">
-                {options.map((option, index) => <div key={option.value} id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
+                {options.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== options[index - 1]?.group ? <div className="ds-select-group" role="presentation">{option.group}</div> : null}<div id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
                   className={`ds-select-option${option.value === value ? ' selected' : ''}${index === activeIndex ? ' active' : ''}${option.className ? ` ${option.className}` : ''}`}
                   onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}>
                   <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.icon && <span className="ds-select-option-icon" aria-hidden="true">{option.icon}</span>}{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
-                </div>)}
+                </div></Fragment>)}
               </div>
             </motion.div>
           </div>

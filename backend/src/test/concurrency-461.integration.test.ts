@@ -420,7 +420,7 @@ describe('batched commissions #461', () => {
     const expected = [];
     for (const period of ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05']) {
       const data = await getCommissionPeriod(f.storeId, period);
-      expected.push(...data.people.map(({ memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted }) => ({ period, memberId, name, salesCount, earned, paid, pending, adjustmentsTotal, converted })));
+      expected.push(...data.people.map(({ memberId, resellerId, role, name, salesCount, earned, paid, pending, adjustmentsTotal, converted }) => ({ period, memberId, resellerId, role, name, salesCount, earned, paid, pending, adjustmentsTotal, converted })));
     }
     expect(report.rows).toEqual(expected);
   });

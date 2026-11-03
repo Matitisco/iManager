@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../types/commissions';
 import type { CommissionRule, CommissionTotals } from '../types/commissions';
 export const EMPTY_TOTALS: CommissionTotals = { ARS: 0, USD: 0 };
 export const commissionAmount = (amount: number, currency: 'ARS' | 'USD') => `${amount < 0 ? '−' : ''}${currency === 'USD' ? 'US$' : '$'} ${Math.abs(amount).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`;
@@ -17,7 +18,7 @@ export function ruleLabel(rule?: Pick<CommissionRule, 'basis' | 'rate' | 'curren
 }
 export function effectiveRule(rules: CommissionRule[], memberId: string | null, period: string, timezone = 'America/Argentina/Buenos_Aires') {
   const eligible = rules.filter(rule => rule.active !== false && monthKey(new Date(rule.effectiveFrom), timezone) <= period).sort((a, b) => new Date(b.effectiveFrom).getTime() - new Date(a.effectiveFrom).getTime() || b.createdAt.localeCompare(a.createdAt));
-  return eligible.find(rule => rule.memberId === memberId) ?? eligible.find(rule => rule.memberId === null);
+  return eligible.find(rule => beneficiaryKey(rule) === (memberId ?? '')) ?? eligible.find(rule => !rule.memberId && !rule.resellerId);
 }
 
 export const saleCount = (count: number) => `${count} ${count === 1 ? "venta" : "ventas"}`;
