@@ -10,6 +10,7 @@ export type DeskTab =
   | 'accessories'
   | 'publicCatalog'
   | 'sales'
+  | 'consignments'
   | 'tradeins'
   | 'clients'
   | 'service'
@@ -40,15 +41,32 @@ export type Overlay =
   | { type: 'new-eq'; supplierId?: string; kind?: 'DEVICE' | 'ACCESSORY' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
-  | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string; resumeAmount?: string }
+  | {
+      type: 'new-sale';
+      clientName?: string;
+      clientId?: string;
+      productId?: string;
+      source?: 'inventory' | 'sales' | 'tradeins' | 'clients';
+      tradeInId?: string;
+      resumeAmount?: string;
+    }
   | { type: 'scan-review'; draft: ScanDraft; resume?: SaleResume }
   | { type: 'batch-eq' }
   | { type: 'sale'; id: string }
   | { type: 'edit-sale'; id: string }
   | { type: 'restore-sale'; id: string; label: string }
   | { type: 'new-cj' }
-  | { type: 'cj'; id: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; kind?: string }
-  | { type: 'edit-cj'; id: string; source?: 'sales' | 'tradeins' | 'inventory' | 'clients' }
+  | {
+      type: 'cj';
+      id: string;
+      source?: 'inventory' | 'sales' | 'tradeins' | 'clients';
+      kind?: string;
+    }
+  | {
+      type: 'edit-cj';
+      id: string;
+      source?: 'sales' | 'tradeins' | 'inventory' | 'clients';
+    }
   | { type: 'new-ot' }
   | { type: 'ot'; id: string }
   | { type: 'edit-ot'; id: string }
@@ -58,9 +76,25 @@ export type Overlay =
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
   | { type: 'permanent-delete'; kind: PermanentDeleteKind; id: string }
-  | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string }
-  | ({ type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string; onSelect?: () => void } & MenuAnchor)
-  | { type: 'import'; kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }
+  | {
+      type: 'del';
+      kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return';
+      id: string;
+      label: string;
+    }
+  | ({
+      type: 'ctx';
+      kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return';
+      id: string;
+      label: string;
+      onSelect?: () => void;
+    } & MenuAnchor)
+  | {
+      type: 'import';
+      kind: 'inv' | 'sale' | 'cl';
+      supplierId?: string;
+      supplierName?: string;
+    }
   | { type: 'supplier'; id: string }
   | { type: 'new-supplier' }
   | { type: 'edit-supplier'; id: string }

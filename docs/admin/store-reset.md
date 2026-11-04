@@ -34,23 +34,26 @@ Respuesta **200**:
 ```ts
 {
   dryRun: boolean;
-  store: { id: string; name: string };
+  store: {
+    id: string;
+    name: string;
+  }
   willDelete: Record<string, number>;
   willKeep: Record<string, number>;
 }
 ```
 
-Sin `scope`, `willDelete` tiene exactamente estas 20 claves, con conteos enteros >= 0 (filas, no unidades de stock):
+Sin `scope`, `willDelete` tiene exactamente estas 23 claves, con conteos enteros >= 0 (filas, no unidades de stock):
 
 ```text
 NotificationRead, SectionRecordView, StockCountScan, StockCountExpected,
 StockCount, CreditNoteApplication, CreditNote, ReturnEvent, ReturnCase,
 SaleInstallment, SaleInstallmentPlan, SaleTender, ClientDeposit,
-ClientPayment, CommissionAccrual, CashMovement, Sale, TradeIn,
-InventoryItem, StoreNotification
+ClientPayment, CommissionAccrual, CashMovement, Consignment, Sale, TradeIn,
+CatalogItemPrice, CatalogItemHidden, InventoryItem, StoreNotification
 ```
 
-Con `scope: "full"` son **23 claves**: las 20 anteriores más `RepairStatusEvent`, `RepairOrder` y `Client`. Las tablas operativas se borran completas para esa tienda; `CashMovement`, notificaciones, lecturas y vistas solo incluyen las filas del alcance detallado abajo.
+Con `scope: "full"` son **26 claves**: las 23 anteriores más `RepairStatusEvent`, `RepairOrder` y `Client`. Las tablas operativas se borran completas para esa tienda; `CashMovement`, notificaciones, lecturas y vistas solo incluyen las filas del alcance detallado abajo.
 
 Los modelos compartidos solo cuentan filas seleccionadas. `willKeep` incluye los conteos conservados de todos los modelos clasificados, también las filas independientes de las tablas parcialmente borrables. Son conteos previos al nuevo evento de auditoría.
 
@@ -61,10 +64,14 @@ Preview ejecuta las mismas mutaciones, ajustes, verificaciones y auditoría de a
 Repetir los campos del preview, incluido `scope` si se usó, con `dryRun: false` y agregar **`expect` igual al objeto `willDelete` completo recibido**. En JavaScript:
 
 ```js
-const applyBody = { ...previewBody, dryRun: false, expect: previewResponse.willDelete };
+const applyBody = {
+  ...previewBody,
+  dryRun: false,
+  expect: previewResponse.willDelete,
+};
 ```
 
-`expect` debe incluir las 20 claves del modo actual o las 23 de full, incluso las que tienen valor 0, particularmente `Sale` e `InventoryItem`. Si falta el objeto, falta/sobra una clave o cambia cualquier conteo recalculado, devuelve **409 sin cambios** y hay que repetir el preview. No se pueden usar conteos del modo actual para confirmar full ni viceversa. El body es estricto: no acepta claves adicionales, `storeId`, `confirm`, otros valores de `scope` ni strings como conteos; formatos inválidos devuelven 400. `expect` es opcional en preview y solo se verifica al aplicar.
+`expect` debe incluir las 23 claves del modo actual o las 26 de full, incluso las que tienen valor 0, particularmente `Sale` e `InventoryItem`. Si falta el objeto, falta/sobra una clave o cambia cualquier conteo recalculado, devuelve **409 sin cambios** y hay que repetir el preview. No se pueden usar conteos del modo actual para confirmar full ni viceversa. El body es estricto: no acepta claves adicionales, `storeId`, `confirm`, otros valores de `scope` ni strings como conteos; formatos inválidos devuelven 400. `expect` es opcional en preview y solo se verifica al aplicar.
 
 La respuesta de apply tiene el mismo contrato con `dryRun: false`. Auth ausente/inválida devuelve 401; no-admin/email no verificado, 403. Conflictos Serializable o fallas de guards/postcondiciones devuelven 409; fallas internas, 500. Toda falla revierte la operación completa. No se ejecuta automáticamente un reintento de apply.
 

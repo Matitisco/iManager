@@ -1,3 +1,4 @@
+import { ConsignmentsScreen } from './screens/ConsignmentsScreen';
 import { AccessoriesScreen } from './screens/AccessoriesScreen';
 import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
 import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
@@ -21,7 +22,11 @@ import { InventoryScreen } from './screens/InventoryScreen';
 import { SalesScreen } from './screens/SalesScreen';
 import { ClientsScreen } from './screens/ClientsScreen';
 import { TradeInsScreen } from './screens/TradeInsScreen';
-import { NotificationsScreen, SettingsScreen, useUnreadCounts } from './screens/AccountScreens';
+import {
+  NotificationsScreen,
+  SettingsScreen,
+  useUnreadCounts,
+} from './screens/AccountScreens';
 import { CommissionsScreen } from './screens/CommissionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { ServiceScreen } from './screens/ServiceScreen';
@@ -43,7 +48,11 @@ import { PatternsScreen } from './screens/PatternsScreen';
 import { ReturnsScreen } from './screens/ReturnsScreen';
 import { StockCountScreen } from './screens/StockCountScreen';
 import { SuppliersScreen } from './screens/SuppliersScreen';
-import { RoutePresentation, useMobileActionClearance, useRouteViewport } from './route-viewport';
+import {
+  RoutePresentation,
+  useMobileActionClearance,
+  useRouteViewport,
+} from './route-viewport';
 import { canonicalHash, ROUTE, tabFromHash, writeHash } from './hash-route';
 import type { DeskTab, Overlay } from './types';
 import { NavChrome } from './group-tabs';
@@ -63,77 +72,189 @@ import './desk.css';
 import { ROLE_LABEL } from '../lib/roles';
 import { InstallApp } from '../components/InstallApp';
 import { InstallCard } from '../components/InstallHelp';
-import { SidenavNavigation, SidenavGlyph, useNavigationHash } from './sidenav-navigation';
+import {
+  SidenavNavigation,
+  SidenavGlyph,
+  useNavigationHash,
+} from './sidenav-navigation';
 import type { ReactNode } from 'react';
 
-function MoreScreen({ name, store, role, navigation, onOpen }: {
-  name: string; store: string; role: string; navigation: ReactNode; onOpen: (id: DeskTab) => void;
+function MoreScreen({
+  name,
+  store,
+  role,
+  navigation,
+  onOpen,
+}: {
+  name: string;
+  store: string;
+  role: string;
+  navigation: ReactNode;
+  onOpen: (id: DeskTab) => void;
 }) {
   const { open } = useDesk();
   const { appSession } = useAppContext();
-  return <div className="dscreen mmore" data-testid="more-screen">
-    <div className="whead"><h1>Más</h1><ThemeToggle /></div>
-    <InstallCard />
-    <div className="mgroup">
-    <button className="mprofile" type="button" data-testid="more-profile" onClick={() => onOpen('settings')}>
-      <div className="av-c k">{initials(name)}</div>
-      <span className="info"><b>{name}</b><small>{store} · {role}</small></span>
-      <span className="chev" aria-hidden="true">›</span>
-    </button>
-    {canViewTeam(appSession?.membership?.role) ? <button className="mprofile" type="button" onClick={() => open({ type: 'invite' })}>
-      <div className="av-c k"><UserPlus size={20} /></div><span className="info"><b>Invitar al equipo</b></span><span className="chev" aria-hidden="true">›</span>
-    </button> : null}
+  return (
+    <div className="dscreen mmore" data-testid="more-screen">
+      <div className="whead">
+        <h1>Más</h1>
+        <ThemeToggle />
+      </div>
+      <InstallCard />
+      <div className="mgroup">
+        <button
+          className="mprofile"
+          type="button"
+          data-testid="more-profile"
+          onClick={() => onOpen('settings')}
+        >
+          <div className="av-c k">{initials(name)}</div>
+          <span className="info">
+            <b>{name}</b>
+            <small>
+              {store} · {role}
+            </small>
+          </span>
+          <span className="chev" aria-hidden="true">
+            ›
+          </span>
+        </button>
+        {canViewTeam(appSession?.membership?.role) ? (
+          <button
+            className="mprofile"
+            type="button"
+            onClick={() => open({ type: 'invite' })}
+          >
+            <div className="av-c k">
+              <UserPlus size={20} />
+            </div>
+            <span className="info">
+              <b>Invitar al equipo</b>
+            </span>
+            <span className="chev" aria-hidden="true">
+              ›
+            </span>
+          </button>
+        ) : null}
+      </div>
+      {navigation}
     </div>
-    {navigation}
-  </div>;
+  );
 }
 
 function FxBanner() {
   const warning = useMoney().warning;
   if (!warning) return null;
-  return <p className="fx-warn" data-testid="fx-warning" role="status">{warning}</p>;
+  return (
+    <p className="fx-warn" data-testid="fx-warning" role="status">
+      {warning}
+    </p>
+  );
 }
 
-export function DeskApp({ installEnabled = true }: { installEnabled?: boolean }) {
-  const { appSession, gettingStarted, tradeIns, user, repairOrders = [], commissionSummaries = {}, commissionDetails = {}, loadCommissions, backendStatus, sessionConfirmed } = useAppContext();
-  useEffect(() => { void prefetchMainRoutes(); }, []);
+export function DeskApp({
+  installEnabled = true,
+}: {
+  installEnabled?: boolean;
+}) {
+  const {
+    appSession,
+    gettingStarted,
+    tradeIns,
+    user,
+    repairOrders = [],
+    commissionSummaries = {},
+    commissionDetails = {},
+    loadCommissions,
+    backendStatus,
+    sessionConfirmed,
+  } = useAppContext();
+  useEffect(() => {
+    void prefetchMainRoutes();
+  }, []);
   const role = appSession?.membership?.role;
   const sections = appSession?.membership?.sections;
   const commissionAccess = canManageCommissions(sections, role);
-  const commissionPeriod = new Intl.DateTimeFormat('sv', { timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit' }).format(new Date());
+  const commissionPeriod = new Intl.DateTimeFormat('sv', {
+    timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date());
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
   const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
-  const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
+  const [tab, setTab] = useState<DeskTab>(() =>
+    tabFromHash(window.location.hash),
+  );
   const [followUpCount, setFollowUpCount] = useState(0);
   useEffect(() => {
-    if (sessionConfirmed === false || !user || backendStatus !== 'ready' || !loadCommissions || !appSession?.store || (tab !== 'more' && tab !== 'dashboard')) return;
+    if (
+      sessionConfirmed === false ||
+      !user ||
+      backendStatus !== 'ready' ||
+      !loadCommissions ||
+      !appSession?.store ||
+      (tab !== 'more' && tab !== 'dashboard')
+    )
+      return;
     let active = true;
-    void loadCommissions(commissionPeriod).catch((cause: unknown) => { if (active) console.warn('No se pudieron cargar las comisiones.', cause); });
-    return () => { active = false; };
-  }, [appSession?.store?.id, commissionAccess, commissionPeriod, tab, backendStatus, sessionConfirmed]);
-  const ownPending = commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
-  const pendingCommissions = commissionAccess ? (commissionSummaries[commissionPeriod]?.people.filter(person => person.pending.ARS > 0 || person.pending.USD > 0).length ?? 0) : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
+    void loadCommissions(commissionPeriod).catch((cause: unknown) => {
+      if (active) console.warn('No se pudieron cargar las comisiones.', cause);
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    appSession?.store?.id,
+    commissionAccess,
+    commissionPeriod,
+    tab,
+    backendStatus,
+    sessionConfirmed,
+  ]);
+  const ownPending =
+    commissionDetails[`mine:${commissionPeriod}`]?.person.pending;
+  const pendingCommissions = commissionAccess
+    ? (commissionSummaries[commissionPeriod]?.people.filter(
+        (person) => person.pending.ARS > 0 || person.pending.USD > 0,
+      ).length ?? 0)
+    : Number(Boolean(ownPending && (ownPending.ARS > 0 || ownPending.USD > 0)));
   useEffect(() => {
     if (!user || !sectionAllowed('followups', sections, role)) {
       setFollowUpCount(0);
       return;
     }
     let active = true;
-    void fetchFollowUps(user).then((data) => { if (active) setFollowUpCount(data.cards.length); }).catch(() => { if (active) setFollowUpCount(0); });
-    return () => { active = false; };
+    void fetchFollowUps(user)
+      .then((data) => {
+        if (active) setFollowUpCount(data.cards.length);
+      })
+      .catch(() => {
+        if (active) setFollowUpCount(0);
+      });
+    return () => {
+      active = false;
+    };
   }, [user, sections, role, appSession?.store?.id]);
 
   const [overlay, setOverlay] = useState<Overlay | null>(null);
-  const [pendingRecordOpen, setPendingRecordOpen] = useState<{ tab: DeskTab; overlay: Overlay } | null>(null);
+  const [pendingRecordOpen, setPendingRecordOpen] = useState<{
+    tab: DeskTab;
+    overlay: Overlay;
+  } | null>(null);
   const overlayScope = useRef('');
   const [message, setMessage] = useState('');
   const [toastOn, setToastOn] = useState(false);
   const unread = useUnreadCounts();
   const { sectionChanges = {} } = useAppContext();
-  const openTrades = tradeIns.filter((item) => isInProgressTrade(item.status)).length;
-  const openRepairs = repairOrders.filter((order) => order.status !== REPAIR_DELIVERED).length;
-  const name = appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
+  const openTrades = tradeIns.filter((item) =>
+    isInProgressTrade(item.status),
+  ).length;
+  const openRepairs = repairOrders.filter(
+    (order) => order.status !== REPAIR_DELIVERED,
+  ).length;
+  const name =
+    appSession?.user.displayName?.trim() || appSession?.user.email || 'Usuario';
   const operationScope = `${user?.uid ?? appSession?.user?.id ?? ''}:${appSession?.store?.id ?? ''}:${role ?? ''}:${JSON.stringify(sections)}`;
 
   const viewport = useRouteViewport(operationScope);
@@ -161,20 +282,23 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   useEffect(() => {
     const apply = (closeOverlay: boolean) => {
       const canonical = canonicalHash(window.location.hash);
-      if (canonical && canonical !== window.location.hash) history.replaceState(history.state, '', canonical);
+      if (canonical && canonical !== window.location.hash)
+        history.replaceState(history.state, '', canonical);
       viewport.syncRoute();
       setTab(tabFromHash(window.location.hash));
       if (closeOverlay) setOverlay(null);
     };
-    if (!window.location.hash) history.replaceState(history.state, '', '#/dashboard');
+    if (!window.location.hash)
+      history.replaceState(history.state, '', '#/dashboard');
     // Role arrives after the first paint. Read the hash again so a navigation
     // that landed before this listener was attached still opens that screen.
     apply(false);
-    const onHash = () => { apply(true); };
+    const onHash = () => {
+      apply(true);
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, [sections, role, operationScope]);
-
 
   useEffect(() => {
     if (phone || tab !== 'more') return;
@@ -187,12 +311,27 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
 
   useEffect(() => {
     const id = appSession?.store?.id;
-    if (!id || isStaff || sessionConfirmed === false || !hasStoreContactOffer(id)) return;
+    if (
+      !id ||
+      isStaff ||
+      sessionConfirmed === false ||
+      !hasStoreContactOffer(id)
+    )
+      return;
     let timer = 0;
-    const offer = () => { timer = window.setTimeout(() => setOverlay((current) => current ?? { type: 'contact' }), 150); };
-    if (document.getElementById(BOOT_SPLASH_ID)) window.addEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer, { once: true });
+    const offer = () => {
+      timer = window.setTimeout(
+        () => setOverlay((current) => current ?? { type: 'contact' }),
+        150,
+      );
+    };
+    if (document.getElementById(BOOT_SPLASH_ID))
+      window.addEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer, { once: true });
     else offer();
-    return () => { window.clearTimeout(timer); window.removeEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer); };
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(BOOT_SPLASH_HIDDEN_EVENT, offer);
+    };
   }, [appSession?.store?.id, isStaff, sessionConfirmed]);
 
   const go = (next: DeskTab) => {
@@ -217,16 +356,19 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     }
     let next: Overlay;
     if (target === 'inventory') {
-      next = kind === 'ARCHIVED_TRADE_IN_RECEIVED'
-        ? { type: 'cj', id: recordId, source: 'inventory', kind }
-        : { type: 'eq', id: recordId };
+      next =
+        kind === 'ARCHIVED_TRADE_IN_RECEIVED'
+          ? { type: 'cj', id: recordId, source: 'inventory', kind }
+          : { type: 'eq', id: recordId };
     } else if (target === 'sales') next = { type: 'sale', id: recordId };
-    else if (target === 'tradeins') next = { type: 'cj', id: recordId, source: 'tradeins' };
+    else if (target === 'tradeins')
+      next = { type: 'cj', id: recordId, source: 'tradeins' };
     else if (target === 'clients') next = { type: 'cl', id: recordId };
     else if (target === 'service') next = { type: 'ot', id: recordId };
     else if (target === 'suppliers') next = { type: 'supplier', id: recordId };
     else if (target === 'returns') next = { type: 'return', id: recordId };
-    else if (target === 'expenses') next = { type: 'edit-expense', id: recordId };
+    else if (target === 'expenses')
+      next = { type: 'edit-expense', id: recordId };
     else return;
     setPendingRecordOpen({ tab: target, overlay: next });
     go(target);
@@ -239,15 +381,32 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     go,
     openRecord,
     open: (next: Overlay) => {
-      const writing = /^(new-|edit-)/.test(next.type) || ['del', 'import', 'store', 'warranty', 'invite', 'onboarding-stock', 'new-deposit', 'repair-deposit'].includes(next.type);
+      const writing =
+        /^(new-|edit-)/.test(next.type) ||
+        [
+          'del',
+          'import',
+          'store',
+          'warranty',
+          'invite',
+          'onboarding-stock',
+          'new-deposit',
+          'repair-deposit',
+        ].includes(next.type);
       if (writing && appSession?.billing?.readOnly) {
-        setMessage('La tienda está en modo solo lectura. Revisá Plan y facturación.');
-        setToastOn(true); return;
+        setMessage(
+          'La tienda está en modo solo lectura. Revisá Plan y facturación.',
+        );
+        setToastOn(true);
+        return;
       }
       setOverlay(next);
     },
     close: () => setOverlay(null),
-    toast: (text: string) => { setMessage(text); setToastOn(true); },
+    toast: (text: string) => {
+      setMessage(text);
+      setToastOn(true);
+    },
     isStaff,
     canManageSensitive: memberCanManageSensitive(appSession?.membership),
     back: showBack ? () => viewport.backToMore(() => go('more')) : undefined,
@@ -256,7 +415,12 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const nav = desktopNav(sections, role);
   const pending: PendingInput = {
     ...EMPTY_PENDING,
-    unread: { inventory: sectionChanges.inventory?.length ?? 0, sales: sectionChanges.sales?.length ?? 0, tradeins: sectionChanges.tradeins?.length ?? 0, clients: sectionChanges.clients?.length ?? 0 },
+    unread: {
+      inventory: sectionChanges.inventory?.length ?? 0,
+      sales: sectionChanges.sales?.length ?? 0,
+      tradeins: sectionChanges.tradeins?.length ?? 0,
+      clients: sectionChanges.clients?.length ?? 0,
+    },
     openTrades,
     openRepairs,
     followUps: followUpCount,
@@ -267,126 +431,193 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const lastDestination = useRef(hash);
   if (tabFromHash(hash) !== 'more') lastDestination.current = hash;
   const activeHash = tab === 'more' ? lastDestination.current : hash;
-  const navigation = <SidenavNavigation nav={nav} pending={pending} activeHash={activeHash} mobile={phone} onOpen={(next, target) => target ? writeHash(target) : go(next)} />;
+  const navigation = (
+    <SidenavNavigation
+      nav={nav}
+      pending={pending}
+      activeHash={activeHash}
+      mobile={phone}
+      onOpen={(next, target) => (target ? writeHash(target) : go(next))}
+    />
+  );
   const moreActive = !barOwns(tab, slots);
 
   return (
     <CatalogProvider>
-    <ExchangeProvider settings={exchangeFromStore(appSession?.store)}>
-    <DeskProvider value={ui}>
-      <div className="desk-app">
-        {phone ? (
-          <header className="mhead" data-testid="mobile-header">
-            <div className="mstore">
-              <BrandIsotipo size={32} className="mstore-logo" />
-              <span className="mstore-copy">
-                <b className="mstore-word">iManager</b>
-                <small data-testid="mobile-store-name" title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
-              </span>
-            </div>
-            <BlueDollar variant="chip" />
-          </header>
-        ) : null}
-        {phone ? null : (
-        <aside className="side">
-          <div className="dbrand">
-            <BrandIsotipo size={38} className="dlogo" />
-            <div className="dbrand-copy">
-              <b>iManager</b>
-              <small title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
-            </div>
-          </div>
-          {navigation}
-          <BlueDollar variant="compact" />
-          <div className="duser-row">
-          <button className="duser" type="button" onClick={() => go('settings')}>
-            <div className="av-c k">{initials(name)}</div>
-            <div className="info"><b>{name}</b><small>{ROLE_LABEL[appSession?.membership?.role ?? 'STAFF']}</small></div>
-          </button>
-          <ThemeToggle />
-          </div>
-        </aside>
-        )}
-        <main ref={viewport.stageRef} className="stage">
-          <div className="stage-notices">
-          <InstallApp enabled={installEnabled && backendStatus === 'ready' && !!appSession?.store && !appSession.onboardingRequired && !overlay && !pendingRecordOpen && !toastOn} dashboard={tab === 'dashboard'} />
-          <FxBanner />
-          <BillingAccessBanner dashboard={tab === 'dashboard' && !appSession?.store?.onboardingStartedAt && !gettingStarted?.eligible} />
-          <SampleStockBanner />
-          </div>
-          <OfflineScope>
-          <NavChrome pending={pending} sidenav>
-          {/* Equipo and its member routes share loaded data; scroll still belongs to each entry. */}
-          <RoutePresentation.Provider key={tab === 'settings' ? `settings:${operationScope}` : viewport.entry.id} value={viewport.entry.values}>
-          <div>
-            {!allowed(tab) ? <NoSectionAccess section={accessLabel(tab)} ownerName={appSession?.store?.ownerDisplayName || 'el propietario'} onDashboard={() => go('dashboard')} /> : <>
-            {tab === 'help' && <HelpScreen />}
-            {tab === 'dashboard' && <DashboardScreen />}
-            {tab === 'inventory' && <InventoryScreen />}
-            {tab === 'accessories' && <AccessoriesScreen />}
-            {tab === 'stockCount' && <StockCountScreen />}
-            {tab === 'suppliers' && <SuppliersScreen />}
-            {tab === 'publicCatalog' && <PublicCatalogScreen />}
-            {tab === 'sales' && <SalesScreen />}
-            {tab === 'returns' && <ReturnsScreen />}
-            {tab === 'patterns' && <PatternsScreen />}
-            {tab === 'tradeins' && <TradeInsScreen />}
-            {tab === 'clients' && <ClientsScreen />}
-            {tab === 'followups' && <FollowUpsScreen />}
-            {tab === 'service' && <ServiceScreen />}
-            {tab === 'cash' && <CashScreen />}
-            {tab === 'expenses' && <ExpensesScreen />}
-            {tab === 'commissions' && <CommissionsScreen />}
-            {(tab === 'reports' || tab === 'periodicSummary') && <ReportsScreen />}
-            {tab === 'history' && <HistoryScreen />}
-            {tab === 'notifications' && <NotificationsScreen />}
-            {tab === 'billing' && <BillingScreen key={appSession?.store?.id} />}
-            {tab === 'settings' && <SettingsScreen />}
-            {tab === 'more' && (
-              <MoreScreen
-                name={name}
-                store={appSession?.store?.name || 'Tienda'}
-                role={ROLE_LABEL[role ?? 'STAFF']}
-                navigation={navigation}
-                onOpen={go}
-              />
+      <ExchangeProvider settings={exchangeFromStore(appSession?.store)}>
+        <DeskProvider value={ui}>
+          <div className="desk-app">
+            {phone ? (
+              <header className="mhead" data-testid="mobile-header">
+                <div className="mstore">
+                  <BrandIsotipo size={32} className="mstore-logo" />
+                  <span className="mstore-copy">
+                    <b className="mstore-word">iManager</b>
+                    <small
+                      data-testid="mobile-store-name"
+                      title={appSession?.store?.name || 'Tienda'}
+                    >
+                      {appSession?.store?.name || 'Tienda'}
+                    </small>
+                  </span>
+                </div>
+                <BlueDollar variant="chip" />
+              </header>
+            ) : null}
+            {phone ? null : (
+              <aside className="side">
+                <div className="dbrand">
+                  <BrandIsotipo size={38} className="dlogo" />
+                  <div className="dbrand-copy">
+                    <b>iManager</b>
+                    <small title={appSession?.store?.name || 'Tienda'}>
+                      {appSession?.store?.name || 'Tienda'}
+                    </small>
+                  </div>
+                </div>
+                {navigation}
+                <BlueDollar variant="compact" />
+                <div className="duser-row">
+                  <button
+                    className="duser"
+                    type="button"
+                    onClick={() => go('settings')}
+                  >
+                    <div className="av-c k">{initials(name)}</div>
+                    <div className="info">
+                      <b>{name}</b>
+                      <small>
+                        {ROLE_LABEL[appSession?.membership?.role ?? 'STAFF']}
+                      </small>
+                    </div>
+                  </button>
+                  <ThemeToggle />
+                </div>
+              </aside>
             )}
-            </>}
+            <main ref={viewport.stageRef} className="stage">
+              <div className="stage-notices">
+                <InstallApp
+                  enabled={
+                    installEnabled &&
+                    backendStatus === 'ready' &&
+                    !!appSession?.store &&
+                    !appSession.onboardingRequired &&
+                    !overlay &&
+                    !pendingRecordOpen &&
+                    !toastOn
+                  }
+                  dashboard={tab === 'dashboard'}
+                />
+                <FxBanner />
+                <BillingAccessBanner
+                  dashboard={
+                    tab === 'dashboard' &&
+                    !appSession?.store?.onboardingStartedAt &&
+                    !gettingStarted?.eligible
+                  }
+                />
+                <SampleStockBanner />
+              </div>
+              <OfflineScope>
+                <NavChrome pending={pending} sidenav>
+                  {/* Equipo and its member routes share loaded data; scroll still belongs to each entry. */}
+                  <RoutePresentation.Provider
+                    key={
+                      tab === 'settings'
+                        ? `settings:${operationScope}`
+                        : viewport.entry.id
+                    }
+                    value={viewport.entry.values}
+                  >
+                    <div>
+                      {!allowed(tab) ? (
+                        <NoSectionAccess
+                          section={accessLabel(tab)}
+                          ownerName={
+                            appSession?.store?.ownerDisplayName ||
+                            'el propietario'
+                          }
+                          onDashboard={() => go('dashboard')}
+                        />
+                      ) : (
+                        <>
+                          {tab === 'help' && <HelpScreen />}
+                          {tab === 'dashboard' && <DashboardScreen />}
+                          {tab === 'inventory' && <InventoryScreen />}
+                          {tab === 'accessories' && <AccessoriesScreen />}
+                          {tab === 'stockCount' && <StockCountScreen />}
+                          {tab === 'suppliers' && <SuppliersScreen />}
+                          {tab === 'publicCatalog' && <PublicCatalogScreen />}
+                          {tab === 'sales' && <SalesScreen />}
+                          {tab === 'consignments' && <ConsignmentsScreen />}
+                          {tab === 'returns' && <ReturnsScreen />}
+                          {tab === 'patterns' && <PatternsScreen />}
+                          {tab === 'tradeins' && <TradeInsScreen />}
+                          {tab === 'clients' && <ClientsScreen />}
+                          {tab === 'followups' && <FollowUpsScreen />}
+                          {tab === 'service' && <ServiceScreen />}
+                          {tab === 'cash' && <CashScreen />}
+                          {tab === 'expenses' && <ExpensesScreen />}
+                          {tab === 'commissions' && <CommissionsScreen />}
+                          {(tab === 'reports' || tab === 'periodicSummary') && (
+                            <ReportsScreen />
+                          )}
+                          {tab === 'history' && <HistoryScreen />}
+                          {tab === 'notifications' && <NotificationsScreen />}
+                          {tab === 'billing' && (
+                            <BillingScreen key={appSession?.store?.id} />
+                          )}
+                          {tab === 'settings' && <SettingsScreen />}
+                          {tab === 'more' && (
+                            <MoreScreen
+                              name={name}
+                              store={appSession?.store?.name || 'Tienda'}
+                              role={ROLE_LABEL[role ?? 'STAFF']}
+                              navigation={navigation}
+                              onOpen={go}
+                            />
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </RoutePresentation.Provider>
+                </NavChrome>
+              </OfflineScope>
+            </main>
+            {phone ? (
+              <MobileTabBar
+                buttons={[
+                  ...slots.map((slot) => ({
+                    id: slot.id,
+                    label: slot.label,
+                    active: slot.activeIds.includes(tab),
+                    pending: groupPending(slot.activeIds, pending),
+                    pendingDescription: pendingDescription(
+                      slot.activeIds,
+                      pending,
+                    ),
+                    testId: slot.testId,
+                    icon: <SidenavGlyph name={slot.icon} size={22} />,
+                    onClick: () => go(slot.target),
+                  })),
+                  {
+                    id: 'more',
+                    label: 'Más',
+                    active: moreActive,
+                    pending: 0,
+                    testId: 'sidebar-tab-more',
+                    icon: <ImanagerIcon name="mas" size={20} />,
+                    onClick: () => go('more'),
+                  },
+                ]}
+              />
+            ) : null}
+            <DeskToast message={message} show={toastOn} />
+            <DeskOverlays overlay={overlay} />
           </div>
-          </RoutePresentation.Provider>
-          </NavChrome>
-          </OfflineScope>
-        </main>
-        {phone ? (
-          <MobileTabBar
-            buttons={[
-              ...slots.map((slot) => ({
-                id: slot.id,
-                label: slot.label,
-                active: slot.activeIds.includes(tab),
-                pending: groupPending(slot.activeIds, pending),
-                pendingDescription: pendingDescription(slot.activeIds, pending),
-                testId: slot.testId,
-                icon: <SidenavGlyph name={slot.icon} size={22} />,
-                onClick: () => go(slot.target),
-              })),
-              {
-                id: 'more',
-                label: 'Más',
-                active: moreActive,
-                pending: 0,
-                testId: 'sidebar-tab-more',
-                icon: <ImanagerIcon name="mas" size={20} />,
-                onClick: () => go('more'),
-              },
-            ]}
-          />
-        ) : null}
-        <DeskToast message={message} show={toastOn} />
-        <DeskOverlays overlay={overlay} />
-      </div>
-    </DeskProvider>
-    </ExchangeProvider>
+        </DeskProvider>
+      </ExchangeProvider>
     </CatalogProvider>
   );
 }

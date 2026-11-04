@@ -7,10 +7,21 @@ export function parseAppDate(value: string | null | undefined): Date | null {
   return parseArDate(value);
 }
 
-export function formatMoney(value: number, currency: 'ARS' | 'USD' = 'ARS', fractionDigits: 0 | 2 = currency === 'USD' ? 2 : 0): string {
-  const amount = Number.isFinite(value) ? (fractionDigits === 0 ? Math.round(value) : value) : 0;
+export function formatMoney(
+  value: number,
+  currency: 'ARS' | 'USD' = 'ARS',
+  fractionDigits: 0 | 2 = currency === 'USD' ? 2 : 0,
+): string {
+  const amount = Number.isFinite(value)
+    ? fractionDigits === 0
+      ? Math.round(value)
+      : value
+    : 0;
   const formatted = new Intl.NumberFormat('es-AR', {
-    minimumFractionDigits: currency === 'USD' && fractionDigits === 2 && !Number.isInteger(amount) ? 2 : 0,
+    minimumFractionDigits:
+      currency === 'USD' && fractionDigits === 2 && !Number.isInteger(amount)
+        ? 2
+        : 0,
     maximumFractionDigits: fractionDigits,
   }).format(amount);
   return currency === 'USD' ? `US$ ${formatted}` : `$ ${formatted}`;
@@ -36,11 +47,17 @@ export function relTime(value: string | null | undefined): string {
   return formatArDate(date);
 }
 
-export function formatMoneyCompact(value: number, currency: 'ARS' | 'USD' = 'ARS'): string {
+export function formatMoneyCompact(
+  value: number,
+  currency: 'ARS' | 'USD' = 'ARS',
+): string {
   const amount = Number.isFinite(value) ? value : 0;
   const prefix = currency === 'USD' ? 'US$' : '$';
   if (Math.abs(amount) >= 1_000_000) {
-    const compact = (amount / 1_000_000).toFixed(2).replace(/\.?0+$/, '').replace('.', ',');
+    const compact = (amount / 1_000_000)
+      .toFixed(2)
+      .replace(/\.?0+$/, '')
+      .replace('.', ',');
     return `${prefix} ${compact}M`;
   }
   return formatMoney(amount, currency);
@@ -48,16 +65,31 @@ export function formatMoneyCompact(value: number, currency: 'ARS' | 'USD' = 'ARS
 
 export function formatInputMoney(value: number): string {
   if (!value) return '';
-  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(
+    value,
+  );
 }
 
 function moneyParts(value: string) {
   const cleaned = value.replace(/[^\d.,]/g, '');
-  const separator = Math.max(cleaned.lastIndexOf(','), cleaned.lastIndexOf('.'));
-  const decimal = separator >= 0 && (cleaned.length - separator - 1 <= 2 || (cleaned.includes(',') && cleaned.includes('.')));
+  const separator = Math.max(
+    cleaned.lastIndexOf(','),
+    cleaned.lastIndexOf('.'),
+  );
+  const decimal =
+    separator >= 0 &&
+    (cleaned.length - separator - 1 <= 2 ||
+      (cleaned.includes(',') && cleaned.includes('.')));
   return {
-    integer: (decimal ? cleaned.slice(0, separator) : cleaned).replace(/\D/g, '').slice(0, 12),
-    fraction: decimal ? cleaned.slice(separator + 1).replace(/\D/g, '').slice(0, 2) : undefined,
+    integer: (decimal ? cleaned.slice(0, separator) : cleaned)
+      .replace(/\D/g, '')
+      .slice(0, 12),
+    fraction: decimal
+      ? cleaned
+          .slice(separator + 1)
+          .replace(/\D/g, '')
+          .slice(0, 2)
+      : undefined,
   };
 }
 
@@ -88,6 +120,7 @@ export function formatImei(value: string): string {
 
 const STATUS_LABEL: Record<string, string> = {
   DISPONIBLE: 'Disponible',
+  EN_CONSIGNACION: 'En consignación',
   EN_REVISION: 'En revisión',
   VENDIDO: 'Vendido',
   RESERVADO: 'Reservado',
@@ -120,6 +153,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   DISPONIBLE: '#25A66A',
+  EN_CONSIGNACION: '#B58105',
   Disponible: '#25A66A',
   EN_REVISION: '#E8A33D',
   'En revisión': '#E8A33D',
@@ -191,7 +225,13 @@ export function equipmentTitle(model: string, capacity?: string) {
   return [model, capacity].filter(Boolean).join(' · ');
 }
 
-const CONDITION_NAMES: Record<string, string> = { NUEVO: 'Nuevo', USADO: 'Usado', REACONDICIONADO: 'Reacondicionado', OUTLET: 'Outlet', 'PRE-OWNED': 'Pre-owned' };
+const CONDITION_NAMES: Record<string, string> = {
+  NUEVO: 'Nuevo',
+  USADO: 'Usado',
+  REACONDICIONADO: 'Reacondicionado',
+  OUTLET: 'Outlet',
+  'PRE-OWNED': 'Pre-owned',
+};
 
 export function conditionName(condition: string): string {
   if (!condition) return '';
@@ -203,14 +243,18 @@ export function conditionLabel(condition: string): string {
 }
 
 export function paymentLabel(method: string): string {
-  return ({
-    TRANSFERENCIA: 'Transferencia',
-    EFECTIVO: 'Efectivo',
-    TARJETA: 'Tarjeta',
-    MIXTO: 'Varios medios',
-    CRIPTO: 'Cripto',
-    SIN_PAGO: 'Sin pago',
-  } as Record<string, string>)[method] ?? method;
+  return (
+    (
+      {
+        TRANSFERENCIA: 'Transferencia',
+        EFECTIVO: 'Efectivo',
+        TARJETA: 'Tarjeta',
+        MIXTO: 'Varios medios',
+        CRIPTO: 'Cripto',
+        SIN_PAGO: 'Sin pago',
+      } as Record<string, string>
+    )[method] ?? method
+  );
 }
 
 export function clientName(clients: Client[], id: string): string {
@@ -218,7 +262,10 @@ export function clientName(clients: Client[], id: string): string {
   return clients.find((client) => client.id === id)?.name ?? 'Sin cliente';
 }
 
-export function tradeClientLabel(trade: { clientId?: string; clientName?: string | null }, clients: Client[]): string {
+export function tradeClientLabel(
+  trade: { clientId?: string; clientName?: string | null },
+  clients: Client[],
+): string {
   if (trade.clientId) {
     const linked = clients.find((client) => client.id === trade.clientId);
     if (linked?.name.trim()) return linked.name;
@@ -228,21 +275,37 @@ export function tradeClientLabel(trade: { clientId?: string; clientName?: string
   return clientName(clients, trade.clientId ?? '');
 }
 
-export function tradeCancellationLabel(trade: Pick<TradeIn, 'removedFromSaleNumber'>): string {
+export function tradeCancellationLabel(
+  trade: Pick<TradeIn, 'removedFromSaleNumber'>,
+): string {
   return trade.removedFromSaleNumber != null
     ? `Canje quitado de la venta V-${String(trade.removedFromSaleNumber).padStart(4, '0')}`
     : 'Operación anulada';
 }
 
-export function isActiveTradeOperation(trade: { confirmationStatus?: string | null }): boolean {
-  return trade.confirmationStatus === 'PENDING' || trade.confirmationStatus === 'CONFIRMED';
+export function isActiveTradeOperation(trade: {
+  confirmationStatus?: string | null;
+}): boolean {
+  return (
+    trade.confirmationStatus === 'PENDING' ||
+    trade.confirmationStatus === 'CONFIRMED'
+  );
 }
 
-export function isCancelledTrade(trade: { confirmationStatus?: string | null; status?: string }): boolean {
-  return trade.confirmationStatus === 'CANCELLED' || (trade.confirmationStatus == null && trade.status === 'CANCELADO');
+export function isCancelledTrade(trade: {
+  confirmationStatus?: string | null;
+  status?: string;
+}): boolean {
+  return (
+    trade.confirmationStatus === 'CANCELLED' ||
+    (trade.confirmationStatus == null && trade.status === 'CANCELADO')
+  );
 }
 
-export function saleBuyer(sale: { clientName?: string; clientId?: string }, clients: Client[]): string {
+export function saleBuyer(
+  sale: { clientName?: string; clientId?: string },
+  clients: Client[],
+): string {
   const typed = sale.clientName?.trim();
   if (typed) return typed;
   if (sale.clientId) return clientName(clients, sale.clientId);
@@ -254,15 +317,22 @@ export function productLabel(product: Product | undefined): string {
   return `${product.model}${product.capacity ? ` ${product.capacity}` : ''}`;
 }
 
-export function saleEquipment(sale: { productId?: string; deviceLabel?: string | null }, inventory: Product[]): string {
-  const product = sale.productId ? inventory.find((item) => item.id === sale.productId) : undefined;
+export function saleEquipment(
+  sale: { productId?: string; deviceLabel?: string | null },
+  inventory: Product[],
+): string {
+  const product = sale.productId
+    ? inventory.find((item) => item.id === sale.productId)
+    : undefined;
   if (product) return productLabel(product);
   return sale.deviceLabel?.trim() || 'Equipo';
 }
 
 export function saleQuantity(sale: { cantidad?: number }): number {
   const quantity = sale.cantidad;
-  return quantity != null && Number.isSafeInteger(quantity) && quantity > 0 ? quantity : 1;
+  return quantity != null && Number.isSafeInteger(quantity) && quantity > 0
+    ? quantity
+    : 1;
 }
 
 export function saleQuantityLabel(sale: { cantidad?: number }): string {
@@ -282,31 +352,48 @@ export function isVoidRow(row: {
   archivedAt?: string | null;
   deletedAt?: string | null;
 }) {
-  const cancelled = (status?: string | null) => ['CANCELADA', 'CANCELADO', 'CANCELLED', 'ANULADA', 'ANULADO'].includes(status?.trim().toUpperCase() ?? '');
-  return Boolean(row.voidedAt || row.archivedAt || row.deletedAt) || cancelled(row.status) || cancelled(row.confirmationStatus);
+  const cancelled = (status?: string | null) =>
+    ['CANCELADA', 'CANCELADO', 'CANCELLED', 'ANULADA', 'ANULADO'].includes(
+      status?.trim().toUpperCase() ?? '',
+    );
+  return (
+    Boolean(row.voidedAt || row.archivedAt || row.deletedAt) ||
+    cancelled(row.status) ||
+    cancelled(row.confirmationStatus)
+  );
 }
 
-export function mergeRecordRows<T extends { id: string }>(active: readonly T[], archived: readonly T[]): T[] {
-  const ids = new Set(active.map(row => row.id));
-  return [...active, ...archived.filter(row => !ids.has(row.id))];
+export function mergeRecordRows<T extends { id: string }>(
+  active: readonly T[],
+  archived: readonly T[],
+): T[] {
+  const ids = new Set(active.map((row) => row.id));
+  return [...active, ...archived.filter((row) => !ids.has(row.id))];
 }
 
 export function tradeCode(tradeIns: TradeIn[], id: string): string {
   const current = tradeIns.find((item) => item.id === id);
-  if (current?.tradeNumber) return `C-${String(current.tradeNumber).padStart(4, '0')}`;
+  if (current?.tradeNumber)
+    return `C-${String(current.tradeNumber).padStart(4, '0')}`;
   const ordered = [...tradeIns].sort((a, b) => {
     const left = parseAppDate(a.date)?.getTime() ?? 0;
     const right = parseAppDate(b.date)?.getTime() ?? 0;
     return left - right;
   });
-  const index = Math.max(0, ordered.findIndex((item) => item.id === id));
+  const index = Math.max(
+    0,
+    ordered.findIndex((item) => item.id === id),
+  );
   return `C-${String(index + 1).padStart(4, '0')}`;
 }
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '·';
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
 export function avatarTone(seed: string): string {
@@ -316,7 +403,11 @@ export function avatarTone(seed: string): string {
   return tones[hash] ?? 'b';
 }
 
-export const IN_PROGRESS_TRADE_STATUSES = new Set(['PENDIENTE', 'PERITAJE TÉC.', 'EN REVISIÓN']);
+export const IN_PROGRESS_TRADE_STATUSES = new Set([
+  'PENDIENTE',
+  'PERITAJE TÉC.',
+  'EN REVISIÓN',
+]);
 
 export function isInProgressTrade(status: string): boolean {
   return IN_PROGRESS_TRADE_STATUSES.has(status);

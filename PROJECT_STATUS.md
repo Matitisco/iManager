@@ -1,3 +1,5 @@
+- Issue #763 · Consignaciones (2026-11-04): sección en Comercial, totales por moneda y tarjetas por cliente con equipos, deuda y días afuera. Alta sobre clientes/equipos disponibles con precio unitario acordado; conserva inventario como EN_CONSIGNACION hasta el cobro total. Venta, cobro, stock y cierre en una transacción reutilizando sales.service, sin pagos parciales. Scope por tienda, guardas de disponibilidad, concurrencia, importación, archivo y borrado definitivo; reset administrativo actualizado. Migración Prisma estrictamente aditiva con tabla e índices nuevos, verificada sobre filas previas sintéticas sin modificarlas. TypeScript frontend/backend, Oxlint sin errores, 1.368 unitarias backend, 1.265 integraciones, 3.094 pruebas frontend y 4 E2E 1440/390 claro/oscuro aprobados. PostgreSQL exclusivamente local; cambios en working tree por pedido del usuario, sin build, commit, push ni producción.
+
 - Seguimiento #703 (2026-11-04): corrige prefijo `/api` en las cinco URLs de borrado definitivo; mensajes rioplatenses por status, 404 limpia lista/caché sin cerrar el modal ni perder identidad. Prueba «Borrando…», controles bloqueados y doble envío incluso antes de renderizar busy. Typecheck frontend/backend, Oxlint sin errores (advertencias preexistentes) y 176 pruebas frontend relevantes aprobados. Commit solicitado sin push; sin build ni secretos.
 
 - Issue #703 · borrado definitivo (2026-11-04, `feat/703-borrado-definitivo`): cinco endpoints `DELETE /:id/permanent` para ventas, equipos, clientes, canjes y reparaciones. Solo OWNER y baja lógica previa; 403/409/404, aislamiento por tienda y auditoría atómica. UI con identidad, consecuencias y confirmación BORRAR; conserva bajas lógicas y reconcilia listas/archivos. Sin schema ni migraciones, build, producción o push. Validación y relaciones documentadas en `docs/issue-703-borrado-definitivo.md`. Commit en rama actual por instrucción del usuario.
@@ -48,7 +50,6 @@
 - Importación · batería decimal y calidad con barra (2026-10-28): acepta `0,87`/`0.87` como `87%` en preview y confirmación, incluso sin el flag del plan; conserva porcentajes explícitos. `A/A-` y `B/C` se mantienen como calidad y se muestran en equipos usados, también al reimportar. Regresión sintética CSV con separador `;`: 59/59 filas, sin dudas ni reprompts por estos formatos. Tests relacionados y TypeScript frontend/backend; sin build ni acceso a producción.
 
 - Importar equipos · selector en encabezados (2026-10-28): trigger visible con estados rojo/amarillo/neutro/gris, buscador y letras de uso, alta inline y descarte; bottom sheet móvil. Tabla sin panel lateral, Modelo fijo y layout por columna física, pendientes navegables y asignación rápida de Precio. Conserva análisis/reaplicación y confirmación. QA ficticia y validaciones en `docs/qa-import-header-picker/notas.md`; sin build local.
-
 
 - Importar equipos · alto de vista previa (2026-10-28): avisos de precio e IMEI compactos junto a descartes, acceso Asignar con foco al panel y scroll interno de tabla/panel sin desplazar la hoja completa. Conserva #634/#635. TypeScript frontend/backend y 92 pruebas relacionadas aprobados con dos workers; capturas ficticias 1440/390 revisadas en `/workspace/qa-import-tabla-alto/`. Sin build local.
 
@@ -232,7 +233,6 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Garantías vigentes, por vencer en hasta 30 días calendario y vencidas con fecha completa. Anuladas visibles en rosa con importe tachado y pill; excluidas de importes, contadores y garantías. Carga de anuladas/productos archivados y vendedores al abrir Clientes; recálculo histórico backend excluye CANCELADA/ANULADA y voidedAt, incluso al modificar únicamente el estado.
 - Validación: TypeScript/lint frontend/backend, 1.257 pruebas frontend y 520 unitarias backend aprobadas. Capturas y pruebas de componentes a 390×900 y 1440×900 en `docs/issue-375/`. Sin nuevas pruebas E2E, build, migraciones ni escrituras a bases reales. OpenSpec: `fix-client-purchases-375`. Cambios en working tree, sin commit, push ni PR.
 
-
 ## Issue #466 — Invitación de instalación PWA — 2026-10-21
 
 - Un banner blanco sólo en Dashboard móvil después de 30 segundos elegibles; navegación, pestaña oculta y formularios/diálogos globales o locales lo retiran inmediatamente y reinician la espera. Android con/sin prompt e iOS con guía por navegador; desktop y standalone quedan excluidos.
@@ -287,13 +287,11 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Las pruebas de escáner con Samsung/iPhone/PWA, lector físico y condiciones difíciles siguen pendientes. SMTP queda pospuesto por indicación del usuario. Evidencia y reproducción: `docs/post-qa-follow-ups-440.md`; OpenSpec: `resolve-post-qa-follow-ups`.
 - Prueba física posterior en Galaxy S23/Chrome: imagen borrosa y sin lectura, reportada con captura. Corrección del frontend: captura HD sin zoom agregado, enfoque/zoom independientes, liberación exclusiva de lentes y limpieza al cerrar, recuperación ante cambio fallido y botón Cambiar cámara. Vista previa sin oscurecer. Pasaron 27 tests del escáner y siete E2E Android, incluido cambio de lente exclusivo seguido de lectura Code128. El resultado físico sigue pendiente de repetir con la versión desplegada.
 
-
 ## Corrección — Editar vendedor de ventas — 2026-10-18
 
 - Ventas canceladas sin Editar en detalle/menú; formularios abiertos muestran aviso y bloquean guardar. Errores de guardado se desplazan a la vista, conservando estilos.
 - Cambiar/quitar vendedor conserva importe, moneda, estado y cliente; auditoría y comisiones verificadas para integradas, legacy, pendientes, canje y señas en ARS/USD. Comparación a centavos para señas y diferencia del canje antes de señas conservada al editar.
 - Lint/TypeScript frontend/backend, 965 tests frontend, 460 unitarios backend, 305 integraciones y builds aprobados. Ocho E2E Chromium desktop/390 px aprobados sin retries. Solo PostgreSQL local `imanager_test_vendedor`, sin cambios de Prisma ni commit/push. Detalles: `docs/edit-sale-seller.md`; OpenSpec: `fix-edit-sale-seller`.
-
 
 ## Issue #376 — Catálogo configurable por permisos — 2026-10-18
 
@@ -301,7 +299,6 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - API por sección; regeneración del enlace y cambios del estado activo de un catálogo existente siguen exclusivos del propietario. Creación inicial permitida; validación transaccional y auditoría conservadas. El sheet del empleado oculta las tres acciones exclusivas y guarda sin active. Sin cambios de Prisma.
 - Validación: lint/typecheck frontend/backend, build frontend, 949 tests frontend, 460 unitarios backend, 286 integraciones y dos E2E Chromium aprobados. Seis capturas revisadas contra mockups, mobile 390×844 a escala 2 y desktop 1440×900. Detalles y reproducción: `docs/catalog-permissions-376.md`; capturas: `docs/pr-shots/376-*.png`.
 - Solo PostgreSQL local: integración en `imanager_test` y E2E en `imanager_376_e2e`.
-
 
 ## Issue #395 — Onboarding Nombre / Stock — 2026-10-18
 
@@ -311,14 +308,12 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Validación y capturas antes/después: `docs/onboarding-395.md`; OpenSpec: `simplify-onboarding-395`.
 - Revisión CI #413: corregidas carreras de selectores al navegar a Ventas; reproducido el fallo de catálogo por 429 y aislado el límite en el servidor E2E. El 500 de `POST /api/operations/sales` no se reprodujo; fixtures de Caja sin cotización remota y diagnóstico seguro. Aprobados 150 E2E (tres repeticiones, dos workers), 12 casos aislados adicionales, 904 tests frontend, siete integraciones de catálogo y TypeScript frontend/backend. Cambios en working tree, sin commit/push ni cambios de Prisma; solo PostgreSQL local.
 
-
 ## Issue #71 — Equipo e invitaciones por link — 2026-10-17
 
 - Equipo y permisos mobile/desktop según diseños aprobados: perfiles rápidos derivados, saldo de cajas anidado, acciones sensibles y baja confirmada; Socio sólo invita y gestiona Empleados ajenos.
 - Preview con estados válidos/vencidos/usados/revocados/inexistentes, creador nullable y fallback al Propietario. Aceptación por link sin coincidencia de email, de un uso, transaccional y con vencimiento. Empleado con defaults explícitos sin Cajas, saldos, Reportes o administración de Comisiones.
 - Hash sin permiso conserva URL y muestra pantalla de acceso denegado con nombre del dueño, sin notificación. Reportes respeta los accesos a listas/categorías, y Catálogos filtra GET/PUT por sección.
 - Schema aditivo aplicado sólo al Postgres local. TypeScript, build frontend, 834 tests frontend, 449 unitarios backend y 268 integraciones aprobados; E2E nuevos mobile/desktop y regresiones de Configuración/Reportes aprobados. Detalles: `docs/team-permissions-71.md`; OpenSpec: `team-section-permissions`. Cambios en working tree, sin commit ni push.
-
 
 ## Issue #359 — Suscripciones con Mercado Pago — 2026-10-15
 
@@ -377,6 +372,7 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 - Corpus de 57 listados sintéticos realistas y 84 filas esperadas, incluido un mixto de 24 líneas. No se suministraron listados privados reales. CI mockea el LLM; los fixtures live existentes quedan fuera de test:unit. `npm --prefix backend run eval:import` evalúa corpus y 500 líneas aparte y guarda precisión cruda/final, campos presentes, IMEIs/precios incorrectos, omisiones, latencia y costo.
 - Validación: lint frontend/backend y build solicitado; 608 tests frontend, 312 unitarios backend y 123 integraciones PostgreSQL aprobados. Corridas finales limitan workers y aumentan timeouts por carga del entorno; integración limita el pool a cinco conexiones. E2E general: 148/149 en la corrida completa, el restante (indicador móvil tras resize) pasó en retry y quedó flaky. Los seis nuevos E2E pasan también en corrida aislada, incluido WebKit/iPhone. PWA: 47 aprobados / 36 omisiones, y el único fallo de actualización en iPhone pasó al repetirlo (48 aprobados efectivos). Las suites regeneraron capturas existentes en docs/pr-shots y dos PNG de issue89; no se revirtieron ni commitearon.
 - Eval real con `gpt-6-luna` (2026-10-14): **APROBADO**. 58 importaciones sin errores, 584/584 filas (incluye 500 líneas), 100% en todos los campos, 0 IMEIs/precios inventados, 0 filas perdidas/extra; latencia media 4,5 s, costo total ≈ US$ 0,03. Reporte en `docs/evals/issue-338-import-llm.md`; configuración/uso en `docs/inventory-text-import.md`.
+
 ## Issue #350 — Chips de filtros y aviso offline — 2026-10-14
 
 - El catálogo público ya no usa `<select>`. En desktop los filtros son chips con menú (modelo, capacidad, condición, batería y precio). En el teléfono quedan dentro del sheet «Filtrar lista»: chips de selección única, batería mínima con «Cualquiera» y precio desde/hasta. El botón dice «Filtros · N».
@@ -553,23 +549,23 @@ Documento vivo. Se actualiza al cerrar cada iteracion importante.
 
 ### Produccion
 
-| Modulo     | Notas |
-|------------|-------|
-| Auth       | Google + email/password, `/api/me`, retry automatico cada 15 s |
-| Onboarding | Pantalla real para usuarios sin Store/StoreMember; crea contexto antes del core |
+| Modulo     | Notas                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Auth       | Google + email/password, `/api/me`, retry automatico cada 15 s                                                                                                     |
+| Onboarding | Pantalla real para usuarios sin Store/StoreMember; crea contexto antes del core                                                                                    |
 | Inventory  | Categorias con tabs, inline edit (dbl-click), bulk select (shift+click), delete, import CSV/XLSX con mapeo de columnas, paginacion (20/pag), sort, columnas custom |
-| Clients    | CRUD real en backend |
-| Sales      | Transaccional; muta status de inventario y totalSpent del cliente |
-| Trade-ins  | CRUD real filtrado por storeId; write path hardened y historial migrado a TableEngine |
+| Clients    | CRUD real en backend                                                                                                                                               |
+| Sales      | Transaccional; muta status de inventario y totalSpent del cliente                                                                                                  |
+| Trade-ins  | CRUD real filtrado por storeId; write path hardened y historial migrado a TableEngine                                                                              |
 
 ### Demo / pendiente
 
-| Modulo        | Estado |
-|---------------|--------|
-| Dashboard     | No consulta SQL real; KPIs hardcodeados |
-| Reports       | SQL real; widgets configurables, rango custom, charts dinamicos y export local |
+| Modulo        | Estado                                                                              |
+| ------------- | ----------------------------------------------------------------------------------- |
+| Dashboard     | No consulta SQL real; KPIs hardcodeados                                             |
+| Reports       | SQL real; widgets configurables, rango custom, charts dinamicos y export local      |
 | Notifications | Eventos persistidos por tienda; lectura individual por usuario y filtro de permisos |
-| Settings      | UI presente; sin persistencia real por ahora |
+| Settings      | UI presente; sin persistencia real por ahora                                        |
 
 ---
 
