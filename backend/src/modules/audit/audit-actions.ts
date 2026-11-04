@@ -46,6 +46,11 @@ type ActionMeta = {
 };
 
 const ACTIONS: Record<string, ActionMeta> = {
+  "inventory.permanently_deleted": { title: "Borró definitivamente un equipo", group: "Anulación/Archivo", section: "inventory", verb: "borró definitivamente" },
+  "sale.permanently_deleted": { title: "Borró definitivamente una venta", group: "Anulación/Archivo", section: "sales", verb: "borró definitivamente" },
+  "client.permanently_deleted": { title: "Borró definitivamente un cliente", group: "Anulación/Archivo", section: "clients", verb: "borró definitivamente" },
+  "trade.permanently_deleted": { title: "Borró definitivamente un canje", group: "Anulación/Archivo", section: "tradeins", verb: "borró definitivamente" },
+  "repair.permanently_deleted": { title: "Borró definitivamente una orden", group: "Anulación/Archivo", section: "service", verb: "borró definitivamente" },
   "inventory.created": { title: "Registró un equipo", group: "Alta", section: "inventory", verb: "registró" },
   "stockcount.opened": { title: "Abrió un control de stock", group: "Alta", section: "inventory", verb: "abrió un control de stock" },
   "stockcount.closed": { title: "Cerró un control de stock", group: "Cambio de estado", section: "inventory", verb: "cerró el control de stock" },

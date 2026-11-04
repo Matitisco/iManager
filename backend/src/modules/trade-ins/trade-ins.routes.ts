@@ -1,3 +1,4 @@
+import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import { tradeStateSchema } from '../../lib/accounting-states.js';
 import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
@@ -58,6 +59,7 @@ const tradeInPatchSchema = tradeInFieldsSchema
   });
 
 export async function tradeInsRoutes(app: FastifyInstance) {
+  registerPermanentDelete(app, "tradeins", "tradeins");
   app.post(
     "/import",
     {

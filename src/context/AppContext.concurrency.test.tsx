@@ -17,6 +17,8 @@ import { fetchBackendTradeIns, updateBackendTradeIn, deleteBackendTradeIn } from
 import { fetchBackendRepairs, updateBackendRepair, createBackendRepair, changeBackendRepairStatus, deleteBackendRepair, restoreBackendRepair } from '../services/repairs-api';
 import { AppProvider, useAppContext } from './AppContext';
 import { dashboardCacheVersion, readDashboardCache, writeDashboardCache } from '../desk/dashboard-cache';
+import { permanentlyDeleteBackendRecord } from '../services/permanent-delete-api';
+import { archivedProduct, rememberArchivedProducts } from '../desk/archive-cache';
 
 const auth = vi.hoisted(() => ({ listener: null as null | ((user: AuthUserLike | null) => void), adapter: { onAuthStateChanged: vi.fn(), logout: vi.fn(), getCurrentUser: vi.fn() } }));
 vi.mock('../services/auth-adapter', () => ({ getAuthAdapter: () => auth.adapter }));
@@ -39,6 +41,7 @@ vi.mock('../services/clients-api', () => ({ fetchBackendClients: vi.fn(), fetchC
 vi.mock('../services/sales-api', () => ({ fetchBackendSales: vi.fn(), updateBackendSale: vi.fn(), deleteBackendSale: vi.fn() }));
 vi.mock('../services/trade-ins-api', () => ({ fetchBackendTradeIns: vi.fn(), updateBackendTradeIn: vi.fn(), deleteBackendTradeIn: vi.fn() }));
 vi.mock('../services/repairs-api', () => ({ fetchBackendRepairs: vi.fn(), updateBackendRepair: vi.fn(), createBackendRepair: vi.fn(), changeBackendRepairStatus: vi.fn(), deleteBackendRepair: vi.fn(), restoreBackendRepair: vi.fn() }));
+vi.mock('../services/permanent-delete-api', () => ({ permanentlyDeleteBackendRecord: vi.fn() }));
 vi.mock('../services/operations-api', () => ({ fetchNotifications: vi.fn(async () => ({ notifications: [] })), fetchOperationDrafts: vi.fn(async () => ({ tradeIns: [] })) }));
 
 const session = { user: { id: 'u', firebaseUid: 'u', email: 'u@example.com', displayName: 'Owner' }, store: { id: 'store', name: 'Store', currency: 'ARS' }, membership: { role: 'OWNER', isDefault: true }, onboardingRequired: false } as AppSession;
@@ -68,6 +71,54 @@ beforeEach(() => {
 });
 
 describe('AppContext concurrency #461', () => {
+  it.each([
+    ['eq', 'inventory', 'p', fetchBackendInventory], ['sale', 'sales', 's', fetchBackendSales],
+    ['cl', 'clients', 'c', fetchBackendClients], ['cj', 'tradeIns', 't', fetchBackendTradeIns],
+    ['ot', 'repairOrders', 'r', fetchBackendRepairs],
+  ] as const)('removes permanently deleted %s only after persistence and refreshes related records', async (kind, list, id, fetch) => {
+    const { result } = await mount();
+    const pending = deferred<void>();
+    vi.mocked(permanentlyDeleteBackendRecord).mockReturnValueOnce(pending.promise);
+    const readsBefore = vi.mocked(fetch).mock.calls.length;
+    vi.mocked(fetch).mockResolvedValue([]);
+    let write!: Promise<void>;
+    act(() => { write = result.current.permanentlyDeleteRecord(kind, id); });
+    expect(result.current[list].some(row => row.id === id)).toBe(true);
+    await act(async () => { pending.resolve(); await write; });
+    expect(permanentlyDeleteBackendRecord).toHaveBeenCalledWith(expect.objectContaining({ uid: 'u' }), kind, id);
+    expect(result.current[list].some(row => row.id === id)).toBe(false);
+    expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(readsBefore);
+  });
+
+  it('retains records and archive cache when permanent deletion fails', async () => {
+    const { result } = await mount();
+    rememberArchivedProducts([{ ...product('p'), archivedAt: '2026-11-04T12:00:00Z' }]);
+    vi.mocked(permanentlyDeleteBackendRecord).mockRejectedValueOnce(new Error('No tenés permiso.'));
+    await act(async () => {
+      await expect(result.current.permanentlyDeleteRecord('eq', 'p')).rejects.toThrow('No tenés permiso.');
+    });
+    expect(result.current.inventory.some(row => row.id === 'p')).toBe(true);
+    expect(archivedProduct('p')).toBeTruthy();
+    rememberArchivedProducts([]);
+  });
+
+  it('does not remove records or invalidate caches in a new store after an old permanent delete completes', async () => {
+    const { result } = await mount();
+    const pending = deferred<void>();
+    vi.mocked(permanentlyDeleteBackendRecord).mockReturnValueOnce(pending.promise);
+    let write!: Promise<void>;
+    act(() => { write = result.current.permanentlyDeleteRecord('eq', 'p'); });
+    vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'ready', session: { ...session, store: { ...session.store!, id: 'other' } }, message: null });
+    vi.mocked(fetchBackendInventory).mockResolvedValue([product('p', 'Other store')]);
+    await act(() => result.current.reloadSession());
+    await waitFor(() => expect(result.current.inventory[0]?.model).toBe('Other store'));
+    rememberArchivedProducts([{ ...product('p', 'Other archive'), archivedAt: '2026-11-04T12:00:00Z' }]);
+    await act(async () => { pending.resolve(); await write; });
+    expect(result.current.inventory[0]?.model).toBe('Other store');
+    expect(archivedProduct('p')?.model).toBe('Other archive');
+    rememberArchivedProducts([]);
+  });
+
   it('limpia la caché del Dashboard al salir o cambiar de usuario, y la conserva al renovar identidad', async () => {
     await mount();
     const currentUser = auth.adapter.getCurrentUser() as AuthUserLike;
