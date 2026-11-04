@@ -111,3 +111,15 @@ END IF;
 CREATE INDEX IF NOT EXISTS "CommissionAccrual_storeId_resellerId_period_idx" ON "CommissionAccrual"("storeId", "resellerId", "period");
 END IF;
 END $$;
+
+-- Multitienda (#663): Store.groupId/groupKind are new, nullable and empty, so the
+-- composite unique key cannot collide. Create it before push so `prisma db push`
+-- does not stop on the data-loss warning. Idempotent.
+DO $$
+BEGIN
+  IF to_regclass('public."Store"') IS NOT NULL THEN
+    ALTER TABLE "Store" ADD COLUMN IF NOT EXISTS "groupId" TEXT;
+    ALTER TABLE "Store" ADD COLUMN IF NOT EXISTS "groupKind" VARCHAR(12);
+    CREATE UNIQUE INDEX IF NOT EXISTS "Store_groupId_groupKind_key" ON "Store"("groupId", "groupKind");
+  END IF;
+END $$;
