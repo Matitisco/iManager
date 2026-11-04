@@ -77,15 +77,26 @@ function stripUrls(value: unknown): void {
   }
 }
 
+function stripPrivateProperties(value: unknown): void {
+  if (!value || typeof value !== 'object') return;
+  for (const key of Object.keys(value)) {
+    const object = value as Record<string, unknown>;
+    if (/^(name|email|store_name|client_name|phone|dni|imei|password|authorization|token|access_token|refresh_token)$/i.test(key)) delete object[key];
+    else stripPrivateProperties(object[key]);
+  }
+}
+
 export function initAnalytics(): void {
   try {
     if (disabled() || initialized) return;
-    posthog.init(import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo', {
+    const projectKey = (import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo').trim();
+    posthog.init(projectKey, {
       api_host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
       autocapture: true,
+      mask_all_text: true,
       capture_pageview: false,
       capture_pageleave: false,
-      mask_all_element_attributes: false,
+      mask_all_element_attributes: true,
       save_campaign_params: false,
       save_referrer: false,
       ip: false,
@@ -100,9 +111,10 @@ export function initAnalytics(): void {
       enable_recording_console_log: false,
       disable_session_recording: false,
       session_recording: {
-        maskAllInputs: false,
+        maskAllInputs: true,
+        maskTextSelector: '*',
         maskInputOptions: { password: true },
-        maskAllElementAttributes: false,
+        maskAllElementAttributes: true,
         recordHeaders: false,
         recordBody: false,
         recordCrossOriginIframes: false,
@@ -114,10 +126,11 @@ export function initAnalytics(): void {
       before_send: event => {
         if (!event) return null;
         stripUrls(event.properties);
-        if (event.event === 'import_analysis_completed' || event.event === 'import_result') {
-          // Registered SDK superproperties are merged after capture's allowlist.
-          for (const key of ['name', 'email', 'store_name']) delete event.properties[key];
-        }
+        // Also strip legacy persisted superproperties and nested person updates.
+        stripPrivateProperties(event.properties);
+        // The SDK requires its public project identifier for ingestion. Restore
+        // only our configured value, never a token supplied by event properties.
+        event.properties.token = projectKey;
         event.properties.$current_url = pageUrl();
         event.properties.$pathname = new URL(pageUrl()).pathname;
         return event;
@@ -181,19 +194,16 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
 
 export type IdentityDetails = { email?: string | null; name?: string | null; storeName?: string | null };
 
-/** Owner-requested identification: email, user name and store name so each account is recognisable. */
-export function identify(userId: string, storeId: string | null, role: AppMembershipRole | null, details: IdentityDetails = {}): void {
+/** Analytics uses internal IDs and roles; identity details stay in the application. */
+export function identify(userId: string, storeId: string | null, role: AppMembershipRole | null, _details: IdentityDetails = {}): void {
   try {
     if (disabled() || !initialized || !userId) return;
-    const email = details.email ?? null;
-    const name = details.name ?? null;
-    const storeName = details.storeName ?? null;
-    const key = JSON.stringify([userId, storeId, role, email, name, storeName]);
+    const key = JSON.stringify([userId, storeId, role]);
     if (key === identityKey) return;
     if (identity && identity !== userId) reset();
-    posthog.identify(userId, { store_id: storeId, role, email, name, store_name: storeName });
-    posthog.register({ store_id: storeId, role, store_name: storeName });
-    if (storeId) posthog.group('store', storeId, { name: storeName });
+    posthog.identify(userId, { store_id: storeId, role });
+    posthog.register({ store_id: storeId, role });
+    if (storeId) posthog.group('store', storeId);
     identity = userId; store = storeId; identityKey = key;
   } catch { /* Never block session bootstrap. */ }
 }

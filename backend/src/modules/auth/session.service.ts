@@ -44,6 +44,7 @@ export interface AppSessionResponse {
     repairWarrantyDays: number;
   } | null;
   membership: {
+    id: string;
     role: "OWNER" | "MANAGER" | "STAFF";
     isDefault: boolean;
     sections: string[] | null;
@@ -90,6 +91,7 @@ export async function buildAppSessionForUser(
     store: { ...serializeStore(membership.store), ownerDisplayName: await getStoreOwnerName(membership.storeId) },
     billing: await getBillingSummary(membership.storeId),
     membership: {
+      id: membership.id,
       role: membership.role,
       isDefault: membership.isDefault,
       sections: membership.role === "OWNER" ? null : normalizeSections(membership.sections),

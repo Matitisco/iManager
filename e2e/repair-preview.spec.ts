@@ -68,7 +68,7 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await expect(preview.getByText('$ 10.000')).toBeVisible();
   await expect(preview.getByText('Técnico Ejemplo')).toBeVisible();
   await expect(preview.getByText('Recibido').first()).toBeVisible();
-  await expect(preview.getByLabel('Presupuesto')).toHaveCount(0);
+  await expect(preview.getByLabel('Costo del arreglo')).toHaveCount(0);
   await expect(preview.getByRole('button', { name: 'Guardar' })).toHaveCount(0);
   await expect(preview.getByRole('button', { name: 'Eliminar orden' })).toHaveCount(0);
   await openSheetActions(preview);
@@ -80,7 +80,7 @@ test('separates the read-only preview from edit on desktop and phone', async ({ 
   await preview.getByTestId('repair-open-edit').click();
   const editor = page.getByRole('dialog', { name: 'Editar orden' });
   await expect(editor.getByLabel('Equipo')).toBeVisible();
-  await expect(editor.getByLabel('Presupuesto')).toBeEnabled();
+  await expect(editor.getByLabel('Costo del arreglo')).toBeEnabled();
   await expect(editor.getByRole('button', { name: 'Guardar' })).toBeVisible();
   await expect(editor.getByTestId('repair-delete')).toBeVisible();
   await settle(page);

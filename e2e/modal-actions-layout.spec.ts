@@ -187,7 +187,7 @@ for (const viewport of [
       const mobile = page.viewportSize()!.width < 760;
       const entries = [
         { tab: 'clients', enter: () => page.getByTestId(`client-row-${client.id}`).click(), primary: 'Registrar pago', actions: ['Agregar seña', 'Nueva venta', ...(mobile ? ['Editar'] : [])] },
-        { tab: 'inventory', enter: () => (mobile ? page.locator('.phone-row') : page.getByRole('row')).filter({ hasText: 'iPhone 14' }).first().click(), primary: 'Guardar estado', actions: ['Vender'] },
+        { tab: 'inventory', enter: () => (mobile ? page.locator('.phone-row') : page.getByRole('cell')).filter({ hasText: 'iPhone 14' }).first().click(), primary: 'Guardar estado', actions: ['Editar', 'Archivar'], disclosure: false },
         { tab: 'tradeins', enter: () => (mobile ? page.getByTestId('tradeins-timeline').getByRole('button') : page.getByRole('row')).filter({ hasText: 'C-0447' }).first().click(), primary: 'Editar', actions: ['Anular'] },
         { tab: 'service', enter: () => page.getByTestId(`repair-card-${repair.id}`).click(), primary: /^Pasar a /, actions: ['Cerrar', 'Compartir comprobante', 'Aplicar seña', 'Editar'] },
       ];
@@ -203,9 +203,11 @@ for (const viewport of [
         const before = (await footer.boundingBox())!;
         await sheet.locator('.sheet-scroll').evaluate(node => { node.scrollTop = node.scrollHeight; });
         expect((await footer.boundingBox())!.y).toBeCloseTo(before.y, 0);
-        const menu = footer.locator('.sheet-action-menu');
-        await menu.locator('summary').click();
-        await expect(menu).toHaveJSProperty('open', true);
+        const menu = entry.disclosure === false ? footer : footer.locator('.sheet-action-menu');
+        if (entry.disclosure !== false) {
+          await menu.locator('summary').click();
+          await expect(menu).toHaveJSProperty('open', true);
+        }
         const { width, height } = page.viewportSize()!;
         for (const action of entry.actions) await assertVisibleAction(menu, action, width, height);
         const closeAction = footer.locator('.sheet-actions > .sheet-secondary');
@@ -213,8 +215,10 @@ for (const viewport of [
         expect(await sheet.evaluate(node => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(1);
         expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
         await shot(page, `${viewport.name}-${entry.tab}-menu.png`);
-        await page.keyboard.press('Escape');
-        await expect(sheet).toBeVisible();
+        if (entry.disclosure !== false) {
+          await page.keyboard.press('Escape');
+          await expect(sheet).toBeVisible();
+        }
         await sheet.locator('.sheet-h .modal-x').click();
         await expect(sheet).toBeHidden();
       }

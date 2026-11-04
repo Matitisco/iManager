@@ -24,8 +24,12 @@ for (const device of [
     await expect(page.locator('.desk-app')).toBeVisible();
     if (device.mobile) await page.getByTestId('mobile-tab-bar').getByRole('button', { name: /Más/ }).click();
     await openDeskSection(page, 'publicCatalog');
-    await page.getByRole('button', { name: 'Crear catálogo' }).click();
-    const link = await page.getByRole('textbox', { name: 'Link público' }).inputValue();
+    const catalogRow = page.getByRole('article', { name: 'Clientes finales' });
+    await catalogRow.getByRole('switch').click();
+    await expect(catalogRow.getByRole('switch')).toBeChecked();
+    const link = new URL((await catalogRow.getByRole('link').getAttribute('href'))!, page.url()).href;
+    await catalogRow.getByRole('button', { name: 'Editar ›' }).click();
+    await page.getByText('Equipos y visibilidad', { exact: true }).click();
     // Summary and equipment now share the same Catálogo destination.
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();

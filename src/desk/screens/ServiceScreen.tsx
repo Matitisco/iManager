@@ -262,7 +262,7 @@ export function ServiceScreen() {
                     <th>Equipo</th>
                     <th>Cliente</th>
                     <th>Falla</th>
-                    <th>Presupuesto</th>
+                    <th>Costo del arreglo</th>
                     <th>Entrega est.</th>
                     <th>Estado</th>
                   </tr>

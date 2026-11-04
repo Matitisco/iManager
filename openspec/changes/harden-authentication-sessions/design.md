@@ -1,0 +1,3 @@
+# Diseño
+
+Firebase Admin sigue validando firma, audience, issuer y expiración; se agrega checkRevoked. El emulador requiere test explícito. Cuotas acotadas en memoria por instancia, IP antes de autenticar y UID después de autenticar y antes del acceso a PG. Las cuotas se comparten entre variantes de una misma operación y no dependen del token sin verificar. trustProxy acepta únicamente IP/CIDR configurados; por defecto no confía en headers. No se inventa una topología Railway/Cloudflare. Basic Auth exige ambas variables o ninguna. Decisiones que cambian acceso legítimo se documentan como pendientes.

@@ -1,3 +1,4 @@
+import { normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { recordCash } from '../cash/service.js';
@@ -12,6 +13,7 @@ import { archivedMatch, cleanReason, type ArchiveMeta } from "../audit/archive.j
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
 import { clientsRepository } from "./clients.repository.js";
+import { listSales } from "../sales/sales.service.js";
 import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { blankFieldsToFill, decideClientLink } from "../import/link-imported-sale.js";
 import { normalizeImportedDni, normalizeImportedEmail, normalizeImportedInstagram, normalizeImportedPhone } from "../import/normalize-import.js";
@@ -156,7 +158,7 @@ export async function listClients(storeId: string, options?: { archived?: boolea
   const [clients, credits] = await Promise.all([
     clientsRepository.list(storeId, Boolean(options?.archived)),
     prisma.clientDeposit.findMany({
-      where: { storeId, status: "CREDIT" },
+      where: { storeId, status: await storedStateFilter(prisma, 'ClientDeposit', storeId, ["CREDIT"], false) },
       select: { clientId: true, status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
     }),
   ]);
@@ -168,6 +170,11 @@ export async function listClients(storeId: string, options?: { archived?: boolea
   }
 
   return clients.map((client) => serializeClient(client, creditAmount(byClient.get(client.id) ?? [], client.balanceCurrency ?? null)));
+}
+
+export async function listClientSales(storeId: string, clientId: string) {
+  if (!await clientsRepository.findInStore(storeId, clientId)) return null;
+  return listSales(storeId, { clientId, includeVoided: true });
 }
 
 function normalizeDni(value?: string | null) {
@@ -252,7 +259,7 @@ export async function updateClient(storeId: string, id: string, input: Partial<C
     const spentChanges = input.totalSpent !== undefined && moneyChanged(existing.totalSpent, input.totalSpent);
     const balanceChanges = input.pendingBalance !== undefined && moneyChanged(existing.pendingBalance, input.pendingBalance);
     if (spentChanges || balanceChanges) {
-      const activeIntegratedSale = await tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } });
+      const activeIntegratedSale = await tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true), voidedAt: null }, select: { id: true } });
       if (activeIntegratedSale) throw new ClientsError("Los saldos vinculados a una operación se actualizan desde Operaciones o Pagos", 409);
     }
     const nextCurrency = currencyOnWrite(input.balanceCurrency, spentChanges || balanceChanges, spentChanges || balanceChanges ? await storeCurrency(storeId, tx) : "ARS");
@@ -320,7 +327,7 @@ export async function listClientPayments(storeId: string, clientId: string) {
     id: row.id,
     amount: row.amount.toNumber(),
     method: row.method,
-    kind: row.kind,
+    kind: normalizeAccountingState('paymentKind', row.kind),
     note: row.note,
     saleId: row.saleId,
     paidAt: row.paidAt.toISOString(),
@@ -369,7 +376,7 @@ export async function deleteClient(storeId: string, id: string, actor?: Actor | 
     const existing = await tx.client.findFirst({ where: { id, storeId } });
     if (!existing || existing.archivedAt) return false;
     const [activeOperation, activeTrade, deposits] = await Promise.all([
-      tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: { not: "CANCELADA" }, voidedAt: null }, select: { id: true } }),
+      tx.sale.findFirst({ where: { storeId, clientId: id, integratedOperation: true, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true), voidedAt: null }, select: { id: true } }),
       tx.tradeIn.findFirst({ where: { storeId, clientId: id, confirmationStatus: { not: "CANCELLED" }, voidedAt: null }, select: { id: true } }),
       tx.clientDeposit.findMany({ where: { storeId, clientId: id }, select: { status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true } }),
     ]);

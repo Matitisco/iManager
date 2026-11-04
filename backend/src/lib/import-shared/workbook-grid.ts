@@ -55,22 +55,26 @@ export function trimRows(rows: string[][]): string[][] {
 }
 
 export function readWorksheet(worksheet: ExcelJS.Worksheet): string[][] {
-  const colCount = Math.max(worksheet.columnCount, 1);
-  const rows: string[][] = [];
-  worksheet.eachRow({ includeEmpty: true }, (row) => {
-    const line: string[] = [];
-    for (let col = 1; col <= colCount; col += 1) {
-      const cell = row.getCell(col);
-      if (cell.isMerged && cell.master.address !== cell.address) {
-        // Fill down vertical data ranges, without repeating horizontal titles
-        // across every column (which would change header detection).
-        line.push(cell.master.col === cell.col ? cellText(cell.master.value, cell.master) : '');
-        continue;
-      }
-      line.push(cellText(cell.value, cell));
-    }
-    rows.push(line);
+  // Iterate stored cells, never the rectangular rowCount × columnCount area:
+  // an empty styled cell at XFD1048576 must not allocate billions of cells.
+  const present = new Map<number, Map<number, string>>();
+  let height = 0;
+  let width = 0;
+  worksheet.eachRow((row, rowNumber) => {
+    row.eachCell((cell, col) => {
+      const value = cell.isMerged && cell.master.address !== cell.address
+        ? (cell.master.col === cell.col ? cellText(cell.master.value, cell.master) : '')
+        : cellText(cell.value, cell);
+      if (!value.trim()) return;
+      if (rowNumber > 5000) throw new Error(`El archivo tiene más de 5000 filas en la hoja ${worksheet.name}. Dividilo en partes.`);
+      if (col > 40) throw new Error(`La hoja ${worksheet.name} tiene más de 40 columnas con datos. Quitá las que no necesitás.`);
+      const line = present.get(rowNumber) ?? new Map<number, string>();
+      line.set(col, value);
+      present.set(rowNumber, line);
+      height = Math.max(height, rowNumber);
+      width = Math.max(width, col);
+    });
   });
-  return trimRows(rows);
+  return Array.from({ length: height }, (_, index) =>
+    Array.from({ length: width }, (_, col) => present.get(index + 1)?.get(col + 1)?.trim() ?? ''));
 }
-

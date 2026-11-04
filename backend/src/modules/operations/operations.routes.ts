@@ -1,12 +1,15 @@
+import { requireSaleCostAccess, saleCostInput } from '../sales/sale-cost-input.js';
+import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import { readReason } from '../audit/archive.js';
 import { loadActor } from "../audit/audit.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { zodOptionalImei } from "../../lib/imei.js";
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { canAccessSection } from "../stores/sections.js";
-import { requireSensitiveActor } from "../stores/sensitive-access.js";
+import { requireStatusAccess, requireSensitiveActor } from "../stores/sensitive-access.js";
 import {
   cancelOperationFromSale,
   cancelTradeFromSale,
@@ -36,56 +39,61 @@ const sectionFor: Record<OperationSource, "inventory" | "sales" | "tradeins" | "
 const tradeSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: zodOptionalImei().nullable().optional(),
-  takeValue: z.number().nonnegative(),
-  status: z.string().trim().max(30).optional(),
+  takeValue: moneyInput(),
+  status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
 }).partial().nullable().optional();
 const inputSchema = z.object({
+  initialDeposit: z.object({ amount: moneyInput({ positive: true }), currency: z.enum(['ARS', 'USD']) }).optional(),
   depositIds: z.array(z.string().min(1)).max(20).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
-  exchangeRate: z.number().finite().positive().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
+  exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().trim().max(120).optional(),
   clientId: z.string().trim().nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
-  cantidad: z.number().int().min(1).max(2147483647).optional(),
+  cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
   productId: z.string().trim().nullable().optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
-  amount: z.number().nonnegative().optional(),
-  unitPrice: z.number().finite().positive().optional(),
+  amount: moneyInput().optional(),
+  cost: saleCostInput,
+  // The UI sends total / quantity, which can have repeating decimals.
+  // Inventory list price can intentionally differ from the discounted sale total.
+  unitPrice: z.number().finite().positive().max(9_999_999_999.99).optional(),
   paymentMethod: z.string().trim().max(50).optional(),
-  status: z.enum(["COMPLETADA", "PENDIENTE"]).optional(),
+  status: saleStateSchema.refine(value => value !== "CANCELADA").optional(),
   categoryId: z.string().nullable().optional(),
   saleCategoryId: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
   requestKey: z.string().trim().max(120).optional(),
   draft: z.boolean().optional(),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
   unlistedEquipment: z.object({
     model: z.string().trim().min(1).max(100),
     capacity: z.string().trim().max(50).optional(),
     color: z.string().trim().max(50).optional(),
     condition: z.string().trim().max(20).optional(),
     imei: zodOptionalImei().nullable().optional(),
-    price: z.number().nonnegative().optional(),
+    price: moneyInput().optional(),
   }).optional(),
   tradeIn: tradeSchema,
   tenders: z.array(z.object({
-    amount: z.number().positive(),
+    amount: moneyInput({ positive: true }),
     currency: z.enum(["ARS", "USD"]),
     method: z.string().trim().min(1).max(50),
-    exchangeRate: z.number().finite().positive().nullable().optional(),
+    exchangeRate: moneyInput({ positive: true }).nullable().optional(),
   })).max(8).optional(),
   excess: z.enum(["OMIT", "CREDIT", "CHANGE"]).optional(),
   changeMethod: z.string().trim().min(1).max(50).optional(),
   creditNoteIds: z.array(z.string().min(1)).max(20).optional(),
   installments: z.object({
-    count: z.number().int().min(2).max(36),
+    count: z.number().refine(Number.isInteger).min(2).max(36),
     frequency: z.enum(["SEMANAL", "QUINCENAL", "MENSUAL"]),
     firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    surcharge: z.number().nonnegative().optional(),
+    surcharge: moneyInput().optional(),
     collectFirstNow: z.boolean().optional(),
     firstMethod: z.string().trim().min(1).max(50).optional(),
   }).nullable().optional(),
@@ -141,8 +149,10 @@ export async function operationsRoutes(app: FastifyInstance) {
     const source = getSource(routeParams(request).source);
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (!authorized(request, reply, source)) return;
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     if (source === "inventory" && !input.productId) return reply.code(400).send({ error: "Inventory source requires an existing product sale" });
     if (source === "clients" && !input.clientId) return reply.code(400).send({ error: "Clients source requires an existing client sale" });
     if (source === "tradeins" && !input.tradeIn) return reply.code(400).send({ error: "Trade-ins source requires exchange details" });
@@ -179,8 +189,10 @@ export async function operationsRoutes(app: FastifyInstance) {
       : source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) {
       return reply.code(403).send({ error: "This source cannot confirm the trade-in" });
     }
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     return await confirmTradeOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
@@ -190,8 +202,10 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (!source) return reply.code(400).send({ error: "Invalid operation source" });
     if (source !== "sales") return reply.code(403).send({ error: "Only sales source can edit a sale" });
     if (!authorized(request, reply, source)) return;
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
     return await updateSaleOperation(request.appUser!.storeId, params.id ?? "", input, await loadActor(request.appUser!.userId));
   });
 
@@ -204,9 +218,12 @@ export async function operationsRoutes(app: FastifyInstance) {
     if (source === "inventory" || source === "clients") {
       if (!await isPendingTradeForSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source can only edit its pending trade-in" });
     } else if (source !== "tradeins" && !await isTradeAccessibleToSource(request.appUser!.storeId, params.id ?? "", source)) return reply.code(403).send({ error: "This source cannot edit the trade-in operation" });
+    if (!requireSaleCostAccess(request, reply)) return;
     const input = parseInput(request.body, reply);
     if (!input) return;
-    return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input);
+    if (!requireStatusAccess(request.appUser, reply, input.status, input.tradeIn?.status)) return;
+    const actor = await loadActor(request.appUser!.userId);
+    return source === "sales" ? await updateTradeFromSale(request.appUser!.storeId, params.id ?? "", input, actor) : await updateTradeOperation(request.appUser!.storeId, params.id ?? "", input, actor);
   });
 
   for (const action of ["cancel", "void"] as const) {

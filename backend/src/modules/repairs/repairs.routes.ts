@@ -7,7 +7,6 @@ import { canAccessSection } from "../stores/sections.js";
 import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { actorFor, loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
-import { DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate } from "./repair-deposit.js";
 import {
   changeRepairStatus,
   createRepair,
@@ -19,7 +18,7 @@ import {
   type RepairOrderInput,
 } from "./repairs.service.js";
 
-const tags = z.array(z.string().trim().min(1).max(40)).max(8);
+const tags = z.array(z.string().trim().min(1).max(40)).max(12);
 const money = z.number().nonnegative().max(100_000_000);
 
 const repairSchema = z.object({
@@ -35,7 +34,7 @@ const repairSchema = z.object({
   technician: z.string().trim().max(120).optional().default(""),
   status: z.string().trim().min(1).max(40).optional(),
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
 }).superRefine((value, context) => {
   const imei = parseOptionalImei(value.imei);
   if (imei.ok === false) {
@@ -43,9 +42,6 @@ const repairSchema = z.object({
   }
   if (!value.fault && value.faultTags.length === 0) {
     context.addIssue({ code: "custom", message: "Contá la falla", path: ["fault"] });
-  }
-  if (depositExceedsEstimate(value.estimate, value.deposit)) {
-    context.addIssue({ code: "custom", message: DEPOSIT_OVER_ESTIMATE, path: ["deposit"] });
   }
 });
 
@@ -61,14 +57,11 @@ const patchSchema = z.object({
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
   technician: z.string().trim().max(120).optional(),
   estimatedDelivery: z.string().trim().max(40).nullable().optional(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
 }).superRefine((value, context) => {
   const imei = parseOptionalImei(value.imei);
   if (imei.ok === false) {
     context.addIssue({ code: "custom", message: IMEI_FORMAT_MESSAGE, path: ["imei"] });
-  }
-  if (value.estimate !== undefined && value.deposit !== undefined && depositExceedsEstimate(value.estimate, value.deposit)) {
-    context.addIssue({ code: "custom", message: DEPOSIT_OVER_ESTIMATE, path: ["deposit"] });
   }
 }).refine((value) => Object.keys(value).length > 0, { message: "No hay cambios" });
 

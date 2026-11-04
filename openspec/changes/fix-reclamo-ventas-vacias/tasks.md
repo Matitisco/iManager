@@ -1,0 +1,7 @@
+- [x] Reproducir filtro de pendientes y cantidades con tests rojos.
+- [x] Corregir elegibilidad, estados de carga y cantidad en formulario compartido.
+- [x] Persistir cantidad y proteger límites, stock y permisos backend.
+- [x] Ejecutar regresiones, lint y recorridos mobile/desktop en base local ficticia.
+- [x] Commit, push de rama y PR contra test; documentar causa y evidencia.
+- [x] PR #711: reproducir y eliminar chevron duplicado; revisar selectores del modal y app.
+- [x] PR #711: verificar lint, tests, capturas desktop/mobile y compatibilidad con origin/test; push a la misma rama.

@@ -1,3 +1,4 @@
+import { StoreActionHistory } from './StoreActionHistory';
 import { toUserMessage, isNetworkErrorMessage } from '../lib/user-message';
 import { ListSkeleton } from '../desk/list-skeleton';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
@@ -46,15 +47,16 @@ function ActivityCard({ store, open }: { store: StoreActivityRow; open: () => vo
     <div className="activity-meta"><span>Etapa {stageLabel(store.onboardingStage)}</span><StuckChip step={store.stuckAt} /><span>{activeDaysLabel(store.activeDays30 ?? 0)}</span></div>
     <dl className="activity-stats">{([['Miembros', store.counts.storeMembers], ['Equipos', store.counts.inventoryItems], ['Ventas', store.counts.sales]] as const).map(([label, count]) => <div key={label}><dt>{label}</dt><dd>{countLabel(count)}</dd></div>)}</dl>
     <div className="activity-meta"><span>Alta {when(store.createdAt)}</span></div>
+    <div className="activity-meta"><span>Última acción: {store.lastAction ? `${store.lastAction.text} · ${when(store.lastAction.at)}` : 'Sin acciones registradas'}</span></div>
   </article>;
 }
 function ActivityTable({ stores, open }: { stores: StoreActivityRow[]; open: (id: string) => void }) {
   return <div className="dcard flush"><div className="dtable-scroll"><table className="dtable compact" data-testid="activity-table">
-    <thead><tr>{['Tienda', 'Dueño', 'Alta', 'Etapa', 'Se frenó en', 'Días activos', 'Miembros', 'Equipos', 'Ventas', 'Clientes', 'Reparaciones', 'Última actividad'].map((label, i) => <th key={label} className={i >= 5 && i <= 10 ? 'r' : undefined}>{label}</th>)}</tr></thead>
+    <thead><tr>{['Tienda', 'Dueño', 'Alta', 'Etapa', 'Se frenó en', 'Días activos', 'Miembros', 'Equipos', 'Ventas', 'Clientes', 'Reparaciones', 'Última acción'].map((label, i) => <th key={label} className={i >= 5 && i <= 10 ? 'r' : undefined}>{label}</th>)}</tr></thead>
     <tbody>{stores.map(store => <tr key={store.id} data-testid={`activity-row-${store.id}`} tabIndex={0} onClick={() => open(store.id)} onKeyDown={e => { if (e.key === 'Enter') open(store.id); }} aria-label={`Ver recorrido de ${store.name}`}>
       <td><b>{store.name}</b></td><td>{store.ownerEmail ?? '—'}</td><td>{when(store.createdAt)}</td><td>{stageLabel(store.onboardingStage)}</td><td><StuckChip step={store.stuckAt} /></td>
       {[store.activeDays30 ?? 0, store.counts.storeMembers, store.counts.inventoryItems, store.counts.sales, store.counts.clients, store.counts.repairOrders].map((n, i) => <td key={i} className="r">{countLabel(n)}</td>)}
-      <td>{store.lastActivityAt ? when(store.lastActivityAt) : 'Sin actividad'}</td>
+      <td>{store.lastAction ? <><div>{store.lastAction.text}</div><small>{when(store.lastAction.at)}</small></> : 'Sin acciones registradas'}</td>
     </tr>)}</tbody>
   </table></div></div>;
 }
@@ -84,6 +86,8 @@ function Timeline({ data, back }: { data: TimelineResponse; back: () => void }) 
     <div className="tl-h"><a className="back" href={BASE} onClick={e => { e.preventDefault(); back(); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>Actividad</a>
     <div className="whead timeline-head"><div><h1>{store.name}</h1><div className="tl-meta"><span>{store.ownerEmail ?? 'Sin correo de dueño'}</span><span>· Alta {when(store.createdAt)}</span><span className="tl-badges"><StuckChip step={store.stuckAt} prefix /><span className="chip">{activeDaysLabel(store.activeDays30 ?? 0)}</span></span></div></div></div></div>
     <div className="dcard timeline-journey"><h3>Recorrido</h3><div className="mf" aria-label="Hitos de la tienda">{PANEL_STEPS.map(([id, , label]) => <div key={id} className={done.has(id) ? 'on' : id === next ? 'stuck' : ''} aria-label={`${label}: ${done.has(id) ? 'completado' : id === next ? 'siguiente' : 'pendiente'}`}><span className="d">{done.has(id) && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>}</span>{label}</div>)}</div></div>
+    <StoreActionHistory key={store.id} storeId={store.id} />
+    <h3>Primeros pasos de la tienda</h3>
     {!events.length && <div className="wempty">Esta tienda todavía no tiene eventos registrados. Los hitos de antes de hoy salen de sus datos.</div>}
     {groupTimeline(events).map(day => <section key={day.key} aria-label={day.label}><h3 className="day">{day.label}</h3><div className="dcard timeline-day">{day.entries.map(({ event, text, icon, negative, compact }, i) => <div key={`${event.at}-${i}`} className={`ev${negative ? ' neg' : ''}${compact ? ' compact' : ''}`}><span className="t">{formatArDateTime(event.at).slice(11)}</span><span className={`i${compact ? ' empty-icon' : ''}`}>{!compact && <PanelIcon name={icon} />}</span><span>{text}</span></div>)}</div></section>)}
   </>;
@@ -145,6 +149,7 @@ export function StoreActivityPage() {
       <div className="activity-toolbar" role="toolbar" aria-label="Filtros de actividad">{(['7d', '30d', 'all'] as const).map(r => <button type="button" key={r} className={`wchip${range === r ? ' on' : ''}`} aria-pressed={range === r} onClick={() => setRange(r)}>{r === 'all' ? 'Todas' : r === '7d' ? '7 días' : '30 días'}</button>)}
       {!isFunnel && ([['createdAt', 'Por alta'], ['lastActivityAt', 'Por actividad']] as const).map(([id, label]) => <button key={id} type="button" className={`wchip${sort === id ? ' on' : ''}`} aria-pressed={sort === id} onClick={() => setSort(id)}>{label}</button>)}
       <button type="button" className={`wchip${hideTests ? ' on' : ''}`} aria-pressed={hideTests} onClick={() => setHideTests(v => !v)}>Ocultar tiendas de prueba</button></div>
+      {data.warning && <p className="activity-note" role="status">{data.warning}</p>}
       {isFunnel && funnel ? <Funnel data={funnel} hidden={hidden} /> : <><p className="activity-note">{visible.length === 1 ? '1 tienda' : `${countLabel(visible.length)} tiendas`}{hidden ? ` · ocultamos ${hidden === 1 ? '1 tienda de prueba' : `${countLabel(hidden)} tiendas de prueba`}` : ''}</p>{!visible.length ? <div className="wempty">No hay tiendas para mostrar.</div> : phone ? <div className="activity-cards">{visible.map(store => <ActivityCard key={store.id} store={store} open={() => navigate(`${BASE}/tienda/${encodeURIComponent(store.id)}`)} />)}</div> : <ActivityTable stores={visible} open={id => navigate(`${BASE}/tienda/${encodeURIComponent(id)}`)} />}</>}
     </>;
   }

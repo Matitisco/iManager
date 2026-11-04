@@ -179,6 +179,9 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 
 .dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
 .dtable-scroll { overflow-x: auto; }
+/* Only desktop table branches opt in, including at narrow viewport widths. */
+.dtable-scroll.desktop-table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.dtable-scroll.desktop-table-scroll > .dtable { min-width: 980px; }
 .dtable.trade-table { min-width: 980px; }
 .trade-table .trade-device { min-width: 150px; max-width: 230px; overflow-wrap: anywhere; }
 .trade-table .trade-nowrap { white-space: nowrap; }
@@ -318,8 +321,9 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 }
 .sale-hero-grid .mid { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
 .sale-hero-grid small { display: block; margin-top: 3px; color: var(--secondary); font-size: 12px; font-weight: 600; }
-.sale-pills { justify-content: flex-start; gap: 8px; margin-bottom: 14px; max-width: 100%; }
+.sale-pills { justify-content: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; max-width: 100%; }
 .sale-pills .dsel { flex: none; }
+.sales-screen .dsel .menu { max-height: min(420px, 60dvh); overflow-y: auto; }
 .sale-pills .menu { left: 0; right: auto; max-width: calc(100vw - 28px); }
 .dsel.menu-start .menu { left: 0; right: auto; max-width: min(280px, calc(100vw - 32px)); transform-origin: top left; }
 .sale-sec { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
@@ -358,6 +362,14 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .sale-amt { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 58%; text-align: right; color: var(--primary); }
 .sale-amt b { color: var(--primary); font-size: 16px; font-weight: 800; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .sale-amt small { display: block; margin-top: 2px; color: var(--secondary); font-size: 11px; font-weight: 700; }
+.sale-profit { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%; min-width: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--secondary); font-size: 12px; font-weight: 600; }
+.sale-profit-values { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; gap: 4px 6px; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.sale-profit-values del { overflow-wrap: anywhere; }
+.sale-profit-net { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; font-weight: 800; }
+.sale-profit-net svg { flex: none; }
+.sale-profit-net.positive { color: var(--theme-ok, #1C7F51); }
+.sale-profit-net.adjusted { color: var(--theme-warn, #B87812); }
+.sale-profit-net.negative { color: var(--theme-err, var(--err)); }
 .phone-row:has(.cj-card) { align-items: stretch; }
 .cj-card .sale-top { flex-wrap: wrap; }
 .cj-card .spill { white-space: normal; max-width: 100%; }
@@ -373,6 +385,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .op-fold summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg); margin-top: -4px; flex: none; }
 .op-fold[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
 .op-fold[open] summary { border-bottom: 1px solid var(--border); }
+.op-fold-state { margin-left: auto; flex: none; padding: 3px 7px; border-radius: 6px; background: var(--row); color: var(--secondary); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.op-fold-state.on { background: var(--lime-soft); color: var(--primary); }
 .op-fold-body { padding: 4px 14px 8px; }
 .dtable .r { text-align: right; }
 .dtable b { font-weight: 700; }
@@ -2334,6 +2348,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .operation-form .frow { min-width: 0; margin-bottom: 16px; }
 .operation-form .fl > span { overflow-wrap: anywhere; }
 .operation-form .fl input { min-width: 0; }
+.operation-form .op-calculated { display: block; padding: 8px 0; border: 0; background: none; color: var(--primary); font-size: 14px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+.operation-form .op-calculated.pending { color: var(--secondary); font-size: 12px; font-weight: 500; }
 .operation-form .frow { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .operation-form .frow > *,
 .operation-form .eqs > .fl,
@@ -2611,7 +2627,6 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   .return-sheet .sheet-h h3, .return-delete .sheet-h h3 { margin: 0; }
   .return-sheet .sheet-h { align-items: center; }
   .return-sheet textarea, .return-sheet .fl input { font-size: 16px; }
-  .return-sheet .fl select { font-size: 14px; }
   .return-sheet .dp-calendar.dp-inline { margin-top: 18px; }
   .return-sheet .return-summary { padding-inline: 18px; }
   .ledger-list .return-row { flex-wrap: wrap; text-align: left; padding-right: 52px; }
@@ -2631,9 +2646,6 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 @keyframes return-placeholder { from { opacity: 0; } to { opacity: 1; } }
 
 .return-sheet .dp-control input { font-weight: 400; }
-.return-sheet .fl:has(select) { position: relative; }
-.return-sheet .fl select { padding-right: 40px; }
-.return-sheet .fl:has(select)::after { content: ''; position: absolute; right: 22px; bottom: 22px; width: 8px; height: 8px; border: solid var(--secondary); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); pointer-events: none; }
 
 .returns-screen .gfilters { margin-bottom: 18px; }
 .returns-screen .gchip { height: 32px; font-size: 12px; background: transparent; border-color: transparent; }
@@ -2722,6 +2734,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 
 /* Stock units reuse table typography and neutral controls. */
 .inv-imei-col { white-space: nowrap; }
+.inv-catalog-col { white-space: nowrap; }
+.inv-catalog-col .catalog-mark { display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .inv-stock-table .inv-quantity-cell { text-align: center; }
 .inv-stock-table th.inv-quantity-cell .thf { display: grid; grid-template-columns: 22px auto 22px; justify-content: center; }
 .inv-stock-table th.inv-quantity-cell .thf::before { content: ''; }
@@ -2836,4 +2850,32 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 @media print {
   html, body, :root[data-theme="dark"], [data-theme="dark"] .desk-app { color-scheme: light !important; background: #fff !important; color: #16181d; }
   #boot-splash { display: none !important; }
+}
+
+.sale-cost-profit { color: var(--primary); flex-wrap: wrap; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.sale-cost-profit output { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.sale-cost-profit .negative { color: var(--theme-err, var(--err)); }
+
+.sale-cost-profit strong { font-size: 16px; font-weight: 800; }
+/* #746: shared seller directory, without user memberships. */
+.desk-app .ds-select-group { padding: 14px 12px 6px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.desk-app .seller-picker .ds-select-option > span { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+.desk-app .seller-picker .reseller-all { text-decoration: underline; text-underline-offset: 4px; }
+.desk-app .seller-picker .reseller-add { border-top: 1px solid var(--border); margin-top: 6px; font-weight: 700; }
+.desk-app .reseller-label { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
+.desk-app .reseller-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); min-width: 0; }
+.desk-app .reseller-row .commission-name { min-width: 0; text-align: left; }
+.desk-app .reseller-row .commission-name span { min-width: 0; overflow-wrap: anywhere; }
+.desk-app .reseller-actions { display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0; }
+@media (max-width: 600px) {
+  .desk-app .reseller-row { align-items: flex-start; flex-direction: column; }
+  .desk-app .reseller-actions { align-self: flex-end; }
+}
+
+@media (max-width: 600px) {
+  .desk-app .ds-select-popup.phone.seller-picker { height: 100dvh; max-height: 100dvh; border-radius: 0; padding-top: max(20px, env(safe-area-inset-top, 0px)); }
+  .desk-app .seller-picker .ds-select-grab { display: none; }
+  .desk-app .seller-picker .ds-select-list { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .desk-app .seller-picker .ds-select-option { flex-shrink: 0; }
+  .desk-app .seller-picker .reseller-add { margin-top: auto; justify-content: center; background: var(--primary); color: var(--theme-on-action, #fff); }
 }

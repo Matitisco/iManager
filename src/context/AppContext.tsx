@@ -203,12 +203,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const cashState = useCashState(user, appSession, backendStatus);
   const ledgerState = useLedgerState(user, appSession, backendStatus);
   const commissions = useCommissionState(user, appSession, backendStatus, sessionConfirmed);
-  const catalogState = usePublicCatalogState(user, appSession, backendStatus, (catalog) => {
-    const visibility = new Map(catalog?.items.map(item => [item.id, item]));
-    setInventory(items => items.map(item => {
-      const managed = visibility.get(item.id);
-      return managed ? { ...item, catalogVisible: managed.catalogVisible, catalogIncluded: Boolean(catalog?.active && !managed.reason) } : item;
-    }));
+  const catalogState = usePublicCatalogState(user, appSession, backendStatus, () => {
+    // Membership belongs to all active catalogs. Keep the backend's authoritative
+    // catalogNames/catalogIncluded instead of overwriting them with the default.
+    void refreshLists();
   });
   const [depositState, setDepositState] = useStableState<{ scope: string; rows: Record<string, ClientDeposit[]> }>({ scope: currentScope, rows: {} });
   const depositGenerations = React.useRef<Record<string, number>>({});

@@ -2,6 +2,7 @@ export interface Product {
   cantidad?: number;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
+  catalogNames?: string[];
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
   reservedClientName?: string | null;
@@ -51,10 +52,13 @@ export interface CustomColumn {
 }
 
 export interface Sale {
+  createdAt?: string | null;
   cantidad?: number;
   stockDeducted?: boolean;
   depositAppliedAmount?: number;
+  hasInitialDeposit?: boolean;
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   registeredByUserId?: string | null;
   exchangeRate?: number | null;
   id: string;
@@ -120,6 +124,7 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
+  cost?: number;
   cantidad?: number;
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
@@ -172,6 +177,7 @@ export interface TradeIn {
   draftSaleCategoryId?: string | null;
   draftPaymentMethod?: string | null;
   draftPaymentStatus?: 'COMPLETADA' | 'PENDIENTE' | null;
+  draftResellerId?: string | null;
   draftSellerMemberId?: string | null;
   draftWarrantyDays?: number | null;
   cancelledBy?: string | null;

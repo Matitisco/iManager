@@ -2,7 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../commissions/commission-ledger.js", () => ({
-  assertSeller: vi.fn(), recordSaleCommission: vi.fn(), refreshSaleCommission: vi.fn(), voidSaleCommission: vi.fn(),
+  assertSeller: vi.fn(), assertBeneficiary: vi.fn(), recordSaleCommission: vi.fn(), refreshSaleCommission: vi.fn(), voidSaleCommission: vi.fn(),
 }));
 
 vi.mock("../operations/sale-restoration.js", () => ({ captureSaleCancellation: vi.fn(async () => async () => undefined) }));
@@ -36,8 +36,10 @@ const prismaMock = vi.hoisted(() => ({
     count: vi.fn(),
     create: vi.fn(),
   },
+  returnCase: { findFirst: vi.fn() },
   commissionAccrual: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   sale: {
+    findMany: vi.fn(),
     findFirst: vi.fn(),
     create: vi.fn(),
     delete: vi.fn(),
@@ -59,11 +61,12 @@ vi.mock("../../lib/store-sequence.js", () => ({
   allocateDocumentNumber,
 }));
 
-import { createCategory, createSale, deleteSale, importSales, updateSale } from "./sales.service.js";
+import { createCategory, createSale, deleteSale, importSales, listSales, updateSale } from "./sales.service.js";
 
 describe("sales.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockImplementation(async (sql) => sql.strings.join('').includes('SELECT DISTINCT') ? [] : [{ storeId: 'store-1' }]);
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     allocateDocumentNumber.mockResolvedValue(4);
     prismaMock.client.findMany.mockResolvedValue([]);
@@ -80,6 +83,7 @@ describe("sales.service", () => {
     prismaMock.storeMember.findMany.mockResolvedValue([]);
     prismaMock.tradeIn.findMany.mockResolvedValue([]);
     prismaMock.sale.findFirst.mockResolvedValue(null);
+    prismaMock.returnCase.findFirst.mockResolvedValue(null);
     prismaMock.sale.create.mockResolvedValue({ id: "sale-1" });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
   });
@@ -135,6 +139,14 @@ describe("sales.service", () => {
     expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(500), lastPurchaseAt: null } });
   });
 
+  it("rejects deletion after a physical return even for a historical sale", async () => {
+    prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", inventoryItemId: "item-1", clientId: "client-1" });
+    prismaMock.returnCase.findFirst.mockResolvedValue({ id: "return-1" });
+    await expect(deleteSale("store-1", "sale-1")).rejects.toMatchObject({ statusCode: 409 });
+    expect(prismaMock.inventoryItem.update).not.toHaveBeenCalled();
+    expect(prismaMock.client.updateMany).not.toHaveBeenCalled();
+  });
+
   it("fails when the inventory item is not available", async () => {
     prismaMock.client.findFirst.mockResolvedValue({ id: "client-1", totalSpent: new Decimal(0) });
     prismaMock.inventoryItem.findFirst.mockResolvedValue({ id: "item-1", status: "VENDIDO" });
@@ -167,6 +179,7 @@ describe("sales.service", () => {
       paymentMethod: "EFECTIVO",
       status: "COMPLETADA",
       categoryId: null,
+      createdAt: new Date("2026-10-07T15:00:00Z"),
       soldAt: new Date("2026-10-07T15:00:00Z"),
       customFields: {},
     });
@@ -367,5 +380,22 @@ describe("sales.service", () => {
     expect(await importSales('store-1', [{ ...row, amount: '1300' }])).toMatchObject({ imported: 1, errors: [] });
     expect(prismaMock.$executeRaw).toHaveBeenCalled();
     expect(prismaMock.sale.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ storeId: 'store-1' }) }));
+  });
+});
+
+
+describe('listSales: orden de carga (#748)', () => {
+  it.each([undefined, { voided: true }, { clientId: 'client-1', includeVoided: true }])('ordena por carga con desempate estable (%j)', async options => {
+    const createdAt = new Date('2026-10-10T14:32:01.123Z');
+    prismaMock.sale.findMany.mockResolvedValueOnce([{
+      id: 'sale-order', saleNumber: 16, amount: new Decimal(100), status: 'COMPLETADA',
+      dateLabel: '01/10/2026', soldAt: new Date('2026-10-01T03:00:00Z'), createdAt,
+    }]);
+    const result = await listSales('store-1', options);
+    expect(prismaMock.sale.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ storeId: 'store-1', ...(options?.clientId ? { clientId: 'client-1' } : {}) }),
+      orderBy: [{ createdAt: 'desc' }, { saleNumber: 'desc' }, { id: 'desc' }],
+    }));
+    expect(result[0]).toMatchObject({ createdAt: createdAt.toISOString(), soldAt: '2026-10-01T03:00:00.000Z' });
   });
 });

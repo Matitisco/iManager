@@ -1,3 +1,4 @@
+import { assertStoreReferences } from '../../lib/store-references.js';
 import type { InventoryItem, Prisma } from '@prisma/client';
 import { DomainError } from '../../lib/domain-error.js';
 
@@ -10,6 +11,7 @@ export function saleUnits(cantidad = 1, item?: Pick<InventoryItem, 'cantidad' | 
 
 /** Call after locking the inventory row in the transaction. */
 export async function takeStock(tx: Prisma.TransactionClient, item: InventoryItem, cantidad = 1) {
+  await assertStoreReferences(tx, item.storeId, 'InventoryItem', item);
   saleUnits(cantidad, item);
   const remaining = (item.cantidad ?? 1) - cantidad;
   return tx.inventoryItem.update({ where: { id: item.id }, data: {
@@ -19,12 +21,16 @@ export async function takeStock(tx: Prisma.TransactionClient, item: InventoryIte
 }
 
 /** Old sales never decremented stock. Preserve their cancellation behavior. */
-export async function releaseStock(tx: Prisma.TransactionClient, storeId: string, sale: { inventoryItemId: string | null; cantidad?: number; stockDeducted?: boolean; previousInventoryStatus?: string | null; previousPendingSaleRegistration?: boolean | null }) {
+export async function releaseStock(tx: Prisma.TransactionClient, storeId: string, sale: { id?: string; inventoryItemId: string | null; cantidad?: number; stockDeducted?: boolean; previousInventoryStatus?: string | null; previousPendingSaleRegistration?: boolean | null }) {
   if (!sale.inventoryItemId) return;
+  if (sale.id && await tx.returnCase.findFirst({ where: { storeId, saleId: sale.id, OR: [
+    { destination: { in: ['STOCK', 'PROVEEDOR'] } }, { settlement: { in: ['REINTEGRO', 'NOTA_CREDITO'] } },
+  ] }, select: { id: true } })) throw new DomainError('Esta venta tiene devoluciones resueltas. No se puede anular ni cambiar el equipo.', 409);
   let status = sale.previousInventoryStatus ?? 'DISPONIBLE';
   if (sale.stockDeducted) {
     await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" = ${sale.inventoryItemId} AND "storeId" = ${storeId} FOR UPDATE`;
     const current = await tx.inventoryItem.findFirstOrThrow({ where: { id: sale.inventoryItemId, storeId } });
+    await assertStoreReferences(tx, storeId, 'InventoryItem', current);
     status = current.reservedDepositId ? 'RESERVADO' : 'DISPONIBLE';
   }
   return tx.inventoryItem.update({ where: { id: sale.inventoryItemId, storeId }, data: {

@@ -53,7 +53,7 @@ async function fillNegativeTrade(page: Page) {
   await dialog.getByLabel('Valor tomado').fill('500000');
   await dialog.getByRole('combobox', { name: 'Equipo' }).fill('Pixel libre');
   await dialog.getByLabel('Precio completo de salida').fill('400000');
-  await expect(dialog.getByLabel('Diferencia')).toHaveValue('');
+  await expect(dialog.getByLabel('Diferencia')).toHaveText('Se calcula con el precio completo de salida');
   await expect(dialog.getByText(NEGATIVE_WARNING)).toBeVisible();
   await expect(dialog.getByText(/Diferencia a cobrar/)).toHaveCount(0);
   await expect(dialog.getByText(/\$\s*-/)).toHaveCount(0);
@@ -79,14 +79,14 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await settleSheet(page);
   await desktopTrade.getByLabel('Diferencia').scrollIntoViewIfNeeded();
   await shot(page, 'desktop-1440-trade-difference', desktopTrade);
-  await desktopTrade.locator('.op-summary').scrollIntoViewIfNeeded();
+  await desktopTrade.locator('.op-summary:not(.sale-cost-profit)').scrollIntoViewIfNeeded();
   await shot(page, 'desktop-1440-trade-warning', desktopTrade);
   await desktopTrade.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(desktopTrade.getByText(NEGATIVE_WARNING).first()).toBeVisible();
   await expect(page.getByText(/\$\s*-/)).toHaveCount(0);
 
   await desktopTrade.getByLabel('Precio completo de salida').fill('600000');
-  await expect(desktopTrade.getByLabel('Diferencia')).not.toHaveValue('');
+  await expect(desktopTrade.getByLabel('Diferencia')).toHaveText('$ 100.000');
   await expect(desktopTrade.getByText(/Diferencia a cobrar/)).toBeVisible();
   await desktopTrade.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(desktopTrade).toBeHidden();
@@ -143,6 +143,6 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await settleSheet(page);
   await phoneTrade.getByLabel('Diferencia').scrollIntoViewIfNeeded();
   await shot(page, 'phone-390-trade-difference', phoneTrade);
-  await phoneTrade.locator('.op-summary').scrollIntoViewIfNeeded();
+  await phoneTrade.locator('.op-summary:not(.sale-cost-profit)').scrollIntoViewIfNeeded();
   await shot(page, 'phone-390-trade-warning', phoneTrade);
 });

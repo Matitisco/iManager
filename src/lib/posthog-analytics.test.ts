@@ -68,18 +68,18 @@ describe('PostHog runtime guard', () => {
 });
 
 describe('PostHog collection and privacy', () => {
-  it('initializes once, keeps replay readable except passwords and disables UI, console and network collection', async () => {
+  it('initializes once, masks replay text and inputs and disables UI, console and network collection', async () => {
     const { initAnalytics } = await import('./posthog-analytics');
     initAnalytics(); initAnalytics();
     expect(posthog.init).toHaveBeenCalledOnce();
     const config = vi.mocked(posthog.init).mock.calls[0][1]!;
-    expect(config).toMatchObject({ autocapture: true, mask_all_element_attributes: false,
+    expect(config).toMatchObject({ autocapture: true, mask_all_element_attributes: true,
       disable_surveys: true, disable_conversations: true, enable_recording_console_log: false,
-      session_recording: { maskAllInputs: false, maskInputOptions: { password: true }, maskAllElementAttributes: false, recordHeaders: false, recordBody: false,
+      session_recording: { maskAllInputs: true, maskInputOptions: { password: true }, maskAllElementAttributes: true, recordHeaders: false, recordBody: false,
         recordCrossOriginIframes: false, captureCanvas: { recordCanvas: false }, captureJsonLd: false } });
-    expect(config.session_recording).not.toHaveProperty('maskTextSelector');
+    expect(config.session_recording?.maskTextSelector).toBe('*');
     expect(config.session_recording!.maskInputOptions).toEqual({ password: true });
-    expect(config).not.toHaveProperty('mask_all_text');
+    expect(config.mask_all_text).toBe(true);
     expect(config.session_recording!.maskCapturedNetworkRequestFn!({ name: 'https://test/api?token=private', duration: 0, startTime: 0, entryType: 'resource' })).toBeNull();
   });
   it('captures SPA sections once per transition without query values, tokens or record IDs', async () => {
@@ -102,7 +102,21 @@ describe('PostHog collection and privacy', () => {
     if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
     const event = beforeSend({ uuid: 'test-uuid', event: '$autocapture', properties: { $current_url: location.href,
       $initial_current_url: location.href, $referrer: 'https://test/?token=secret', $pathname: '/invite/secret', utm_source: 'private', $set_once: { $initial_current_url: location.href, role: 'OWNER' } } });
-    expect(event!.properties).toEqual({ $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
+    expect(event!.properties).toEqual({ token: 'phc_test', $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
+  });
+  it.each(['$pageview', '$snapshot'])('preserves the configured public project identifier for %s while removing identity tokens', async eventName => {
+    const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();
+    const beforeSend = vi.mocked(posthog.init).mock.calls[0][1]!.before_send;
+    if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
+    const event = beforeSend({ uuid: 'test-uuid', event: eventName, properties: {
+      token: 'private-auth-token', access_token: 'private-access', refresh_token: 'private-refresh',
+      $set: { token: 'private-nested-token', email: 'private@email.test', role: 'OWNER' },
+      $snapshot_data: [{ type: 2, data: { token: 'private-replay-token', text: 'masked' } }],
+    } });
+    expect(event!.properties.token).toBe('phc_test');
+    expect(event!.properties.$set).toEqual({ role: 'OWNER' });
+    expect(JSON.stringify(event)).not.toContain('private');
+    expect(event!.properties.$snapshot_data).toEqual([{ type: 2, data: { text: 'masked' } }]);
   });
   it.each(['import_analysis_completed', 'import_result'])('strips inherited names and email from %s before sending', async eventName => {
     const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();
@@ -115,14 +129,14 @@ describe('PostHog collection and privacy', () => {
     expect(event!.properties).toMatchObject({ store_id: 'internal-store', role: 'OWNER', rows_detected: 2, discarded_by_reason: { missing_price: 2 } });
     expect(JSON.stringify(event)).not.toContain('private');
   });
-  it('identifies user, email, name and store, deduplicates rerenders and resets between users', async () => {
+  it('identifies using internal IDs without personal details, deduplicates rerenders and resets between users', async () => {
     const analytics = await import('./posthog-analytics'); analytics.initAnalytics();
     const details = { email: 'a@b.c', name: 'Ana', storeName: 'Tienda' };
     analytics.identify('u', 's', 'OWNER', details); analytics.identify('u', 's', 'OWNER', details);
-    expect(posthog.identify).toHaveBeenCalledExactlyOnceWith('u', { store_id: 's', role: 'OWNER', email: 'a@b.c', name: 'Ana', store_name: 'Tienda' });
-    expect(posthog.group).toHaveBeenCalledExactlyOnceWith('store', 's', { name: 'Tienda' });
+    expect(posthog.identify).toHaveBeenCalledExactlyOnceWith('u', { store_id: 's', role: 'OWNER' });
+    expect(posthog.group).toHaveBeenCalledExactlyOnceWith('store', 's');
     analytics.identify('u', 'other-store', 'STAFF');
-    expect(posthog.register).toHaveBeenLastCalledWith({ store_id: 'other-store', role: 'STAFF', store_name: null });
+    expect(posthog.register).toHaveBeenLastCalledWith({ store_id: 'other-store', role: 'STAFF' });
     analytics.identify('other-user', null, null);
     expect(posthog.reset).toHaveBeenCalledOnce();
     analytics.reset(); expect(posthog.reset).toHaveBeenCalledTimes(2);

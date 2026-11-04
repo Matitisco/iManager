@@ -105,7 +105,9 @@ export function editSaleSellerTests(phone: boolean) {
       await page.keyboard.press('Escape');
       await row().click({ button: 'right' });
       await expect(page.locator('.ctx').getByRole('button', { name: 'Editar', exact: true, includeHidden: true })).toHaveCount(0);
-      await expect(page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true })).toBeVisible();
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Revertir anulación', exact: true })).toBeVisible();
+      // A cancelled sale cannot be cancelled twice.
+      await expect(page.locator('.ctx').getByRole('button', { name: 'Anular', exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
   }

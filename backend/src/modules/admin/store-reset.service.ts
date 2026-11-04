@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
@@ -10,9 +11,9 @@ import { balanceStillOwed } from '../../lib/cancel-refund.js';
 // tables use the frozen selection below, never an unconditional tenant wipe.
 export const STORE_RESET_KEEP_MODELS = [
   'Store', 'User', 'StoreMember', 'StoreInvitation', 'StoreFollowUpSettings',
-  'PeriodicReportSettings', 'StorePublicCatalog', 'StoreCatalogOption',
+  'PeriodicReportSettings', 'StoreCatalog', 'StorePublicCatalog', 'StoreCatalogOption',
   'CustomFieldDefinition', 'ClientCategory', 'InventoryCategory', 'TradeInCategory',
-  'SaleCategory', 'CommissionRule', 'CashRegister', 'BillingCheckout', 'BillingPlan',
+  'SaleCategory', 'StoreReseller', 'CommissionRule', 'CashRegister', 'BillingCheckout', 'BillingPlan',
   'AuditEvent', 'ImeiTacMiss', 'StoreCounter', 'Client', 'RepairOrder',
   'RepairStatusEvent', 'CommissionPayment', 'CashCount', 'CashSession',
   'StockPurchase', 'Supplier', 'Expense', 'ProductEvent', 'PeriodicReportDelivery',
@@ -24,7 +25,11 @@ export const STORE_RESET_DELETE_MODELS = [
   'StockCount', 'CreditNoteApplication', 'CreditNote', 'ReturnEvent', 'ReturnCase',
   'SaleInstallment', 'SaleInstallmentPlan', 'SaleTender', 'ClientDeposit',
   'ClientPayment', 'CommissionAccrual', 'CashMovement', 'Sale', 'TradeIn',
-  'InventoryItem', 'StoreNotification',
+  'CatalogItemPrice', 'CatalogItemHidden', 'InventoryItem', 'StoreNotification',
+] as const satisfies readonly Prisma.ModelName[];
+
+export const STORE_RESET_FULL_DELETE_MODELS = [
+  ...STORE_RESET_DELETE_MODELS, 'RepairStatusEvent', 'RepairOrder', 'Client',
 ] as const satisfies readonly Prisma.ModelName[];
 
 export const storeResetBody = z.object({
@@ -32,7 +37,8 @@ export const storeResetBody = z.object({
   expectStoreName: z.string().min(1),
   expectStoreId: z.string().min(1).max(160),
   dryRun: z.boolean(),
-  expect: z.record(z.number().int().nonnegative().safe()).optional(),
+  scope: z.literal('full').optional(),
+  expect: z.record(z.string(), z.number().refine(Number.isInteger).nonnegative().safe()).optional(),
 }).strict();
 export type StoreResetBody = z.infer<typeof storeResetBody>;
 type Tx = Prisma.TransactionClient;
@@ -53,6 +59,7 @@ function table(model: Prisma.ModelName) {
 function scope(model: Prisma.ModelName, storeId: string): Prisma.Sql {
   if (model === 'Store') return Prisma.sql`t."id" = ${storeId}`;
   if (model === 'User') return Prisma.sql`t."id" IN (SELECT "userId" FROM "StoreMember" WHERE "storeId" = ${storeId})`;
+  if (model === 'CatalogItemPrice' || model === 'CatalogItemHidden') return Prisma.sql`t."catalogId" IN (SELECT "id" FROM "StoreCatalog" WHERE "storeId" = ${storeId})`;
   if (model === 'NotificationRead') return Prisma.sql`t."notificationId" IN (SELECT "id" FROM "StoreNotification" WHERE "storeId" = ${storeId})`;
   if (model === 'BillingPlan' || model === 'ImeiTacMiss') return Prisma.sql`TRUE`;
   return Prisma.sql`t."storeId" = ${storeId}`;
@@ -70,7 +77,7 @@ async function count(tx: Tx, model: Prisma.ModelName, where: Prisma.Sql) {
   const [row] = await tx.$queryRaw<{ count: number }[]>(Prisma.sql`SELECT count(*)::int AS count FROM ${table(model)} t WHERE ${where}`);
   return row!.count;
 }
-async function planReset(tx: Tx, storeId: string) {
+async function planReset(tx: Tx, storeId: string, full: boolean) {
   const plan: Plan = {};
   const ids: Partial<Record<Prisma.ModelName, string[]>> = {};
   async function select(model: Prisma.ModelName, predicate = Prisma.sql`TRUE`) {
@@ -80,6 +87,27 @@ async function planReset(tx: Tx, storeId: string) {
     // Freeze the IDs: later deletion of a parent must not change child scope.
     plan[model] = Prisma.sql`(${scope(model, storeId)}) AND (${inIds('id', ids[model])})`;
     return ids[model];
+  }
+  if (full) {
+    // All operational rows belong to this reset, even archived rows, drafts,
+    // loose deposits/credits and references to previously deleted operations.
+    for (const model of STORE_RESET_FULL_DELETE_MODELS) {
+      if (model !== 'CashMovement' && model !== 'StoreNotification' && model !== 'NotificationRead' && model !== 'SectionRecordView' && model !== 'CatalogItemPrice' && model !== 'CatalogItemHidden') await select(model);
+    }
+    // Composite-key children are scoped by the frozen inventory selection.
+    plan.CatalogItemPrice = Prisma.sql`(${scope('CatalogItemPrice', storeId)}) AND (${inIds('inventoryItemId', ids.InventoryItem!)})`;
+    plan.CatalogItemHidden = Prisma.sql`(${scope('CatalogItemHidden', storeId)}) AND (${inIds('inventoryItemId', ids.InventoryItem!)})`;
+    const records = Object.values(ids).flat();
+    await select('CashMovement', Prisma.sql`t."sourceType" IN ('sale', 'repair', 'client', 'deposit', 'return', 'trade-in', 'trade')
+      OR (t."sourceType" IS NULL AND (${inIds('sourceId', records)} OR t."kind" IN ('COBRO', 'DEVOLUCION')))`);
+    await includeCashReversals(tx, storeId, plan);
+    const sections = Prisma.sql`t."section" IN ('sales', 'inventory', 'clients', 'service', 'repairs', 'tradeins', 'trade-ins', 'tradeIns', 'returns')`;
+    const notices = await select('StoreNotification', Prisma.sql`${sections} OR ${inIds('recordId', records)}`);
+    await select('NotificationRead', inIds('notificationId', notices));
+    // SectionRecordView has a composite key, no id; the predicate uses only
+    // literal sections and frozen record IDs, so parent deletions cannot alter it.
+    plan.SectionRecordView = Prisma.sql`t."storeId" = ${storeId} AND (${sections} OR ${inIds('recordId', records)})`;
+    return { plan, inventory: ids.InventoryItem! };
   }
   await select('Sale');
   // Also clean structured references left by sales that were deleted previously.
@@ -91,6 +119,8 @@ async function planReset(tx: Tx, storeId: string) {
     UNION SELECT "sourceId" FROM "CashMovement" WHERE "storeId" = ${storeId} AND "sourceType" = 'sale' AND "sourceId" IS NOT NULL`);
   const saleReferences = references.map(row => row.id);
   const inventory = await select('InventoryItem');
+  plan.CatalogItemPrice = Prisma.sql`(${scope('CatalogItemPrice', storeId)}) AND (${inIds('inventoryItemId', inventory)})`;
+  plan.CatalogItemHidden = Prisma.sql`(${scope('CatalogItemHidden', storeId)}) AND (${inIds('inventoryItemId', inventory)})`;
   const trades = await select('TradeIn', Prisma.sql`${inIds('id', (await tx.sale.findMany({ where: { storeId, tradeInId: { not: null } }, select: { tradeInId: true } })).map(sale => sale.tradeInId!))}
     OR ${inIds('receivedInventoryItemId', inventory)} OR ${inIds('draftProductId', inventory)} OR ${notNull('removedFromSaleNumber')}`);
   const returns = await select('ReturnCase', Prisma.sql`${notNull('saleId')} OR ${inIds('inventoryItemId', inventory)}`);
@@ -108,16 +138,10 @@ async function planReset(tx: Tx, storeId: string) {
     OR (t."kind" = 'APLICACION' AND t."note" = 'Seña aplicada a venta (sin nuevo cobro)')
     OR (t."kind" = 'CREDITO' AND t."note" = 'Seña disponible por cancelación de venta (sin devolución)')`);
   await select('CommissionAccrual'); // All accruals have a non-null sourceSaleId.
-  const cash = await select('CashMovement', Prisma.sql`t."sourceType" = 'sale'
+  await select('CashMovement', Prisma.sql`t."sourceType" = 'sale'
     OR (t."sourceType" = 'return' AND ${inIds('sourceId', returns)})
     OR (t."sourceType" = 'deposit' AND ${inIds('sourceId', deposits)})`);
-  // Include legacy reversals with no source metadata, recursively.
-  const reversals = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-    WITH RECURSIVE removed AS (
-      SELECT "id" FROM "CashMovement" WHERE "storeId" = ${storeId} AND "id" = ANY(${cash}::text[])
-      UNION SELECT c."id" FROM "CashMovement" c JOIN removed r ON c."reversalOf" = r."id" WHERE c."storeId" = ${storeId}
-    ) SELECT "id" FROM removed`);
-  plan.CashMovement = Prisma.sql`t."storeId" = ${storeId} AND ${inIds('id', reversals.map(row => row.id))}`;
+  await includeCashReversals(tx, storeId, plan);
   await select('StockCountScan');
   await select('StockCountExpected');
   const stockCounts = await select('StockCount');
@@ -128,8 +152,33 @@ async function planReset(tx: Tx, storeId: string) {
   return { plan, inventory };
 }
 
+async function includeCashReversals(tx: Tx, storeId: string, plan: Plan) {
+  // Legacy reversals may lack source metadata. Freeze their IDs as well.
+  const reversals = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+    WITH RECURSIVE removed AS (
+      SELECT t."id" FROM "CashMovement" t WHERE ${plan.CashMovement!}
+      UNION SELECT c."id" FROM "CashMovement" c JOIN removed r ON c."reversalOf" = r."id" WHERE c."storeId" = ${storeId}
+    ) SELECT "id" FROM removed`);
+  plan.CashMovement = Prisma.sql`t."storeId" = ${storeId} AND ${inIds('id', reversals.map(row => row.id))}`;
+}
+
+async function planCashAdjustments(tx: Tx, storeId: string, plan: Plan, full: boolean) {
+  const rows = await tx.$queryRaw<{ id: string; balance: Prisma.Decimal; amount: Prisma.Decimal; zero: boolean }[]>(Prisma.sql`
+    SELECT r."id", r."balance",
+      COALESCE((SELECT sum(t."amount") FROM "CashMovement" t WHERE ${plan.CashMovement!} AND t."registerId" = r."id"), 0) AS amount,
+      (${full} AND EXISTS (SELECT 1 FROM "CashMovement" t WHERE ${plan.CashMovement!} AND (
+        (t."registerId" = r."id" AND t."currency" IS NOT NULL AND t."currency" <> r."currency")
+        OR (t."registerId" IS NULL AND (t."currency" IS NULL OR t."currency" = r."currency")
+          AND (t."method" IS NULL OR t."method" = r."method"))
+      ))) AS zero
+    FROM "CashRegister" r WHERE r."storeId" = ${storeId}`);
+  return rows.filter(row => row.zero || !row.amount.isZero()).map(row => ({
+    id: row.id, zero: row.zero, balance: row.zero ? new Prisma.Decimal(0) : row.balance.minus(row.amount),
+  }));
+}
+
 // Compare every retained row, including other tenants, globals and accounts.
-// Exclude only fields explicitly adjusted below; no customer identities are lost.
+// Exclude only fields explicitly adjusted below.
 type MutableRows = Partial<Record<Prisma.ModelName, string[]>>;
 async function retainedFingerprint(tx: Tx, plan: Plan, mutable: MutableRows) {
   const result: Record<string, unknown> = {};
@@ -169,7 +218,7 @@ async function clientAdjustments(tx: Tx, storeId: string) {
   const store = await tx.store.findUniqueOrThrow({ where: { id: storeId }, select: { currency: true } });
   const clients = await tx.client.findMany({ where: { storeId, OR: [
     { sales: { some: { storeId } } }, { payments: { some: { storeId, saleId: { not: null } } } },
-  ] }, include: { sales: { where: { storeId, voidedAt: null, status: { notIn: ['CANCELADA', 'ANULADA'] } }, include: { tradeIn: true } }, payments: { where: { storeId } } } });
+  ] }, include: { sales: { where: { storeId, voidedAt: null, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA","ANULADA"], true) }, include: { tradeIn: true } }, payments: { where: { storeId } } } });
   return clients.map(client => {
     const currency = client.balanceCurrency ?? store.currency;
     const convert = (amount: Prisma.Decimal, from: string | null, rate?: Prisma.Decimal | null) => {
@@ -200,6 +249,9 @@ async function clientAdjustments(tx: Tx, storeId: string) {
 
 /** Never log the body or report. All guards, effects and audit share one transaction. */
 export async function resetStore(body: StoreResetBody, admin: { email: string }): Promise<Report> {
+  const full = body.scope === 'full';
+  const deleteModels: readonly Prisma.ModelName[] = full ? STORE_RESET_FULL_DELETE_MODELS : STORE_RESET_DELETE_MODELS;
+  const keepModels = STORE_RESET_KEEP_MODELS.filter(model => !deleteModels.includes(model));
   const classified: readonly string[] = [...STORE_RESET_KEEP_MODELS, ...STORE_RESET_DELETE_MODELS];
   check(tenantModels.every(model => classified.includes(model.name)), 'Hay modelos sin clasificar; reset deshabilitado.');
   try {
@@ -213,28 +265,27 @@ export async function resetStore(body: StoreResetBody, admin: { email: string })
       check(store.id === body.expectStoreId, 'El ID de la tienda no coincide.');
       check(store.name === body.expectStoreName, 'El nombre de la tienda no coincide.');
       await lockCash(tx, store.id);
-      const { plan, inventory } = await planReset(tx, store.id);
+      const { plan, inventory } = await planReset(tx, store.id, full);
       const willDelete: Counts = {};
       const willKeep: Counts = {};
-      for (const model of STORE_RESET_DELETE_MODELS) willDelete[model] = await count(tx, model, plan[model]!);
-      for (const model of [...STORE_RESET_KEEP_MODELS, ...STORE_RESET_DELETE_MODELS]) {
+      for (const model of deleteModels) willDelete[model] = await count(tx, model, plan[model]!);
+      for (const model of [...keepModels, ...deleteModels]) {
         willKeep[model] = await count(tx, model, scope(model, store.id)) - (willDelete[model] ?? 0);
       }
       if (!body.dryRun) check(sameCounts(body.expect, willDelete), 'Los conteos expect no coinciden. Volvé a ejecutar dryRun.');
-      // A row linked to both a sale and a repair has ambiguous ownership.
-      check(await count(tx, 'ClientPayment', Prisma.sql`(${plan.ClientPayment!}) AND t."repairOrderId" IS NOT NULL`) === 0
-        && await count(tx, 'ClientDeposit', Prisma.sql`(${plan.ClientDeposit!}) AND t."repairId" IS NOT NULL`) === 0,
+      // Full owns both sides of a shared sale/repair payment or deposit.
+      check(full || (await count(tx, 'ClientPayment', Prisma.sql`(${plan.ClientPayment!}) AND t."repairOrderId" IS NOT NULL`) === 0
+        && await count(tx, 'ClientDeposit', Prisma.sql`(${plan.ClientDeposit!}) AND t."repairId" IS NOT NULL`) === 0),
       'Hay cobros o señas compartidos con reparaciones; revisalos antes del reset.');
       const othersBefore = await otherStores(tx, store.id);
       // Purchase aggregates are sales-derived. Keep the independent part of the
       // pending balance, imported history, identities, repairs and loose payments.
-      const affected = await clientAdjustments(tx, store.id);
+      // Full deletes clients and their ledger; it must never separate balances
+      // or require a historical exchange rate, even for shared sale/repair rows.
+      const affected = full ? [] : await clientAdjustments(tx, store.id);
       const depositsToRelease = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT t."id" FROM "ClientDeposit" t
         WHERE t."storeId" = ${store.id} AND ${inIds('productId', inventory)} AND NOT (${plan.ClientDeposit!})`);
-      const cashAdjustments = await tx.$queryRaw<{ id: string; balance: Prisma.Decimal; amount: Prisma.Decimal }[]>(Prisma.sql`
-        SELECT r."id", r."balance", sum(t."amount") AS amount FROM "CashMovement" t
-        JOIN "CashRegister" r ON r."id" = t."registerId" AND r."storeId" = ${store.id}
-        WHERE ${plan.CashMovement!} GROUP BY r."id"`);
+      const cashAdjustments = await planCashAdjustments(tx, store.id, plan, full);
       const mutable = { Client: affected.map(row => row.id), ClientDeposit: depositsToRelease.map(row => row.id), CashRegister: cashAdjustments.map(row => row.id) };
       const keepBefore = await retainedFingerprint(tx, plan, mutable);
       for (const client of affected) await tx.client.updateMany({ where: { storeId: store.id, id: client.id },
@@ -242,17 +293,18 @@ export async function resetStore(body: StoreResetBody, admin: { email: string })
       // Retain real, unconsumed deposits; release their reference to deleted stock.
       await tx.$executeRaw(Prisma.sql`UPDATE "ClientDeposit" t SET "productId" = NULL
         WHERE t."storeId" = ${store.id} AND ${inIds('productId', inventory)} AND NOT (${plan.ClientDeposit!})`);
-      // Remove only the net contribution of deleted movements. Manual funds,
-      // repairs, transfers and register/session definitions are preserved.
-      await tx.$executeRaw(Prisma.sql`UPDATE "CashRegister" r SET "balance" = r."balance" - removed.amount
-        FROM (SELECT t."registerId", sum(t."amount") AS amount FROM "CashMovement" t
-          WHERE ${plan.CashMovement!} GROUP BY t."registerId") removed
-        WHERE r."storeId" = ${store.id} AND r."id" = removed."registerId"`);
-      for (const model of STORE_RESET_DELETE_MODELS) {
+      // Never convert cash. Full uses zero when legacy attribution is ambiguous;
+      // otherwise remove the signed net in the register's own denomination.
+      for (const adjustment of cashAdjustments) await tx.$executeRaw(Prisma.sql`
+        UPDATE "CashRegister" SET "balance" = ${adjustment.balance} WHERE "storeId" = ${store.id} AND "id" = ${adjustment.id}`);
+      for (const model of deleteModels) {
         const deleted = await tx.$executeRaw(Prisma.sql`DELETE FROM ${table(model)} t WHERE ${plan[model]!}`);
         check(deleted === willDelete[model], `El conteo de ${model} cambió. Se revirtieron los cambios.`);
       }
       check(await tx.sale.count({ where: { storeId: store.id } }) === 0 && await tx.inventoryItem.count({ where: { storeId: store.id } }) === 0, 'Quedaron ventas o inventario.');
+      if (full) for (const model of deleteModels.filter(model => !['CashMovement', 'NotificationRead', 'StoreNotification', 'SectionRecordView'].includes(model))) {
+        check(await count(tx, model, scope(model, store.id)) === 0, `Quedaron registros de ${model}.`);
+      }
       check(await otherStores(tx, store.id) === othersBefore, 'Cambió otra tienda. Se revirtieron los cambios.');
       const updatedClients = await tx.client.findMany({ where: { storeId: store.id, id: { in: mutable.Client } } });
       check(affected.every(expected => updatedClients.some(actual => actual.id === expected.id
@@ -260,11 +312,14 @@ export async function resetStore(body: StoreResetBody, admin: { email: string })
       'No se ajustaron los agregados de ventas del cliente.');
       check(await tx.clientDeposit.count({ where: { storeId: store.id, id: { in: mutable.ClientDeposit }, productId: { not: null } } }) === 0, 'Quedaron reservas de stock borrado.');
       const registers = await tx.cashRegister.findMany({ where: { storeId: store.id, id: { in: mutable.CashRegister } } });
-      check(cashAdjustments.every(before => registers.some(after => after.id === before.id && after.balance.equals(before.balance.minus(before.amount)))), 'El saldo de caja no coincide.');
+      check(cashAdjustments.every(expected => registers.some(after => after.id === expected.id && after.balance.equals(expected.balance))), 'El saldo de caja no coincide.');
       check(await retainedFingerprint(tx, plan, mutable) === keepBefore, 'Cambió un registro preservado. Se revirtieron los cambios.');
       await writeAudit(tx, {
         storeId: store.id, action: 'store.reset', entityType: 'store', entityId: store.id, source: 'system',
-        detail: JSON.stringify({ admin: admin.email, willDelete, willKeep, clientsReset: affected.length }),
+        detail: JSON.stringify({ admin: admin.email, scope: body.scope ?? 'sales-inventory', willDelete, willKeep,
+          clientsReset: full ? willDelete.Client : affected.length,
+          ...(full ? { cashRegistersZeroed: cashAdjustments.filter(row => row.zero).length } : {}),
+        }),
       });
       const result = { dryRun: body.dryRun, store, willDelete, willKeep };
       if (body.dryRun) throw new DryRunRollback(result);
@@ -274,6 +329,6 @@ export async function resetStore(body: StoreResetBody, admin: { email: string })
     if (error instanceof DryRunRollback) return error.result;
     if (error instanceof DomainError) throw error;
     const code = error instanceof Prisma.PrismaClientKnownRequestError ? error.code : undefined;
-    throw new DomainError('No se pudo vaciar ventas e inventario. Se revirtieron los cambios.', code === 'P2034' ? 409 : 500);
+    throw new DomainError(`No se pudo vaciar ${full ? 'la operación de la tienda' : 'ventas e inventario'}. Se revirtieron los cambios.`, code === 'P2034' ? 409 : 500);
   }
 }

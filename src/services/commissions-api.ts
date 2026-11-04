@@ -1,3 +1,4 @@
+import { beneficiaryInput } from '../types/commissions';
 import type { AuthUserLike } from '../types/auth-user';
 import type { CommissionDetail, CommissionPayment, CommissionPaymentInput, CommissionReport, CommissionRule, CommissionRuleInput, CommissionSummary } from '../types/commissions';
 import { apiRequest } from './api-client';
@@ -52,7 +53,7 @@ export async function voidCommissionPayment(user: AuthUserLike, id: string, reas
   return data.payment;
 }
 export function assignSalesSeller(user: AuthUserLike, saleIds: string[], sellerMemberId: string | null) {
-  return apiRequest<{ updated: number }>(user, '/api/commissions/sales/seller', { method: 'PATCH', body: { saleIds, sellerMemberId }, fallback, errorFrom: 'friendly' });
+  return apiRequest<{ updated: number }>(user, '/api/commissions/sales/seller', { method: 'PATCH', body: { saleIds, sellerMemberId: beneficiaryInput(sellerMemberId).memberId, resellerId: beneficiaryInput(sellerMemberId).resellerId }, fallback, errorFrom: 'friendly' });
 }
 export function fetchCommissionReport(user: AuthUserLike, from: string, to: string) {
   return apiRequest<CommissionReport>(user, `/api/reports/commissions${query({ from, to })}`, { fallback });
@@ -68,4 +69,10 @@ export async function fetchCommissionExchangeRate(user: AuthUserLike): Promise<n
   const data = await apiRequest<{ exchangeRate: number }>(user, '/api/commissions/exchange-rate', { fallback });
   if (!Number.isFinite(data.exchangeRate) || data.exchangeRate <= 0) throw new Error('No se pudo obtener la cotización blue');
   return data.exchangeRate;
+}
+
+export async function saveStoreReseller(user: AuthUserLike, input: { name?: string; archived?: boolean }, id?: string) {
+  const data = await apiRequest<{ reseller: { id: string; name: string; archivedAt: string | null } }>(user, `/api/commissions/resellers${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PATCH' : 'POST', body: input, fallback, errorFrom: 'friendly' });
+  if (!data.reseller) throw new Error('Respuesta inválida al guardar revendedor');
+  return data.reseller;
 }

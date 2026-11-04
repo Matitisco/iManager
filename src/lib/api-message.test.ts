@@ -22,6 +22,14 @@ describe('friendly validation messages', () => {
     expect(getFriendlyErrorMessage(zod, 'No se pudo guardar.')).not.toContain('too_small');
   });
 
+  it.each([
+    '[{"code":"invalid_type","expected":"string","message":"Invalid input: expected string, received undefined","path":["name"]}]',
+    '[{"code":"too_small","origin":"number","minimum":0,"inclusive":false,"message":"Too small: expected number to be >0","path":["price"]}]',
+    '[{"code":"invalid_value","values":["ARS","USD"],"path":["currency"],"message":"Invalid option: expected one of ARS|USD"}]',
+  ])('hides raw Zod 4 issues: %s', raw => {
+    expect(getFriendlyErrorMessage(new Error(raw), 'No se pudo guardar.')).toBe('No se pudo guardar.');
+  });
+
   it('rejects empty, long and negative values before they are sent', () => {
     expect(limitedText('nombre', '   ', INPUT_LIMITS.storeName)).toBe('El nombre es obligatorio');
     expect(limitedText('modelo', 'a'.repeat(500), INPUT_LIMITS.model)).toBe('El modelo puede tener hasta 100 caracteres');

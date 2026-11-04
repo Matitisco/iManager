@@ -21,6 +21,8 @@ const context = vi.hoisted(() => ({
   sectionChanges: {} as SectionChanges,
   sectionChangesError: '',
   viewSection: undefined as undefined | ((section: ViewSection, versions: RecordVersion[]) => Promise<void>),
+  storeCatalogs: [],
+  loadStoreCatalogs: vi.fn(async () => []),
   publicCatalog: null,
   loadPublicCatalog: vi.fn(async () => null),
   loadCommissions: undefined as undefined | ReturnType<typeof vi.fn>,

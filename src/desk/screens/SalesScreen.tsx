@@ -1,3 +1,4 @@
+import { SaleStatusPill } from '../SaleStatusPill';
 import { IMPORT_SALES_ENABLED } from '../../config/featureFlags';
 import { ReplayValue } from '../replay-privacy';
 import { useArchivedRows } from '../use-archived-rows';
@@ -8,7 +9,8 @@ import { AssignSellerSheet } from '../AssignSellerSheet';
 import { CommissionAvatar } from '../CommissionAvatar';
 import { BulkActions, useBulkScope } from '../bulk-actions';
 import { SelectFiltered, useBulkSelection } from '../bulk-selection';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Undo2 } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 import { usePhoneLayout, useSectionNotices } from '../section-notices';
 import { NoticeTag, PhoneRecord } from '../section-notice-view';
@@ -45,15 +47,19 @@ import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
 import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
-import type { Sale } from '../../types';
+import type { Product, Sale } from '../../types';
+import type { ReturnCaseView } from '../../services/returns-api';
 import { fetchVoidedSales } from '../../services/sales-api';
 import { rememberVoidedSales } from '../archive-cache';
 import { summarizeSaleProfit } from '../sale-profit';
+import { compensatedReturns, compensationDate } from '../return-financials';
+import { projectAmount } from '../money';
+import { SALE_LOAD_ORDER, SALE_SORT_LABELS, sortSales, type SaleSortColumn } from '../sale-sort';
 
 const PERIODS: PeriodKey[] = ['Semana', 'Mes', 'Año'];
 
 export function SalesScreen() {
-  const { sales, clients, inventory, deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
+  const { sales, clients, inventory, returns = [], deleteSale, operationDrafts = [], appSession, commissionSellers = [], loadCommissionSellers, listsLoaded } = useAppContext();
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
   const { sell, staleClock } = useDisplayQuote();
@@ -71,15 +77,16 @@ export function SalesScreen() {
     void loadCommissionSellers().catch((cause: unknown) => { if (active) console.warn('No se pudieron cargar los vendedores.', cause); });
     return () => { active = false; };
   }, [appSession?.store?.id]);
-  const sellerPerson = (sale: Sale) => commissionSellers.find(person => person.id === sale.sellerMemberId);
-  const sellerName = (sale: Sale) => sellerPerson(sale)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
-  const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
+  const sellerPerson = (sale: Sale) => commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId));
+  const sellerName = (sale: Sale) => sellerPerson(sale)?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor');
+  const sellerRole = (sale: Sale) => sellerPerson(sale)?.role ?? (sale.resellerId ? 'RESELLER' as const : sale.sellerMemberId ? 'STAFF' as const : 'NONE' as const);
   const [sellerOpen, setSellerOpen] = useState(false);
   const [sellerDraft, setSellerDraft] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useNavigationState('Sales.searchOpen', false);
   const notices = useSectionNotices('sales');
   const [query, setQuery] = useNavigationState('Sales.query', '');
   const [period, setPeriod] = useNavigationState<PeriodKey>('Sales.period', 'Mes');
+  const [sort, setSort] = useNavigationState('Sales.sort', SALE_LOAD_ORDER);
   const [statusPill, setStatusPill] = useNavigationState('Sales.statusPill', 'Todos');
   const [columns, setColumns] = useNavigationState<SaleColumnFilters>('Sales.columns', EMPTY_SALE_FILTERS);
   const { rows: voidedSales } = useArchivedRows(sales, fetchVoidedSales, rememberVoidedSales);
@@ -103,15 +110,20 @@ export function SalesScreen() {
   const salePool = mergeRecordRows(sales, voidedSales);
   const listed = useMemo(() => salePool.filter((sale) => inWindow(sale)), [salePool, bounds.start, bounds.end, period, onlyUnassigned, unassignedMonth, appSession?.store?.timezone]);
   const previous = sales.filter((sale) => !isVoidRow(sale) && inPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
-  const total = money.sum(periodSales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const issuedReturns = compensatedReturns(returns ?? []);
+  const periodReturns = issuedReturns.filter(row => inWindow({ date: compensationDate(row) }));
+  const figures = summarizeSaleProfit(periodSales, inventory, money.active, money.rate, periodReturns);
+  const total = returns === null ? null : figures.revenue;
   const units = periodSales.reduce((sum, sale) => sum + saleQuantity(sale), 0);
-  const prevTotal = money.sum(previous.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const prevTotal = summarizeSaleProfit(previous, inventory, money.active, money.rate,
+    issuedReturns.filter(row => inPeriod(compensationDate(row), bounds.prevStart, bounds.prevEnd))).revenue;
   const avg = total != null && periodSales.length ? Math.round(total / periodSales.length) : null;
-  const { grossProfit: margin, marginPct, costedSales, salesWithoutCost } = summarizeSaleProfit(periodSales, inventory, money.active, money.rate);
-  const hasCost = costedSales > 0;
+  const { grossProfit, marginPct, costedSales, costedReturns, salesWithoutCost } = figures;
+  const margin = returns === null ? null : grossProfit;
+  const hasCost = costedSales > 0 || costedReturns > 0;
   const marginNote = !hasCost ? 'Cargá el costo en el equipo'
     : salesWithoutCost > 0 ? `${salesWithoutCost} ${salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}`
-    : marginPct == null ? 'precio menos costo' : `≈ ${marginPct}%`;
+    : marginPct == null || (figures.marginRevenue ?? 0) <= 0 ? 'precio menos costo' : `≈ ${marginPct}%`;
   const delta = total != null && prevTotal != null && prevTotal > 0 ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
 
   const setColumn = (patch: Partial<SaleColumnFilters>) => setColumns((current) => ({ ...current, ...patch }));
@@ -127,7 +139,7 @@ export function SalesScreen() {
     return `${labels.client} ${labels.equipment} ${saleCode(sale)}`.toLowerCase().includes(q);
   };
   const sellerPool = listed.filter((sale) => {
-    if (onlyUnassigned && sale.sellerMemberId) return false;
+    if (onlyUnassigned && (sale.sellerMemberId || sale.resellerId)) return false;
     if (!matchesQuery(sale)) return false;
     return matchesSaleColumns(sale, { ...columns, sellers: [] }, rowLabels(sale));
   });
@@ -136,9 +148,38 @@ export function SalesScreen() {
   const narrowed = statusOn ? rows.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : rows;
   const sellerBase = statusOn ? sellerPool.filter((sale) => statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status) === statusPill) : sellerPool;
   const sellerOptions = sellerFilterOptions(sellerBase, commissionSellers);
-  const prioritized = notices.prioritize(narrowed);
-  const shown = [...prioritized.filter(sale => !isVoidRow(sale)), ...prioritized.filter(isVoidRow)];
-  const page = usePagedRows(shown, `${query}|${period}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
+  const sortValue = (sale: Sale): string | number | null => {
+    switch (sort.slice(0, -2) as SaleSortColumn) {
+      case 'Venta': return sale.saleNumber ?? 0;
+      case 'Fecha': return parseAppDate(sale.date)?.getTime() ?? null;
+      case 'Cliente': return saleBuyer(sale, clients);
+      case 'Equipo': return saleEquipment(sale, inventory);
+      case 'Cant.': return saleQuantity(sale);
+      case 'Vendedor': return sellerName(sale);
+      case 'Precio unit.': {
+        const price = projectAmount(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, money.active, money.rate, 2);
+        return price.blocked ? null : price.value;
+      }
+      case 'Total': return money.number(sale.amount, sale.amountCurrency);
+      case 'Ganancia': {
+        if (!seeFinancials || returns === null) return null;
+        const profit = summarizeSaleProfit([sale], inventory, money.active, money.rate, issuedReturns.filter(row => row.saleId === sale.id));
+        return profit.costedSales > 0 || profit.costedReturns > 0 ? profit.grossProfit : null;
+      }
+      case 'Estado': return statusLabel(isVoidRow(sale) ? 'ANULADA' : sale.status);
+      default: return null;
+    }
+  };
+  const ordered = sortSales(narrowed, sort.endsWith('↓') ? 'desc' : 'asc', sort === SALE_LOAD_ORDER ? undefined : sortValue);
+  const shown = [...ordered.filter(sale => !isVoidRow(sale)), ...ordered.filter(isVoidRow)];
+  const sortAria = (label: SaleSortColumn) => sort === `${label} ↑` ? 'ascending' as const : sort === `${label} ↓` ? 'descending' as const : 'none' as const;
+  const sortHeader = (label: SaleSortColumn) => (
+    <button type="button" className="thsort" aria-label={`Ordenar por ${label.toLowerCase()}`} onClick={() => setSort(current => current === `${label} ↑` ? `${label} ↓` : `${label} ↑`)}>
+      {label}{sort.startsWith(`${label} `) ? ` ${sort.slice(-1)}` : ''}
+    </button>
+  );
+  const sortControl = <MenuButton testId="sales-sort" label={sort === SALE_LOAD_ORDER ? 'Ordenar' : sort} options={[SALE_LOAD_ORDER, ...SALE_SORT_LABELS.filter(label => seeFinancials || label !== 'Ganancia').flatMap(label => [`${label} ↑`, `${label} ↓`])]} value={sort} active={sort !== SALE_LOAD_ORDER} onChange={setSort} />;
+  const page = usePagedRows(shown, `${query}|${period}|${sort}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
   const statuses = [...new Set([...listed.map((sale) => isVoidRow(sale) ? 'ANULADA' : sale.status), 'COMPLETADA', 'PENDIENTE', 'ANULADA'])].filter(Boolean);
@@ -174,6 +215,7 @@ export function SalesScreen() {
       {phone && searchOpen ? <div className="msearch"><SearchBox value={query} onChange={setQuery} placeholder="Buscar cliente, equipo o número" /></div> : null}
       {phone ? (
         <div className="dbar sale-pills">
+          {sortControl}
           <MenuButton testId="sales-period" label={period} options={PERIODS} value={period} onChange={(value) => setPeriod(value as PeriodKey)} />
           <SellerChip phone label={sellerChipLabel(columns.sellers, sellerOptions, true)} active={columns.sellers.length > 0} onOpen={() => { setSellerDraft(columns.sellers); setSellerOpen(true); }} onClear={() => setColumn({ sellers: [] })} />
           <MenuButton testId="sales-status" label={statusPill === 'Todos' ? 'Estado' : statusPill} options={['Todos', 'Completada', 'Pendiente', 'Anulada']} value={statusPill} active={statusOn} onChange={setStatusPill} />
@@ -257,7 +299,8 @@ export function SalesScreen() {
                       onActivate={() => { open({ type: 'sale', id: sale.id }); }}
                       onMenu={(point) => open({ type: 'ctx', kind: 'sale', id: sale.id, label: `${saleCode(sale)} · ${saleBuyer(sale, clients)}`, onSelect: () => selection.start(sale.id), ...point })}
                     >
-                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)} />
+                      <SaleCard sale={sale} buyer={saleBuyer(sale, clients)} equipment={[saleEquipment(sale, inventory), soldQualityLabel(sale, inventory)].filter(Boolean).join(' · ')} sellerId={sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId || 'none'} seller={sellerName(sale)} sellerRole={sellerRole(sale)} amount={money.show(sale.amount, sale.amountCurrency)} approx={approxUsd(sale.amount, sale.amountCurrency, money.active, sell)}
+                        profit={seeFinancials ? <SaleCardProfit sale={sale} inventory={inventory} returns={returns === null ? null : issuedReturns.filter(row => row.saleId === sale.id)} /> : null} />
                     </PhoneRecord>
                   </div>
                 );
@@ -271,53 +314,54 @@ export function SalesScreen() {
         <div className="dch pad">
           <h3>Ventas del período</h3>
           <span className="sale-filter-meta">
+            {sortControl}
             {columns.sellers.length > 0 ? <SellerChip label={sellerChipLabel(columns.sellers, sellerOptions, false)} active onOpen={() => undefined} onClear={() => setColumn({ sellers: [] })} /> : null}
             <span className="mut" data-testid="sales-filter-summary">{summaryText}</span>
             {filtersOn ? <button className="wlink" type="button" onClick={clearFilters}>Limpiar filtros</button> : null}
           </span>
         </div>
-        <table className="dtable">
+        <div className="dtable-scroll desktop-table-scroll"><table className="dtable">
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={shown.length} /></th>
-                <th><span className="thf">Venta
+                <th aria-sort={sortAria('Venta')}><span className="thf">{sortHeader('Venta')}
                   <ColumnFilter label="venta" {...menu('venta')} active={saleColumnActive(columns, 'code')} onClear={() => setColumn({ code: '' })}>
                     <input aria-label="Contiene" placeholder="Número" value={columns.code} onChange={(event) => setColumn({ code: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Fecha
+                <th aria-sort={sortAria('Fecha')}><span className="thf">{sortHeader('Fecha')}
                   <ColumnFilter label="fecha" {...menu('fecha')} active={saleColumnActive(columns, 'date')} onClear={() => setColumn({ dateFrom: '', dateTo: '' })}>
                     <DateRange value={columns} onChange={setColumn} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Cliente
+                <th aria-sort={sortAria('Cliente')}><span className="thf">{sortHeader('Cliente')}
                   <ColumnFilter label="cliente" {...menu('cliente')} active={saleColumnActive(columns, 'client')} onClear={() => setColumn({ client: '' })}>
                     <input aria-label="Contiene" placeholder="Nombre" value={columns.client} onChange={(event) => setColumn({ client: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th><span className="thf">Equipo
+                <th aria-sort={sortAria('Equipo')}><span className="thf">{sortHeader('Equipo')}
                   <ColumnFilter label="equipo" {...menu('equipo')} active={saleColumnActive(columns, 'equipment')} onClear={() => setColumn({ equipment: '' })}>
                     <input aria-label="Contiene" placeholder="Modelo" value={columns.equipment} onChange={(event) => setColumn({ equipment: event.target.value })} />
                   </ColumnFilter>
                 </span></th>
-                <th className="sale-quantity-cell" scope="col">Cant.</th>
-                <th className="r" scope="col">Precio unit.</th>
-                <th><span className="thf">Vendedor
+                <th className="sale-quantity-cell" scope="col" aria-sort={sortAria('Cant.')}>{sortHeader('Cant.')}</th>
+                <th aria-sort={sortAria('Vendedor')}><span className="thf">{sortHeader('Vendedor')}
                   <ColumnFilter label="vendedor" {...menu('vendedor')} active={saleColumnActive(columns, 'sellers')} onClear={() => setColumn({ sellers: [] })}>
                     <div className="opts">
                       {sellerOptions.map((option) => (
-                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} /><span>{option.name}</span><em>{option.count}</em></label>
+                        <label key={option.id} className="chk"><input type="checkbox" aria-label={option.name} checked={columns.sellers.includes(option.id)} onChange={() => toggleList('sellers', option.id)} />{option.role === 'RESELLER' ? <CommissionAvatar id={option.id} name={option.name} role={option.role} /> : null}<span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span><em>{option.count}</em></label>
                       ))}
                     </div>
                   </ColumnFilter>
                 </span></th>
-                <th className="r"><span className="thf">Total
+                <th className="r" scope="col" aria-sort={sortAria('Precio unit.')}>{sortHeader('Precio unit.')}</th>
+                <th className="r" aria-sort={sortAria('Total')}><span className="thf">{sortHeader('Total')}
                   <ColumnFilter label="total" align="right" {...menu('total')} active={saleColumnActive(columns, 'amount')} onClear={() => setColumn({ amountMin: '', amountMax: '' })}>
                     <MoneyRange min={columns.amountMin} max={columns.amountMax} onMin={(amountMin) => setColumn({ amountMin })} onMax={(amountMax) => setColumn({ amountMax })} />
                   </ColumnFilter>
                 </span></th>
-                {seeFinancials ? <th className="r" scope="col">Ganancia</th> : null}
-                <th><span className="thf">Estado
+                {seeFinancials ? <th className="r" scope="col" aria-sort={sortAria('Ganancia')}>{sortHeader('Ganancia')}</th> : null}
+                <th aria-sort={sortAria('Estado')}><span className="thf">{sortHeader('Estado')}
                   <ColumnFilter label="estado" align="right" {...menu('estado')} active={saleColumnActive(columns, 'statuses')} onClear={() => setColumn({ statuses: [] })}>
                     <div className="opts">
                       {statuses.map((status) => (
@@ -330,7 +374,7 @@ export function SalesScreen() {
             </thead>
             <tbody>
               {page.visible.map((sale) => {
-                const profit = seeFinancials ? summarizeSaleProfit([sale], inventory, money.active, money.rate) : null;
+                const profit = seeFinancials && returns !== null ? summarizeSaleProfit([sale], inventory, money.active, money.rate, issuedReturns.filter(row => row.saleId === sale.id)) : null;
                 return (
                   <PressTarget
                     selection={selection.row(sale.id, saleCode(sale))}
@@ -345,16 +389,16 @@ export function SalesScreen() {
                     <td data-ph-mask>{saleBuyer(sale, clients)}</td>
                     <td>{saleEquipment(sale, inventory)}{soldQualityLabel(sale, inventory) ? <small>{soldQualityLabel(sale, inventory)}</small> : null}</td>
                     <td className="sale-quantity-cell">{saleQuantity(sale)}</td>
+                    <td><div className="dcell"><CommissionAvatar id={sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}{sale.resellerId ? <small className="reseller-label">Revendedor</small> : null}</span></div></td>
                     <td className="r"><span data-ph-mask className="keep">{money.show(sale.unitPrice ?? sale.amount / saleQuantity(sale), sale.amountCurrency, 2)}</span></td>
-                    <td><div className="dcell"><CommissionAvatar id={sale.sellerMemberId || 'none'} name={sellerName(sale)} role={sellerRole(sale)} /><span>{sellerName(sale)}</span></div></td>
                     <td className="r"><b data-ph-mask className="keep">{money.show(sale.amount, sale.amountCurrency)}</b></td>
-                    {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && profit.costedSales > 0 && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
-                    <td><Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
+                    {seeFinancials ? <td className="r"><span data-ph-mask className="keep">{profit && (profit.costedSales > 0 || profit.costedReturns > 0) && profit.grossProfit != null ? money.showActive(profit.grossProfit) : '—'}</span></td> : null}
+                    <td><SaleStatusPill sale={sale} />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}</td>
                   </PressTarget>
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         {loadingLists ? <ListSkeleton variant="rows" rows={6} testId="sales-loading" /> : shown.length === 0 ? <div className="table-empty">{listed.length === 0 && !saleFiltersActive(columns) ? 'No encontré ventas.' : 'No hay ventas con ese filtro.'}</div> : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
       </div>
@@ -415,30 +459,60 @@ function soldQualityLabel(sale: Sale, inventory: { id: string; condition: string
   return value ? `Calidad ${qualityDetail(value)}` : '';
 }
 
-function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount, approx }: {
+function SaleCard({ sale, buyer, equipment, sellerId, seller, sellerRole, amount, approx, profit }: {
   sale: Sale;
   buyer: string;
   equipment: string;
   sellerId: string;
   seller: string;
-  sellerRole: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE';
+  sellerRole: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE' | 'RESELLER';
   amount: string;
   approx: string | null;
+  profit: ReactNode;
 }) {
   return (
     <span className="sale-card">
       <span className="sale-top">
         <span className="sale-id">#{saleCode(sale)} · {formatShortDate(sale.date)}</span>
-        <Pill status={isVoidRow(sale) ? 'ANULADA' : sale.status} kind="SALE_STATUS" />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}
+        <SaleStatusPill sale={sale} />{typeof sale.customFields?.importReview === 'string' && sale.customFields.importReview && <span className="spill mid">Por revisar</span>}
       </span>
       <span className="sale-who">
         <CommissionAvatar id={sellerId} name={seller} role={sellerRole} />
         <span>
           <b data-ph-mask>{buyer}</b>
+          <small>{seller}{sale.resellerId ? ' · Revendedor' : ''}</small>
           <small className="sale-equipment"><span>{equipment}</span>{saleQuantityLabel(sale) ? <> <span className="sale-quantity">{saleQuantityLabel(sale)}</span></> : null}</small>
         </span>
       </span>
       <span className="sale-bot"><span>{paymentLabel(sale.paymentMethod)}</span><span className="sale-amt"><b data-ph-mask>{amount}</b>{approx ? <small data-ph-mask>{approx}</small> : null}</span></span>
+      {profit}
+    </span>
+  );
+}
+
+function SaleCardProfit({ sale, inventory, returns }: {
+  sale: Sale;
+  inventory: Product[];
+  returns: ReturnCaseView[] | null;
+}) {
+  const money = useMoney();
+  const summary = returns === null ? null : summarizeSaleProfit([sale], inventory, money.active, money.rate, returns);
+  const net = summary && (summary.costedSales > 0 || summary.costedReturns > 0) ? summary.grossProfit : null;
+  const original = summary && summary.costedSales > 0 && returns?.length
+    ? summarizeSaleProfit([sale], inventory, money.active, money.rate).grossProfit : null;
+  const adjusted = net !== null && original !== null && net !== original;
+  const tone = net === null ? 'unavailable' : net < 0 ? 'negative' : adjusted ? 'adjusted' : 'positive';
+
+  return (
+    <span className="sale-profit">
+      <span>Ganancia</span>
+      <span className="sale-profit-values">
+        {adjusted ? <del data-ph-mask aria-label="Ganancia antes de devoluciones">{money.showActive(original)}</del> : null}
+        <b data-ph-mask className={`sale-profit-net ${tone}`} aria-label="Ganancia neta">
+          {adjusted ? <Undo2 size={13} aria-hidden="true" /> : null}
+          {net === null ? '—' : money.showActive(net)}
+        </b>
+      </span>
     </span>
   );
 }
@@ -469,7 +543,7 @@ function SellerChip({ label, active, onOpen, onClear, phone = false }: {
 }
 
 function SellerSheet({ options, draft, count, onToggle, onClear, onApply, onClose }: {
-  options: { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' | 'NONE'; count: number }[];
+  options: { id: string; name: string; role: 'OWNER' | 'MANAGER' | 'STAFF' | 'RESELLER' | 'NONE'; count: number }[];
   draft: string[];
   count: number;
   onToggle: (id: string) => void;
@@ -488,7 +562,7 @@ function SellerSheet({ options, draft, count, onToggle, onClear, onApply, onClos
         {options.map((option) => (
           <label key={option.id} className="seller-opt">
             <CommissionAvatar id={option.id} name={option.name} role={option.role} />
-            <span>{option.name}</span>
+            <span>{option.name}{option.role === 'RESELLER' ? <small className="reseller-label">Revendedor</small> : null}</span>
             <em>{option.count}</em>
             <input type="checkbox" checked={draft.includes(option.id)} onChange={() => onToggle(option.id)} />
           </label>
@@ -507,7 +581,7 @@ function SalesEmpty({ onCreate }: { onCreate: () => void }) {
         <p>Todavía no registraste ventas en este período. Cargá la primera cuando cierres una operación.</p>
         <button className="dbtn p" type="button" onClick={onCreate}>
           <ImanagerIcon name="agregar" size={16} />
-          Registrar venta
+          Registrar primera venta
         </button>
       </div>
     </div>

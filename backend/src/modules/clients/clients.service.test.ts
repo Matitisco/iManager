@@ -2,6 +2,7 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  $queryRaw: vi.fn(),
   store: {
     findUnique: vi.fn(),
   },
@@ -37,6 +38,7 @@ import {
 describe("clients.service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockImplementation(async (sql) => sql.strings.join('').includes('SELECT DISTINCT') ? [] : [{ storeId: 'store-1' }]);
     prismaMock.store.findUnique.mockResolvedValue({ currency: "ARS" });
     prismaMock.client.findMany.mockResolvedValue([]);
     prismaMock.client.create.mockResolvedValue({
@@ -168,6 +170,7 @@ describe("clients.service", () => {
     prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1" });
     const updated = { ...existing, name: "Ana" };
     prismaMock.$transaction.mockImplementation(async (run: (tx: unknown) => Promise<typeof updated>) => run({
+      $queryRaw: prismaMock.$queryRaw,
       client: { findFirst: prismaMock.client.findFirst, update: vi.fn().mockResolvedValue(updated) },
       inventoryItem: { updateMany: vi.fn() },
       sale: { findFirst: prismaMock.sale.findFirst, updateMany: vi.fn() },

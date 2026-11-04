@@ -46,8 +46,12 @@ describe("QA 03: costos de reclamos según Reportes", () => {
     const rma = await app.inject({ method: "POST", url: `/api/returns/${id}/rma`, headers: auth, payload: { status: "RECHAZADO" } });
     expect(rma.statusCode, rma.body).toBe(200);
     visible(rma.json().return);
-    expect((await app.inject({ method: "DELETE", url: `/api/returns/${id}`, headers: auth })).statusCode).toBe(204);
+    expect((await app.inject({ method: "DELETE", url: `/api/returns/${id}`, headers: auth })).statusCode).toBe(409);
+    visible(await list(auth));
+    expect(await list(buildAuthHeaders())).toMatchObject({ itemCost: 501000, itemCurrency: currency });
+    // La vista archivada conserva #691 para reclamos sin compensación anulados.
+    const archivedId = await prisma.returnCase.create({ data: { storeId, caseNumber: 2, reason: 'Histórico ficticio', openedAt: new Date(), status: 'ANULADO', deletedAt: new Date(), saleId: sale.json().sale.id, inventoryItemId: catalog.inventoryItem.id } });
     visible(await list(auth, true));
-    expect(await list(buildAuthHeaders(), true)).toMatchObject({ itemCost: 501000, itemCurrency: currency });
+    expect(await list(buildAuthHeaders(), true)).toMatchObject({ id: archivedId.id, itemCost: 501000, itemCurrency: currency });
   });
 });

@@ -132,15 +132,15 @@ describe('catalog member grants', () => {
       expect(response.statusCode).toBe(403);
       expect(response.json().error).toMatch(/^Solo el propietario puede /);
     }
-    expect(await prisma.storePublicCatalog.findUniqueOrThrow({ where: { storeId: store.id } })).toMatchObject({ active: true, slug: catalog.slug, hours: '10 a 19' });
+    expect(await prisma.storeCatalog.findUniqueOrThrow({ where: { id: catalog.id } })).toMatchObject({ active: true, slug: catalog.slug, hours: '10 a 19' });
     expect(await prisma.auditEvent.count({ where: { storeId: store.id } })).toBe(before);
     expect(before).toBeGreaterThan(1);
     // Reactivating an existing catalog is equally restricted.
-    await prisma.storePublicCatalog.update({ where: { storeId: store.id }, data: { active: false } });
+    await prisma.storeCatalog.update({ where: { id: catalog.id }, data: { active: false } });
     expect((await patch({ active: true })).statusCode).toBe(403);
     expect((await patch({ showPrice: true })).statusCode).toBe(200);
     expect((await app.inject({ url: '/api/onboarding/progress', headers: buildAuthHeaders() })).json().catalog).toBe(false);
-    await prisma.storePublicCatalog.update({ where: { storeId: store.id }, data: { active: true } });
+    await prisma.storeCatalog.update({ where: { id: catalog.id }, data: { active: true } });
     expect((await app.inject({ url: '/api/onboarding/progress', headers: buildAuthHeaders() })).json().catalog).toBe(true);
   });
   it('lets a permitted employee create a missing catalog with active:true', async () => {

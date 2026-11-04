@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../types/commissions';
 import { useStableState } from '../lib/stable-state';
 import { useRef } from 'react';
 import type { AuthUserLike } from '../types/auth-user';
@@ -10,6 +11,7 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
   const scope = `${user?.uid}:${session?.store?.id}:${session?.membership?.role}:${JSON.stringify(session?.membership?.sections)}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
+  const directoryRevision = useRef(0);
   const [data, setData] = useStableState<{ scope: string; summaries: Record<string, CommissionSummary>; details: Record<string, CommissionDetail>; rules: CommissionRule[]; sellers: CommissionSeller[] }>({ scope, summaries: {}, details: {}, rules: [], sellers: [] });
   const current = data.scope === scope ? data : { scope, summaries: {}, details: {}, rules: [], sellers: [] };
   const auth = () => {
@@ -41,7 +43,29 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
   return {
     commissionSummaries: current.summaries, commissionDetails: current.details, commissionRules: current.rules, commissionSellers: current.sellers,
     loadCommissions, loadCommissionDetail,
-    loadCommissionSellers: async () => { const sellers = await api.fetchCommissionSellers(auth()); merge({ sellers }); },
+    saveReseller: async (input: { name?: string; archived?: boolean }, id?: string) => {
+      const reseller = await api.saveStoreReseller(auth(), input, id);
+      const seller: CommissionSeller = { id: `reseller:${reseller.id}`, resellerId: reseller.id, name: reseller.name, role: 'RESELLER', archivedAt: reseller.archivedAt };
+      if (scopeRef.current === scope) {
+        directoryRevision.current++;
+        setData(old => {
+          const scoped = old.scope === scope ? old : current;
+          return { ...scoped, sellers: [...scoped.sellers.filter(person => person.id !== seller.id), seller],
+            summaries: Object.fromEntries(Object.entries(scoped.summaries).map(([period, summary]) => [period, { ...summary,
+              people: summary.people.map(person => person.resellerId === reseller.id ? { ...person, name: reseller.name } : person),
+            }])),
+            details: Object.fromEntries(Object.entries(scoped.details).map(([key, detail]) => [key, detail.person.resellerId === reseller.id
+              ? { ...detail, person: { ...detail.person, name: reseller.name } } : detail])),
+          };
+        });
+      }
+      return reseller;
+    },
+    loadCommissionSellers: async () => {
+      const revision = directoryRevision.current;
+      const sellers = await api.fetchCommissionSellers(auth());
+      if (revision === directoryRevision.current) merge({ sellers });
+    },
     saveCommissionRule: async (input: CommissionRuleInput) => { await api.createCommissionRule(auth(), input); merge({ rules: await api.fetchCommissionRules(auth()) }); },
     deleteCommissionRule: async (id: string, reason?: string) => { await api.deleteCommissionRule(auth(), id, reason); merge({ rules: current.rules.filter(rule => rule.id !== id) }); },
     setCommissionRuleActive: async (id: string, active: boolean) => { const rule = await api.updateCommissionRule(auth(), id, { active }); merge({ rules: current.rules.map(old => old.id === id ? rule : old) }); },
@@ -52,7 +76,7 @@ export function useCommissionState(user: AuthUserLike | null, session: AppSessio
     },
     payCommission: async (input: CommissionPaymentInput) => {
       const payment = await api.createCommissionPayment(auth(), input);
-      try { await Promise.all([loadCommissions(input.period), loadCommissionDetail(input.memberId, input.period)]); return { payment, refreshError: '' }; }
+      try { await Promise.all([loadCommissions(input.period), loadCommissionDetail(beneficiaryKey(input), input.period)]); return { payment, refreshError: '' }; }
       catch { merge({ summaries: {}, details: {} }); return { payment, refreshError: 'El pago se registró, pero no se pudo actualizar el saldo. Cerrá y volvé a cargar las comisiones. No lo registres otra vez.' }; }
     },
     assignCommissionSeller: async (saleIds: string[], memberId: string | null) => { await api.assignSalesSeller(auth(), saleIds, memberId); merge({ summaries: {}, details: {} }); },

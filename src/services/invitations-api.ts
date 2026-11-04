@@ -1,7 +1,7 @@
 import { capture, identify } from '../lib/posthog-analytics';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
-import { apiRequest } from './api-client';
+import { apiRequest, ApiError } from './api-client';
 import type { AppSession } from '../types/app-session';
 import type { AuthUserLike } from '../types/auth-user';
 import { toUserMessage } from '../lib/user-message';
@@ -179,10 +179,18 @@ export async function resolveInvitationPreview(
 }
 
 export async function acceptInvitation(user: AuthUserLike, token: string) {
+  // Pick up email_verified after the user follows the verification email.
+  // Authorization still relies exclusively on the token checked by the backend.
+  await user.getIdToken(true);
   const result = await apiRequest<{ session: AppSession }>(user, '/api/invitations/accept', {
     method: 'POST',
     body: { token },
     fallback: 'Error al aceptar invitación',
+  }).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status === 403 && error.payload?.code === 'INVITATION_EMAIL_REQUIRED') {
+      throw new ApiError(403, 'Esta invitación es para otro email o tu email todavía no está verificado. Iniciá sesión con el email invitado y verificado.', error.payload);
+    }
+    throw error;
   });
   identify(result.session.user.id, result.session.store?.id ?? null, result.session.membership?.role ?? null);
   capture('employee_invite_accepted');

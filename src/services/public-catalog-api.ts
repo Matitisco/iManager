@@ -1,5 +1,5 @@
 import type { AuthUserLike } from '../types/auth-user';
-import type { CatalogSettings, ManagedCatalog, PublicCatalog } from '../types/public-catalog';
+import type { CatalogEdit, NamedCatalog, CatalogSettings, ManagedCatalog, PublicCatalog } from '../types/public-catalog';
 import { apiRequest, ApiError } from './api-client';
 import { getBackendBaseUrl } from './backend-session';
 import { fetchWithTimeout } from './fetch-with-timeout';
@@ -26,4 +26,25 @@ export async function fetchPublicCatalog(slug: string, signal?: AbortSignal): Pr
     throw new ApiError(response.status, readApiErrorMessage(body, 'No se pudo cargar el catálogo'));
   }
   return response.json();
+}
+
+export async function fetchStoreCatalogs(user: AuthUserLike) {
+  return (await apiRequest<{ catalogs: NamedCatalog[] }>(user, '/api/catalog/list', { fallback: 'No se pudieron cargar los catálogos' })).catalogs;
+}
+export async function saveStoreCatalog(user: AuthUserLike, id: string | null, input: CatalogEdit) {
+  return (await apiRequest<{ catalog: NamedCatalog }>(user, id ? `/api/catalog/list/${encodeURIComponent(id)}` : '/api/catalog/list', { method: id ? 'PATCH' : 'POST', body: input, fallback: 'No se pudo guardar el catálogo', errorFrom: 'friendly' })).catalog;
+}
+export async function deleteStoreCatalog(user: AuthUserLike, id: string) {
+  await apiRequest(user, `/api/catalog/list/${encodeURIComponent(id)}`, { method: 'DELETE', fallback: 'No se pudo borrar el catálogo', errorFrom: 'friendly' });
+}
+export async function previewStoreCatalog(user: AuthUserLike, id: string | null, input: CatalogEdit, signal?: AbortSignal) {
+  return apiRequest<PublicCatalog>(user, '/api/catalog/preview', { method: 'POST', body: { ...input, ...(id ? { catalogId: id } : {}) }, signal, fallback: 'No se pudo cargar la vista previa', errorFrom: 'friendly' });
+}
+
+export async function regenerateStoreCatalog(user: AuthUserLike, id: string) {
+  return (await apiRequest<{ catalog: NamedCatalog }>(user, `/api/catalog/list/${encodeURIComponent(id)}/regenerate`, { method: 'POST', fallback: 'No se pudo regenerar el link', errorFrom: 'friendly' })).catalog;
+}
+
+export async function changeStoreCatalogVisibility(user: AuthUserLike, id: string, ids: string[], visible: boolean) {
+  return (await apiRequest<{ catalog: NamedCatalog }>(user, `/api/catalog/list/${encodeURIComponent(id)}/items`, { method: 'PATCH', body: { ids, visible }, fallback: 'No se pudo cambiar la visibilidad', errorFrom: 'friendly' })).catalog;
 }

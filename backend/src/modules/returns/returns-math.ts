@@ -1,7 +1,8 @@
+import { ACCOUNTING_STATES, saleState } from '../../lib/accounting-states.js';
 export const RESOLUTIONS = ["REPARACION", "CAMBIO", "REINTEGRO"] as const;
 export const SETTLEMENTS = ["REINTEGRO", "NOTA_CREDITO", "NINGUNO"] as const;
 export const DESTINATIONS = ["STOCK", "PROVEEDOR", "CLIENTE"] as const;
-export const RMA_STATUSES = ["ENVIADO", "EN_REVISION", "APROBADO", "RECHAZADO", "RECIBIDO"] as const;
+export const RMA_STATUSES = ACCOUNTING_STATES.rma;
 
 export type Resolution = (typeof RESOLUTIONS)[number];
 export type Settlement = (typeof SETTLEMENTS)[number];
@@ -68,8 +69,8 @@ export function stockStatusForReturn(current: string, previous: string | null, n
 }
 
 export function refundableAmount(sale: { status: string; amount: number; openBalance: number | null } | null) {
-  if (!sale || sale.status !== "COMPLETADA") return 0;
-  if (sale.openBalance == null) return roundMoney(Math.max(0, sale.amount));
+  if (!sale || !["COMPLETADA", "PENDIENTE"].includes(saleState(sale.status))) return 0;
+  if (sale.openBalance == null) return saleState(sale.status) === "COMPLETADA" ? roundMoney(Math.max(0, sale.amount)) : 0;
   return roundMoney(Math.max(0, sale.amount - sale.openBalance));
 }
 

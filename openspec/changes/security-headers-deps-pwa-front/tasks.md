@@ -1,0 +1,4 @@
+- [x] Reproduce security boundary failures with regression tests and local HTTP requests.
+- [x] Apply minimal fixes and run related tests and TypeScript (two workers maximum).
+- [x] Document severity, residual risks and decisions requiring Matias.
+- [x] Open security PR #727 against test; gate delivery on CI and rebase verification.

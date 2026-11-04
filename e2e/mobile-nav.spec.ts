@@ -1,6 +1,7 @@
 import { openDeskSection } from './navigation';
 import { expect, test, type Page } from '@playwright/test';
 import { bootstrapStoreViaApi, buildTestEmail, createInvitationViaApi, acceptInvitationViaUi } from './utils';
+import { expectSingleSelectChevrons } from './select-assertions';
 
 const SHOTS = process.env.MOBILE_NAV_SHOTS?.trim();
 
@@ -71,6 +72,7 @@ test.describe('phone navigation', () => {
         await page.goto(`/#/${route}`);
         await expect(page.locator('.desk-app')).toBeVisible();
         await expect(page.locator('.desk-app select:not(.ds-select-native)')).toHaveCount(0);
+        await expectSingleSelectChevrons(page.locator('.desk-app'));
         if (width === 390) await page.getByTestId('sidebar-tab-more').click();
         await expect(page.getByRole('navigation', { name: 'Navegación principal' })).toBeVisible();
         const current = await metrics(page);

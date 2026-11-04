@@ -13,11 +13,24 @@ import { restoreBackendRepair } from '../services/repairs-api';
 import { RecordHistoryButton } from './RecordHistoryButton';
 import { FX_WARNING } from './money';
 import { DatePicker } from './date-picker';
-import { dayMonth, DEFAULT_REPAIR_STATUSES, DEPOSIT_OVER_ESTIMATE, depositExceedsEstimate, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice } from './repairs';
+import { dayMonth, DEFAULT_REPAIR_STATUSES, isRetiredRepairStatus, presentRepairStatusChange, REPAIR_FAULTS, REPAIR_RECEIVED, repairColumnStatus, repairFault, repairOverdue, repairPrice, repairStatusChangeNotice } from './repairs';
 import { usePhoneLayout } from './section-notices';
 import { Actions, Dialog, Field, Pill, Segs, Sheet, SheetActionMenu, SheetActions, useDesk } from './ui';
 import { DEFAULT_REPAIR_WARRANTY_DAYS, parseWarrantyDaysInput, repairWarrantyView } from '../lib/warranty';
 import { shareOrCopy } from './overlays/shared';
+import { canSeeFinancials } from './sections';
+
+function RepairProfit({ cost, paid, format }: {
+  cost: number | null | undefined;
+  paid: number | null | undefined;
+  format: (value: number) => string;
+}) {
+  const { appSession } = useAppContext();
+  if (!canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role)) return null;
+  const profit = cost != null && paid != null && Number.isFinite(cost) && Number.isFinite(paid)
+    ? paid - cost : null;
+  return <div className="kv"><span>Ganancia</span><b data-ph-mask>{profit == null ? '—' : format(profit)}</b></div>;
+}
 
 function moneyInput(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -72,7 +85,6 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
     if (!device.trim()) next.device = 'Completá este dato';
     if (imeiFormatError(imei)) next.imei = IMEI_FORMAT_MESSAGE;
     if (!fault.trim() && tags.length === 0) next.fault = 'Contá la falla';
-    if (depositExceedsEstimate(typedEstimate, typedDeposit)) next.deposit = DEPOSIT_OVER_ESTIMATE;
     const warranty = parseWarrantyDaysInput(warrantyDays);
     if (warranty.error) next.warranty = warranty.error;
     else if (warranty.days === undefined) next.warranty = 'Completá los días de garantía';
@@ -142,13 +154,14 @@ export function RepairOrderForm({ busy, error }: { busy: boolean; error: string 
         </div>
         <div>
           <div className="frow">
-            <Field label="Presupuesto estimado" mark={money.active} error={bad.estimate}>
+            <Field label="Costo del arreglo" mark={money.active} error={bad.estimate}>
               <input id="repair-new-estimate" data-testid="repair-new-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '', deposit: '' })); }} />
             </Field>
-            <Field label="Seña" mark={money.active} error={bad.deposit}>
+            <Field label="Lo que abonó el cliente" mark={money.active} error={bad.deposit}>
               <input id="repair-new-deposit" data-testid="repair-new-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
             </Field>
           </div>
+          <RepairProfit cost={estimate.trim() ? parseMoney(estimate) : null} paid={deposit.trim() ? parseMoney(deposit) : null} format={money.showActive} />
           <div className="frow">
             <DatePicker label="Entrega estimada" value={delivery} onChange={setDelivery} />
             <Field label="Técnico">
@@ -259,8 +272,9 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
       {clientRow}
       <div className="kv"><span>IMEI</span><b data-ph-mask>{order.imei || '—'}</b></div>
       <div className="kv svc-fault-row"><span>Falla</span><b className="svc-fault-full" data-testid="repair-fault">{repairFault(order)}</b></div>
-      <div className="kv"><span>Presupuesto</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
-      <div className="kv"><span>Seña</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      <div className="kv"><span>Costo del arreglo</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
+      <div className="kv"><span>Lo que abonó el cliente</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
+      <RepairProfit cost={order.estimate} paid={order.deposit} format={show} />
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       {order.whatsappUrl ? (
@@ -304,9 +318,10 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
         <div><span>Entrega estimada</span><b className={late ? 'late' : ''}>{dueLabel}</b></div>
       </div>
       <div className="svc-pair">
-        <div><span>Presupuesto</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
-        <div><span>Seña</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
+        <div><span>Costo del arreglo</span><b data-ph-mask>{repairPrice(order.estimate, 'dash', show)}</b></div>
+        <div><span>Lo que abonó el cliente</span><b data-ph-mask>{repairPrice(order.deposit, 'dash', show)}</b></div>
       </div>
+      <RepairProfit cost={order.estimate} paid={order.deposit} format={show} />
       {warrantyRow}
       <div className="kv"><span>Técnico</span><b>{order.technician || '—'}</b></div>
       {order.whatsappUrl ? (
@@ -340,8 +355,8 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
   const [imei, setImei] = useState(order?.imei ?? '');
   const [tags, setTags] = useState<string[]>(order?.faultTags ?? []);
   const [fault, setFault] = useState(order?.fault ?? '');
-  const [estimate, setEstimate] = useState(order?.estimate == null ? '' : money.inputValue(order.estimate, order.currency));
-  const [deposit, setDeposit] = useState(order ? money.inputValue(order.deposit, order.currency) : '');
+  const [estimate, setEstimate] = useState(order?.estimate == null ? '' : money.inputValue(order.estimate, order.currency) || '0');
+  const [deposit, setDeposit] = useState(order?.deposit == null ? '' : money.inputValue(order.deposit, order.currency) || '0');
   const [delivery, setDelivery] = useState(arToIso(order?.estimatedDelivery));
   const [technician, setTechnician] = useState(order?.technician ?? '');
   const [warrantyDays, setWarrantyDays] = useState(order?.warrantyDays == null ? '' : String(order.warrantyDays));
@@ -370,9 +385,8 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
     const typedEstimate = estimate.trim() ? parseMoney(estimate) : null;
     const typedDeposit = parseMoney(deposit);
     if (canManageSensitive) {
-      if (typedEstimate != null && typedEstimate > MONEY_CAP) nextBad.estimate = 'El presupuesto es demasiado alto';
-      if (typedDeposit > MONEY_CAP) nextBad.deposit = 'La seña es demasiado alta';
-      else if (depositExceedsEstimate(typedEstimate, typedDeposit)) nextBad.deposit = DEPOSIT_OVER_ESTIMATE;
+      if (typedEstimate != null && typedEstimate > MONEY_CAP) nextBad.estimate = 'El costo del arreglo es demasiado alto';
+      if (typedDeposit > MONEY_CAP) nextBad.deposit = 'Lo que abonó el cliente es demasiado alto';
     }
     setBad(nextBad);
     if (Object.keys(nextBad).length || !updateRepairOrder) return;
@@ -466,14 +480,15 @@ export function RepairOrderEditor({ id, busy }: { id: string; busy: boolean }) {
           </div>
           <div>
             <div className="frow">
-              <Field label="Presupuesto" mark={money.active} error={bad.estimate}>
+              <Field label="Costo del arreglo" mark={money.active} error={bad.estimate}>
                 <input id="repair-estimate" data-testid="repair-estimate" value={estimate} inputMode="numeric" placeholder="Opcional" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setEstimate(moneyInput(event.target.value)); setBad((current) => ({ ...current, estimate: '', deposit: '' })); }} />
               </Field>
-              <Field label="Seña" mark={money.active} error={bad.deposit}>
+              <Field label="Lo que abonó el cliente" mark={money.active} error={bad.deposit}>
                 <input id="repair-deposit" data-testid="repair-deposit" value={deposit} inputMode="numeric" placeholder="$ 0" disabled={!canManageSensitive} aria-describedby={canManageSensitive ? undefined : 'repair-sensitive-note'} onChange={(event) => { setDeposit(moneyInput(event.target.value)); setBad((current) => ({ ...current, deposit: '' })); }} />
               </Field>
             </div>
-            {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el presupuesto, la seña o archivar la orden.</p>}
+            <RepairProfit cost={estimate.trim() ? parseMoney(estimate) : null} paid={deposit.trim() ? parseMoney(deposit) : null} format={money.showActive} />
+            {canManageSensitive ? null : <p id="repair-sensitive-note" className="eqs-note">Solo quien tiene Acciones sensibles puede cambiar el costo del arreglo, lo que abonó el cliente o archivar la orden.</p>}
             <Field label="Garantía (días)" error={bad.warranty}>
               <input data-testid="repair-edit-warranty-days" inputMode="numeric" value={warrantyDays} placeholder="Sin garantía cargada" onChange={(event) => { setWarrantyDays(event.target.value.replace(/\D/g, '').slice(0, 4)); setBad((current) => ({ ...current, warranty: '' })); }} />
             </Field>

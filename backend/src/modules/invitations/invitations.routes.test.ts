@@ -1,3 +1,4 @@
+import { Writable } from "node:stream";
 import Fastify from "fastify";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,6 +34,7 @@ vi.mock("./invitations.service.js", () => ({
   listInvitations: listInvitationsMock,
   createInvitation: createInvitationMock,
   revokeInvitation: revokeInvitationMock,
+  InvitationEmailError: class extends Error {},
 }));
 
 import { invitationsRoutes } from "./invitations.routes.js";
@@ -106,4 +108,28 @@ describe("invitations.routes", () => {
 
     await app.close();
   });
+  it('keeps invitation bearer links out of HTTP request logs', async () => {
+    let logs = '';
+    const app = Fastify({ logger: { stream: new Writable({ write(chunk, _encoding, done) { logs += chunk.toString(); done(); } }) } });
+    await app.register(invitationsRoutes, { prefix: '/api/invitations' });
+    previewInvitationMock.mockResolvedValue({ status: 'not_found' });
+    const fixture = 'fixture-link-must-not-be-logged';
+    try {
+      expect((await app.inject({ url: `/api/invitations/preview/${fixture}` })).statusCode).toBe(200);
+      expect(logs.includes(fixture)).toBe(false);
+    } finally { await app.close(); }
+  });
+
+  it('does not disclose internal provider or database details on invitation acceptance failures', async () => {
+    const app = Fastify();
+    await app.register(invitationsRoutes, { prefix: '/api/invitations' });
+    authenticateMock.mockImplementation(async request => { request.auth = { firebaseUid: 'qa-sec-12' }; });
+    acceptInvitationMock.mockRejectedValue(new Error('fixture internal database detail'));
+    try {
+      const response = await app.inject({ method: 'POST', url: '/api/invitations/accept', payload: { token: 'fixture-link' } });
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: 'No se pudo aceptar la invitación. Probá de nuevo.' });
+    } finally { await app.close(); }
+  });
+
 });

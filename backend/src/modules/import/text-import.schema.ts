@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 export const TEXT_LIMITS = { bytes: 100_000, lines: 1000, lineChars: 4000, rows: 2000, chunkLines: 40, chunkChars: 8000, concurrency: 3, callMs: 30_000, totalMs: 180_000 } as const;
 export const textRowSchema = z.object({
-  line: z.number().int().min(1),
-  endLine: z.number().int().min(1),
+  line: z.number().refine(Number.isInteger).min(1),
+  endLine: z.number().refine(Number.isInteger).min(1),
   model: z.string().min(1).max(120),
   capacity: z.string().max(30).nullable(),
   color: z.string().max(50).nullable(),
@@ -14,12 +14,12 @@ export const textRowSchema = z.object({
   price: z.number().finite().nonnegative().nullable(),
   currency: z.enum(['ARS', 'USD']).nullable(),
   cost: z.number().finite().nonnegative().nullable(),
-  quantity: z.number().int().safe().min(1),
+  quantity: z.number().refine(Number.isInteger).safe().min(1),
   dudas: z.array(z.string().max(250)).max(15),
 }).strict();
 export const textOutputSchema = z.object({
   rows: z.array(textRowSchema).max(TEXT_LIMITS.rows),
-  discarded: z.array(z.object({ line: z.number().int().min(1), reason: z.string().min(1).max(250) }).strict()).max(TEXT_LIMITS.lines),
+  discarded: z.array(z.object({ line: z.number().refine(Number.isInteger).min(1), reason: z.string().min(1).max(250) }).strict()).max(TEXT_LIMITS.lines),
 }).strict();
 export type TextRow = z.infer<typeof textRowSchema>;
 

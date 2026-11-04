@@ -119,7 +119,7 @@ describe("devoluciones, notas de crédito y RMA", () => {
     expect(profit.json()).toMatchObject({ grossProfit: 0, revenue: 0, cost: 0 });
     const overview = await inject("GET", "/api/reports/overview?rangeKey=all_time");
     expect(overview.statusCode, overview.body).toBe(200);
-    expect(overview.json().overview.summary).toMatchObject({ revenue: 1200, returnsCount: 1, returnsAmount: 1200 });
+    expect(overview.json().overview.summary).toMatchObject({ revenue: 0, returnsCount: 1, returnsAmount: 1200 });
   });
 
   it("aplica una nota de crédito a una venta posterior y no la deja usar en otra tienda", async () => {
@@ -301,7 +301,7 @@ describe("reclamos #483-g", () => {
     expect((await prisma.returnCase.findUniqueOrThrow({ where: { id: opened.id } })).reason).toBe("Falla intermitente");
   });
 
-  it("anulado no suma en reportes, conserva movimientos históricos y queda visible tras recargar", async () => {
+  it("bloquea anular un reintegro y conserva movimientos y descuento en reportes tras recargar", async () => {
     const store = await seedStoreContext();
     const catalog = await seedCatalogFixture(store.store!.id);
     const register = await box();
@@ -311,23 +311,17 @@ describe("reclamos #483-g", () => {
     expect(result.statusCode, result.body).toBe(200);
     expect(result.json().return.events.at(-1)).toMatchObject({ note: "Reintegro acordado" });
     expect(result.json().return.diagnosis).toBe("Batería dañada");
-    expect((await inject("DELETE", `/api/returns/${opened.id}`)).statusCode).toBe(204);
-    expect((await inject("GET", "/api/returns")).json().returns).toEqual([]);
+    expect((await inject("DELETE", `/api/returns/${opened.id}`)).statusCode).toBe(409);
+    expect((await inject("GET", "/api/returns")).json().returns).toHaveLength(1);
     const archived = (await inject("GET", "/api/returns?archived=1")).json().returns;
-    expect(archived).toHaveLength(1);
-    expect(archived[0]).toMatchObject({ id: opened.id, status: "ANULADO", deletedAt: expect.any(String) });
+    expect(archived).toEqual([]);
+    expect((await inject("GET", "/api/returns")).json().returns[0]).toMatchObject({ id: opened.id, status: "RESUELTO", deletedAt: null });
     expect(await balance(register)).toBe(0);
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: catalog.inventoryItem.id } })).status).toBe("EN_REVISION");
     const overview = await inject("GET", "/api/reports/overview?rangeKey=all_time");
-    expect(overview.json().overview.summary).toMatchObject({ returnsCount: 0, returnsAmount: 0 });
+    expect(overview.json().overview.summary).toMatchObject({ returnsCount: 1, returnsAmount: 1200, revenue: 0, grossProfit: 0 });
     const profit = await inject("GET", "/api/reports/net-profit?from=2020-01-01&to=2099-12-31");
-    expect(profit.json()).toMatchObject({ revenue: 1200, cost: 800, grossProfit: 400 });
-    // Explicit state exclusion also protects legacy rows without a deletion timestamp.
-    await prisma.returnCase.update({ where: { id: opened.id }, data: { deletedAt: null } });
-    expect((await inject("GET", "/api/reports/overview?rangeKey=all_time")).json().overview.summary).toMatchObject({ returnsCount: 0, returnsAmount: 0 });
-    expect((await inject("GET", "/api/reports/net-profit?from=2020-01-01&to=2099-12-31")).json()).toMatchObject({ revenue: 1200 });
-    expect((await inject("GET", "/api/returns")).json().returns).toEqual([]);
-    expect((await inject("GET", "/api/returns?archived=1")).json().returns).toHaveLength(1);
+    expect(profit.json()).toMatchObject({ revenue: 0, cost: 0, grossProfit: 0 });
   });
 
   it("mantiene el permiso sensible para eliminar y guarda notas del RMA", async () => {

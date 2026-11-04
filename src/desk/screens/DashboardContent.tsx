@@ -11,10 +11,10 @@ import { fetchReportsOverview } from '../../services/reports-api';
 import { clientNet } from '../client-balance';
 import { DashboardDateRange } from '../dashboard-date-range';
 import { dashboardCacheVersion, readDashboardCache, readLatestDashboardCache, writeDashboardCache, type DashboardReport } from '../dashboard-cache';
-import { dashboardDay, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
+import { dashboardDay, dashboardLast7Days, dashboardMonth, dashboardTrendUnit, type DashboardPeriod } from '../dashboard-period';
 import { DashboardTrend } from '../dashboard-trend';
 import { useMoney } from '../exchange';
-import { formatShortDate, paymentLabel, initials, isInProgressTrade, isInStock, isVoidRow, parseAppDate, saleBuyer, saleCode, saleEquipment } from '../format';
+import { formatShortDate, paymentLabel, initials, isInProgressTrade, isInStock, isVoidRow, parseAppDate, saleBuyer, saleCode, saleEquipment, saleQuantity } from '../format';
 import { listsAreLoading } from '../list-skeleton';
 import { canOpenSection, canSeeFinancials, canViewTeam } from '../sections';
 import { usePhoneLayout } from '../section-notices';
@@ -46,7 +46,11 @@ export function DashboardSkeleton() {
 
 export function DashboardContent() {
   const { appSession, user } = useAppContext();
-  const scope = JSON.stringify([appSession?.store?.id, user?.uid, appSession?.membership?.role, appSession?.membership?.sections]);
+  const store = appSession?.store;
+  // A report is already converted by the API. Do not reuse it (or an in-flight
+  // response) after changing the store's currency or conversion settings.
+  const scope = JSON.stringify([store?.id, user?.uid, appSession?.membership?.role, appSession?.membership?.sections,
+    store?.currency, store?.exchangeMode, store?.exchangeSource, store?.manualBuy, store?.manualSell]);
   return <ScopedDashboardContent key={scope} scope={scope} />;
 }
 
@@ -56,7 +60,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   const money = useMoney();
   const { go, open } = useDesk();
   const phone = usePhoneLayout();
-  const [range, setRange] = useState<DashboardPeriod>(dashboardMonth);
+  const [range, setRange] = useState<DashboardPeriod>(dashboardLast7Days);
   const [failedPeriodKey, setFailedPeriodKey] = useState<string | null>(null);
   const [periodRetry, setPeriodRetry] = useState(0);
   const queryKey = `${scope}:${range?.start}:${range?.end}`;
@@ -125,6 +129,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
   }, [scope, range, queryKey, report, members, initialScope, cacheTicket]);
   const periodLoading = initialLoading || reportLoading;
   const hideLoadMessage = !overview && (backendStatus === 'offline' || current?.networkFailure);
+  const hasActivity = !!overview && (overview.summary.unitsSold > 0 || overview.salesSeries.some(point => point.revenue !== 0));
   const comparable = !!displayedRange && !!overview?.comparison.available;
   const reportMoney = (amount: number, compact = false) => compact ? money.compact(amount, overview?.currency ?? appSession?.store?.currency) : money.show(amount, overview?.currency ?? appSession?.store?.currency);
   const stockTotal = inventory.reduce((sum, item) => sum + (item.cantidad ?? 1), 0);
@@ -137,14 +142,16 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     const key = typeof date === 'string' ? date : date ? dashboardDay(date) : '';
     return key >= displayedRange.start && key <= displayedRange.end;
   };
-  const units = sales.filter(sale => !isVoidRow(sale) && sale.status === 'COMPLETADA' && inRange(sale.date)).length;
+  const units = sales.filter(sale => !isVoidRow(sale) && (sale.status === 'COMPLETADA' || sale.status === 'PENDIENTE') && inRange(sale.date)).reduce((sum, sale) => sum + saleQuantity(sale), 0);
   const recent = useMemo(() => displayedSales.filter(sale => inRange(sale.date)).sort((a, b) => (parseAppDate(b.date)?.getTime() ?? 0) - (parseAppDate(a.date)?.getTime() ?? 0) || (b.saleNumber ?? 0) - (a.saleNumber ?? 0)).slice(0, phone ? 4 : 5), [displayedSales, displayedRange, phone]);
   const name = appSession?.user.displayName?.trim() || appSession?.user.email?.split('@')[0] || 'Usuario';
   const people = members.length ? members.map(member => ({ name: member.user.displayName?.trim() || member.user.email || 'Usuario', role: member.role })) : [{ name, role }];
   const avatars = <div className="avatars">{initialLoading ? <Skeleton style={{ width: 100, height: 34 }} /> : people.map((person, index) => <div key={index} className="av" style={{ background: index % 2 ? 'var(--lime)' : 'var(--primary)', color: index % 2 ? 'var(--theme-on-accent, var(--primary))' : 'var(--theme-on-action, #fff)', fontSize: 12 }} title={[person.name, ROLE_LABEL[person.role ?? '']].filter(Boolean).join(' · ')}>{initials(person.name)}</div>)}{canViewTeam(role) ? <button className="av add" type="button" aria-label="Invitar" onClick={() => open({ type: 'invite' })}>+</button> : null}</div>;
   const currentMonth = dashboardMonth();
   const thisMonth = displayedRange?.start === currentMonth.start && displayedRange?.end === currentMonth.end;
-  const emptyPeriod = !displayedRange ? 'en el historial' : thisMonth ? 'este mes' : 'en este período';
+  const last7Days = dashboardLast7Days();
+  const isLast7Days = displayedRange?.start === last7Days.start && displayedRange?.end === last7Days.end;
+  const emptyPeriod = !displayedRange ? 'en el historial' : isLast7Days ? 'en los últimos 7 días' : thisMonth ? 'este mes' : 'en este período';
   const periodFailed = !overview && (current?.failed || !ready);
   const pendingText = periodFailed ? 'No se pudo consultar el período' : `Todavía no hay ventas ${emptyPeriod}`;
   const trendTitle = { day: 'Ventas por día', week: 'Ventas por semana', month: 'Ventas por mes' }[dashboardTrendUnit(displayedRange)];
@@ -160,8 +167,8 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     {current?.data && current.key !== queryKey && failedPeriodKey === queryKey ? <div className="ferr" role="alert">No se pudo aplicar el período. Se muestran datos del período anterior.{' '}<button className="wlink" type="button" onClick={() => { setFailedPeriodKey(null); setPeriodRetry(value => value + 1); }}>Reintentar</button></div> : null}
     {kpiCount > 0 ? <div className="dstats" data-count={kpiCount}>
       {seeFinancials ? <>
-        <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>
-        <Kpi label="Margen bruto" note={overview?.summary.salesWithoutCost ? `${overview.summary.salesWithoutCost} ${overview.summary.salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}` : undefined} value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={() => go('reports')}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
+        <Kpi label="Ventas" value={overview ? reportMoney(overview.summary.revenue, true) : '—'} loading={periodLoading} onClick={can('reports') ? () => go('reports') : undefined}>{comparable ? <Delta value={overview?.comparison.revenueChange} /> : null}</Kpi>
+        <Kpi label="Margen bruto" note={overview?.summary.salesWithoutCost ? `${overview.summary.salesWithoutCost} ${overview.summary.salesWithoutCost === 1 ? 'venta sin costo no incluida' : 'ventas sin costo no incluidas'}` : undefined} value={overview ? reportMoney(overview.summary.grossProfit, true) : '—'} loading={periodLoading} suffix={overview?.summary.revenue ? `${Math.round(overview.summary.marginRate)}%` : undefined} suffixInFooter={phone} onClick={can('reports') ? () => go('reports') : undefined}>{comparable ? <Delta value={overview?.comparison.grossProfitChange} /> : null}</Kpi>
       </> : null}
       {showUnits ? <Kpi label="Equipos vendidos" value={seeFinancials ? overview?.summary.unitsSold ?? '—' : listsLoadFailed ? '—' : units} loading={seeFinancials ? periodLoading : initialLoading} onClick={can('sales') ? () => go('sales') : undefined}>{comparable ? <Delta value={overview?.comparison.unitsChange} /> : null}</Kpi> : null}
       {showStock ? <Kpi label="Stock disponible" value={listsLoadFailed ? '—' : available} suffix={!listsLoadFailed && inventory.length ? `de ${stockTotal}` : undefined} loading={initialLoading} onClick={can('inventory') ? () => go('inventory') : undefined}>
@@ -171,7 +178,7 @@ function ScopedDashboardContent({ scope }: { scope: string }) {
     {seeFinancials ? <div className={`dgrid${phone ? '' : ' two v3-stretch'}`}>
       <section className="dcard dashboard-trend">
         <div className="dch"><h3>{phone ? trendTitle : 'Tendencia de ventas'}</h3>{comparable && !periodLoading && overview && overview.summary.unitsSold > 0 ? <Delta value={overview.comparison.revenueChange} /> : null}</div>
-        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !overview.summary.unitsSold ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={displayedRange} phone={phone} format={amount => reportMoney(amount, true)} />}
+        {hideLoadMessage ? null : periodLoading ? <div className="dashboard-chart-empty" aria-busy="true"><Skeleton style={{ width: '85%', height: 140 }} /></div> : !overview || !hasActivity ? <div className="dashboard-chart-empty">{pendingText}</div> : <DashboardTrend series={overview.salesSeries} range={displayedRange} phone={phone} format={amount => reportMoney(amount, true)} />}
       </section>
       <section className="dcard dashboard-payments"><div className="dch"><h3>Medios de pago</h3></div>
         {hideLoadMessage ? null : periodLoading ? <div className="dashboard-payment-empty" aria-busy="true"><Skeleton style={{ width: '90%', height: phone ? 64 : 80 }} /></div> : !overview?.paymentMethods.length ? <div className="dashboard-payment-empty">{periodFailed ? 'No se pudo consultar el período' : `Sin ventas ${emptyPeriod}`}</div> : <>

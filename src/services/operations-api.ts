@@ -7,10 +7,12 @@ export type OperationSource = 'inventory' | 'sales' | 'tradeins' | 'clients';
 export type OperationSaleStatus = 'COMPLETADA' | 'PENDIENTE';
 
 export interface OperationInput {
+  initialDeposit?: { amount: number; currency: 'ARS' | 'USD' };
   cantidad?: number;
   depositIds?: string[];
   creditNoteIds?: string[];
   sellerMemberId?: string | null;
+  resellerId?: string | null;
   exchangeRate?: number;
   date?: string;
   clientId?: string | null;
@@ -19,6 +21,7 @@ export interface OperationInput {
   deviceLabel?: string;
   amount?: number;
   unitPrice?: number;
+  cost?: number;
   currency?: 'ARS' | 'USD' | null;
   warrantyDays?: number;
   unlistedEquipment?: {

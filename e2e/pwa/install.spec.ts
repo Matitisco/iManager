@@ -325,8 +325,8 @@ test('mobile update toast stays above the sales bottom actions', async ({ page }
   expect(toastBox.y).toBeGreaterThanOrEqual(12);
   expect(toastBox.y).toBeLessThan(100);
   expect(toastBox.y + toastBox.height).toBeLessThan(dockBox.y);
-  await expect(dock.getByRole('button', { name: 'Registrar venta', exact: true })).toBeVisible();
-  await expect(dock.getByRole('button', { name: 'Importar', exact: true })).toBeVisible();
+  // Sales import is disabled; the active sale action must remain reachable.
+  await expect(dock.getByRole('button', { name: 'Registrar venta', exact: true })).toBeInViewport({ ratio: 1 });
   if (info.project.name === 'iphone-webkit') await qaScreenshot(page, 'toast-mobile');
   await dock.getByRole('button', { name: 'Registrar venta', exact: true }).tap();
   await expect(page.getByRole('dialog', { name: 'Registrar venta' })).toBeVisible();

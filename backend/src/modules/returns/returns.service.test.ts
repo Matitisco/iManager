@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const db = vi.hoisted(() => ({
+  $queryRaw: vi.fn().mockResolvedValue([]),
   returnCase: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), delete: vi.fn() },
   returnEvent: { create: vi.fn() }, auditEvent: { create: vi.fn() },
 }));
@@ -50,7 +51,7 @@ describe('reclamos: cambios auditados y baja lógica', () => {
   it('scopes deletion to the store and never writes if the case is missing', async () => {
     db.returnCase.findFirst.mockResolvedValue(null);
     expect(await archiveReturnCase('other', 'claim', actor)).toBe(false);
-    expect(db.returnCase.findFirst).toHaveBeenCalledWith({ where: { id: 'claim', storeId: 'other', deletedAt: null } });
+    expect(db.returnCase.findFirst).toHaveBeenCalledWith({ where: { id: 'claim', storeId: 'other', deletedAt: null }, include: { creditNote: { select: { id: true } } } });
     expect(db.returnCase.update).not.toHaveBeenCalled();
   });
   it('keeps ANULADO read-only even without a deletion timestamp', async () => {
@@ -61,8 +62,8 @@ describe('reclamos: cambios auditados y baja lógica', () => {
   });
   it('includes timestamp-less cancellations only in the archived query', async () => {
     await listReturnCases('store');
-    expect(db.returnCase.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { storeId: 'store', deletedAt: null, status: { not: 'ANULADO' } } }));
+    expect(db.returnCase.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { storeId: 'store', deletedAt: null, status: { notIn: ['ANULADO'] } } }));
     await listReturnCases('store', true);
-    expect(db.returnCase.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { storeId: 'store', OR: [{ deletedAt: { not: null } }, { status: 'ANULADO' }] } }));
+    expect(db.returnCase.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { storeId: 'store', OR: [{ deletedAt: { not: null } }, { status: { in: ['ANULADO'] } }] } }));
   });
 });

@@ -1,6 +1,11 @@
+import { SaleCostField } from '../SaleCostField';
+import { canSeeFinancials } from '../sections';
+import { CommissionAvatar } from '../CommissionAvatar';
+import { beneficiaryInput } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { DepositChoices, useClientDeposits, receiptMoney } from './deposits';
-import { depositAmount, depositAvailable } from '../deposits';
+import { depositAmount, depositAvailable, initialDepositPreview } from '../deposits';
+import { SaleStatusPill } from '../SaleStatusPill';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
@@ -17,7 +22,7 @@ import { saleBuyer, equipmentTitle, isInStock, isVoidRow, formatInputMoney, form
 import { cancellationPlan, displayedSaleDue, type RefundTarget } from '../cancel-refund';
 import { fetchClientPayments, type ClientPaymentRecord } from '../../services/clients-api';
 import { useMoney } from '../exchange';
-import { FX_WARNING, recordCurrency } from '../money';
+import { FX_WARNING, projectAmount, recordCurrency } from '../money';
 import { SaleDetailMoney } from '../sale-detail-money';
 import { CatalogEditor, catalogChoices, useCatalogs } from '../catalog';
 import type { CatalogKind } from '../../services/catalogs-api';
@@ -58,6 +63,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
 }) {
   const context = useAppContext();
   const money = useMoney();
+  const seeCosts = canSeeFinancials(context.appSession?.membership?.sections, context.appSession?.membership?.role);
   const { sales = [], tradeIns = [], operationDrafts = [], clients = [], inventory = [], operationOptions = {}, loadOperationOptions, createOperation, updateSaleOperation, updateTradeOperation, confirmTradeOperation, fetchSaleOperation, fetchTradeOperation } = context;
   const catalogs = useCatalogs();
   const requestKey = useRef(`desk-${crypto.randomUUID()}`);
@@ -103,11 +109,23 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setUnitPrice(total.trim() ? (formatInputMoney(parseMoney(total) / units) || '0') : '');
   };
   if (preset?.resumeAmount) dirty.current.add('amount');
-  const [sellerMemberId, setSellerMemberId] = useState(currentSale?.sellerMemberId ?? currentTrade?.draftSellerMemberId ?? '');
+  const newSale = !saleId && !tradeId && !currentSale && !currentTrade && !startWithTrade;
+  const defaultSellerId = context.commissionSellers?.find(person => person.id === context.appSession?.membership?.id)?.id ?? '';
+  const sellerInitialized = useRef(false);
+  const [sellerMemberId, setSellerMemberId] = useState((currentSale?.resellerId ? `reseller:${currentSale.resellerId}` : currentSale?.sellerMemberId) ?? (currentTrade?.draftResellerId ? `reseller:${currentTrade.draftResellerId}` : currentTrade?.draftSellerMemberId) ?? (newSale ? defaultSellerId : ''));
+  useEffect(() => {
+    // The directory can arrive after opening; never replace a manual choice (including no seller).
+    if (!newSale || sellerInitialized.current || dirty.current.has('sellerMemberId') || !defaultSellerId) return;
+    sellerInitialized.current = true;
+    setSellerMemberId(defaultSellerId);
+  }, [newSale, defaultSellerId]);
   const [sellerError, setSellerError] = useState('');
   useEffect(() => { if (context.loadCommissionSellers) void context.loadCommissionSellers().catch((cause: unknown) => setSellerError(toUserMessage(cause, 'No se pudieron cargar los vendedores'))); }, [context.appSession?.store?.id]);
   const [payment, setPayment] = useState(currentSale?.paymentMethod || currentTrade?.draftPaymentMethod || 'TRANSFERENCIA');
-  const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [paymentStatus, setPaymentStatus] = useState<'COMPLETADA' | 'PENDIENTE' | 'SENA'>(currentSale?.status === 'PENDIENTE' ? 'PENDIENTE' : currentTrade?.draftPaymentStatus ?? 'COMPLETADA');
+  const [initialDeposit, setInitialDeposit] = useState('');
+  const [depositCurrency, setDepositCurrency] = useState<'ARS' | 'USD'>(money.active);
+  const takingDeposit = paymentStatus === 'SENA';
   const [settlement, setSettlement] = useState<SettlementState>({ active: false, error: null, payload: null });
   const [received, setReceived] = useState(currentTrade?.deviceReceived ?? '');
   const { editModel: editReceived, fillModel: fillReceived } = useModelAutofill(received, (model) => {
@@ -175,7 +193,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   useEffect(() => {
     const update = (key: string, action: () => void) => { if (!dirty.current.has(key)) action(); };
     if (currentSale) {
-      update('sellerMemberId', () => setSellerMemberId(currentSale.sellerMemberId ?? ''));
+      update('sellerMemberId', () => setSellerMemberId(currentSale.resellerId ? `reseller:${currentSale.resellerId}` : currentSale.sellerMemberId ?? ''));
       update('clientId', () => setClientId(currentSale.clientId || ''));
       update('buyer', () => setBuyer(currentSale.clientName?.trim() || clients.find((client) => client.id === currentSale.clientId)?.name || ''));
       update('cantidad', () => setCantidad(String(currentSale.cantidad ?? 1)));
@@ -187,7 +205,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     }
     if (currentTrade) {
       if (!currentSale) update('cantidad', () => setCantidad(String(currentTrade.draftCantidad ?? 1)));
-      if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftSellerMemberId ?? ''));
+      if (!currentSale) update('sellerMemberId', () => setSellerMemberId(currentTrade.draftResellerId ? `reseller:${currentTrade.draftResellerId}` : currentTrade.draftSellerMemberId ?? ''));
       update('hasTrade', () => setHasTrade(true));
       update('clientId', () => setClientId(currentTrade.clientId || ''));
       update('buyer', () => setBuyer(currentTrade.clientName?.trim() || clients.find((client) => client.id === currentTrade.clientId)?.name || ''));
@@ -218,6 +236,11 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const selectedProduct = productId
     ? productOptions.find((item) => item.id === productId) ?? inventory.find((item) => item.id === productId)
     : undefined;
+  const [costEdit, setCostEdit] = useState<{ productId: string; value: string } | null>(null);
+  const savedCost = selectedProduct?.cost ?? inventory.find(item => item.id === productId)?.cost ?? 0;
+  const costTouched = costEdit?.productId === productId;
+  const costValue = costTouched ? costEdit.value : savedCost > 0 ? formatInputMoney(savedCost) : '';
+  const costCurrency = recordCurrency(selectedProduct ? selectedProduct.currency : currentSale?.amountCurrency, money.active);
   const stockByImei = (imei: string) => equipmentItems.find((item) => (item.imei ?? '').replace(/\D/g, '') === imei && !('archivedAt' in item && item.archivedAt) && isInStock('status' in item ? item.status : 'DISPONIBLE'));
   const pickStock = (item: (typeof equipmentItems)[number]) => {
     dirty.current.add('deviceLabel');
@@ -305,14 +328,17 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     setWarrantyDays(next);
   };
   const buildInput = (draft: boolean): OperationInput => ({
+    ...(!draft && takingDeposit ? { initialDeposit: { amount: parseMoney(initialDeposit), currency: depositCurrency } } : {}),
     ...(!currentSale && !draft && depositIds.length ? { depositIds } : {}),
     ...(!currentSale && !draft && creditNoteIds.length ? { creditNoteIds } : {}),
-    sellerMemberId: sellerMemberId || null,
+    sellerMemberId: beneficiaryInput(sellerMemberId).memberId,
+    resellerId: beneficiaryInput(sellerMemberId).resellerId ?? null,
     ...(!currentSale && (settlement.payload?.exchangeRate || money.rate) ? { exchangeRate: settlement.payload?.exchangeRate || money.rate || undefined } : {}),
     date: arFromIso(saleDate),
     clientId: clientId || null,
     clientName: buyer.trim() || null,
     cantidad: Number(cantidad),
+    ...(seeCosts && !draft && costTouched && costValue.trim() ? { cost: parseMoney(costValue) } : {}),
     productId: productId || null,
     deviceLabel: deviceLabel.trim() || undefined,
     ...(!draft && source !== 'inventory' && !productId && deviceLabel.trim() ? { unlistedEquipment: {
@@ -326,7 +352,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     ...(draft && !amount.trim() ? {} : { amount: parseMoney(amount) }),
     ...(Number(cantidad) > 1 && amount.trim() ? { unitPrice: parseMoney(amount) / Number(cantidad) } : {}),
     paymentMethod: payment,
-    status: paymentStatus,
+    status: paymentStatus === 'SENA' ? 'PENDIENTE' : paymentStatus,
     ...(typedWarranty.days !== undefined ? { warrantyDays: typedWarranty.days } : {}),
     saleCategoryId: currentTrade?.draftSaleCategoryId ?? currentSale?.categoryId ?? null,
     categoryId: hasTrade ? currentTrade?.categoryId ?? null : currentSale?.categoryId ?? null,
@@ -377,6 +403,11 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
     if (kind === 'confirm' && depositIds.length && receipts.loading) next.amount = 'Esperá a que se carguen las señas';
     if (kind === 'confirm' && depositIds.length && appliedDeposits > cashDue) next.amount = 'Las señas superan el importe que falta pagar';
     if (kind === 'confirm' && !currentSale && settlement.error) next.amount = settlement.error;
+    if (takingDeposit) {
+      if (kind === 'draft') next.deposit = 'Confirmá la venta para registrar la seña';
+      if (!buyer.trim() && !clientId) next.client = 'Elegí un cliente para dejar una seña';
+      if (depositPreview.error) next.deposit = depositPreview.error;
+    }
     setBad(next);
     setValidationAttempt((attempt) => attempt + 1);
     return Object.keys(next).length === 0;
@@ -432,6 +463,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
   const typedCurrency = money.rate != null ? money.active : (currentSale?.amountCurrency ?? currentTrade?.currency);
   const cashDue = hasTrade ? difference ?? 0 : parseMoney(amount);
   const appliedDeposits = currentSale?.depositAppliedAmount ?? receipts.rows.filter(row => depositIds.includes(row.id) && depositAvailable(row)).reduce((sum, row) => sum + (depositAmount(row, typedCurrency ?? money.active, money.rate) ?? 0), 0);
+  const depositSaleCurrency = typedCurrency === 'USD' ? 'USD' : typedCurrency === 'ARS' ? 'ARS' : money.active;
+  const appliedCredits = openNotes.filter(note => creditNoteIds.includes(note.id)).reduce((sum, note) => sum + projectAmount(note.remaining, note.currency, depositSaleCurrency, money.rate, 2).value, 0);
+  const depositPreview = initialDepositPreview(parseMoney(initialDeposit), depositCurrency, depositSaleCurrency, money.rate, Math.max(0, cashDue - appliedDeposits - appliedCredits));
   const dueCopy = appliedDeposits > 0 ? `Señas aplicadas: ${receiptMoney(appliedDeposits, typedCurrency ?? money.active)} · ${paymentStatus === 'PENDIENTE' ? 'Deuda pendiente' : 'Restante a cobrar'}: ${receiptMoney(Math.max(0, cashDue - appliedDeposits), typedCurrency ?? money.active)}` : hasTrade
     ? (difference == null ? (tradeGap.warning ?? 'Completá el precio de salida para calcular la diferencia') : `Diferencia a cobrar: ${money.show(difference, typedCurrency)}`)
     : paymentStatus === 'PENDIENTE' ? `Deuda pendiente: ${money.show(parseMoney(amount), typedCurrency)}` : amount.trim() ? `Total a cobrar: ${money.show(parseMoney(amount), typedCurrency)}` : '';
@@ -461,7 +495,7 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
           </div>
           <div className="frow">
             <Field label="Valor tomado" mark={money.active} error={bad.take}><input value={take} inputMode="numeric" onChange={(event) => { dirty.current.add('take'); setTake(operationMoneyInput(event.target.value)); clearBad(setBad, 'take'); }} placeholder="$ 0" /></Field>
-            <Field label="Diferencia"><input aria-label="Diferencia" value={difference == null ? '' : money.show(difference, typedCurrency)} readOnly placeholder={difference == null && tradeGap.warning !== NEGATIVE_TRADE_DIFFERENCE ? 'Completá el precio' : undefined} /></Field>
+            <Field label="Diferencia"><output data-ph-mask className={`op-calculated${difference == null ? ' pending' : ''}`}>{difference == null ? 'Se calcula con el precio completo de salida' : money.show(difference, typedCurrency)}</output></Field>
           </div>
           <Field label="Estado técnico"><span /></Field>
           <Segs options={catalogChoices(catalogs?.options ?? [], 'TRADE_IN_STATUS', CJ_STATUS)} value={technicalStatus} onChange={setTechnicalStatus} onEdit={catalogs?.canEdit ? () => setEditor('TRADE_IN_STATUS') : undefined} />
@@ -578,6 +612,9 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
         setAmount(Number(cantidad) > 1 && value.trim() ? (formatInputMoney(parseMoney(value) * Number(cantidad)) || '0') : value);
         clearBad(setBad, 'amount');
       }} placeholder="$ 0" /></Field>
+      <SaleCostField visible={seeCosts} value={costValue} onChange={value => setCostEdit({ productId, value })}
+        cost={costValue.trim() ? parseMoney(costValue) : savedCost} amount={parseMoney(amount)} cantidad={Number(cantidad)}
+        currency={recordCurrency(typedCurrency, money.active)} costCurrency={costCurrency} rate={money.rate} busy={busy} />
       {Number(cantidad) > 1 ? <p data-ph-mask className="op-summary op-total"><span>Total</span><output aria-label="Total"><strong>{money.show(parseMoney(amount), typedCurrency, Number.isInteger(parseMoney(amount)) ? 0 : 2)}</strong></output></p> : null}
       {selectedProduct && (selectedProduct.price ?? 0) <= 0 ? <p className="eqs-note">Este equipo no tiene precio. Completá el precio de salida para registrar la venta.</p> : null}
       {dueCopy ? <p data-ph-mask className="op-summary">{dueCopy}</p> : null}
@@ -599,17 +636,28 @@ export function OperationForm({ saleId, tradeId, source, preset, startWithTrade 
           {settlement.active ? <p className="eqs-note">La nota se aplica en un cobro simple, sin cuotas ni varios medios.</p> : null}
         </div>
       ) : null}
-      {!currentSale ? <SalePaymentsFields clientId={clientId} due={Math.max(0, cashDue - appliedDeposits)} currency={typedCurrency === 'USD' ? 'USD' : 'ARS'} suggestedRate={money.rate} onChange={setSettlement} /> : null}
+      {!currentSale && !takingDeposit ? <SalePaymentsFields clientId={clientId} due={Math.max(0, cashDue - appliedDeposits)} currency={typedCurrency === 'USD' ? 'USD' : 'ARS'} suggestedRate={money.rate} onChange={setSettlement} /> : null}
       {settlement.active ? null : <><Field label="Forma de pago"><span /></Field>
       <Segs options={PAYMENTS} value={payment} onChange={setPayment} /></>}
       {foldTrade ? (
         <details className="op-fold" data-testid="sale-trade-fold" open={tradeOpen} onToggle={(event) => setTradeOpen(event.currentTarget.open)}>
-          <summary>Canje como parte de pago</summary>
+          <summary>
+            <span>Canje como parte de pago</span>
+            <span className={`op-fold-state${hasTrade ? ' on' : ''}`}>{hasTrade ? 'Con canje' : 'Sin canje'}</span>
+          </summary>
           <div className="op-fold-body">{tradeBlock}</div>
         </details>
       ) : null}
       {settlement.active ? <p className="eqs-note">El cobro se calcula según los pagos y las cuotas.</p> : <><Field label="Cobro"><span /></Field>
-      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }]} value={paymentStatus} onChange={(value) => setPaymentStatus(value as 'COMPLETADA' | 'PENDIENTE')} /></>}
+      <Segs options={[{ id: 'COMPLETADA', label: 'Cobrado' }, { id: 'PENDIENTE', label: 'Pendiente' }, ...(!saleId && !tradeId && !currentSale && !currentTrade ? [{ id: 'SENA', label: 'Seña' }] : [])]} value={paymentStatus} onChange={(value) => { setPaymentStatus(value as typeof paymentStatus); setSettlement({ active: false, error: null, payload: null }); clearBad(setBad, 'deposit'); }} /></>}
+      {takingDeposit ? <>
+        <Field label="Monto de la seña" mark={depositCurrency} error={bad.deposit}><input aria-label="Monto de la seña" value={initialDeposit} inputMode="decimal" placeholder="$ 0" onChange={event => { setInitialDeposit(operationMoneyInput(event.target.value)); clearBad(setBad, 'deposit'); }} /></Field>
+        <div role="group" aria-label="Moneda de la seña"><Segs options={[{ id: 'ARS', label: 'ARS' }, { id: 'USD', label: 'USD' }]} value={depositCurrency} onChange={value => { setDepositCurrency(value as 'ARS' | 'USD'); clearBad(setBad, 'deposit'); }} /></div>
+        <div className="kv" data-ph-mask><span>Saldo a cobrar</span><output aria-label="Saldo a cobrar"><b>{depositPreview.balance == null ? '—' : receiptMoney(depositPreview.balance, depositSaleCurrency)}</b></output></div>
+        {(!buyer.trim() && !clientId) ? <p className="eqs-note">Elegí un cliente para dejar una seña.</p> : null}
+        {depositPreview.error && initialDeposit ? <p className="eqs-note" role="alert">{depositPreview.error}</p> : null}
+        <p className="eqs-note">{depositPreview.balance === 0 ? 'La seña cubre el total de la venta.' : 'La venta queda Pendiente hasta cobrar el saldo.'} La seña se cobra con {paymentLabel(payment)}.</p>
+      </> : null}
       {sellerError && !isNetworkErrorMessage(sellerError) ? <div className="ferr" role="alert">{sellerError}</div> : null}
       <SellerField value={sellerMemberId} onChange={value => { dirty.current.add('sellerMemberId'); setSellerMemberId(value); }} busy={busy} />
       {editor ? <CatalogEditor kind={editor} onClose={() => setEditor(null)} /> : null}
@@ -710,10 +758,11 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       isVoidRow(sale) ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
-          {canManageSensitive || integrated ? <SheetActionMenu>
+          <SheetActionMenu>
+            <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'new-return', saleId: id })}>Devolver</button>
             {integrated ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'edit-sale', id })}>Editar</button> : null}
             {canManageSensitive ? <button className="btn2 danger" type="button" disabled={busy} onClick={() => setConfirmCancel(true)}>Anular</button> : null}
-          </SheetActionMenu> : null}
+          </SheetActionMenu>
           <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => await updateSale({ ...sale, status: 'COMPLETADA' }), `${saleCode(sale)} cobrada`)}>Marcar cobrada</button>
         </SheetActions>
       ) : (
@@ -756,11 +805,12 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
       <div className="kv"><span>Cantidad</span><b>{sale.cantidad ?? 1}</b></div>
       <div className="kv"><span>Equipo</span><b>{saleEquipment(sale, inventory)}</b></div>
       <div className="kv"><span>Calidad</span><b>{soldQuality ? qualityDetail(soldQuality) : '—'}</b></div>
-      <div className="kv"><span>Vendedor</span><b>{commissionSellers.find(person => person.id === sale.sellerMemberId)?.name ?? (sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}</b></div>
+      <div className="kv"><span>Vendedor</span><b>{sale.resellerId ? <CommissionAvatar id={`reseller:${sale.resellerId}`} name={commissionSellers.find(person => person.resellerId === sale.resellerId)?.name ?? 'Revendedor'} role="RESELLER" /> : null}{commissionSellers.find(person => person.id === (sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId))?.name ?? (sale.resellerId || sale.sellerMemberId ? 'Vendedor no disponible' : 'Sin vendedor')}{sale.resellerId ? <small className="mut"> · Revendedor</small> : null}</b></div>
       <div className="kv"><span>Pago</span><b>{paymentLabel(sale.paymentMethod)}</b></div>
       {typeof sale.customFields?.importReview === 'string' && <div className="sales-import-note"><span className="spill mid">Por revisar</span><p>{sale.customFields.importReview}</p></div>}
       {typeof sale.customFields?.notas === 'string' && sale.customFields.notas && <div className="kv"><span>Notas</span><b className="sales-import-note" data-ph-mask>{sale.customFields.notas}</b></div>}
       <div className="kv"><span>Cobro</span>{sale.status === 'PENDIENTE' ? renderAmount(displayedDue, sale.amountCurrency, 'Deuda ') : <b><Pill status={sale.voidedAt ? 'ANULADA' : sale.status} kind="SALE_STATUS" /></b>}</div>
+      {sale.hasInitialDeposit ? <div className="kv"><span>Seña al registrar la venta</span><SaleStatusPill sale={sale} /></div> : null}
       <div className="kv" data-testid="sale-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>
       <SaleAccountPanel saleId={sale.id} currency={sale.amountCurrency} renderAmount={renderAmount} revision={`${sale.status}:${sale.openBalance ?? ''}:${sale.amount}:${buyer?.pendingBalance ?? ''}:${movements.map((row) => row.id).join(',')}`} onDue={setAccountDue} />
       {linkedTrade ? <section className="sale-detail-trade" aria-label="Canje como parte de pago">

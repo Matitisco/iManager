@@ -1,24 +1,59 @@
+import { canSeeFinancials } from '../stores/sections.js';
 import { catalogPreviewPng } from './preview.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { authenticate } from '../../middleware/authenticate.js';
 import { resolveAppUser } from '../../middleware/resolve-app-user.js';
 import { requireMember, requireSectionAccess } from '../../middleware/section-access.js';
 import { loadActor } from '../audit/audit.js';
-import { settingsSchema, visibilitySchema, slugSchema } from './schema.js';
-import { getSettings, saveSettings, setVisibility, getPublicCatalog } from './service.js';
+import { catalogEditSchema, catalogPreviewSchema, catalogIdSchema, settingsSchema, visibilitySchema, slugSchema } from './schema.js';
+import { createStoreCatalog, deleteStoreCatalog, editStoreCatalog, listStoreCatalogs, previewStoreCatalog, getSettings, saveSettings, setVisibility, setStoreCatalogVisibility, getPublicCatalog } from './service.js';
 
 async function owner(request: FastifyRequest, reply: FastifyReply) {
   requireMember(request);
-  if (request.appUser.role !== 'OWNER') return reply.code(403).send({ error: 'Solo el propietario puede regenerar el link del catálogo' });
+  if (request.appUser.role !== 'OWNER') return reply.code(403).send({ error: 'Solo el propietario puede regenerar el link o borrar un catálogo' });
 }
 export async function catalogManagementRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
   app.addHook('preHandler', resolveAppUser);
   app.addHook('preHandler', requireSectionAccess('publicCatalog'));
-  app.get('/', async request => { requireMember(request); return { catalog: await getSettings(request.appUser.storeId) }; });
+  const permissions = (request: FastifyRequest) => { requireMember(request); return { canChangeActive: request.appUser.role === 'OWNER', financials: canSeeFinancials(request.appUser) }; };
+  app.get('/list', async request => {
+    requireMember(request);
+    return { catalogs: await listStoreCatalogs(request.appUser.storeId, canSeeFinancials(request.appUser)) };
+  });
+  app.post('/list', async request => {
+    requireMember(request);
+    return { catalog: await createStoreCatalog(request.appUser.storeId, catalogEditSchema.parse(request.body), await loadActor(request.appUser.userId), permissions(request)) };
+  });
+  app.patch('/list/:id', async request => {
+    requireMember(request);
+    const { id } = catalogIdSchema.parse(request.params);
+    return { catalog: await editStoreCatalog(request.appUser.storeId, id, catalogEditSchema.parse(request.body), await loadActor(request.appUser.userId), permissions(request)) };
+  });
+  app.patch('/list/:id/items', async request => {
+    requireMember(request);
+    const { id } = catalogIdSchema.parse(request.params);
+    const { ids, visible } = visibilitySchema.parse(request.body);
+    return { catalog: await setStoreCatalogVisibility(request.appUser.storeId, id, ids, visible, await loadActor(request.appUser.userId), canSeeFinancials(request.appUser)) };
+  });
+  app.post('/list/:id/regenerate', { preHandler: owner }, async request => {
+    requireMember(request);
+    return { catalog: await editStoreCatalog(request.appUser.storeId, catalogIdSchema.parse(request.params).id, {}, await loadActor(request.appUser.userId), permissions(request), true) };
+  });
+  app.delete('/list/:id', { preHandler: owner }, async request => {
+    requireMember(request);
+    await deleteStoreCatalog(request.appUser.storeId, catalogIdSchema.parse(request.params).id, await loadActor(request.appUser.userId));
+    return { ok: true };
+  });
+  app.post('/preview', async request => {
+    requireMember(request);
+    const { catalogId, ...input } = catalogPreviewSchema.parse(request.body);
+    return previewStoreCatalog(request.appUser.storeId, catalogId, input, canSeeFinancials(request.appUser));
+  });
+  app.get('/', async request => { requireMember(request); return { catalog: await getSettings(request.appUser.storeId, canSeeFinancials(request.appUser)) }; });
   app.patch('/', async request => {
     requireMember(request);
-    return { catalog: await saveSettings(request.appUser.storeId, settingsSchema.parse(request.body), await loadActor(request.appUser.userId), false, { canChangeActive: request.appUser.role === 'OWNER' }) };
+    return { catalog: await saveSettings(request.appUser.storeId, settingsSchema.parse(request.body), await loadActor(request.appUser.userId), false, { canChangeActive: request.appUser.role === 'OWNER', financials: canSeeFinancials(request.appUser) }) };
   });
   app.post('/regenerate', { preHandler: owner }, async request => {
     requireMember(request);
@@ -27,7 +62,7 @@ export async function catalogManagementRoutes(app: FastifyInstance) {
   app.patch('/items', async request => {
     requireMember(request);
     const body = visibilitySchema.parse(request.body);
-    return { catalog: await setVisibility(request.appUser.storeId, body.ids, body.visible, await loadActor(request.appUser.userId)) };
+    return { catalog: await setVisibility(request.appUser.storeId, body.ids, body.visible, await loadActor(request.appUser.userId), canSeeFinancials(request.appUser)) };
   });
 }
 // Bounded, per-process limiter. Never trust caller-supplied X-Forwarded-For.

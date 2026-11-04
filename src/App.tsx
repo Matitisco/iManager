@@ -64,6 +64,8 @@ function AppContent() {
   const [inviteError, setInviteError] = useState('');
   const inviteState = useInvitationPreview(inviteToken);
 
+  useEffect(() => { setInviteError(''); }, [user?.uid]);
+
   const clearInvite = () => {
     sessionStorage.removeItem(INVITE_TOKEN_KEY);
     setInviteToken(null);

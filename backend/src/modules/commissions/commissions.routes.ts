@@ -1,6 +1,9 @@
+import { listResellers, saveReseller } from "./resellers.service.js";
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import { readReason } from '../audit/archive.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
@@ -16,16 +19,37 @@ const querySchema = z.object({ period: commissionPeriodSchema.optional() }).stri
 const ruleSchema = z.object({
   active: z.boolean().optional(),
   memberId: z.string().min(1).nullable().default(null),
+  resellerId: z.string().min(1).nullable().optional(),
   basis: z.enum(COMMISSION_BASES).default("PROFIT_PERCENT"),
   rate: z.number().finite().nonnegative().max(99999999),
   currency: z.enum(["ARS", "USD"]).nullable().optional(),
-  effectiveFrom: z.union([z.string().datetime({ offset: true }), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
+  effectiveFrom: z.union([dateTimeInput({ offset: true }), z.string().regex(/^\d{4}-\d{2}-\d{2}$/)]),
 }).strict();
+// Zod 4 applies creation defaults through .partial(); PATCH must retain absence.
+const rulePatchSchema = ruleSchema.partial().extend({
+  memberId: ruleSchema.shape.memberId.removeDefault().optional(),
+  basis: ruleSchema.shape.basis.removeDefault().optional(),
+}).refine(value => Object.keys(value).length > 0, "Indicá un cambio");
 const idSchema = z.object({ id: z.string().min(1) });
 
 export async function commissionsRoutes(app: FastifyInstance) {
   const session = [authenticate, resolveAppUser];
   const admin = [...session, requireSectionAccess("commissions")];
+  const resellerWrite = [...session, requireSectionAccess("sales")];
+  app.get("/resellers", { preHandler: session }, async request => {
+    requireMember(request);
+    return { resellers: await listResellers(request.appUser.storeId) };
+  });
+  app.post("/resellers", { preHandler: resellerWrite }, async (request, reply) => {
+    requireMember(request);
+    const input = z.object({ name: z.string().trim().min(1).max(80) }).strict().parse(request.body);
+    return reply.code(201).send({ reseller: await saveReseller(request.appUser.storeId, await loadActor(request.appUser.userId), input) });
+  });
+  app.patch("/resellers/:id", { preHandler: resellerWrite }, async request => {
+    requireMember(request);
+    const input = z.object({ name: z.string().trim().min(1).max(80).optional(), archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0, "Indicá un cambio").parse(request.body);
+    return { reseller: await saveReseller(request.appUser.storeId, await loadActor(request.appUser.userId), input, idSchema.parse(request.params).id) };
+  });
   app.get("/", { preHandler: admin }, async request => {
     requireMember(request);
     const data = await getCommissionPeriod(request.appUser.storeId, querySchema.parse(request.query).period);
@@ -60,7 +84,7 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.patch("/rules/:id", { preHandler: admin }, async request => {
     requireMember(request);
-    return { rule: await saveCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), ruleSchema.partial().refine(value => Object.keys(value).length > 0, "Indicá un cambio").parse(request.body) as Partial<CommissionRuleInput>, idSchema.parse(request.params).id) };
+    return { rule: await saveCommissionRule(request.appUser.storeId, await loadActor(request.appUser.userId), rulePatchSchema.parse(request.body) as Partial<CommissionRuleInput>, idSchema.parse(request.params).id) };
   });
   app.delete("/rules/:id", { preHandler: admin }, async (request, reply) => {
     requireMember(request);
@@ -69,13 +93,13 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.get("/payments", { preHandler: admin }, async request => {
     requireMember(request);
-    const query = z.object({ period: commissionPeriodSchema.optional(), memberId: z.string().min(1).optional() }).strict().parse(request.query);
-    return { payments: await listCommissionPayments(request.appUser.storeId, query.period, query.memberId) };
+    const query = z.object({ period: commissionPeriodSchema.optional(), memberId: z.string().min(1).optional(), resellerId: z.string().min(1).optional() }).strict().parse(request.query);
+    return { payments: await listCommissionPayments(request.appUser.storeId, query.period, query.memberId, query.resellerId) };
   });
   app.post("/payments", { preHandler: admin }, async (request, reply) => {
     requireMember(request);
-    const input = z.object({ memberId: z.string().min(1), period: commissionPeriodSchema, amount: z.number().finite().positive().max(9999999999),
-      currency: z.enum(["ARS", "USD"]), exchangeRate: z.number().finite().positive().max(9999999999),
+    const input = z.object({ memberId: z.string().min(1).nullable().optional(), resellerId: z.string().min(1).nullable().optional(), period: commissionPeriodSchema, amount: moneyInput({ positive: true, max: 9999999999 }),
+      currency: z.enum(["ARS", "USD"]), exchangeRate: moneyInput({ positive: true, max: 9999999999 }),
       settlesCurrency: z.enum(["ARS", "USD"]), note: z.string().trim().max(2000).nullable().optional() }).strict().parse(request.body);
     return reply.code(201).send({ payment: await createCommissionPayment(request.appUser.storeId, await loadActor(request.appUser.userId), input as CommissionPaymentInput) });
   });
@@ -85,7 +109,7 @@ export async function commissionsRoutes(app: FastifyInstance) {
   });
   app.patch("/sales/seller", { preHandler: admin }, async request => {
     requireMember(request);
-    const input = z.object({ saleIds: z.array(z.string().min(1)).min(1).max(500), sellerMemberId: z.string().min(1).nullable() }).strict().parse(request.body);
-    return bulkAssignSeller(request.appUser.storeId, await loadActor(request.appUser.userId), input.saleIds, input.sellerMemberId);
+    const input = z.object({ saleIds: z.array(z.string().min(1)).min(1).max(500), sellerMemberId: z.string().min(1).nullable(), resellerId: z.string().min(1).nullable().optional() }).strict().parse(request.body);
+    return bulkAssignSeller(request.appUser.storeId, await loadActor(request.appUser.userId), input.saleIds, input.sellerMemberId, input.resellerId);
   });
 }

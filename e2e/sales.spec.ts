@@ -39,9 +39,9 @@ test('@smoke creates a sale from available inventory and persists client and sto
   await page.getByRole('button', { name: 'Registrar venta' }).click();
   const dialog = page.getByRole('dialog', { name: 'Registrar venta' });
   await expect(dialog.getByRole('option')).toHaveCount(0);
-  await dialog.getByLabel('Equipo').fill(productModel);
+  await dialog.getByLabel('Equipo', { exact: true }).fill(productModel);
   await dialog.getByRole('option', { name: new RegExp(productModel) }).click();
-  await expect(dialog.getByLabel('Equipo')).toHaveValue(new RegExp(productModel));
+  await expect(dialog.getByLabel('Equipo', { exact: true })).toHaveValue(new RegExp(productModel));
   await dialog.getByLabel('Cliente').fill(clientName);
   await page.getByRole('button', { name: 'Confirmar venta' }).click();
 

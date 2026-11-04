@@ -63,7 +63,7 @@ test.describe('desktop sales stays put', () => {
     await expect(page.getByTestId('sales-empty')).toHaveCount(0);
     await expect(page.getByTestId('sale-trade-fold')).toHaveCount(0);
     await expect(page.getByText('No encontré ventas.')).toBeVisible();
-    await expect(page.getByRole('columnheader', { name: /Venta/ })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: /ordenar por venta\b/i })).toBeVisible();
     await expect(page.getByPlaceholder('Buscar cliente, equipo o número')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Importar', exact: true })).toHaveCount(IMPORT_SALES_ENABLED ? 1 : 0);
@@ -89,9 +89,9 @@ test.describe('sales on a phone', () => {
     await expect(page.getByTestId('page-back')).toHaveCount(0);
     await expect(page.getByTestId('sales-hero')).toContainText('Facturación total');
     await expect(page.getByTestId('sales-hero')).toContainText('Ticket promedio');
-    await expect(page.getByTestId('sales-hero')).toContainText('Margen bruto est.');
+    await expect(page.getByTestId('sales-hero')).toContainText('Ganancia total');
     await expect(page.getByTestId('sales-empty')).toContainText('No hay ventas');
-    await expect(page.getByText('0 resultados')).toBeVisible();
+    await expect(page.getByTestId('sales-hero')).toContainText('0 ventas');
     await expect(page.getByTestId('sales-period')).toContainText('Mes');
     await expect(page.getByTestId('sales-status')).toContainText('Estado');
     await settleMotion(page, '.stage');
@@ -125,7 +125,7 @@ test.describe('sales on a phone', () => {
     await expect(form.locator('.sheet-grab')).toBeVisible();
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Confirmar venta' })).toBeVisible();
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true })).toBeVisible();
-    await expect(form.getByText(/ARS/)).toBeVisible();
+    await expect(form.getByText(/ARS/).first()).toBeVisible();
     await expect(form.getByRole('button', { name: 'Transferencia' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Efectivo' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Cobrado' })).toBeVisible();
@@ -205,7 +205,7 @@ test.describe('sales on a phone', () => {
 
     await card.click();
     const again = page.getByRole('dialog', { name: /V-/ });
-    await again.locator('.sheet-foot').getByRole('button', { name: 'Compartir comprobante' }).click();
+    await (await sheetAction(again, 'Compartir comprobante')).click();
     await expect(page.getByText('Comprobante copiado')).toBeVisible();
     await expect(page.locator('.toast.show')).toBeHidden();
     await (await sheetAction(again, 'Anular')).click();

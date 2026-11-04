@@ -1,3 +1,4 @@
+import { beneficiaryKey } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
@@ -13,6 +14,7 @@ import { useMoney } from '../exchange';
 import { FX_WARNING } from '../money';
 import { netProfit, returnReversal } from '../net-profit';
 import { combineAmounts } from '../money';
+import { billingEntries, compensatedReturns, compensationDate } from '../return-financials';
 import type { ReturnCaseView } from '../../services/returns-api';
 import type { ExpenseView } from '../../services/expenses-api';
 import { fitDonutText, fitDonutValue } from '../donut-label';
@@ -27,6 +29,7 @@ import {
   saleEquipment,
   isVoidRow,
   saleCode,
+  saleQuantity,
   statusLabel,
   tradeClientLabel,
   tradeCode,
@@ -129,18 +132,20 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
   const [dimensionByTab, setDimensionByTab] = useState<Partial<Record<ReportTab, string>>>({});
   const bounds = useMemo(() => period === 'Personalizado' && customBounds ? customBounds : periodBounds(period === 'Personalizado' ? 'Mes' : period), [period, customBounds]);
   const periodData = useMemo(() => ({
-    sales: sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.start, bounds.end)),
+    sales: sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.start, bounds.end)),
     inventory: inventory.filter((item) => inReportPeriod(item.createdAt, bounds.start, bounds.end)),
     tradeIns: tradeIns.filter((item) => inReportPeriod(item.date, bounds.start, bounds.end)),
     repairs: repairOrders.filter((order) => inReportPeriod(order.receivedAt, bounds.start, bounds.end)),
   }), [sales, inventory, tradeIns, repairOrders, bounds]);
 
-  const salesValue = money.sum(periodData.sales.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
-  const projectedSales = periodData.sales.map((sale) => ({
+  const billingHistory = billingEntries(sales, returns ?? []);
+  const periodBilling = billingHistory.filter(sale => inReportPeriod(sale.date, bounds.start, bounds.end));
+  const salesValue = returns === null ? null : money.sum(periodBilling.map((sale) => ({ amount: sale.amount, currency: sale.amountCurrency })));
+  const projectedSales = periodBilling.map((sale) => ({
     ...sale,
     amount: salesValue == null ? 0 : (money.number(sale.amount, sale.amountCurrency) ?? 0),
   }));
-  const projectedHistory = sales.map((sale) => ({
+  const projectedHistory = billingHistory.map((sale) => ({
     ...sale,
     amount: money.number(sale.amount, sale.amountCurrency) ?? 0,
   }));
@@ -246,6 +251,9 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
     if (activeTab === 'Ventas') {
       saleRows.forEach((sale) => {
         rows.push([`${saleCode(sale)} ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), statusLabel(sale.status)]);
+      });
+      periodBilling.filter(sale => sale.id.startsWith('return-') && matchesBreakdown(saleLabel(sale), cat, model.otherLabels)).forEach(sale => {
+        rows.push([`Devolución ${saleBuyer(sale, clients)}`, ...moneyCells(sale.amount, sale.amountCurrency), 'Devolución']);
       });
     } else if (activeTab === 'Stock') {
       rows[0].splice(3, 0, 'Cantidad');
@@ -389,7 +397,7 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
           warning={money.warning}
         />
       ) : null}
-      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${row.memberId}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div data-ph-mask className="gstore">{row.name}</div><div className="gmeta">Pagado <ReplayValue>{commissionTotal(row.paid)}</ReplayValue> · pendiente <ReplayValue>{commissionTotal(row.pending)}</ReplayValue></div></div><div className="gr"><div data-ph-mask className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
+      {activeTab === 'Comisiones' ? <><div className="glh"><h3>Por persona</h3><span>{commissionRows.length} en el período</span></div>{commissionRows.filter(row => !cat || row.name === cat || (cat === 'Otros' && model.otherLabels.includes(row.name))).map(row => <div className="gtk" key={`${beneficiaryKey(row)}:${row.period}`}><div className="gl"><div className="gdate">{row.period} · {saleCount(row.salesCount)}</div><div data-ph-mask className="gstore">{row.name}{row.resellerId ? <small> · Revendedor</small> : null}</div><div className="gmeta">Pagado <ReplayValue>{commissionTotal(row.paid)}</ReplayValue> · pendiente <ReplayValue>{commissionTotal(row.pending)}</ReplayValue></div></div><div className="gr"><div data-ph-mask className="gamt">{money.showActive(row.converted.earned[money.active])}</div></div></div>)}{!commissionRows.length && !commissionReportLoading && !commissionReportError ? <p className="gnote">No hay comisiones en este período.</p> : null}</> : null}
       {activeTab === 'Ventas' && (
         <>
           <div className="glh"><h3>Ventas del período</h3><span>{saleRows.length} en el período</span></div>
@@ -567,7 +575,7 @@ function buildReport(
   const title = breakdownTitle(tab, dimension, dimensions);
   if (tab === 'Ventas') {
     const current = data.sales;
-    const previous = allSales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
+    const previous = allSales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, bounds.prevStart, bounds.prevEnd));
     const total = current.reduce((sum, sale) => sum + sale.amount, 0);
     const prev = previous.reduce((sum, sale) => sum + sale.amount, 0);
     for (const sale of current) addToReportBucket(buckets, sale.date, sale.amount);
@@ -684,7 +692,7 @@ function buildReport(
     donutMoney: false,
     donutTotal: orders.length,
     delta: `${orders.length} ${orders.length === 1 ? 'orden' : 'órdenes'} · ${leadTimeLabel(average)}`,
-    note: unavailable ? 'No se puede sumar la facturación en la moneda de la tienda.' : 'La facturación suma los presupuestos. El tiempo medio va del ingreso hasta Entregado.',
+    note: unavailable ? 'No se puede sumar la facturación en la moneda de la tienda.' : 'La facturación suma los costos del arreglo. El tiempo medio va del ingreso hasta Entregado.',
     bucketLabel,
     buckets,
     donutTitle: title,
@@ -723,9 +731,9 @@ export function NetProfitCard({
       </div>
     );
   }
-  const periodSales = sales.filter((sale) => sale.status !== 'CANCELADA' && inReportPeriod(sale.date, start, end));
+  const periodSales = sales.filter((sale) => !isVoidRow(sale) && inReportPeriod(sale.date, start, end));
   const periodExpenses = (expenses ?? []).filter((row) => !row.deletedAt && inReportPeriod(row.date, start, end));
-  const periodReturns = returns.filter((row) => !isVoidRow(row) && (row.resolution === 'CAMBIO' || row.resolution === 'REINTEGRO') && inReportPeriod(row.compensatedOn ?? row.resolvedOn ?? undefined, start, end));
+  const periodReturns = compensatedReturns(returns).filter(row => inReportPeriod(compensationDate(row), start, end));
   const reversals = periodReturns.map((row) => returnReversal(row));
   const returned = combineAmounts(reversals.map((row) => ({ amount: row.amount, currency: row.currency })), currency, rate);
   const figures = netProfit({
@@ -736,7 +744,7 @@ export function NetProfitCard({
       return {
         amount: sale.amount,
         currency: sale.amountCurrency,
-        cost: item?.cost ?? 0,
+        cost: (item?.cost ?? 0) * saleQuantity(sale),
         costCurrency: item?.currency ?? sale.amountCurrency,
       };
     }),

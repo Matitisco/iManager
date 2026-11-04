@@ -6,6 +6,22 @@ const { getApp } = useIntegrationApp();
 const headers = (uid: string) => buildAuthHeaders({ uid });
 
 describe("primeros pasos persistentes y muestras", () => {
+  it.each(['REVOKED', 'ACCEPTED', 'expired'] as const)('no completa Equipo con una invitación %s y sin miembros activos adicionales', async state => {
+    const { store, user } = await seedStoreContext();
+    const removed = await prisma.user.create({ data: { firebaseUid: 'removed-staff', email: 'removed@example.com' } });
+    await prisma.storeMember.create({ data: { storeId: store!.id, userId: removed.id, role: 'STAFF', removedAt: new Date() } });
+    await prisma.storeInvitation.create({ data: {
+      storeId: store!.id, role: 'STAFF', status: state === 'expired' ? 'PENDING' : state,
+      expiresAt: new Date(Date.now() + (state === 'expired' ? -1 : 1) * 86_400_000),
+    } });
+    const response = await getApp().inject({ method: 'GET', url: '/api/onboarding/progress', headers: headers(user.firebaseUid) });
+    expect(response.statusCode, response.body).toBe(200);
+    expect(response.json()).toMatchObject({ team: false, steps: { team: false } });
+    await prisma.storeInvitation.create({ data: { storeId: store!.id, role: 'STAFF', expiresAt: new Date(Date.now() + 86_400_000) } });
+    const withPending = await getApp().inject({ method: 'GET', url: '/api/onboarding/progress', headers: headers(user.firebaseUid) });
+    expect(withPending.json()).toMatchObject({ team: true, steps: { team: true } });
+  });
+
   it("conserva tiendas existentes sin activar el recorrido y recuerda descarte/video por miembro", async () => {
     const ctx = await seedStoreContext();
     const app = getApp();

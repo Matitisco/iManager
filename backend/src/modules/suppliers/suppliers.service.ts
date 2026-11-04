@@ -5,6 +5,15 @@ import { prisma } from "../../plugins/prisma.js";
 import { writeAudit, type Actor } from "../audit/audit.js";
 import { calendarDay } from "../periodic-reports/schedule.js";
 import { claimsForDevices, loadProblems, summarizeProblems, type ProblemDevice, type ProblemSnapshot, type ProblemSummary } from "./problems.js";
+import { resolveAcquiredQuantities } from "./acquired-quantity.js";
+
+async function loadPurchaseProblems(storeId: string, where: Prisma.InventoryItemWhereInput) {
+  const snapshot = await loadProblems(storeId, where);
+  await resolveAcquiredQuantities(storeId, snapshot.items);
+  return snapshot;
+}
+
+const acquiredUnits = (items: ProblemDevice[]) => items.reduce((sum, item) => sum + item.acquiredQuantity!, 0);
 
 const ZONE = "America/Argentina/Buenos_Aires";
 
@@ -118,7 +127,7 @@ async function countsFor(storeId: string, supplierIds: string[]) {
   const lastPurchasedAt = new Map<string, string>();
   if (!supplierIds.length) return { devices, problems, claims, lastPurchasedAt };
   const [snapshot, purchases] = await Promise.all([
-    loadProblems(storeId, { supplierId: { in: supplierIds } }),
+    loadPurchaseProblems(storeId, { supplierId: { in: supplierIds } }),
     prisma.stockPurchase.groupBy({
       by: ["supplierId"], where: { storeId, supplierId: { in: supplierIds }, deletedAt: null }, _max: { purchasedAt: true },
     }),
@@ -140,7 +149,7 @@ async function countsFor(storeId: string, supplierIds: string[]) {
   }
   for (const [id, items] of groups) {
     const summary = summarizeProblems(items, snapshot.problems);
-    devices.set(id, summary.devices);
+    devices.set(id, acquiredUnits(items));
     problems.set(id, summary.problems);
     const ids = supplierClaims.get(id) ?? new Set<string>();
     for (const claim of claimsForDevices(items, snapshot.problems)) ids.add(claim.id);
@@ -170,7 +179,7 @@ type Cost = { id: string; cost: Prisma.Decimal; currency: string | null };
 
 async function purchaseData(storeId: string, supplierId: string, financials: boolean, purchaseId?: string) {
   const [snapshot, purchases, costs, store] = await Promise.all([
-    loadProblems(storeId, { supplierId, ...(purchaseId ? { stockPurchaseId: purchaseId } : {}) }),
+    loadPurchaseProblems(storeId, { supplierId, ...(purchaseId ? { stockPurchaseId: purchaseId } : {}) }),
     prisma.stockPurchase.findMany({
       where: { storeId, supplierId, deletedAt: null, ...(purchaseId ? { id: purchaseId } : {}) },
       orderBy: [{ purchasedAt: "desc" }, { id: "desc" }],
@@ -189,15 +198,15 @@ function purchaseSummary(purchase: PurchaseRow, items: ProblemDevice[], snapshot
   const summary = summarizeProblems(items, snapshot.problems);
   const view: PurchaseSummaryView = {
     id: purchase.id, name: purchase.name, purchasedAt: calendarDay(purchase.purchasedAt, ZONE), notes: purchase.notes,
-    devices: summary.devices, problemCount: summary.problems, claimCount: claimsForDevices(items, snapshot.problems).length,
+    devices: acquiredUnits(items), problemCount: summary.problems, claimCount: claimsForDevices(items, snapshot.problems).length,
   };
   if (financials) {
     const totals = new Map<string, Prisma.Decimal>();
     for (const item of items) {
       const cost = costs.get(item.id);
-      if (!cost) continue;
+      if (!cost || item.acquiredQuantity === 0) continue;
       const unit = cost.currency ?? currency;
-      totals.set(unit, (totals.get(unit) ?? cost.cost.mul(0)).add(cost.cost));
+      totals.set(unit, (totals.get(unit) ?? cost.cost.mul(0)).add(cost.cost.mul(item.acquiredQuantity!)));
     }
     view.costTotals = [...totals].sort(([a], [b]) => a.localeCompare(b)).map(([unit, total]) => ({ currency: unit, totalCost: total.toNumber() }));
     view.totalCost = totals.size > 1 ? null : view.costTotals[0]?.totalCost ?? 0;
@@ -251,7 +260,7 @@ export async function getSupplierPurchase(storeId: string, supplierId: string, p
   return {
     ...purchaseSummary(purchase, snapshot.items, snapshot, costs, currency, financials),
     items: snapshot.items.map(item => purchaseItem(item, snapshot, costs)),
-    summary: summarizeProblems(snapshot.items, snapshot.problems),
+    summary: { ...summarizeProblems(snapshot.items, snapshot.problems), devices: acquiredUnits(snapshot.items) },
   };
 }
 
@@ -278,13 +287,15 @@ export async function getSupplier(storeId: string, id: string, financials: boole
   const summary = summarizeProblems(snapshot.items, snapshot.problems);
   // Include ungrouped devices too; keep currencies separate and costs permission-gated.
   const totals = new Map<string, Prisma.Decimal>();
-  for (const cost of costs.values()) {
+  for (const item of snapshot.items) {
+    const cost = costs.get(item.id);
+    if (!cost || item.acquiredQuantity === 0) continue;
     const unit = cost.currency ?? currency;
-    totals.set(unit, (totals.get(unit) ?? cost.cost.mul(0)).add(cost.cost));
+    totals.set(unit, (totals.get(unit) ?? cost.cost.mul(0)).add(cost.cost.mul(item.acquiredQuantity!)));
   }
   return {
-    ...present(supplier, { ...summary, claims: claimIds.size, lastPurchasedAt: purchases[0] ? calendarDay(purchases[0].purchasedAt, ZONE) : null }),
-    stockCount: snapshot.items.filter(item => item.status !== "VENDIDO").length,
+    ...present(supplier, { ...summary, devices: acquiredUnits(snapshot.items), claims: claimIds.size, lastPurchasedAt: purchases[0] ? calendarDay(purchases[0].purchasedAt, ZONE) : null }),
+    stockCount: snapshot.items.reduce((sum, item) => sum + (item.status === "VENDIDO" ? 0 : item.cantidad), 0),
     claimedDeviceCount: snapshot.items.filter(item => snapshot.problems.get(item.id)?.claims.length).length,
     ...(financials ? { costTotals: [...totals].sort(([a], [b]) => a.localeCompare(b)).map(([unit, total]) => ({ currency: unit, totalCost: total.toNumber() })) } : {}),
     purchases: purchaseViews,

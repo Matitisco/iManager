@@ -1,3 +1,4 @@
+import { getDefaultCatalog } from '../public-catalog/default-catalog.js';
 import { track, trackMany, markFirstSteps } from '../analytics/track.js';
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../plugins/prisma.js";
@@ -51,10 +52,10 @@ export async function getGettingStarted(member: Member) {
         ? prisma.storeMember.count({ where: { storeId, removedAt: null } })
         : 0,
       firstStepsVisibleTo(role)
-        ? prisma.storeInvitation.count({ where: { storeId } })
+        ? prisma.storeInvitation.count({ where: { storeId, status: "PENDING", expiresAt: { gt: new Date() } } })
         : 0,
       can("publicCatalog")
-        ? prisma.storePublicCatalog.findUnique({ where: { storeId } })
+        ? getDefaultCatalog(storeId)
         : null,
       can("inventory")
         ? prisma.inventoryItem.count({
@@ -187,6 +188,7 @@ export async function createSampleStock(storeId: string) {
         ...row,
         storeId,
         sampleBatchId,
+        acquiredQuantity: 1,
         currency: "USD",
         condition: "USADO",
         grade: "A",

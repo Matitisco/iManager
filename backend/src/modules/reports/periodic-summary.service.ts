@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../plugins/prisma.js';
 import { parseArDate } from '../../lib/ar-date.js';
@@ -52,9 +53,9 @@ export async function getPeriodicSummary(storeId: string, member: Member, select
       orderBy: [{ soldAt: 'desc' }, { id: 'desc' }],
     }) : [],
     salesAllowed ? prisma.returnCase.findMany({
-      where: { storeId, deletedAt: null, status: { not: 'ANULADO' } },
+      where: { storeId, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true) },
       select: { id: true, openedAt: true, resolvedAt: true, deviceLabel: true, clientName: true, imei: true, moneyAmount: true, moneyCurrency: true, settlement: true, resolution: true, rmaStatus: true, status: true,
-        events: { where: { storeId, status: { in: ['EN_PROVEEDOR', 'RESUELTO'] } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1, select: { createdAt: true } },
+        events: { where: { storeId, status: await storedStateFilter(prisma, 'ReturnEvent', storeId, ["EN_PROVEEDOR","RESUELTO"], false) }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1, select: { createdAt: true } },
       },
       orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
     }) : [],

@@ -12,6 +12,7 @@ import {
   deleteClient,
   restoreClient,
   listClientPayments,
+  listClientSales,
   registerClientPayment,
   importClients,
   listClients,
@@ -37,7 +38,7 @@ const clientCreateSchema = z.object({
   balanceCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   tag: z.string().trim().max(30).nullable().optional(),
   birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 const clientPatchSchema = clientCreateSchema.partial();
@@ -89,6 +90,18 @@ export async function clientsRoutes(app: FastifyInstance) {
       }
 
       return { client };
+    }
+  );
+
+  app.get(
+    "/:id/sales",
+    { preHandler: [authenticate, resolveAppUser, requireSectionAccess("clients")] },
+    async (request, reply) => {
+      requireMember(request);
+      const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
+      const sales = await listClientSales(request.appUser.storeId, id);
+      if (!sales) return reply.code(404).send({ error: "Client not found" });
+      return { sales };
     }
   );
 

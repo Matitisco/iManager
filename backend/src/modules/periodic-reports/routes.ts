@@ -8,7 +8,7 @@ import { FREQUENCIES } from "./schedule.js";
 import { getPeriodicReportSettings, savePeriodicReportSettings, sendTestReport, type PeriodicReportInput } from "./service.js";
 
 const bodySchema = z.object({
-  sendDay: z.number().int().min(1).max(28).optional(),
+  sendDay: z.number().refine(Number.isInteger).min(1).max(28).optional(),
   sendTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   enabled: z.boolean(),
   frequency: z.enum(FREQUENCIES),

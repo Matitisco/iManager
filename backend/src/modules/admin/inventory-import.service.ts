@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { safeXlsxBytes } from '../../lib/import-shared/safe-xlsx.js';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { DomainError } from '../../lib/domain-error.js';
@@ -15,7 +16,7 @@ import { importInventoryItems } from '../inventory/inventory.service.js';
 import { resolveStore } from './sale-corrections.service.js';
 import { detectInventoryImportDuplicates } from './inventory-import-duplicates.js';
 
-const counts = z.object({ imported: z.number().int().nonnegative(), updated: z.number().int().nonnegative(), discarded: z.number().int().nonnegative() }).strict();
+const counts = z.object({ imported: z.number().refine(Number.isInteger).nonnegative(), updated: z.number().refine(Number.isInteger).nonnegative(), discarded: z.number().refine(Number.isInteger).nonnegative() }).strict();
 export const inventoryImportBody = z.object({
   storeEmail: z.string().trim().email(),
   expectStoreName: z.string(),
@@ -23,7 +24,7 @@ export const inventoryImportBody = z.object({
   dryRun: z.boolean(),
   fileBase64: z.string().min(4).max(16 * 1024 * 1024).regex(/^[A-Za-z0-9+/]+={0,2}$/).refine(value => value.length % 4 === 0, 'Base64 inválido.').optional(),
   sheets: z.array(z.object({ name: z.string().trim().min(1).max(80), rows: z.array(z.array(z.string().max(2000)).max(40)).max(5000) }).strict()).min(1).max(12).optional(),
-  skipSourceRows: z.array(z.number().int().min(1).max(5000)).max(5000).optional(),
+  skipSourceRows: z.array(z.number().refine(Number.isInteger).min(1).max(5000)).max(5000).optional(),
   allowPossibleDuplicates: z.boolean().default(false),
   expect: counts.optional(),
 }).strict().superRefine((body, ctx) => {
@@ -36,8 +37,9 @@ export async function inventoryImportSheets(body: Pick<InventoryImportBody, 'she
   try {
     let sheets = body.sheets;
     if (!sheets) {
+      const bytes = safeXlsxBytes(Buffer.from(body.fileBase64!, 'base64'));
       const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(Buffer.from(body.fileBase64!, 'base64') as unknown as ExcelJS.Buffer);
+      await workbook.xlsx.load(bytes as unknown as ExcelJS.Buffer);
       sheets = workbook.worksheets.map(sheet => ({ name: sheet.name, rows: readWorksheet(sheet) }));
     }
     const prepared = prepareImportSheets(sheets);

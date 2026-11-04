@@ -35,9 +35,9 @@ const productFix = z.object({
 }).strict().refine(p => p.price !== undefined || p.cost !== undefined || p.currency !== undefined, { message: 'product: indicá price, cost o currency.' });
 
 const saleFix = z.object({
-  saleNumber: z.number().int().min(1),
+  saleNumber: z.number().refine(Number.isInteger).min(1),
   expectModel: z.string().min(1),
-  expectQuantity: z.number().int().min(1),
+  expectQuantity: z.number().refine(Number.isInteger).min(1),
   expectAmount: money,
   expectStatus: z.enum(['COMPLETADA', 'PENDIENTE']),
   newTotal: money.positive().optional(),

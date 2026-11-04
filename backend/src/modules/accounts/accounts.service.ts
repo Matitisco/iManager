@@ -1,3 +1,5 @@
+import { normalizeAccountingState, storedStateFilter } from '../../lib/accounting-states.js';
+import { assertStoreReferences } from '../../lib/store-references.js';
 import { recordCash } from '../cash/service.js';
 import { Prisma } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
@@ -78,21 +80,21 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
     prisma.client.findMany({
       where: { storeId },
       include: {
-        sales: { where: { OR: [{ status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
-        payments: { where: { kind: "CARGO", saleId: null }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
+        sales: { where: { storeId, OR: [{ status: await storedStateFilter(prisma, 'Sale', storeId, ["PENDIENTE"], false) }, { status: await storedStateFilter(prisma, 'Sale', storeId, ["COMPLETADA"], false), openBalance: { gt: 0 } }] }, include: { tradeIn: { select: { differencePaid: true } } } },
+        payments: { where: { storeId, kind: "CARGO", saleId: null }, orderBy: { paidAt: "asc" }, select: { paidAt: true } },
       },
     }),
     prisma.repairOrder.findMany({
       where: { storeId, clientId: { not: null }, status: { notIn: CLOSED_REPAIR }, estimate: { not: null } },
     }),
     prisma.saleInstallment.findMany({ where: { storeId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
-    prisma.clientPayment.findMany({ where: { storeId, kind: "NOTA_CREDITO", saleId: { not: null } }, select: { saleId: true } }),
+    prisma.clientPayment.findMany({ where: { storeId, kind: await storedStateFilter(prisma, 'ClientPayment', storeId, ["NOTA_CREDITO"], false, 'kind'), saleId: { not: null } }, select: { saleId: true } }),
     prisma.clientPayment.findMany({
       where: { storeId },
       select: { clientId: true, saleId: true, repairOrderId: true, kind: true, amount: true },
     }),
     prisma.clientDeposit.findMany({
-      where: { storeId, status: "CREDIT" },
+      where: { storeId, status: await storedStateFilter(prisma, 'ClientDeposit', storeId, ["CREDIT"], false) },
       select: { clientId: true, status: true, amount: true, currency: true, usdAmount: true, exchangeRate: true },
     }),
   ]);
@@ -124,7 +126,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
       return {
         id: sale.id,
         cash: Math.max(0, cashDue - num(sale.depositAppliedAmount)),
-        status: sale.status,
+        status: normalizeAccountingState('sale', sale.status),
         openBalance: sale.openBalance == null ? null : num(sale.openBalance),
         soldAt: sale.soldAt.toISOString(),
       };
@@ -132,7 +134,7 @@ export async function listDebtors(storeId: string): Promise<Debtor[]> {
     const still = balanceStillOwed(targets, looseByClient.get(client.id) ?? [], num(client.pendingBalance));
     let openSales = 0;
     for (const sale of client.sales) {
-      const booked = bookOpen(targets.find((row) => row.id === sale.id) ?? { id: sale.id, cash: 0, status: sale.status });
+      const booked = bookOpen(targets.find((row) => row.id === sale.id) ?? { id: sale.id, cash: 0, status: normalizeAccountingState('sale', sale.status) });
       const open = (still.get(sale.id) ?? booked).toNumber();
       if (open <= 0) continue;
       openSales = fromCents(cents(openSales) + cents(open));
@@ -242,6 +244,7 @@ export async function addMovement(
   if (!(input.amount > 0)) throw new DomainError("El monto tiene que ser mayor a cero");
   return withSerializableRetry(async (tx) => {
     const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Client', client);
     if (!client) throw new DomainError("Cliente no encontrado", 404);
     const currency = await currencyFor(tx, storeId, client, input.currency);
     const amount = dec(input.amount);
@@ -255,7 +258,7 @@ export async function addMovement(
     const balance = new Decimal(client.pendingBalance.toString());
     if (input.kind !== "CARGO" && amount.greaterThan(balance)) throw new DomainError("El monto supera el saldo");
     let nextBalance = input.kind === "CARGO" ? balance.plus(amount) : balance.minus(amount);
-    if (sale && input.kind !== "CARGO" && sale.status === "PENDIENTE") {
+    if (sale && input.kind !== "CARGO" && normalizeAccountingState('sale', sale.status) === "PENDIENTE") {
       const open = sale.openBalance != null ? new Decimal(sale.openBalance.toString()) : new Decimal(sale.amount.toString()).minus(sale.depositAppliedAmount);
       const nextOpen = Decimal.max(new Decimal(0), open.minus(amount));
       await tx.sale.update({
@@ -266,7 +269,8 @@ export async function addMovement(
     await tx.clientPayment.create({
       data: { storeId, clientId, saleId: sale?.id, amount, currency, method: "AJUSTE", kind: input.kind, note },
     });
-    const updated = await tx.client.update({ where: { id: clientId }, data: { pendingBalance: nextBalance, balanceCurrency: currency } });
+    const updated = await tx.client.update({ where: { id: clientId, storeId }, data: { pendingBalance: nextBalance, balanceCurrency: currency } });
+    await assertStoreReferences(tx, storeId, 'Client', updated);
     if (actor) await writeAudit(tx, { storeId, actor, action: `account.${input.kind.toLowerCase()}`, entityType: "client", entityId: clientId, detail: `${input.amount} ${currency}${sale ? ` · venta ${sale.id}` : ""}` });
     return serializeClient(updated);
   });
@@ -287,6 +291,7 @@ export async function collectAccount(
   return withSerializableRetry(async (tx) => {
     const clock = await storeClock(storeId, tx);
     const client = await tx.client.findFirst({ where: { id: input.clientId, storeId } });
+    await assertStoreReferences(tx, storeId, 'Client', client);
     if (!client) throw new DomainError("Cliente no encontrado", 404);
     const currency = await currencyFor(tx, storeId, client, input.currency);
     const amount = dec(input.amount);
@@ -294,7 +299,7 @@ export async function collectAccount(
       const repair = await tx.repairOrder.findFirst({ where: { id: input.repairId, storeId, clientId: client.id } });
       if (!repair) throw new DomainError("La reparación no pertenece al cliente", 404);
       if (CLOSED_REPAIR.includes(repair.status)) throw new DomainError("La reparación ya está cerrada", 409);
-      if (repair.estimate == null) throw new DomainError("Completá el presupuesto de la reparación");
+      if (repair.estimate == null) throw new DomainError("Completá el costo del arreglo");
       const remainder = new Decimal(repair.estimate.toString()).minus(repair.deposit);
       if (amount.greaterThan(remainder)) throw new DomainError("El monto supera el saldo de la reparación");
       await tx.repairOrder.update({ where: { id: repair.id }, data: { deposit: repair.deposit.plus(amount), currency } });
@@ -304,13 +309,15 @@ export async function collectAccount(
       return serializeClient(client);
     }
     const sale = await tx.sale.findFirst({ where: { id: input.saleId!, storeId, clientId: client.id }, include: { tradeIn: { select: { differencePaid: true } } } });
+    await assertStoreReferences(tx, storeId, 'Sale', sale);
     if (!sale) throw new DomainError("La venta no pertenece al cliente", 404);
-    if (sale.status !== "PENDIENTE" && !(sale.status === "COMPLETADA" && sale.openBalance != null && num(sale.openBalance) > 0)) throw new DomainError("La venta no tiene saldo pendiente", 409);
+    if (normalizeAccountingState('sale', sale.status) !== "PENDIENTE" && !(normalizeAccountingState('sale', sale.status) === "COMPLETADA" && sale.openBalance != null && num(sale.openBalance) > 0)) throw new DomainError("La venta no tiene saldo pendiente", 409);
     const cashDue = sale.tradeIn ? num(sale.tradeIn.differencePaid) : num(sale.amount);
     const open = sale.openBalance != null ? new Decimal(sale.openBalance.toString()) : dec(Math.max(0, cashDue - num(sale.depositAppliedAmount)));
     if (amount.greaterThan(open)) throw new DomainError("El monto supera el saldo de la venta");
     if (amount.greaterThan(client.pendingBalance)) throw new DomainError("El monto supera el saldo");
     const rows = await tx.saleInstallment.findMany({ where: { storeId, saleId: sale.id } });
+    for (const row of rows) await assertStoreReferences(tx, storeId, 'SaleInstallment', row);
     if (rows.length) {
       const allocated = allocatePayment(slicesOf(rows, clock.timeZone), input.amount);
       for (const slice of allocated.rows) {
@@ -324,6 +331,7 @@ export async function collectAccount(
     await tx.clientPayment.create({ data: { storeId, clientId: client.id, saleId: sale.id, amount, currency, method: input.method.trim(), kind: "PAGO", note: rows.length ? "Cobro de cuota" : "Cobro de venta" } });
     await recordCash(tx, { storeId, amount: input.amount, currency, method: input.method, sourceType: 'sale', sourceId: sale.id, note: rows.length ? 'Cobro de cuota' : 'Cobro de venta', actor });
     const updated = await tx.client.update({ where: { id: client.id }, data: { pendingBalance: client.pendingBalance.minus(amount), balanceCurrency: currency } });
+    await assertStoreReferences(tx, storeId, 'Client', updated);
     if (actor) await writeAudit(tx, { storeId, actor, action: "account.collected", entityType: "sale", entityId: sale.id, detail: `${input.amount} ${currency}` });
     return serializeClient(updated);
   });
@@ -332,7 +340,7 @@ export async function collectAccount(
 async function saleCoverage(storeId: string, clientId: string, saleId: string) {
   const [sales, payments, client] = await Promise.all([
     prisma.sale.findMany({
-      where: { storeId, clientId, voidedAt: null, OR: [{ id: saleId }, { status: "PENDIENTE" }, { status: "COMPLETADA", openBalance: { gt: 0 } }] },
+      where: { storeId, clientId, voidedAt: null, OR: [{ id: saleId }, { status: await storedStateFilter(prisma, 'Sale', storeId, ["PENDIENTE"], false) }, { status: await storedStateFilter(prisma, 'Sale', storeId, ["COMPLETADA"], false), openBalance: { gt: 0 } }] },
       include: { tradeIn: { select: { differencePaid: true } } },
     }),
     prisma.clientPayment.findMany({
@@ -344,7 +352,7 @@ async function saleCoverage(storeId: string, clientId: string, saleId: string) {
   const targets: RefundTarget[] = sales.map((row) => ({
     id: row.id,
     cash: Math.max(0, (row.tradeIn ? num(row.tradeIn.differencePaid) : num(row.amount)) - num(row.depositAppliedAmount)),
-    status: row.status,
+    status: normalizeAccountingState('sale', row.status),
     openBalance: row.openBalance == null ? null : num(row.openBalance),
     soldAt: row.soldAt.toISOString(),
   }));
@@ -365,11 +373,11 @@ export async function getSaleAccount(storeId: string, saleId: string) {
     prisma.saleInstallment.findMany({ where: { storeId, saleId }, orderBy: [{ dueDate: "asc" }, { sequence: "asc" }] }),
     prisma.saleTender.findMany({ where: { storeId, saleId }, orderBy: { createdAt: "asc" } }),
   ]);
-  const coverage = sale.clientId && sale.status !== "CANCELADA" ? await saleCoverage(storeId, sale.clientId, sale.id) : { due: sale.openBalance == null ? 0 : num(sale.openBalance), hole: 0 };
+  const coverage = sale.clientId && normalizeAccountingState('sale', sale.status) !== "CANCELADA" ? await saleCoverage(storeId, sale.clientId, sale.id) : { due: sale.openBalance == null ? 0 : num(sale.openBalance), hole: 0 };
   const slices = applyCoverage(slicesOf(installments, clock.timeZone), coverage.hole);
   return {
     saleId,
-    status: sale.status,
+    status: normalizeAccountingState('sale', sale.status),
     openBalance: sale.openBalance == null ? null : num(sale.openBalance),
     due: coverage.due,
     paymentMethod: sale.paymentMethod,
@@ -412,7 +420,7 @@ export async function listFollowUps(storeId: string) {
       where: {
         storeId,
         voidedAt: null,
-        status: "COMPLETADA",
+        status: await storedStateFilter(prisma, 'Sale', storeId, ["COMPLETADA"], false),
         clientId: { not: null },
         client: { archivedAt: null },
         OR: [
@@ -486,13 +494,15 @@ export async function recordPriceRise(
     data: { storeId: args.storeId, clientId: args.clientId, saleId: args.saleId, amount: dec(args.amount), currency: args.currency, method: "AJUSTE", kind: "CARGO", note: "Diferencia por corrección de precio" },
   });
   const updated = await tx.client.update({ where: { id: args.clientId }, data: { pendingBalance: { increment: dec(args.amount) } } });
+  await assertStoreReferences(tx, args.storeId, 'Client', updated);
   if (args.actor) await writeAudit(tx, { storeId: args.storeId, actor: args.actor, action: "account.cargo", entityType: "sale", entityId: args.saleId, detail: `Precio +${args.amount} ${args.currency}` });
   return updated;
 }
 
-export async function releaseCompletedOpenBalance(tx: Prisma.TransactionClient, clientId: string, status: string, openBalance: Decimal | null) {
+export async function releaseCompletedOpenBalance(tx: Prisma.TransactionClient, storeId: string, clientId: string, status: string, openBalance: Decimal | null) {
   if (status !== "COMPLETADA" || openBalance == null || num(openBalance) <= 0) return null;
-  const client = await tx.client.findFirst({ where: { id: clientId } });
+  const client = await tx.client.findFirst({ where: { id: clientId, storeId } });
+  await assertStoreReferences(tx, storeId, 'Client', client);
   if (!client) return null;
   const next = Decimal.max(new Decimal(0), new Decimal(client.pendingBalance.toString()).minus(openBalance));
   return tx.client.update({ where: { id: client.id }, data: { pendingBalance: next } });

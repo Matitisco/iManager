@@ -69,7 +69,11 @@ describe.each([390, 1440])('archived list rows at %ipx', width => {
   it('excludes archived inventory from Todos and Disponible and retains Archivados', async () => {
     api.inventory.mockResolvedValue([{ ...product, id: 'archived', model: 'Equipo archivado', archivedAt: '2026-10-21' }]);
     show(<InventoryScreen />);
-    await waitFor(() => expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 2'));
+    // Load the supplemental archive before checking the active denominator.
+    fireEvent.click(screen.getByRole('button', { name: 'Archivados' }));
+    await screen.findByText('Equipo archivado · 128 GB');
+    fireEvent.click(screen.getByRole('button', { name: 'Archivados' }));
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('1 de 1');
     expect(screen.queryByText('Equipo archivado · 128 GB')).not.toBeInTheDocument();
     expect(api.inventory).toHaveBeenCalledWith(state.user);
     if (width === 390) {

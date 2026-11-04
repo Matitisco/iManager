@@ -95,6 +95,35 @@ describe('desk required fields', () => {
     })));
   });
 
+  it.each(['desktop', 'mobile'])('shows the trade difference as a calculated result on %s', async (layout) => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn(query => ({ ...originalMatchMedia(query), matches: layout === 'mobile' && query === '(max-width: 760px)' }));
+    try {
+      const user = userEvent.setup();
+      renderOverlay('new-cj');
+      const help = 'Se calcula con el precio completo de salida';
+      const result = screen.getByRole('status', { name: 'Diferencia' });
+      expect(result.tagName).toBe('OUTPUT');
+      expect(result).toHaveTextContent(help);
+      expect(screen.queryByRole('textbox', { name: 'Diferencia' })).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Completá el precio')).not.toBeInTheDocument();
+
+      await user.type(screen.getByLabelText('Valor tomado'), '500');
+      expect(result).toHaveTextContent(help);
+      const price = screen.getByLabelText('Precio completo de salida');
+      await user.type(price, '900');
+      expect(result).toHaveTextContent('$ 400');
+      expect(result).not.toHaveTextContent(help);
+      await user.clear(price);
+      await user.type(price, '500');
+      expect(result).toHaveTextContent('$ 0');
+      await user.clear(price);
+      expect(result).toHaveTextContent(help);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it('confirms a trade-in without requiring an imei', async () => {
     const user = userEvent.setup();
     ctx.clients = [client()];
@@ -108,7 +137,7 @@ describe('desk required fields', () => {
     await user.type(fields[1], 'Equipo de salida');
     const salePrice = screen.getByLabelText('Precio completo de salida');
     await user.type(salePrice, '50');
-    expect(screen.getByLabelText('Diferencia')).toHaveValue('');
+    expect(screen.getByLabelText('Diferencia')).toHaveTextContent('Se calcula con el precio completo de salida');
     expect(screen.getByText('El precio de salida no puede ser menor que el valor tomado')).toBeInTheDocument();
     expect(screen.queryByText(/Diferencia a cobrar/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$\s*-/)).not.toBeInTheDocument();
@@ -224,7 +253,7 @@ describe('desk required fields', () => {
     expect(screen.getByText('Completá el precio de salida')).toBeInTheDocument();
     expect(ctx.createOperation).not.toHaveBeenCalled();
 
-    await user.type(screen.getByPlaceholderText('$ 0'), '1800');
+    await user.type(screen.getByLabelText('Precio completo de salida'), '1800');
     await user.click(screen.getByRole('button', { name: 'Confirmar venta' }));
     await waitFor(() => expect(ctx.createOperation).toHaveBeenCalledWith('inventory', expect.objectContaining({
       productId: 'prod-0',
@@ -286,7 +315,7 @@ describe('desk required fields', () => {
     await user.type(screen.getByLabelText('Valor tomado'), '500');
     await user.type(screen.getByRole('combobox', { name: 'Equipo' }), 'Pixel libre');
     expect(screen.getByTestId('unlisted-equipment')).toBeInTheDocument();
-    expect(screen.getByLabelText('Diferencia')).toHaveValue('');
+    expect(screen.getByLabelText('Diferencia')).toHaveTextContent('Se calcula con el precio completo de salida');
     expect(screen.getByText('Completá el precio de salida para calcular la diferencia')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Confirmar canje' }));
@@ -313,7 +342,7 @@ describe('desk required fields', () => {
         price: 900,
       },
     })));
-    expect(screen.getByLabelText('Diferencia')).toHaveValue('$ 400');
+    expect(screen.getByLabelText('Diferencia')).toHaveTextContent('$ 400');
   });
 
   it('keeps the basic device fields visible on a phone sale', async () => {

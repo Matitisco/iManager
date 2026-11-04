@@ -1,14 +1,16 @@
+import { requireSaleCostAccess, saleCostInput } from './sale-cost-input.js';
+import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireSectionAccess, requireMember } from "../../middleware/section-access.js";
 import { loadActor } from "../audit/audit.js";
 import { readReason } from "../audit/archive.js";
-import { canManageSensitive, requireSensitiveActor } from "../stores/sensitive-access.js";
+import { requireStatusAccess, requireSensitiveActor } from "../stores/sensitive-access.js";
 import { restoreSaleOperation, cancelOperationFromSale, createOperation, isIntegratedSale, updateSaleOperation } from "../operations/operations.service.js";
 import {
-  createSale,
   deleteSale,
   importSales,
   listSales,
@@ -25,48 +27,53 @@ const paymentMethodSchema = z.string().trim().min(1).max(50);
 const operationTradeInSchema = z.object({
   deviceReceived: z.string().trim().min(1).max(120),
   deviceReceivedImei: z.string().trim().max(100).nullable().optional(),
-  takeValue: z.number().nonnegative(),
-  status: z.string().trim().max(30).optional(),
+  takeValue: moneyInput(),
+  status: tradeStateSchema.optional(),
   batteryHealth: z.string().trim().max(50).nullable().optional(),
   grade: z.string().trim().max(20).nullable().optional(),
-  customFields: z.record(z.unknown()).nullable().optional(),
+  customFields: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const saleCreateSchema = z.object({
+  requestKey: z.string().trim().min(1).max(120).optional(),
   sellerMemberId: z.string().min(1).nullable().optional(),
-  exchangeRate: z.number().finite().positive().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
+  exchangeRate: moneyInput({ positive: true }).optional(),
   date: z.string().min(1).max(120),
   clientId: z.string().trim().max(50).nullable().optional(),
   clientName: z.string().trim().max(120).nullable().optional(),
-  cantidad: z.number().int().min(1).max(2147483647).optional(),
+  cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
   productId: z.string().trim().max(50).optional(),
   deviceLabel: z.string().trim().max(120).nullable().optional(),
-  amount: z.number().nonnegative(),
+  amount: moneyInput(),
+  cost: saleCostInput,
   amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
   paymentMethod: paymentMethodSchema,
-  status: z.string().trim().min(1).max(20),
+  status: saleStateSchema,
   categoryId: z.string().nullable().optional(),
-  customFields: z.record(z.unknown()).optional().nullable(),
-  warrantyDays: z.number().int().min(0).max(3650).optional(),
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
   tradeIn: operationTradeInSchema.optional(),
 });
 
 const salePatchSchema = z
   .object({
     sellerMemberId: z.string().min(1).nullable().optional(),
-    exchangeRate: z.number().finite().positive().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
+    exchangeRate: moneyInput({ positive: true }).optional(),
     clientId: z.string().trim().max(50).nullable().optional(),
     clientName: z.string().trim().max(120).nullable().optional(),
     productId: z.string().trim().max(50).nullable().optional(),
     deviceLabel: z.string().trim().max(120).nullable().optional(),
     paymentMethod: paymentMethodSchema.optional(),
-    status: z.string().trim().min(1).max(20).optional(),
+    status: saleStateSchema.optional(),
     date: z.string().min(1).max(120).optional(),
-    amount: z.number().nonnegative().optional(),
+    amount: moneyInput().optional(),
+    cost: saleCostInput,
     amountCurrency: z.enum(["ARS", "USD"]).nullable().optional(),
     categoryId: z.string().nullable().optional(),
-    customFields: z.record(z.unknown()).optional().nullable(),
-    warrantyDays: z.number().int().min(0).max(3650).optional(),
+    customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+    warrantyDays: z.number().refine(Number.isInteger).min(0).max(3650).optional(),
     tradeIn: operationTradeInSchema.nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -91,7 +98,7 @@ export async function salesRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const rowSchema = z.object({
-        sourceRow: z.number().int().positive().optional(),
+        sourceRow: z.number().refine(Number.isInteger).positive().optional(),
         _sourceRow: z.string().optional(),
         _sourceSheet: z.string().optional(),
         _sourceData: z.string().max(100000).optional(),
@@ -102,6 +109,7 @@ export async function salesRoutes(app: FastifyInstance) {
         _rateDate: z.string().optional(),
         notes: z.string().optional(),
         sellerMemberId: z.string().min(1).nullable().optional(),
+  resellerId: z.string().min(1).nullable().optional(),
         exchangeRate: z.number().finite().positive().optional(),
         date:          z.string().trim().optional(),
         clientName:    z.string().trim().optional(),
@@ -220,7 +228,9 @@ export async function salesRoutes(app: FastifyInstance) {
     async (request, reply) => {
       requireMember(request);
 
-      const body = saleCreateSchema.parse(request.body) as Parameters<typeof createSale>[1];
+      if (!requireSaleCostAccess(request, reply)) return;
+      const body = saleCreateSchema.parse(request.body);
+      if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
 
       const operation = await createOperation(request.appUser.storeId, "sales", { ...body, currency: body.amountCurrency }, await loadActor(request.appUser.userId));
       return reply.code(201).send(operation);
@@ -236,10 +246,9 @@ export async function salesRoutes(app: FastifyInstance) {
       requireMember(request);
 
       const params = z.object({ id: z.string().min(1) }).parse(request.params);
+      if (!requireSaleCostAccess(request, reply)) return;
       const body = salePatchSchema.parse(request.body);
-      if (body.status === "CANCELADA" && !canManageSensitive(request.appUser)) {
-        return reply.code(403).send({ error: "No tenés permiso para esta acción" });
-      }
+      if (!requireStatusAccess(request.appUser, reply, body.status, body.tradeIn?.status)) return;
       const actor = await loadActor(request.appUser.userId);
       if (body.tradeIn !== undefined || await isIntegratedSale(request.appUser.storeId, params.id)) {
         if (body.status === "CANCELADA") {

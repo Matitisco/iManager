@@ -26,6 +26,7 @@ const {
       updateMany: vi.fn(),
     },
     $executeRaw: vi.fn(),
+    $queryRaw: vi.fn(),
     $transaction: vi.fn(),
   },
   findOrCreateUserFromFirebaseMock: vi.fn(),
@@ -54,11 +55,13 @@ describe("invitations.service", () => {
   const auth: FirebaseAuthContext = {
     firebaseUid: "firebase-user-1",
     email: "invitee@example.com",
+    emailVerified: true,
     name: "Invited User",
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    prismaMock.$queryRaw.mockResolvedValue([{ id: "store-1" }]);
     prismaMock.storeMember.findFirst.mockResolvedValue({ user: { displayName: "Ana" } });
     prismaMock.store.findUniqueOrThrow.mockResolvedValue({ billingPlan: "INTERNAL", trialEndsAt: null, billingPaidThrough: null });
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => callback(prismaMock));
@@ -251,5 +254,34 @@ describe("invitations.service", () => {
       statusCode: 409,
       message: "Ya formás parte de esta tienda. El creador o un miembro existente no puede usar este enlace.",
     });
+  });
+
+  it.each([false, undefined])('requires an explicitly verified claim (%s)', async emailVerified => {
+    prismaMock.storeInvitation.findUnique.mockResolvedValue({
+      id: 'inv-email', email: auth.email, status: 'PENDING', expiresAt: new Date(Date.now() + 60_000),
+    });
+    await expect(acceptInvitation('fixture', { ...auth, emailVerified })).rejects.toMatchObject({ statusCode: 403, message: 'No se pudo aceptar la invitación con esta cuenta.' });
+    expect(findOrCreateUserFromFirebaseMock).not.toHaveBeenCalled();
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not treat Google sign-in as proof for another email', async () => {
+    prismaMock.storeInvitation.findUnique.mockResolvedValue({
+      id: 'inv-email', email: 'another@example.com', status: 'PENDING', expiresAt: new Date(Date.now() + 60_000),
+    });
+    await expect(acceptInvitation('fixture', { ...auth, signInProvider: 'google.com' })).rejects.toMatchObject({ statusCode: 403 });
+    expect(findOrCreateUserFromFirebaseMock).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the locked invitation email before writing membership or consuming it', async () => {
+    const invitation = { id: 'inv-email', storeId: 'store-invited', email: auth.email, status: 'PENDING', expiresAt: new Date(Date.now() + 60_000) };
+    prismaMock.storeInvitation.findUnique.mockResolvedValueOnce(invitation).mockResolvedValueOnce({ ...invitation, email: 'changed@example.com' });
+    findOrCreateUserFromFirebaseMock.mockResolvedValue({ id: 'invitee' });
+    prismaMock.storeMember.findUnique.mockResolvedValue(null);
+    await expect(acceptInvitation('fixture', auth)).rejects.toMatchObject({ statusCode: 403 });
+    expect(prismaMock.storeMember.create).not.toHaveBeenCalled();
+    expect(prismaMock.storeMember.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.storeInvitation.update).not.toHaveBeenCalled();
+    expect(buildAppSessionForUserMock).not.toHaveBeenCalled();
   });
 });

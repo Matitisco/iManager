@@ -37,7 +37,7 @@ export async function completeOnboarding(
   if (exchangeMode === "manual") assertManualQuoteOrder(manualBuy, manualSell);
 
   const existingMembership = await prisma.storeMember.findFirst({
-    where: { userId: user.id, isDefault: true },
+    where: { userId: user.id, isDefault: true, removedAt: null },
     select: { id: true },
   });
 
@@ -48,7 +48,7 @@ export async function completeOnboarding(
       await lockTransactionKey(tx, userMembershipLockKey(user.id));
 
       const membershipNow = await tx.storeMember.findFirst({
-        where: { userId: user.id, isDefault: true },
+        where: { userId: user.id, isDefault: true, removedAt: null },
         select: { id: true },
       });
       if (membershipNow) return;

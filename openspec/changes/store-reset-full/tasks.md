@@ -1,0 +1,3 @@
+- [x] Implementar scope full opcional y plan de borrado con dependencias y caja.
+- [x] Cubrir integración full, cotización ausente, rollback y aislamiento.
+- [x] Documentar contrato y ejecutar lint/tests locales (TypeScript frontend/backend, 1.020 unitarias backend y 226 integraciones: 44 del reset y 182 relacionadas).

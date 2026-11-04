@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 /**
  * GET /admin/inventory-duplicates?storeEmail=... previews the exact plan.
  * POST .../apply with storeEmail, expectStoreName, expectRowsBefore,
@@ -250,20 +251,20 @@ const uniqueStrings = z.array(z.string().min(1)).refine(values => new Set(values
 export const inventoryDuplicatesApplyBody = z.object({
   storeEmail: z.string().trim().email(),
   expectStoreName: z.string(),
-  expectRowsBefore: z.number().int(),
-  expectRowsAfter: z.number().int(),
-  expectUnits: z.number().int(),
+  expectRowsBefore: z.number().refine(Number.isInteger),
+  expectRowsAfter: z.number().refine(Number.isInteger),
+  expectUnits: z.number().refine(Number.isInteger),
   groupKeys: uniqueStrings.refine(keys => keys.length > 0, { message: 'Indicá al menos un groupKey.' }),
 }).strict();
 
 export const inventoryDuplicatesBackup = z.object({
   meta: z.object({
-    storeId: z.string().min(1), storeName: z.string(), createdAt: z.string().datetime(),
+    storeId: z.string().min(1), storeName: z.string(), createdAt: dateTimeInput(),
     tables: z.tuple([z.literal('InventoryItem')]), groupKeys: uniqueStrings,
   }).strict(),
   auditEventIds: uniqueStrings,
   // Physical names (quantity, not Prisma's cantidad); preserve every other column.
-  items: z.array(z.object({ id: z.string().min(1), storeId: z.string().min(1), quantity: z.number().int() }).passthrough()).min(1)
+  items: z.array(z.object({ id: z.string().min(1), storeId: z.string().min(1), quantity: z.number().refine(Number.isInteger) }).passthrough()).min(1)
     .refine(items => new Set(items.map(item => item.id)).size === items.length, { message: 'Hay ids repetidos en el backup.' }),
 }).strict();
 export const inventoryDuplicatesRestoreBody = z.object({
@@ -369,6 +370,24 @@ export async function restoreInventoryDuplicates(body: z.infer<typeof inventoryD
     const existing = await tx.$queryRaw<{ id: string; storeId: string }[]>(Prisma.sql`
       SELECT "id", "storeId" FROM "InventoryItem" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`);
     for (const item of existing) expectEqual(`tienda actual de ${item.id}`, store.id, item.storeId);
+
+    // Physical backups bypass Prisma's relation inputs. A valid FK alone does
+    // not prove tenant ownership; reject mixed-store references before writing.
+    // Archived catalogs remain valid historical references.
+    const relations = [
+      ['categoryId', 'InventoryCategory'], ['supplierId', 'Supplier'], ['stockPurchaseId', 'StockPurchase'],
+    ] as const;
+    for (const [field, table] of relations) {
+      const values = backup.items.map(item => item[field]).filter(value => value != null);
+      if (values.some(value => typeof value !== 'string')) throw new DomainError('Referencia inválida en el backup.', 409);
+      const referenceIds = [...new Set(values as string[])];
+      if (!referenceIds.length) continue;
+      // Table names are constants above; all supplied IDs remain parameters.
+      const matched = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT "id" FROM ${Prisma.raw(`"${table}"`)}
+        WHERE "storeId" = ${store.id} AND "id" IN (${Prisma.join(referenceIds)}) FOR SHARE`);
+      if (matched.length !== referenceIds.length) throw new DomainError('El backup contiene referencias inexistentes o de otra tienda.', 409);
+    }
 
     const columns = (await tx.$queryRaw<{ column_name: string }[]>`
       SELECT column_name FROM information_schema.columns

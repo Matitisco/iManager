@@ -1,6 +1,7 @@
 import { readReason } from "../audit/archive.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireMember, requireSectionAccess } from "../../middleware/section-access.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -14,6 +15,7 @@ import {
   archiveReturnCase,
   createReturnCase,
   listCreditNotes,
+  listReturnSales,
   listReturnCases,
   resolveReturnCase,
   restoreReturnCase,
@@ -36,6 +38,11 @@ function visibleReturn(claim: ReturnCaseView, member: AppUserContext) {
 
 export async function returnRoutes(app: FastifyInstance) {
   const guard = [authenticate, resolveAppUser, requireSectionAccess("sales")];
+
+  app.get("/eligible-sales", { preHandler: guard }, async request => {
+    requireMember(request);
+    return { sales: await listReturnSales(request.appUser.storeId) };
+  });
 
   app.get("/patterns", { preHandler: guard }, async (request) => {
     requireMember(request);
@@ -60,12 +67,14 @@ export async function returnRoutes(app: FastifyInstance) {
     requireMember(request);
     const body = z.object({
       saleId: z.string().min(1),
+      cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
       reason: z.string().trim().min(1, "Completá el motivo.").max(500, "El motivo es demasiado largo."),
       openedOn,
       diagnosis: z.string().trim().max(2000, "El diagnóstico es demasiado largo.").nullable().optional(),
       imei: z.string().trim().max(100).nullable().optional(),
     }).parse(request.body) as {
       saleId: string;
+      cantidad?: number;
       reason: string;
       openedOn: string;
       diagnosis?: string | null;
@@ -98,9 +107,10 @@ export async function returnRoutes(app: FastifyInstance) {
     if (!actor) return;
     const { id } = z.object({ id: z.string().min(1) }).parse(request.params);
     const body = z.object({
+      cantidad: z.number().refine(Number.isInteger).min(1).max(2147483647).optional(),
       resolution: z.enum(RESOLUTIONS),
       settlement: z.enum(SETTLEMENTS),
-      amount: z.number().min(0).max(100_000_000),
+      amount: moneyInput({ max: 100_000_000 }),
       destination: z.enum(DESTINATIONS),
       stockStatus: z.string().trim().max(20).nullable().optional(),
       diagnosis: z.string().trim().max(2000).nullable().optional(),

@@ -4,13 +4,16 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReturnCaseView } from '../../services/returns-api';
+import { ApiError } from '../../services/api-client';
 import type { Client, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ReturnDelete, ReturnDetail, ReturnForm } from './return-case';
 
 const ctx = vi.hoisted(() => ({
   returns: [] as ReturnCaseView[], sales: [] as Sale[], clients: [] as Client[], inventory: [],
+  loadReturnSales: vi.fn(),
   updateReturn: vi.fn(), resolveReturn: vi.fn(), advanceRma: vi.fn(), archiveReturn: vi.fn(),
+  createReturn: vi.fn(),
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => ctx }));
 const close = vi.fn();
@@ -27,10 +30,66 @@ function mount(node: ReactNode, sensitive = true) {
   return render(<div className="desk-app"><DeskProvider value={{ tab: 'returns', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close, toast: vi.fn(), isStaff: !sensitive, canManageSensitive: sensitive }}>{node}</DeskProvider></div>);
 }
 beforeEach(() => {
+  ctx.loadReturnSales.mockImplementation(async () => ctx.sales.filter(row => ['COMPLETADA', 'PENDIENTE'].includes(row.status) && !row.voidedAt).map(row => ({ ...row, remainingQuantity: row.cantidad ?? 1 })));
   vi.clearAllMocks(); ctx.returns = [{ ...claim }]; ctx.sales = []; ctx.clients = [];
   for (const fn of [ctx.updateReturn, ctx.resolveReturn, ctx.advanceRma, ctx.archiveReturn]) fn.mockResolvedValue(claim);
+  ctx.createReturn.mockResolvedValue(claim);
+});
+describe('ventas elegibles para reclamos mayoristas', () => {
+  it.each([false, true])('ofrece variantes de datos a dueño y empleado en mobile=%s', async phone => {
+    const media = window.matchMedia;
+    window.matchMedia = query => ({ matches: phone, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() });
+    try {
+      ctx.sales = [
+        { id: 'paid', status: 'COMPLETADA', cantidad: 5, amountCurrency: 'USD', paymentMethod: '', clientId: '', date: '2026-10-30', deviceLabel: 'Completada USD' },
+        { id: 'corrected', status: 'PENDIENTE', cantidad: 5, amount: 2025, openBalance: 1620, amountCurrency: 'USD', date: '2026-11-02', deviceLabel: 'Corregida' },
+        { id: 'account', status: 'PENDIENTE', cantidad: 1, amountCurrency: 'ARS', paymentMethod: 'CUENTA_CORRIENTE', date: '2026-10-30', deviceLabel: 'Cuenta corriente' },
+        { id: 'imported', status: 'COMPLETADA', cantidad: 1, amountCurrency: 'USD', customFields: { importFingerprint: 'synthetic' }, date: '2026-10-30', deviceLabel: 'Importada' },
+        { id: 'cancelled', status: 'CANCELADA', deviceLabel: 'Cancelada' },
+        { id: 'voided', status: 'COMPLETADA', voidedAt: '2026-11-02', deviceLabel: 'Anulada' },
+      ] as Sale[];
+      for (const sensitive of [true, false]) {
+        const view = mount(<ReturnForm />, sensitive);
+        await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
+        await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
+        for (const label of ['Completada USD', 'Corregida', 'Cuenta corriente', 'Importada']) expect(screen.getByRole('option', { name: new RegExp(label) })).toBeInTheDocument();
+        expect(screen.queryByRole('option', { name: /Cancelada|Anulada/ })).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('option', { name: /Corregida/ }));
+        fireEvent.change(screen.getByLabelText('Cantidad a devolver'), { target: { value: '2' } });
+        fireEvent.change(screen.getByLabelText('Motivo'), { target: { value: 'Dos unidades fallan' } });
+        await userEvent.click(screen.getByRole('button', { name: 'Abrir reclamo' }));
+        await waitFor(() => expect(ctx.createReturn).toHaveBeenLastCalledWith(expect.objectContaining({ saleId: 'corrected', cantidad: 2 })));
+        view.unmount();
+      }
+    } finally { window.matchMedia = media; }
+  });
+  it('permite elegir una venta más allá de las primeras páginas', async () => {
+    ctx.sales = Array.from({ length: 125 }, (_, i) => ({ id: `s${i}`, status: 'COMPLETADA', deviceLabel: `Equipo ${i}`, date: '2026-10-30' } as Sale));
+    mount(<ReturnForm />);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
+    await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
+    expect(screen.getByRole('option', { name: /Equipo 124 ·/ })).toBeInTheDocument();
+  });
 });
 describe('cambio de estado de reclamo', () => {
+  it('envía unidades físicas explícitas y conserva el formulario ante una cantidad inválida', async () => {
+    ctx.returns = [{ ...claim, imei: '', cantidad: 10, saleQuantity: 10 }];
+    mount(<ReturnDetail id="claim" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Resuelto' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reintegro' }));
+    fireEvent.change(screen.getByLabelText('Unidades del reclamo'), { target: { value: '11' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Elegí una cantidad entre 1 y 10.');
+    expect(ctx.resolveReturn).not.toHaveBeenCalled();
+    expect(close).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText('Unidades del reclamo'), { target: { value: '2' } });
+    fireEvent.change(screen.getByLabelText('Importe'), { target: { value: '200' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(ctx.resolveReturn).toHaveBeenCalledWith('claim', expect.objectContaining({ cantidad: 2, amount: 200 })));
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it('permite recibir un RMA rechazado sin reabrir la resolución', async () => {
     ctx.returns = [{ ...claim, status: 'RESUELTO', destination: 'PROVEEDOR', rmaStatus: 'RECHAZADO', resolution: 'CAMBIO' }];
     mount(<ReturnDetail id="claim" />);
@@ -150,7 +209,7 @@ describe('editar y anular reclamo', () => {
     expect(screen.getByRole('dialog', { name: '¿Anular reclamo?' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Anular' })).toBeEnabled();
     expect(screen.queryByText(/Eliminar/)).not.toBeInTheDocument();
-    expect(screen.getByText(/fuera de los totales/)).toBeInTheDocument();
+    expect(screen.getByText(/se conservará su historial/)).toBeInTheDocument();
     expect(ctx.archiveReturn).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(close).toHaveBeenCalledOnce();
@@ -167,10 +226,18 @@ describe('editar y anular reclamo', () => {
     expect(ctx.archiveReturn).toHaveBeenCalledTimes(2);
     expect(ctx.archiveReturn).toHaveBeenLastCalledWith('claim');
   });
-  it('explains that an existing settlement remains recorded', () => {
-    ctx.returns = [{ ...claim, status: 'RESUELTO', resolution: 'REINTEGRO' }];
+  it.each(['REINTEGRO', 'NOTA_CREDITO'] as const)('explica el bloqueo de %s y conserva el modal ante HTTP 409', async settlement => {
+    ctx.returns = [{ ...claim, status: 'RESUELTO', resolution: 'REINTEGRO', settlement, moneyAmount: 500 }];
+    const message = 'Este reclamo tiene una compensación emitida. Anulá primero el reintegro o la nota de crédito antes de anular el reclamo.';
+    ctx.archiveReturn.mockRejectedValueOnce(new ApiError(409, message));
     mount(<ReturnDelete id="claim" />);
-    expect(screen.getByText(/Se conservan los movimientos registrados/)).toBeInTheDocument();
+    expect(screen.getByText(/Si tiene un reintegro o una nota de crédito, anulalos primero/)).toBeInTheDocument();
+    expect(screen.getByText(/Sin compensación, se revierten los movimientos de stock/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Anular' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(screen.getByRole('dialog', { name: '¿Anular reclamo?' })).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+    expect(ctx.returns[0]).toMatchObject({ status: 'RESUELTO', deletedAt: null, settlement, moneyAmount: 500 });
   });
 });
 
@@ -233,6 +300,7 @@ describe('rediseño aprobado de reclamos', () => {
       { id: 'snapshot', clientId: 'client', clientName: 'Nombre histórico', deviceLabel: 'iPhone 14', date: '2026-10-23', status: 'COMPLETADA' },
     ] as Sale[];
     mount(<ReturnForm />);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Venta' })).toBeEnabled());
     await userEvent.click(screen.getByRole('combobox', { name: 'Venta' }));
     expect(screen.getByRole('option', { name: 'Lucía Fernández · iPhone 13 · 24/10/2026' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Nombre histórico · iPhone 14 · 23/10/2026' })).toBeInTheDocument();

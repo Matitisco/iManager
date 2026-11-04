@@ -1,0 +1,10 @@
+- [x] Rastrear API, carga de estado, combinación de archivo, filas y vista previa sin acceder a producción.
+- [x] Agregar regresiones y comprobar fallo con el código anterior (tres fallos por contar filas en Garantías).
+- [x] Conservar cantidad en las filas y sumar unidades con garantía vigente.
+- [x] Ejecutar lint frontend/backend y tests relacionados sin build ni BD (95 frontend, 1.021 unitarias backend).
+- [x] Documentar causa comprobada y límite de investigación de Compras para revisión.
+- [x] Reproducir siete ventas persistidas con cantidades x2/x3 en USD y ficha con cuatro ventas cacheadas (rojo: dos E2E 1440/390, cuatro regresiones frontend y tres integraciones).
+- [x] Consultar historial completo por cliente/tienda al abrir la ficha mobile/desktop, con aislamiento, carga y error visibles.
+- [x] Verificar estados, moneda, identidad por ID/nombre, nulos, homónimos, lote e idempotencia; ejecutar tests y lint sin producción/build (123 frontend, 1.021 unitarias backend, 38 integraciones y dos E2E aprobados).
+- [x] Documentar evidencia rojo→verde para commit y push en la misma rama/PR #707.
+- [x] Integrar `origin/test` tras #710/#709, conservando historial completo, operaciones pendientes, garantías por unidades y gasto neto; validar regresión combinada móvil/escritorio, 230 frontend, 1.021 unitarias backend, 87 integraciones y dos E2E 1440/390, con lint frontend/backend y sin build ni producción.

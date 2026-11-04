@@ -1,6 +1,7 @@
 import { readReason } from "../audit/archive.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { requireMember } from "../../middleware/section-access.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
@@ -10,9 +11,9 @@ import { archiveExpense, createExpense, listExpenses, restoreExpense, updateExpe
 const expenseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida"),
   category: z.string().trim().min(1, "Completá la categoría.").max(80, "La categoría es demasiado larga."),
-  amount: z.number().positive("El monto tiene que ser mayor a cero").max(100_000_000, "El monto es demasiado grande."),
-  currency: z.enum(["ARS", "USD"], { errorMap: () => ({ message: "Elegí pesos o dólares." }) }),
-  exchangeRate: z.number().positive("La cotización tiene que ser mayor a cero").max(100_000_000).nullable().optional(),
+  amount: moneyInput({ positive: true, max: 100_000_000 }),
+  currency: z.enum(["ARS", "USD"], { error: "Elegí pesos o dólares." }),
+  exchangeRate: moneyInput({ positive: true, max: 100_000_000 }).nullable().optional(),
   notes: z.string().trim().max(2000, "Las notas son demasiado largas.").nullable().optional(),
 });
 

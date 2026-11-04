@@ -1,9 +1,11 @@
 import type { Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { CommissionSeller } from '../types/commissions';
-import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate, saleQuantityLabel } from './format';
+import { equipmentTitle, formatShortDate, isVoidRow, parseAppDate, saleQuantity, saleQuantityLabel } from './format';
 import { parseArDate } from '../lib/ar-date';
 import { repairWarrantyView, saleWarrantyView, type WarrantyState } from '../lib/warranty';
 import { recordCurrency, type MoneyCurrency } from './money';
+import type { ReturnCaseView } from '../services/returns-api';
+import { compensatedReturns } from './return-financials';
 
 export type PurchaseFilter = 'all' | 'sale' | 'trade' | 'repair';
 
@@ -17,6 +19,7 @@ export type ClientPurchase = {
   id: string;
   kind: 'sale' | 'trade' | 'repair';
   title: string;
+  quantity: number;
   quantityLabel?: string;
   imei: string | null;
   dateLabel: string;
@@ -66,9 +69,14 @@ export function clientPurchases(input: {
   repairs: RepairOrder[];
   inventory: Product[];
   sellers: CommissionSeller[];
+  returns?: readonly ReturnCaseView[];
   now?: Date;
 }): ClientPurchase[] {
   const now = input.now ?? new Date();
+  const refunds = new Map<string, number>();
+  for (const row of compensatedReturns(input.returns ?? [])) {
+    if (row.saleId) refunds.set(row.saleId, (refunds.get(row.saleId) ?? 0) + row.moneyAmount);
+  }
   const sales = input.sales
     .filter((sale) => sale.clientId === input.clientId)
     .map((sale): ClientPurchase => {
@@ -80,12 +88,13 @@ export function clientPurchases(input: {
         id: `sale-${sale.id}`,
         kind: 'sale',
         title: product ? equipmentTitle(product.model, product.capacity).replace(/\s*·\s*/g, ' ') : (sale.deviceLabel?.trim() || 'Equipo vendido').replace(/\s*·\s*/g, ' '),
+        quantity: saleQuantity(sale),
         quantityLabel: saleQuantityLabel(sale),
         imei,
         dateLabel: formatShortDate(sale.date),
         sortKey: sortKey(sale.date),
-        detail: sellerName(sale.sellerMemberId, input.sellers),
-        amount: sale.amount,
+        detail: [sale.hasInitialDeposit ? 'Seña' : null, sellerName(sale.resellerId ? `reseller:${sale.resellerId}` : sale.sellerMemberId, input.sellers)].filter(Boolean).join(' · '),
+        amount: sale.amount - (annulled ? 0 : refunds.get(sale.id) ?? 0),
         currency: sale.amountCurrency ?? null,
         negative: false,
         countsInTotals: !annulled,
@@ -100,6 +109,7 @@ export function clientPurchases(input: {
       return {
         id: `trade-${trade.id}`,
         kind: 'trade',
+        quantity: 1,
         title: (trade.deviceReceived?.trim() || 'Canje').replace(/\s*·\s*/g, ' '),
         imei,
         dateLabel: formatShortDate(trade.date),
@@ -122,6 +132,7 @@ export function clientPurchases(input: {
       return {
         id: `repair-${order.id}`,
         kind: 'repair',
+        quantity: 1,
         title: [order.device?.trim() || 'Reparación', order.fault?.trim()].filter(Boolean).join(' · '),
         imei,
         dateLabel: formatShortDate(order.receivedAt),
@@ -157,8 +168,9 @@ export function purchaseTotals(rows: ClientPurchase[], active: MoneyCurrency = '
     spent.set(key, current);
   }
   return {
-    count: counted.length,
-    activeWarranties: rows.filter((row) => !row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer')).length,
+    // Trade receipts count as operations without adding to spending.
+    count: rows.filter(row => !row.annulled).length,
+    activeWarranties: rows.filter((row) => !row.annulled && (row.warranty?.state === 'vigente' || row.warranty?.state === 'por-vencer')).reduce((sum, row) => sum + row.quantity, 0),
     spent: [...spent.values()].sort((left, right) => (left.currency ?? '').localeCompare(right.currency ?? '')),
   };
 }

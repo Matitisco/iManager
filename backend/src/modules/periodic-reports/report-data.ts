@@ -1,3 +1,4 @@
+import { storedStateFilter } from '../../lib/accounting-states.js';
 import { prisma } from '../../plugins/prisma.js';
 import { getPeriodicSummary } from '../reports/periodic-summary.service.js';
 import { getNetProfit } from '../reports/net-profit.service.js';
@@ -11,7 +12,7 @@ export async function loadMailReport(storeId: string, period: DuePeriod, now: Da
     getPeriodicSummary(storeId, { role: 'OWNER' }, selection, now),
     getNetProfit(storeId, period.start, addCalendarDays(period.end, -1)),
     prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'DISPONIBLE' } }),
-    prisma.tradeIn.findMany({ where: { storeId, confirmationStatus: 'CONFIRMED', voidedAt: null, cancelledAt: null, status: { notIn: ['CANCELADO', 'ANULADO', 'CANCELADA', 'ANULADA'] } }, select: { dateLabel: true, tradeAt: true } }),
+    prisma.tradeIn.findMany({ where: { storeId, confirmationStatus: 'CONFIRMED', voidedAt: null, cancelledAt: null, status: await storedStateFilter(prisma, 'TradeIn', storeId, ["CANCELADO","ANULADO","CANCELADA","ANULADA"], true) }, select: { dateLabel: true, tradeAt: true } }),
     prisma.client.findMany({ where: { storeId, archivedAt: null, pendingBalance: { gt: 0 } }, select: { pendingBalance: true, balanceCurrency: true } }),
     prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'EN_REVISION' } }),
   ]);

@@ -1,0 +1,8 @@
+- [x] Leer contexto y skills aplicables; verificar base origin/test.
+- [x] Crear PostgreSQL local exclusivo con datos ficticios.
+- [x] Reproducir cantidades y costos incorrectos de compras con tests de integración.
+- [x] Agregar regresiones de celda IMEI vendido y total sin archivados.
+- [x] Aplicar fixes acotados de visualización.
+- [x] Ejecutar TypeScript, suites locales y E2E desktop/mobile.
+- [x] Registrar hallazgos, alcance y pendientes en docs/qa-hunt-inventario-compras.md.
+- [x] Commitear, pushear rama QA y abrir PR a test con resultados (#713).

@@ -520,6 +520,7 @@ export async function resolveStockCount(
           price: new Prisma.Decimal(0),
           currency,
           status: "DISPONIBLE",
+          acquiredQuantity: 1,
           needsCompletion: true,
           customFields: {},
         },

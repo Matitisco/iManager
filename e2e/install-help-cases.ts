@@ -105,7 +105,10 @@ export function installHelpTests(production = false, platforms: readonly ('andro
       test('shows the first Más card, platform steps and a working alternate accordion', async ({ page }) => {
         await session(page); await page.getByTestId('sidebar-tab-more').click();
         const card = page.getByTestId('install-card'); await expect(card).toBeVisible();
-        expect(await card.evaluate((node) => node.nextElementSibling?.getAttribute('data-testid'))).toBe('more-profile');
+        // The profile now lives inside the grouped account card. Preserve visual order.
+        const profile = page.getByTestId('more-profile');
+        await expect(profile).toBeVisible();
+        expect((await card.boundingBox())!.y + (await card.boundingBox())!.height).toBeLessThanOrEqual((await profile.boundingBox())!.y);
         await expect(page.getByTestId('more-screen')).toContainText('Comisiones');
         if (platform === 'android') await shot(page, 'mas');
         const install = card.getByRole('button', { name: 'Instalar', exact: true });

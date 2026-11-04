@@ -27,13 +27,30 @@ describe('QA 04: decimal money input', () => {
 });
 
 describe('QA 05: centavos de cuotas y cobros', () => {
-  it.each(['USD', 'ARS'] as const)('mantiene centavos sin alterar la presentación predeterminada en %s', currency => {
+  it.each(['USD', 'ARS'] as const)('mantiene centavos con precisión explícita en %s', currency => {
     const prefix = currency === 'USD' ? 'US$' : '$';
     expect(formatMoney(366.66, currency, 2)).toBe(`${prefix} 366,66`);
     expect(formatMoney(366.68, currency, 2)).toBe(`${prefix} 366,68`);
     expect(formatMoney(733.34, currency, 2)).toBe(`${prefix} 733,34`);
-    expect(formatMoney(-10.5, currency, 2)).toBe(`${prefix} -10,5`);
-    expect(formatMoney(366.66, currency)).toBe(`${prefix} 367`);
+    expect(formatMoney(-10.5, currency, 2)).toBe(currency === 'USD' ? 'US$ -10,50' : '$ -10,5');
+    expect(formatMoney(366.66, currency)).toBe(currency === 'USD' ? 'US$ 366,66' : '$ 367');
     expect(formatMoney(100, currency, 2)).toBe(`${prefix} 100`);
+  });
+});
+
+describe('#745: presentación USD sin redondear a entero', () => {
+  it.each([
+    [25.8, '25,80'], [1.5, '1,50'], [1.6, '1,60'], [25.81, '25,81'],
+    [0.01, '0,01'], [-1.5, '-1,50'], [1234.5, '1.234,50'], [100, '100'], [0, '0'],
+  ])('muestra %s USD como US$ %s', (amount, expected) => {
+    expect(formatMoney(amount, 'USD')).toBe(`US$ ${expected}`);
+    expect(formatMoney(amount, 'USD', 2)).toBe(`US$ ${expected}`);
+  });
+
+  it('conserva el formato ARS y la precisión explícita', () => {
+    expect(formatMoney(25.8, 'ARS')).toBe('$ 26');
+    expect(formatMoney(1.5, 'ARS')).toBe('$ 2');
+    expect(formatMoney(1.5, 'ARS', 2)).toBe('$ 1,5');
+    expect(formatMoney(25.8, 'USD', 0)).toBe('US$ 26');
   });
 });

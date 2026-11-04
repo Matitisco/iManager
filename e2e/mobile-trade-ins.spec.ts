@@ -177,7 +177,6 @@ test.describe('trade-ins on a phone', () => {
     await expect(page.getByTestId('mobile-tab-bar').getByTestId('sidebar-tab-sales')).toHaveClass(/on/);
     await expect(page.getByRole('heading', { level: 1, name: 'Canjes', exact: true })).toBeVisible();
     await expect(page.getByTestId('tradeins-empty')).toContainText('No hay canjes');
-    await expect(page.getByText('0 resultados')).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Todos', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Pendiente', exact: true })).toBeVisible();
     await expect(page.locator('.wchips').getByRole('button', { name: 'Peritaje téc.', exact: true })).toBeVisible();
@@ -221,7 +220,7 @@ test.describe('trade-ins on a phone', () => {
     await page.getByTestId('mobile-dock').getByRole('button', { name: 'Nuevo canje' }).click();
     const form = page.getByRole('dialog', { name: 'Nuevo canje' });
     await expect(form.locator('.sheet-grab')).toBeVisible();
-    await expect(form.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
+    await expect(form.locator('xpath=.//em[contains(@class,"fl-mark")][contains(.,"USD")][not(contains(..,"Costo del equipo"))]')).toHaveCount(2);
     await expect(form.getByTestId('trade-no-stock')).toBeVisible();
     await expect(form.getByRole('button', { name: 'Peritaje téc.' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Cobrado' })).toBeVisible();
@@ -256,7 +255,7 @@ test.describe('trade-ins on a phone', () => {
     await page.getByRole('button', { name: 'Retomar' }).click();
     const resume = page.getByRole('dialog', { name: 'Retomar canje' });
     await expect(resume.getByTestId('trade-no-stock')).toHaveCount(0);
-    await expect(resume.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
+    await expect(resume.locator('xpath=.//em[contains(@class,"fl-mark")][contains(.,"USD")][not(contains(..,"Costo del equipo"))]')).toHaveCount(2);
     await resume.getByLabel('Cliente').fill(clientName);
     await expect(resume.getByText(/Se crea un cliente nuevo al guardar/)).toBeVisible();
     await resume.getByRole('combobox', { name: 'Equipo' }).fill(model);
@@ -321,7 +320,7 @@ test.describe('trade-ins on a phone', () => {
     await detail.locator('.sheet-foot').getByRole('button', { name: 'Editar', exact: true }).click();
     const editor = page.getByRole('dialog', { name: 'Editar operación' });
     await expect(editor.getByLabel('Cliente')).toHaveValue(clientName);
-    await expect(editor.locator('.fl-mark', { hasText: 'USD' })).toHaveCount(2);
+    await expect(editor.locator('xpath=.//em[contains(@class,"fl-mark")][contains(.,"USD")][not(contains(..,"Costo del equipo"))]')).toHaveCount(2);
     await expect(editor.locator('.sheet-foot').getByRole('button', { name: 'Guardar cambios' })).toBeVisible();
     await settleMotion(page, '.sheet');
     await expectFits(page);

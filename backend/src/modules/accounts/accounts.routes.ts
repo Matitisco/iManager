@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { moneyInput } from '../../lib/money-input.js';
 import { authenticate } from "../../middleware/authenticate.js";
 import { resolveAppUser } from "../../middleware/resolve-app-user.js";
 import { requireMember } from "../../middleware/section-access.js";
@@ -7,7 +8,7 @@ import { canAccessSection } from "../stores/sections.js";
 import { loadActor } from "../audit/audit.js";
 import { addMovement, collectAccount, getFollowUpSettings, getSaleAccount, listDebtors, listFollowUps, saveFollowUpSettings } from "./accounts.service.js";
 
-const money = z.number().positive().max(100_000_000);
+const money = moneyInput({ positive: true, max: 100_000_000 });
 const currency = z.enum(["ARS", "USD"]).nullable().optional();
 
 function allowClientsOrSales(request: FastifyRequest, reply: FastifyReply) {
@@ -39,10 +40,10 @@ export async function accountsRoutes(app: FastifyInstance) {
   app.patch("/follow-ups/settings", { preHandler: guard }, async (request, reply) => {
     if (!allowClientsOrSales(request, reply)) return;
     const body = z.object({
-      birthdayLeadDays: z.number().int().min(0).max(60).optional(),
-      warrantyMonths: z.number().int().min(0).max(36).optional(),
-      warrantyLeadDays: z.number().int().min(0).max(60).optional(),
-      inactiveDays: z.number().int().min(30).max(365).optional(),
+      birthdayLeadDays: z.number().refine(Number.isInteger).min(0).max(60).optional(),
+      warrantyMonths: z.number().refine(Number.isInteger).min(0).max(36).optional(),
+      warrantyLeadDays: z.number().refine(Number.isInteger).min(0).max(60).optional(),
+      inactiveDays: z.number().refine(Number.isInteger).min(30).max(365).optional(),
       includeDebts: z.boolean().optional(),
     }).parse(request.body);
     return { settings: await saveFollowUpSettings(request.appUser!.storeId, body) };

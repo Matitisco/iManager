@@ -64,3 +64,23 @@ it("projects only outstanding debt at its sale quote, with no phantom balance af
   expect(projectBalance(events)).toEqual({ ARS: 15000, USD: 10 });
   expect(projectBalance([...events, { period: "2026-02", at: 4, amount: -15000, currency: "ARS", exchangeRate: 2100 }])).toEqual({ ARS: 0, USD: 0 });
 });
+
+describe('revendedores como beneficiarios', () => {
+  const date = new Date('2026-01-15T12:00:00Z');
+  const team = { id: 'team', memberId: null, resellerId: null, basis: 'SALE_PERCENT' as const, rate: 10, currency: null, effectiveFrom: new Date('2025-01-01'), createdAt: new Date('2025-01-01') };
+  it('aplica la regla global sin membresía y redondea con Decimal', () => {
+    const selected = ruleForSale([team], null, date, 'revendedor');
+    expect(commissionForSale({ sellerMemberId: null, resellerId: 'revendedor', status: 'COMPLETADA', amount: 19.99, cost: 0, takeValue: 0, currency: 'USD', exchangeRate: 1000 }, selected)).toBe(2);
+  });
+  it('la regla personal de otro revendedor nunca se vuelve una regla global', () => {
+    const personal = { ...team, id: 'personal', resellerId: 'revendedor', rate: 20 };
+    expect(ruleForSale([team, personal], null, date, 'otro')?.id).toBe('team');
+    expect(ruleForSale([team, personal], null, date, 'revendedor')?.id).toBe('personal');
+    expect(ruleForSale([personal], 'miembro', date)).toBeNull();
+  });
+  it('conserva cero para sin vendedor y ventas canceladas', () => {
+    const sale = { sellerMemberId: null, status: 'COMPLETADA', amount: 100, cost: 0, takeValue: 0, currency: 'ARS' as const, exchangeRate: 1000 };
+    expect(commissionForSale(sale, team)).toBe(0);
+    expect(commissionForSale({ ...sale, resellerId: 'revendedor', status: 'CANCELADA' }, team)).toBe(0);
+  });
+});

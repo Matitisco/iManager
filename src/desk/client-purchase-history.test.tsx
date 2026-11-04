@@ -18,7 +18,7 @@ vi.mock('../context/AppContext', () => ({ useAppContext: () => state }));
 vi.mock('../services/sales-api', () => ({ fetchVoidedSales: api.sales }));
 vi.mock('../services/trade-ins-api', () => ({ fetchVoidedTradeIns: api.trades }));
 vi.mock('../services/inventory-api', () => ({ fetchArchivedInventory: api.inventory }));
-vi.mock('../services/clients-api', () => ({ fetchClientPayments: api.payments }));
+vi.mock('../services/clients-api', () => ({ fetchClientPayments: api.payments, fetchClientSales: api.sales }));
 
 function mount() {
   return render(<DeskProvider value={{ tab: 'clients', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><ClientDetail id="c" /></DeskProvider>);
@@ -46,21 +46,17 @@ describe('client purchase history sources', () => {
     expect(screen.getByTestId('client-purchase-count')).toHaveTextContent('0');
     expect(screen.getByTestId('client-purchase-stats')).toHaveTextContent('Total comprado$ 0');
     expect(screen.queryByTestId('purchase-sale-other-client')).not.toBeInTheDocument();
-    expect(api.sales).toHaveBeenCalledWith(state.user);
+    expect(api.sales).toHaveBeenCalledWith(state.user, 'c');
     expect(state.loadCommissionSellers).toHaveBeenCalledOnce();
   });
 
-  it('keeps purchases visible and logs failed supplemental history without an alert', async () => {
-    const cause = new Error('No se pudieron cargar las ventas anuladas');
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('shows a failed purchase history instead of treating missing rows as complete', async () => {
+    const cause = new Error('No se pudieron cargar las compras');
     api.sales.mockRejectedValue(cause);
     mount();
-    await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los registros archivados o anulados.', cause));
-    expect(screen.getByTestId('client-purchase-count')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
-    warn.mockRestore();
+    expect(await screen.findByRole('alert')).toHaveTextContent(cause.message);
+    expect(screen.queryByTestId('client-purchase-count')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reintentar compras' })).toBeInTheDocument();
   });
   it('hides failed deposits and preserves the known client credit balance', async () => {
     const cause = new Error('No se pudieron cargar las señas');

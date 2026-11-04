@@ -11,6 +11,9 @@ export const shiftDay = (value: string, days: number) => {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 };
+export function dashboardLast7Days(today = dashboardDay()): DashboardRange {
+  return { start: shiftDay(today, -6), end: today };
+}
 export function dashboardMonth(month = dashboardDay().slice(0, 7), today = dashboardDay()): DashboardRange {
   const date = dayDate(`${month}-01`);
   const last = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 12)).toISOString().slice(0, 10);

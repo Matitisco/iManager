@@ -150,7 +150,7 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
 
   return (
     <td className="inv-quantity-cell" onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}>
-      {item.imei?.trim() ? <span className="inv-quantity-value" title={IMEI_QUANTITY_MESSAGE}>1</span> : (
+      {item.imei?.trim() ? <span className="inv-quantity-value" title={item.cantidad === 0 ? 'Este equipo tiene IMEI y no tiene unidades en stock.' : IMEI_QUANTITY_MESSAGE}>{item.cantidad ?? 1}</span> : (
         <input
           className="inv-quantity inv-quantity-value"
           aria-label={`Cantidad de ${equipmentTitle(item.model, item.capacity)}`}
@@ -229,12 +229,12 @@ export function InventoryScreen() {
     return () => window.removeEventListener('hashchange', showReview);
   }, [setColumns, setQuery, setArchivedMode]);
 
-  const source = archivedMode ? archived : mergeRecordRows(inventory, archived);
+  const source = archivedMode ? archived : mergeRecordRows(inventory, archived).filter(item => !isVoidRow(item));
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = source.filter((item) => {
       const haystack = `${item.model} ${item.capacity} ${item.color}${phone ? ` ${item.imei}` : ''}`.toLowerCase();
-      return (archivedMode || !isVoidRow(item)) && (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
+      return (!q || haystack.includes(q)) && matchesInventoryColumns(item, columns);
     });
     const priceOf = (item: { price: number | null; currency?: string | null }) => money.number(item.price ?? 0, item.currency) ?? item.price ?? 0;
     const qualityOf = (item: Product) => displayQuality(item.condition, item.grade);
@@ -358,7 +358,7 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   <small>Cantidad: {item.cantidad ?? 1}{seeCosts && item.cost != null ? ` · Costo: ${money.show(item.cost, item.currency)}` : ''}</small>
-                  {item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : null}
+                  {item.catalogIncluded ? <small className="catalog-mark" title={item.catalogNames?.join(', ')}>En catálogo</small> : null}
                   {item.reservedClientName ? <small className="reservation-label">Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
@@ -375,7 +375,7 @@ export function InventoryScreen() {
             {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
           </div>
         ) : null}
-        <div className="dtable-scroll"><table className="dtable inv-stock-table">
+        <div className="dtable-scroll desktop-table-scroll"><table className="dtable inv-stock-table">
             <thead>
               <tr>
                 <th className="bulk-cell"><SelectFiltered selection={selection} total={listed.length} /></th>
@@ -399,6 +399,11 @@ export function InventoryScreen() {
                 <th className="inv-quantity-cell"><span className="thf"><span>Cantidad</span>
                   <ColumnFilter label="cantidad" {...menu('cantidad')} active={columnFilterActive(columns, 'quantityMin')} onClear={() => setColumn({ quantityMin: '', quantityMax: '' })}>
                     <InventoryNumberRange label="Cantidad" min={columns.quantityMin} max={columns.quantityMax} onMin={quantityMin => setColumn({ quantityMin })} onMax={quantityMax => setColumn({ quantityMax })} />
+                  </ColumnFilter>
+                </span></th>
+                <th className="inv-catalog-col"><span className="thf">Catálogo
+                  <ColumnFilter label="catálogo" {...menu('catálogo')} active={columnFilterActive(columns, 'catalog')} onClear={() => setColumn({ catalog: [] })}>
+                    <InventoryCatalogFilter value={columns.catalog} onChange={catalog => setColumn({ catalog })} />
                   </ColumnFilter>
                 </span></th>
                 {seeCosts ? <th className="r"><span className="thf">Costo
@@ -518,11 +523,6 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
-                <th><span className="thf">Catálogo
-                  <ColumnFilter label="catálogo" align="right" {...menu('catálogo')} active={columnFilterActive(columns, 'catalog')} onClear={() => setColumn({ catalog: [] })}>
-                    <InventoryCatalogFilter value={columns.catalog} onChange={catalog => setColumn({ catalog })} />
-                  </ColumnFilter>
-                </span></th>
               </tr>
             </thead>
             <tbody>
@@ -544,6 +544,7 @@ export function InventoryScreen() {
                   </td>
                   <td className="inv-imei-col" data-ph-mask>{item.imei?.trim() ? formatImei(item.imei) : '—'}</td>
                   <InventoryQuantityCell item={item} updateProduct={updateProduct} />
+                  <td className="inv-catalog-col">{item.catalogNames?.length ? <small className="catalog-mark" title={item.catalogNames.join(', ')}>{item.catalogNames.length === 1 ? item.catalogNames[0] : `${item.catalogNames.length} catálogos`}</small> : '—'}</td>
                   {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}
                   <td>{(item.color ?? '').trim() || '—'}</td>
                   <td>{conditionLabel(item.condition)}</td>
@@ -556,7 +557,6 @@ export function InventoryScreen() {
                     {item.reservedClientName ? <small className="reservation-label">Para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
-                  <td>{item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : '—'}</td>
                 </PressTarget>
               ))}
             </tbody>

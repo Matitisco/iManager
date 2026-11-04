@@ -5,9 +5,12 @@ import type { Product, Sale } from '../../types';
 import { DeskProvider } from '../ui';
 import { ExchangeProvider } from '../exchange';
 import { SalesScreen } from './SalesScreen';
+import { partialReturn } from '../../test/return-fixtures';
+import type { ReturnCaseView } from '../../services/returns-api';
 
 const context = vi.hoisted(() => ({
   sales: [] as Sale[],
+  returns: [] as ReturnCaseView[],
   clients: [] as never[],
   inventory: [] as Product[],
   appSession: null as { membership?: { role?: string; sections?: string[] | null }; store?: { id: string } } | null,
@@ -45,6 +48,7 @@ function renderScreen() {
 
 // El período «Mes» son los últimos 30 días: sin fecha fija, estas pruebas dependen del día en que corren.
 beforeEach(() => {
+  context.returns = [];
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 9, 18, 12));
 });
@@ -70,6 +74,36 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
 
   afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
+  it('etiqueta Seña en la lista conservando el filtro Pendiente', async () => {
+    context.sales = [sale(1, { hasInitialDeposit: true }), sale(2)];
+    renderScreen();
+    const row = screen.getByText('Cliente 1').closest(width === 390 ? '.sale-card' : 'tr')!;
+    expect(within(row as HTMLElement).getByText('Seña', { exact: true })).toBeVisible();
+    if (width === 390) {
+      await userEvent.click(within(screen.getByTestId('sales-status')).getByRole('button', { name: 'Estado' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Pendiente' }));
+    } else {
+      await userEvent.click(screen.getByRole('button', { name: 'Filtrar estado' }));
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Pendiente' }));
+    }
+    expect(screen.getByText('Cliente 1')).toBeVisible();
+    expect(screen.queryByText('Cliente 2')).not.toBeInTheDocument();
+  });
+
+  it('conserva los centavos USD en precio unitario y total de cada venta', () => {
+    const amounts = [25.8, 1.5, 1.6, 100];
+    context.sales = amounts.map((amount, index) => sale(index + 1, { amount, amountCurrency: 'USD', status: 'COMPLETADA' }));
+    render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1200, manualSell: 1250 }}>
+      <DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider>
+    </ExchangeProvider>);
+    for (const [index, expected] of ['25,80', '1,50', '1,60', '100'].entries()) {
+      const row = screen.getByText(`Cliente ${index + 1}`).closest(width === 390 ? '.sale-card' : 'tr')!;
+      const shown = within(row as HTMLElement).getAllByText(`US$ ${expected}`, { exact: true });
+      expect(shown).toHaveLength(width === 390 ? 1 : 2);
+    }
+    expect(context.sales.map(row => row.amount)).toEqual(amounts);
+  });
+
   it('shows a desktop quantity column or mobile badges and preserves the period summary', async () => {
     renderScreen();
     const row = (buyer: string) => screen.getByText(buyer).closest(width === 390 ? '.sale-card' : 'tr')!;
@@ -83,7 +117,7 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
       expect(screen.queryByRole('columnheader', { name: 'Cant.' })).not.toBeInTheDocument();
     } else {
       const headers = screen.getAllByRole('columnheader');
-      expect(headers.map(header => header.textContent)).toEqual(['', 'Venta', 'Fecha', 'Cliente', 'Equipo', 'Cant.', 'Precio unit.', 'Vendedor', 'Total', 'Ganancia', 'Estado']);
+      expect(headers.map(header => header.textContent)).toEqual(['', 'Venta', 'Fecha', 'Cliente', 'Equipo', 'Cant.', 'Vendedor', 'Precio unit.', 'Total', 'Ganancia', 'Estado']);
       for (const [buyer, equipment, quantity] of [['Cliente 1', 'Equipo 1', '5'], ['Cliente 2', 'Equipo 2', '1'], ['Cliente 3', 'Equipo 3', '2'], ['Cliente 4', 'Equipo 4', '20']]) {
         const cells = within(row(buyer) as HTMLElement).getAllByRole('cell');
         expect(cells).toHaveLength(headers.length);
@@ -143,6 +177,16 @@ describe.each([390, 1440])('sale quantities at %ipx', width => {
     expect(within(profit).getByText('Cargá el costo en el equipo')).toBeInTheDocument();
   });
 
+  it('descuenta dos de diez unidades en facturación y ganancia', () => {
+    context.sales = [sale(1, { cantidad: 10, amount: 1000, productId: 'p', status: 'COMPLETADA', amountCurrency: 'ARS' })];
+    context.inventory = [{ id: 'p', cost: 60, currency: 'ARS' }] as Product[];
+    context.returns = [partialReturn({ saleId: '1', moneyCurrency: 'ARS', itemCurrency: 'ARS' })];
+    renderScreen();
+    expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('$ 800');
+    expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('$ 320');
+    if (width === 1440) expect(within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell')[9]).toHaveTextContent('$ 320');
+  });
+
   it('counts absent or invalid quantities as one unit', () => {
     context.sales = [sale(1, { cantidad: 0 }), sale(2, { cantidad: NaN }), sale(3, { cantidad: 1 })];
     renderScreen();
@@ -175,7 +219,9 @@ describe('Sales desktop unit price and profit', () => {
   ] as const)('shows the stored unit price or total divided by quantity (%j)', (overrides, expected) => {
     context.sales[0] = { ...context.sales[0], ...overrides };
     renderScreen();
-    expect(cells()[6].textContent).toBe(expected);
+    expect(cells()[6]).toHaveTextContent('Sin vendedor');
+    expect(cells()[7].textContent).toBe(expected);
+    expect(cells()[8]).toHaveTextContent(/^\$ 100$/);
     expect(cells()[9]).toHaveTextContent(context.sales[0].cantidad ? /^\$ 40$/ : /^\$ 80$/);
     expect(screen.getByRole('columnheader', { name: /Vendedor/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Pago/ })).not.toBeInTheDocument();
@@ -217,7 +263,7 @@ describe('Sales desktop unit price and profit', () => {
         </DeskProvider>
       </ExchangeProvider>,
     );
-    expect(cells()[6]).toHaveTextContent(currency === 'ARS' ? /^\$ 33\.333,33$/ : /^US\$ 33,33$/);
+    expect(cells()[7]).toHaveTextContent(currency === 'ARS' ? /^\$ 33\.333,33$/ : /^US\$ 33,33$/);
     expect(cells()[8]).toHaveTextContent(currency === 'ARS' ? /^\$ 100\.000$/ : /^US\$ 100$/);
   });
 });
@@ -241,7 +287,7 @@ describe('Sales column filters', () => {
     context.loadCommissionSellers.mockRejectedValueOnce(cause);
     renderScreen();
     await waitFor(() => expect(warn).toHaveBeenCalledWith('No se pudieron cargar los vendedores.', cause));
-    expect(screen.getByText('Cliente 1')).toBeVisible();
+    expect(screen.getByText('Cliente 11')).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Reintentar/ })).not.toBeInTheDocument();
     expect(screen.queryByText(cause.message)).not.toBeInTheDocument();
@@ -263,11 +309,11 @@ describe('Sales column filters', () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
 
-    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
     expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
-    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
     const client = screen.getByRole('dialog', { name: 'Filtrar cliente' });
@@ -290,8 +336,8 @@ describe('Sales column filters', () => {
     expect(screen.getByText('12 ventas')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
-    expect(screen.getByText('Cliente 1')).toBeInTheDocument();
-    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.queryByText('Cliente 1')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('sales-hero')).not.toBeInTheDocument();
     expect(screen.queryByTestId('mobile-dock')).not.toBeInTheDocument();
@@ -411,6 +457,8 @@ describe('Sales on a phone', () => {
     renderScreen();
     expect(screen.getByTestId('sales-empty')).toHaveTextContent('No hay ventas');
     expect(screen.queryByText('0 resultados')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Registrar primera venta' })).toBeInTheDocument();
     expect(within(screen.getByTestId('mobile-dock')).getByRole('button', { name: 'Registrar venta' })).toBeInTheDocument();
   });
 
@@ -478,7 +526,8 @@ describe('Seller column filter', () => {
   it('filters with the vendedor checkboxes and clears the total', async () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderScreen();
-    await user.click(screen.getByRole('button', { name: 'Filtrar vendedor' }));
+    const headers = screen.getAllByRole('columnheader');
+    await user.click(within(headers[6]).getByRole('button', { name: 'Filtrar vendedor' }));
     const dialog = screen.getByRole('dialog', { name: 'Filtrar vendedor' });
     expect(within(dialog).getByRole('checkbox', { name: 'Lucía' })).not.toBeChecked();
     expect(within(dialog).getByRole('checkbox', { name: 'Sin vendedor' })).toBeInTheDocument();
@@ -497,6 +546,29 @@ describe('Seller column filter', () => {
     expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
     expect(screen.queryByTestId('sales-seller-chip')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+
+  it('keeps Total filtering the sale total beside the moved unit price', async () => {
+    context.sales[0].cantidad = 10;
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const headers = screen.getAllByRole('columnheader');
+    const cells = within(screen.getByText('Juan Domínguez').closest('tr')!).getAllByRole('cell');
+    expect(cells[6]).toHaveTextContent('Lucía');
+    expect(headers[7]).toHaveTextContent(/^Precio unit\.$/);
+    expect(headers[7]).toHaveClass('r');
+    expect(cells[7]).toHaveTextContent(/^\$ 98$/);
+    expect(cells[7]).toHaveClass('r');
+    expect(cells[8]).toHaveTextContent(/^\$ 980$/);
+    await user.click(within(headers[8]).getByRole('button', { name: 'Filtrar total' }));
+    const dialog = screen.getByRole('dialog', { name: 'Filtrar total' });
+    await user.type(within(dialog).getByRole('textbox', { name: 'Mínimo' }), '500');
+    expect(screen.getByText('Juan Domínguez')).toBeInTheDocument();
+    expect(screen.queryByText('Ana Pérez')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mostrador')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Limpiar' }));
+    expect(screen.getByText('Ana Pérez')).toBeInTheDocument();
+    expect(screen.getByText('Mostrador')).toBeInTheDocument();
   });
 });
 
@@ -555,7 +627,7 @@ describe.each([false, true])('annulled sales order (phone: %s)', phone => {
     expect(records()).toHaveLength(8);
     expect(records().every(row => !row.querySelector('.is-void') && !row.classList.contains('is-void'))).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Página 2' }));
-    expect(records().map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0040', 'V-0031', 'V-0041']);
+    expect(records().map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0032', 'V-0041', 'V-0031']);
     view.unmount(); window.matchMedia = media;
   });
 
@@ -565,7 +637,119 @@ describe.each([false, true])('annulled sales order (phone: %s)', phone => {
     context.sales = [sale(21, { status: 'CANCELADA' }), sale(22), sale(23, { voidedAt: '2026-10-02' }), sale(24), sale(25, { status: 'ANULADA' }), sale(26, { status: 'PENDIENTE' })];
     const view = renderScreen();
     const records = [...document.querySelectorAll(phone ? '.sale-node' : 'tbody tr')];
-    expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0022', 'V-0024', 'V-0026', 'V-0021', 'V-0023', 'V-0025']);
+    expect(records.map(row => row.textContent?.match(/V-\d{4}/)?.[0])).toEqual(['V-0026', 'V-0024', 'V-0022', 'V-0025', 'V-0023', 'V-0021']);
     view.unmount(); window.matchMedia = media;
+  });
+});
+
+it('Ventas descuenta dos de diez unidades en facturación y ganancia sin alterar Total de la fila', () => {
+  window.matchMedia = vi.fn(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  context.sales = [sale(1, { cantidad: 10, productId: 'p', amount: 6500, amountCurrency: 'USD', status: 'COMPLETADA' })];
+  context.inventory = [{ id: 'p', cost: 450, currency: 'USD' }] as Product[];
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.returns = [{ id: 'r', saleId: '1', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO', compensatedOn: '2026-10-02', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider></ExchangeProvider>);
+  expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('US$ 5.200');
+  expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('US$ 1.600');
+  const cells = within(screen.getByText('Cliente 1').closest('tr')!).getAllByRole('cell');
+  expect(cells[8]).toHaveTextContent('US$ 6.500');
+  expect(cells[9]).toHaveTextContent('US$ 1.600');
+});
+
+it('Ventas muestra el ajuste cuando sólo hay una devolución de una venta anterior en el período', () => {
+  window.matchMedia = vi.fn(query => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() }));
+  context.sales = [];
+  context.inventory = [];
+  context.appSession = { membership: { role: 'OWNER' } };
+  context.returns = [{ id: 'r', saleId: 'old', status: 'RESUELTO', resolution: 'REINTEGRO', settlement: 'REINTEGRO', compensatedOn: '2026-10-02', moneyAmount: 1300, moneyCurrency: 'USD', saleAmount: 6500, saleQuantity: 10, itemCost: 450, itemCurrency: 'USD' } as ReturnCaseView];
+  render(<ExchangeProvider settings={{ currency: 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 990, manualSell: 1000 }}><DeskProvider value={{ tab: 'sales', go: vi.fn(), open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: false }}><SalesScreen /></DeskProvider></ExchangeProvider>);
+  expect(screen.getByText('Facturación total').parentElement).toHaveTextContent('US$ -1.300');
+  expect(screen.getByText('Ganancia total').parentElement).toHaveTextContent('US$ -400');
+});
+
+
+describe('orden por carga y encabezados de Ventas (#748)', () => {
+  beforeEach(() => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: false, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    context.appSession = null;
+    context.inventory = [];
+    context.clients = [];
+    context.commissionSellers = [];
+    context.sales = [
+      sale(13, { createdAt: '2026-10-10T10:00:00Z', clientName: 'Zoe' }),
+      sale(7, { createdAt: '2026-10-10T14:00:00Z', clientName: 'Ana', date: '2026-09-30' }),
+      sale(16, { createdAt: '2026-10-10T10:00:00Z', clientName: 'Ana' }),
+    ];
+  });
+  const codes = () => [...document.querySelectorAll('tbody tr')].map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
+
+  it('ordena por hora de carga y desempata por número descendente', () => {
+    renderScreen();
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+  });
+
+  it('alterna el encabezado, conserva el desempate y permite volver al orden de carga', async () => {
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const header = screen.getByRole('button', { name: 'Ordenar por cliente' });
+    expect(header).toHaveClass('thsort');
+    await user.click(header);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    await user.click(header);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'descending');
+    expect(codes()).toEqual(['V-0013', 'V-0007', 'V-0016']);
+    await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
+    expect(screen.getByRole('dialog', { name: 'Filtrar cliente' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
+    await user.click(screen.getByRole('button', { name: 'Orden de carga' }));
+    expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
+  });
+
+  it.each([
+    ['venta', ['V-0007', 'V-0013', 'V-0016']],
+    ['fecha', ['V-0007', 'V-0016', 'V-0013']],
+    ['equipo', ['V-0007', 'V-0013', 'V-0016']],
+    ['cant.', ['V-0007', 'V-0016', 'V-0013']],
+    ['vendedor', ['V-0013', 'V-0007', 'V-0016']],
+    ['precio unit.', ['V-0013', 'V-0007', 'V-0016']],
+    ['total', ['V-0007', 'V-0013', 'V-0016']],
+    ['ganancia', ['V-0007', 'V-0013', 'V-0016']],
+    ['estado', ['V-0007', 'V-0016', 'V-0013']],
+  ])('ordena por %s sin modificar las ventas', async (label, expected) => {
+    context.sales = context.sales.map(row => ({ ...row, productId: `p${row.saleNumber}`, cantidad: row.saleNumber === 13 ? 5 : 1, unitPrice: row.saleNumber === 13 ? 12.11 : 12.12, amountCurrency: 'ARS', sellerMemberId: row.saleNumber === 13 ? 'ana' : 'zoe' }));
+    context.inventory = context.sales.map(row => ({ id: row.productId, model: row.deviceLabel, capacity: '', cost: 1, currency: 'ARS' })) as Product[];
+    context.commissionSellers = [{ id: 'ana', name: 'Ana', role: 'STAFF' }, { id: 'zoe', name: 'Zoe', role: 'STAFF' }];
+    const original = structuredClone(context.sales);
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const header = screen.getByRole('button', { name: `Ordenar por ${label}` });
+    await user.click(header);
+    expect(codes()).toEqual(expected);
+    expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');
+    expect(context.sales).toEqual(original);
+  });
+
+  it('permite ordenar las cards desde el mismo menú en mobile', async () => {
+    window.matchMedia = vi.fn(query => ({ media: query, matches: query.includes('max-width'), onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn() }));
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    const records = () => [...document.querySelectorAll('.sale-node')].map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
+    expect(records()).toEqual(['V-0007', 'V-0016', 'V-0013']);
+    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
+    await user.click(screen.getByRole('button', { name: 'Venta ↑' }));
+    expect(records()).toEqual(['V-0007', 'V-0013', 'V-0016']);
+  });
+
+  it('ordena el conjunto completo antes de paginar y vuelve a la primera página', async () => {
+    context.sales = Array.from({ length: 12 }, (_, i) => sale(i + 1));
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderScreen();
+    await user.click(screen.getByRole('button', { name: 'Página siguiente' }));
+    await user.click(screen.getByRole('button', { name: 'Ordenar por venta' }));
+    expect(codes()).toEqual(['V-0001', 'V-0002', 'V-0003', 'V-0004', 'V-0005', 'V-0006', 'V-0007', 'V-0008']);
+    expect(screen.getByText('1–8 de 12')).toBeInTheDocument();
   });
 });

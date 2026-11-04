@@ -45,7 +45,7 @@ export function visibleRepairStatuses(known: RepairStatusChoice[], orders: { sta
   ];
 }
 
-export const REPAIR_FAULTS = ['Pantalla', 'Batería', 'Pin de carga', 'Cámara', 'No enciende', 'Face ID', 'Mojado'];
+export const REPAIR_FAULTS = ['Pantalla', 'Batería', 'Pin de carga', 'Cámara', 'No enciende', 'Face ID', 'Mojado', 'Botón de encendido', 'Botones de volumen', 'Parlante', 'Tapa trasera'];
 
 export function repairFault(order: Pick<RepairOrder, 'fault' | 'faultTags'>) {
   const text = order.fault.trim();
@@ -108,8 +108,3 @@ export function countPhrase(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-export const DEPOSIT_OVER_ESTIMATE = 'La seña no puede superar el presupuesto';
-
-export function depositExceedsEstimate(estimate: number | null | undefined, deposit: number) {
-  return estimate != null && deposit > estimate;
-}

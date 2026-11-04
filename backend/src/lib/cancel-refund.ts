@@ -1,3 +1,4 @@
+import { normalizeAccountingState, saleState } from './accounting-states.js';
 import { Decimal } from "@prisma/client/runtime/library";
 
 const ZERO = new Decimal(0);
@@ -34,14 +35,14 @@ export type CancellationPlan = {
 export function bookOpen(target: Pick<RefundTarget, "cash" | "status" | "openBalance">): Decimal {
   const cash = Decimal.max(money(target.cash), ZERO);
   if (target.openBalance != null) return Decimal.min(cash, Decimal.max(money(target.openBalance), ZERO));
-  return target.status === "PENDIENTE" ? cash : ZERO;
+  return saleState(target.status) === "PENDIENTE" ? cash : ZERO;
 }
 
 function netCollected(rows: RefundMovement[]): Decimal {
   return rows.reduce((total, row) => {
     const amount = Decimal.max(money(row.amount), ZERO);
-    if (row.kind === "PAGO") return total.plus(amount);
-    if (row.kind === "VUELTO") return total.minus(amount);
+    if (normalizeAccountingState('paymentKind', row.kind ?? '') === "PAGO") return total.plus(amount);
+    if (normalizeAccountingState('paymentKind', row.kind ?? '') === "VUELTO") return total.minus(amount);
     return total;
   }, ZERO);
 }
@@ -58,7 +59,7 @@ function unlinked(movements: RefundMovement[]): RefundMovement[] {
 function generalPool(movements: RefundMovement[]): Decimal {
   const loose = Decimal.max(netCollected(unlinked(movements)), ZERO);
   const credited = movements.reduce((total, row) => {
-    if (row.kind !== "CREDITO" || !row.saleId) return total;
+    if (normalizeAccountingState('paymentKind', row.kind ?? '') !== "CREDITO" || !row.saleId) return total;
     // Reverting a cancellation compensates its credit with a signed ledger row.
     return total.plus(money(row.amount));
   }, ZERO);
@@ -120,7 +121,7 @@ export function cancellationSettlement(
   const cash = Decimal.max(money(target.cash), ZERO);
   const linked = linkedNet(target.id, movements);
   const open = bookOpen(target);
-  const legacy = linked.eq(ZERO) && target.status === "COMPLETADA" ? Decimal.max(cash.minus(open), ZERO) : ZERO;
+  const legacy = linked.eq(ZERO) && saleState(target.status) === "COMPLETADA" ? Decimal.max(cash.minus(open), ZERO) : ZERO;
   const refund = Decimal.min(cash, Decimal.max(legacy.plus(linked), ZERO));
   const sales = orderedSales(target, openSales);
   const still = balanceStillOwed(sales, movements, pendingBalance);

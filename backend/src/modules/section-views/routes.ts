@@ -1,3 +1,4 @@
+import { dateTimeInput } from '../../lib/date-time-input.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
@@ -7,7 +8,7 @@ import { canAccessSection } from '../stores/sections.js';
 import { listSectionChanges, markSectionViewed, VIEW_SECTIONS } from './service.js';
 
 const params = z.object({ section: z.enum(VIEW_SECTIONS) });
-const body = z.object({ versions: z.array(z.object({ id: z.string().min(1).max(120), updatedAt: z.string().datetime() })).max(10000) });
+const body = z.object({ versions: z.array(z.object({ id: z.string().min(1).max(120), updatedAt: dateTimeInput() })).max(10000) });
 
 export async function sectionViewsRoutes(app: FastifyInstance) {
   const preHandler = [authenticate, resolveAppUser];

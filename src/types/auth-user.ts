@@ -14,5 +14,5 @@ export interface AuthUserLike {
   isAnonymous?: boolean;
   tenantId?: string | null;
   providerData?: AuthProviderInfo[];
-  getIdToken: () => Promise<string>;
+  getIdToken: (forceRefresh?: boolean) => Promise<string>;
 }

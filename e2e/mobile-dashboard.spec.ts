@@ -106,7 +106,7 @@ test.describe('dashboard on a phone', () => {
     await expect(page.getByTestId('dashboard-register-sale').getByRole('button', { name: 'Registrar venta' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Registrar venta' })).toHaveCount(1);
     await expect(page.getByTestId('dashboard-sales')).toContainText('Todavía no registraste ventas');
-    await expect(page.getByRole('columnheader', { name: 'Venta' })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: /(?:ordenar por )?venta\b/i })).toHaveCount(0);
     const columns = await page.locator('.dashboard-screen .dstats').evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
     expect(columns).toBe(2);
     await expectFits(page);
@@ -178,7 +178,7 @@ test.describe('dashboard on a phone', () => {
     }
   });
 
-  test('hides billing for an employee and keeps the store currency', async ({ page, request, browser }, testInfo) => {
+  test('keeps financials visible for an employee under #691 and keeps the store currency', async ({ page, request, browser }, testInfo) => {
     const ownerEmail = buildTestEmail(testInfo, 'dash-owner');
     const staffEmail = buildTestEmail(testInfo, 'dash-staff');
     const store = `Dash staff ${testInfo.parallelIndex}`;
@@ -199,7 +199,7 @@ test.describe('dashboard on a phone', () => {
       await acceptInvitationViaUi(staff, staffEmail, invitation.token, store);
       await expect(staff.getByTestId('mobile-tab-bar')).toBeVisible();
       const month = staff.locator('.dashboard-screen .dstat').filter({ hasText: /^Ventas/ });
-      await expect(month).toHaveCount(0);
+      await expect(month).toContainText('$ 250.000');
       await expect(staff.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
       await expect(staff.getByTestId('dashboard-sales')).toContainText('Ana Staff');
       await expect(staff.getByTestId('dashboard-sales')).toContainText('$ 250.000');

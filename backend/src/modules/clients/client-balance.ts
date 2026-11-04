@@ -1,3 +1,4 @@
+import { normalizeAccountingState } from '../../lib/accounting-states.js';
 import { formatArMoney } from "../../lib/ar-money.js";
 
 type MoneyLike = { toString(): string } | number;
@@ -19,7 +20,7 @@ function asNumber(value: MoneyLike) {
 export function creditAmount(rows: DepositBalanceRow[], currency: string | null): number {
   const target = currency === "USD" ? "USD" : "ARS";
   const total = rows.reduce((sum, row) => {
-    if (row.status !== "CREDIT") return sum;
+    if (normalizeAccountingState('deposit', row.status) !== 'CREDIT') return sum;
     if (row.currency === target) return sum + asNumber(row.amount);
     if (target === "USD") return sum + asNumber(row.usdAmount);
     const rate = asNumber(row.exchangeRate);
@@ -34,7 +35,7 @@ export function creditAmount(rows: DepositBalanceRow[], currency: string | null)
  * An active reservation or leftover credit does.
  */
 export function clientDeleteRefusal(deposits: DepositBalanceRow[], balanceCurrency: string | null): string | null {
-  if (deposits.some((row) => row.status === "ACTIVE")) {
+  if (deposits.some((row) => normalizeAccountingState('deposit', row.status) === 'ACTIVE')) {
     return "El cliente tiene una seña activa. Cancelala desde la ficha antes de archivarlo.";
   }
   const credit = creditAmount(deposits, balanceCurrency);
@@ -42,7 +43,7 @@ export function clientDeleteRefusal(deposits: DepositBalanceRow[], balanceCurren
     const formatted = formatArMoney(credit, balanceCurrency === "USD" ? "USD" : "ARS");
     return `No se puede archivar: tiene saldo a favor (${formatted}). Registrá la devolución del saldo desde la ficha y volvé a intentar.`;
   }
-  if (deposits.some((row) => !["APPLIED", "REFUNDED", "REVERSED"].includes(row.status))) {
+  if (deposits.some((row) => !["APPLIED", "REFUNDED", "REVERSED"].includes(normalizeAccountingState('deposit', row.status)))) {
     return "El cliente tiene señas que todavía no se pueden borrar.";
   }
   return null;

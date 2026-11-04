@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({ fetchReportsOverview: vi.fn(), listMembers: vi.f
 const context = vi.hoisted(() => ({
   appSession: {
     user: { displayName: 'Luis', email: 'luis@test.com' },
-    store: { id: 'store-1', name: 'Centro', currency: 'ARS' as const },
+    store: { id: 'store-1', name: 'Centro', currency: 'ARS' as 'ARS' | 'USD', exchangeMode: 'manual', exchangeSource: 'blue', manualSell: 1555, manualBuy: 1500 },
     membership: { role: 'OWNER', sections: null as string[] | null },
     onboardingRequired: false,
   },
@@ -33,8 +33,8 @@ const report: ReportsOverview = {
   salesSeries: [1, 8, 15, 22].map((day, i) => ({ start: `2026-10-${String(day).padStart(2, '0')}`, label: '', revenue: [2600000, 3200000, 2800000, 4090000][i], unitsSold: 1 })),
   paymentMethods: [{ label: 'Efectivo', revenue: 5837400, share: 46, count: 8 }, { label: 'Transferencia', revenue: 3933900, share: 31, count: 4 }],
 };
-function dashboardView() {
-  return (<ExchangeProvider settings={{ currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}><DeskProvider value={{ tab: 'dashboard', go, open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: context.appSession.membership.role === 'STAFF' }}><DashboardScreen /></DeskProvider></ExchangeProvider>);
+function dashboardView(currency: 'ARS' | 'USD' = 'ARS') {
+  return (<ExchangeProvider settings={{ currency, exchangeMode: 'manual', exchangeSource: 'blue', manualBuy: 1500, manualSell: 1555 }}><DeskProvider value={{ tab: 'dashboard', go, open, openRecord: vi.fn(), close: vi.fn(), toast: vi.fn(), isStaff: context.appSession.membership.role === 'STAFF' }}><DashboardScreen /></DeskProvider></ExchangeProvider>);
 }
 function renderScreen() {
   return render(dashboardView());
@@ -65,6 +65,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-10-22T12:00:00-03:00'));
   context.appSession.membership = { role: 'OWNER', sections: null };
   context.appSession.store.id = 'store-1';
+  Object.assign(context.appSession.store, { currency: 'ARS', exchangeMode: 'manual', exchangeSource: 'blue', manualSell: 1555, manualBuy: 1500 });
   context.appSession.onboardingRequired = false;
   context.backendStatus = 'ready'; context.sessionConfirmed = true; context.listsLoaded = true; context.listsSettled = true; context.listsLoadFailed = false; context.gettingStartedLoaded = true; context.gettingStarted = null;
   context.sales = []; context.inventory = []; context.tradeIns = []; context.clients = []; context.operationNotifications = [];
@@ -75,6 +76,112 @@ beforeEach(() => {
 afterEach(() => { window.matchMedia = originalMatchMedia; vi.useRealTimers(); });
 
 describe('Dashboard aprobado', () => {
+  it.each([false, true])('muestra centavos USD en indicadores, medios de pago y ventas recientes (móvil=%s)', async phone => {
+    if (phone) phoneMedia();
+    context.appSession.store.currency = 'USD';
+    const amounts = [25.8, 1.5, 1.6, 100];
+    context.sales = amounts.map((amount, index) => ({ ...makeSale(String(index), '2026-10-22', `Accesorio ${index}`), amount, amountCurrency: 'USD' }));
+    api.fetchReportsOverview.mockResolvedValue({ ...report, currency: 'USD',
+      summary: { ...report.summary, revenue: 128.9, grossProfit: 25.8 },
+      salesSeries: [{ start: '2026-10-22', label: '', revenue: 128.9, unitsSold: 4 }],
+      paymentMethods: [{ label: 'Efectivo', revenue: 128.9, share: 100, count: 4 }],
+    });
+    render(dashboardView('USD'));
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('US$ 128,90'));
+    expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent('US$ 25,80');
+    expect(document.querySelector('.dashboard-payment-amount')).toHaveTextContent('US$ 128,90');
+    for (const [index, expected] of ['25,80', '1,50', '1,60', '100'].entries()) {
+      const row = screen.getByText(`Accesorio ${index}`).closest(phone ? '.sale-card' : 'tr')!;
+      expect(within(row as HTMLElement).getByText(`US$ ${expected}`, { exact: true })).toBeVisible();
+    }
+    expect(context.sales.map(row => row.amount)).toEqual(amounts);
+  });
+
+  it.each([
+    { currency: 'USD' as const }, { manualSell: 1600 }, { manualBuy: 1400 },
+    { exchangeMode: 'auto' }, { exchangeSource: 'mep' },
+  ])('consulta otra vez al cambiar la configuración monetaria: %j', async patch => {
+    const pending = deferred<ReportsOverview>();
+    const view = renderScreen();
+    await screen.findByText('$ 12,69M');
+    api.fetchReportsOverview.mockReturnValueOnce(pending.promise);
+    Object.assign(context.appSession.store, patch);
+    view.rerender(dashboardView(context.appSession.store.currency));
+    await waitFor(() => expect(api.fetchReportsOverview).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+    await act(async () => pending.resolve({ ...report, currency: context.appSession.store.currency, summary: { ...report.summary, revenue: 650 } }));
+    expect(await screen.findByText(context.appSession.store.currency === 'USD' ? 'US$ 650' : '$ 650')).toBeVisible();
+  });
+
+  it('descarta una respuesta pendiente de la moneda anterior', async () => {
+    const old = deferred<ReportsOverview>();
+    api.fetchReportsOverview.mockReturnValueOnce(old.promise);
+    const view = renderScreen();
+    Object.assign(context.appSession.store, { currency: 'USD' });
+    api.fetchReportsOverview.mockResolvedValueOnce({ ...report, currency: 'USD', summary: { ...report.summary, revenue: 650 } });
+    view.rerender(dashboardView('USD'));
+    expect(await screen.findByText('US$ 650')).toBeVisible();
+    await act(async () => old.resolve(report));
+    expect(screen.getByText('US$ 650')).toBeVisible();
+    expect(screen.queryByText('$ 12,69M')).toBeNull();
+  });
+
+  it('STAFF conserva finanzas de #691 sin enlaces a Reportes cuando no tiene permiso', async () => {
+    context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
+    renderScreen();
+    const revenue = await screen.findByText('$ 12,69M');
+    expect(revenue.closest('.dstat')?.tagName).toBe('DIV');
+    expect(screen.getByText('$ 3,42M').closest('.dstat')?.tagName).toBe('DIV');
+    expect(api.fetchReportsOverview).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
+  });
+
+  it.each([false, true])('conserva ventas USD y cantidades al aplicar cada preset (móvil=%s)', async phone => {
+    if (phone) phoneMedia();
+    vi.setSystemTime(new Date('2026-11-02T15:00:00Z'));
+    const user = userEvent.setup();
+    const periods = [
+      { label: 'Últimos 7 días', start: '2026-10-27', end: '2026-11-02', units: 9 },
+      { label: 'Hoy', start: '2026-11-02', end: '2026-11-02', units: 3 },
+      { label: 'Este mes', start: '2026-11-01', end: '2026-11-02', units: 5 },
+      { label: 'Mes anterior', start: '2026-10-01', end: '2026-10-31', units: 22 },
+      { label: 'Total', start: undefined, end: undefined, units: 44 },
+    ];
+    context.sales = [
+      { ...makeSale('today', '2026-11-02', 'Mayorista hoy'), status: 'PENDIENTE', cantidad: 3, amount: 1950, amountCurrency: 'USD' },
+      { ...makeSale('october', '2026-10-31', 'Mayorista octubre'), status: 'PENDIENTE', cantidad: 4, amount: 2600, amountCurrency: 'USD' },
+    ];
+    api.fetchReportsOverview.mockImplementation(async (_user, start, end): Promise<ReportsOverview> => {
+      const period = periods.find(item => item.start === start && item.end === end);
+      if (!period) throw new Error(`Unexpected range: ${start} / ${end}`);
+      const revenue = period.units * 650;
+      return {
+        currency: 'USD', summary: { revenue, grossProfit: period.units * 200, marginRate: 200 / 650 * 100, unitsSold: period.units },
+        comparison: { available: false, revenueChange: null, grossProfitChange: null, unitsChange: null },
+        salesSeries: [{ start: start ?? '2025-01-01', label: '', revenue, unitsSold: period.units }],
+        paymentMethods: [{ label: 'Efectivo', revenue, share: 100, count: 1 }],
+      };
+    });
+    render(dashboardView('USD'));
+    for (const [index, period] of periods.entries()) {
+      if (index) {
+        const trigger = phone ? document.querySelector<HTMLButtonElement>('.dashboard-month-nav button:nth-child(2)')! : screen.getByRole('button', { name: /Elegir período/ });
+        await user.click(trigger);
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: period.label }));
+        await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+      }
+      await waitFor(() => expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toHaveTextContent(String(period.units)));
+      expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, period.start, period.end, expect.any(AbortSignal));
+      expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent(`US$ ${(period.units * 650).toLocaleString('es-AR')}`);
+      expect(screen.getByRole('button', { name: /Margen bruto/ })).toHaveTextContent(`US$ ${(period.units * 200).toLocaleString('es-AR')}`);
+      expect(screen.getByRole('img', { name: 'Ventas del período' })).toBeVisible();
+      expect(within(document.querySelector<HTMLElement>('.dashboard-payments')!).getByText('Efectivo')).toBeVisible();
+      expect(screen.queryByText(/Todavía no hay ventas/)).toBeNull();
+      expect(screen.queryByText('Mayorista hoy') !== null).toBe(period.label !== 'Mes anterior');
+      expect(screen.queryByText('Mayorista octubre') !== null).toBe(['Últimos 7 días', 'Mes anterior', 'Total'].includes(period.label));
+    }
+  });
+
   it.each([false, true])('muestra la nota de ventas sin costo solo cuando hay exclusiones (móvil=%s)', async phone => {
     if (phone) phoneMedia();
     api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, salesWithoutCost: 2 } });
@@ -90,7 +197,7 @@ describe('Dashboard aprobado', () => {
 
   it.each([new Error('500'), new TypeError('Failed to fetch')])('avisa si falla un cambio de período y reintenta las mismas fechas: %s', async cause => {
     const user = userEvent.setup();
-    context.sales = [makeSale('old', '2026-10-02', 'Venta anterior')];
+    context.sales = [makeSale('old', '2026-10-16', 'Venta anterior')];
     renderScreen();
     await screen.findByText('$ 12,69M');
     api.fetchReportsOverview.mockRejectedValueOnce(cause);
@@ -124,9 +231,9 @@ describe('Dashboard aprobado', () => {
     expect(screen.getByRole('button', { name: 'Elegir período, Total' })).toBeVisible();
   });
 
-  it.each(['7 días', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
+  it.each(['Hoy', 'Total'])('mantiene la instantánea completa al elegir %s hasta el reemplazo atómico', async preset => {
     const user = userEvent.setup();
-    context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-02', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
+    context.sales = [makeSale('today', '2026-10-22', 'Actual'), makeSale('early', '2026-10-16', 'Anterior'), makeSale('old', '2020-01-01', 'Histórica')];
     renderScreen();
     await screen.findByText('$ 12,69M');
     const oldLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label');
@@ -200,7 +307,7 @@ describe('Dashboard aprobado', () => {
     const old = deferred<ReportsOverview>();
     const latest = deferred<ReportsOverview>();
     api.fetchReportsOverview.mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
-    for (const preset of ['7 días', 'Total']) {
+    for (const preset of ['Hoy', 'Total']) {
       await user.click(screen.getByRole('button', { name: /Elegir período/ }));
       await user.click(screen.getByRole('button', { name: preset }));
       await user.click(screen.getByRole('button', { name: 'Aplicar' }));
@@ -214,11 +321,11 @@ describe('Dashboard aprobado', () => {
     expectNoSkeleton();
   });
 
-  it.each(['7 días', 'Total'])('remonta en el mes actual cacheado después de elegir %s, sin skeleton mientras revalida', async preset => {
+  it.each(['Este mes', 'Total'])('remonta en los últimos siete días cacheados después de elegir %s, sin skeleton mientras revalida', async preset => {
     const user = userEvent.setup();
     api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez', email: 'ana@test.com' } }]);
     const view = renderScreen(); await screen.findByText('$ 12,69M');
-    const monthLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label')!;
+    const initialLabel = screen.getByRole('button', { name: /Elegir período/ }).getAttribute('aria-label')!;
     api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: 2000 } });
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     await user.click(screen.getByRole('button', { name: preset }));
@@ -231,20 +338,22 @@ describe('Dashboard aprobado', () => {
     renderScreen();
     expect(screen.getByText('$ 12,69M')).toBeVisible();
     expect(screen.getByTitle(/Ana Gómez/)).toBeVisible();
-    expect(screen.getByRole('button', { name: monthLabel })).toBeVisible();
-    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
+    expect(screen.getByRole('button', { name: initialLabel })).toBeVisible();
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
     expectNoSkeleton();
     await act(async () => next.resolve({ ...report, summary: { ...report.summary, revenue: 3000 } }));
     expect(screen.getByRole('button', { name: /^Ventas/ })).toHaveTextContent('$ 3.000');
   });
 
   it.each([
-    ['2026-10-23', '2026-10-01'],
-    ['2026-11-01', '2026-11-01'],
-  ])('remonta con skeleton del reporte si la clave del mes actual no existe al llegar %s', async (today, start) => {
+    ['2026-10-23', '2026-10-17'],
+    ['2026-11-01', '2026-10-26'],
+  ])('remonta con skeleton del reporte si la clave de los últimos siete días no existe al llegar %s', async (today, start) => {
     api.listMembers.mockResolvedValue([{ role: 'MANAGER', user: { displayName: 'Ana Gómez' } }]);
     const view = renderScreen(); await screen.findByText('$ 12,69M');
-    const scope = JSON.stringify([context.appSession.store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections]);
+    const store = context.appSession.store;
+    const scope = JSON.stringify([store.id, context.user.uid, context.appSession.membership.role, context.appSession.membership.sections,
+      store.currency, store.exchangeMode, store.exchangeSource, store.manualBuy, store.manualSell]);
     await waitFor(() => expect(readLatestDashboardCache(scope)?.initialResolved).toBe(true));
     view.unmount();
     vi.setSystemTime(new Date(`${today}T12:00:00-03:00`));
@@ -294,7 +403,7 @@ describe('Dashboard aprobado', () => {
     expect(screen.queryByText('Flujo sugerido')).toBeNull();
     expect(document.querySelectorAll('.dstat')).toHaveLength(4);
     expect(screen.queryByRole('button', { name: 'Mes anterior' })).toBeNull();
-    expect(api.fetchReportsOverview).toHaveBeenCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
+    expect(api.fetchReportsOverview).toHaveBeenCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
     expect(api.listMembers).toHaveBeenCalledWith(context.user, 'store-1');
   });
 
@@ -325,7 +434,8 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales', 'inventory'] };
     renderScreen();
     expect(await screen.findByText('$ 12,69M')).toBeVisible();
-    expect(screen.getAllByRole('button', { name: /^Ventas|Margen bruto/ })).toHaveLength(2);
+    expect(screen.getByText('$ 12,69M').closest('.dstat')).toBeVisible();
+    expect(screen.getByText('$ 3,42M').closest('.dstat')).toBeVisible();
     expect(screen.getByText('Tendencia de ventas')).toBeVisible();
     expect(screen.getByText('Medios de pago')).toBeVisible();
     expect(screen.getByRole('button', { name: /Equipos vendidos/ })).toBeVisible();
@@ -407,11 +517,11 @@ describe('Dashboard aprobado', () => {
     renderScreen();
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
     const dialog = screen.getByRole('dialog', { name: 'Elegir período' });
-    await user.click(within(dialog).getByRole('button', { name: '7 días' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Este mes' }));
     expect(api.fetchReportsOverview).toHaveBeenCalledTimes(1);
     await user.click(within(dialog).getByRole('button', { name: 'Aplicar' }));
     await screen.findByText('$ 12,69M');
-    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-16', '2026-10-22', expect.any(AbortSignal));
+    expect(api.fetchReportsOverview).toHaveBeenLastCalledWith(context.user, '2026-10-01', '2026-10-22', expect.any(AbortSignal));
     await act(async () => resolveOld({ ...report, summary: { ...report.summary, revenue: 999 } }));
     expect(screen.queryByText('$ 999')).toBeNull();
   });
@@ -427,19 +537,19 @@ describe('Dashboard aprobado', () => {
     context.appSession.membership = { role: 'STAFF', sections: ['dashboard', 'sales'] };
     view.rerender(dashboardView());
     await act(async () => resolvers[1](report));
-    expect(screen.getByRole('button', { name: /^Ventas/ })).toBeVisible();
+    expect(screen.getByText('Ventas', { selector: '.eb' }).closest('.dstat')).toBeVisible();
     expect(screen.queryByText('$ 12,69M')).toBeNull();
   });
 
-  it('en celular conserva CTA, mes y ventas clicables con accesos reales', async () => {
+  it('en celular conserva CTA, rango y ventas clicables con accesos reales', async () => {
     phoneMedia();
     const user = userEvent.setup();
     context.operationNotifications = [{ section: 'sales', readAt: null }];
     context.sales = [{ id: 'sale-1', saleNumber: 4, date: '2026-10-22', clientId: '', clientName: 'Ana Pérez', productId: '', deviceLabel: 'Pixel 8 128GB', amount: 650000, amountCurrency: 'ARS', paymentMethod: 'EFECTIVO', status: 'COMPLETADA' }];
     renderScreen();
     await screen.findByText('$ 12,69M');
-    expect(screen.getByRole('heading', { name: 'Ventas por semana' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Octubre 2026' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Ventas por día' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '16 oct – 22 oct' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Mes siguiente' })).toBeDisabled();
     await user.click(within(screen.getByTestId('dashboard-register-sale')).getByRole('button', { name: 'Registrar venta' }));
     expect(open).toHaveBeenCalledWith({ type: 'new-sale' });
@@ -525,8 +635,8 @@ describe('Dashboard aprobado', () => {
   it('filtra ventas recientes por días argentinos inclusivos, ordena y conserva apertura y menú', async () => {
     const user = userEvent.setup();
     context.sales = [
-      makeSale('before', '2026-10-01T02:59:59Z', 'Fuera antes'),
-      makeSale('first', '2026-10-01T03:00:00Z', 'Primera'),
+      makeSale('before', '2026-10-16T02:59:59Z', 'Fuera antes'),
+      makeSale('first', '2026-10-16T03:00:00Z', 'Primera'),
       makeSale('last', '2026-10-23T02:59:59Z', 'Última'),
       makeSale('after', '2026-10-23T03:00:00Z', 'Fuera después'),
       { ...makeSale('pending', '2026-10-21', 'Pendiente'), status: 'PENDIENTE' },
@@ -571,6 +681,10 @@ describe('Dashboard aprobado', () => {
     context.clients = [{ id: 'c', pendingBalance: 300, creditBalance: 50, balanceCurrency: 'ARS' }, { id: 'credit', pendingBalance: 0, creditBalance: 100, balanceCurrency: 'ARS' }] as Client[];
     context.sales = [makeSale('today', '2026-10-22', 'Hoy'), makeSale('old', '2026-10-02', 'Antes')];
     renderScreen(); await screen.findByText('$ 12,69M');
+    await user.click(screen.getByRole('button', { name: /Elegir período/ }));
+    await user.click(screen.getByRole('button', { name: 'Este mes' }));
+    await user.click(screen.getByRole('button', { name: 'Aplicar' }));
+    await screen.findByText('Antes');
     const stock = screen.getByRole('button', { name: /Stock disponible/ });
     const trades = screen.getByTestId('dashboard-trades');
     const balances = screen.getByRole('button', { name: /Saldos a cobrar/ });
@@ -579,7 +693,7 @@ describe('Dashboard aprobado', () => {
     let resolve!: (data: ReportsOverview) => void;
     api.fetchReportsOverview.mockReturnValueOnce(new Promise(done => { resolve = done; }));
     await user.click(screen.getByRole('button', { name: /Elegir período/ }));
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '7 días' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Últimos 7 días' }));
     await user.click(screen.getByRole('button', { name: 'Aplicar' }));
     expect([stock, trades, balances].map(card => card.textContent)).toEqual(stable);
     for (const card of [stock, trades, balances]) {
@@ -694,4 +808,19 @@ describe('Acceso mobile al equipo', () => {
     renderScreen(); await waitFor(() => expect(api.listInvitations).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: 'Invitar al equipo' })).toBeNull();
   });
+});
+
+it('cuenta las unidades pendientes de cobro también para quien no ve importes', async () => {
+  context.appSession.membership = { role: 'MANAGER', sections: ['sales', 'inventory'] };
+  context.sales = [{ ...makeSale('bulk', '2026-10-22', 'Mayorista'), status: 'PENDIENTE', cantidad: 5 }];
+  renderScreen();
+  const metric = await screen.findByRole('button', { name: /Equipos vendidos/ });
+  await waitFor(() => expect(metric.querySelector('.dashboard-kpi-value')).toHaveTextContent('5'));
+  expect(api.fetchReportsOverview).not.toHaveBeenCalled();
+});
+it('muestra tendencia de una devolución compensada aun sin ventas nuevas', async () => {
+  api.fetchReportsOverview.mockResolvedValueOnce({ ...report, summary: { ...report.summary, revenue: -1300, unitsSold: 0 }, salesSeries: [{ start: '2026-10-22', label: '', revenue: -1300, unitsSold: 0 }] });
+  renderScreen();
+  await waitFor(() => expect(document.querySelector('.dashboard-trend .dashboard-chart-empty')).toBeNull());
+  expect(screen.queryByText('Todavía no hay ventas en los últimos 7 días')).not.toBeInTheDocument();
 });
