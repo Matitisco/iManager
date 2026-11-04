@@ -327,7 +327,7 @@ export function InventoryScreen() {
       <div className="dbar">
         {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
-        <SortControl defaultLabel="Recientes" fields={['Precio', 'Calidad', 'Color']} value={sort} onChange={setSort} />
+        <SortControl testId="inventory-sort" placeholder="Ordenar" defaultLabel="Recientes" fields={['Precio', 'Calidad', 'Color']} value={sort} onChange={setSort} />
       </div>
       <div className="inventory-selection-tools">
         <BulkActions key={scope} selection={selection} total={listed.length}

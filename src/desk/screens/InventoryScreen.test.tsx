@@ -754,7 +754,7 @@ describe('Inventory phone list', () => {
     ];
     renderScreen();
 
-    await user.click(screen.getByRole('button', { name: 'Recientes' }));
+    await user.click(within(screen.getByTestId('inventory-sort-field')).getByRole('button'));
     await user.click(screen.getByRole('button', { name: 'Calidad' }));
     const cards = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
     expect(cards[0]).toContain('Plus');
@@ -785,7 +785,7 @@ describe('Inventory phone list', () => {
     const azul = screen.getByText('Azul · 128 GB').closest('button') as HTMLElement;
     expect(within(azul).getByText('Nuevo · Azul')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Recientes' }));
+    await user.click(within(screen.getByTestId('inventory-sort-field')).getByRole('button'));
     await user.click(screen.getByRole('button', { name: 'Color' }));
     const ascending = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
     expect(ascending[0]).toContain('Azul');
@@ -1109,7 +1109,7 @@ it('respeta Precio ↑ y ↓ aunque los equipos sean novedades', async () => {
   context.sectionChanges = { inventory: [{ id: '2', updatedAt: '2026-10-26T12:00:00Z' }] };
   renderScreen();
   const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
-  await user.click(screen.getByRole('button', { name: 'Recientes' }));
+  await user.click(within(screen.getByTestId('inventory-sort-field')).getByRole('button'));
   await user.click(screen.getByRole('button', { name: 'Precio' }));
   const models = () => screen.getAllByRole('row').slice(1).map(row => row.textContent);
   expect(models()[0]).toContain('Barato');
@@ -1277,4 +1277,13 @@ describe('real catalog names in Inventory', () => {
     expect(screen.getByTitle('Clientes finales, Revendedores')).toHaveTextContent('En catálogo');
     vi.restoreAllMocks();
   });
+});
+
+it('muestra «Ordenar» con el mismo menú corto que Ventas', async () => {
+  renderScreen();
+  const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+  const trigger = within(screen.getByTestId('inventory-sort-field')).getByRole('button');
+  expect(trigger).toHaveTextContent('Ordenar');
+  await user.click(trigger);
+  expect([...document.querySelectorAll('.menu-floating button')].map(b => b.textContent)).toEqual(['Recientes', 'Precio', 'Calidad', 'Color']);
 });
