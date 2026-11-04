@@ -8,13 +8,13 @@ import { StoreCatalogList } from './StoreCatalogList';
 const context = vi.hoisted(() => ({
   storeCatalogs: [] as NamedCatalog[],
   loadStoreCatalogs: vi.fn(), saveNamedCatalog: vi.fn(), deleteNamedCatalog: vi.fn(), regenerateNamedCatalog: vi.fn(), previewNamedCatalog: vi.fn(),
-  loadPublicCatalog: vi.fn(), setCatalogVisibility: vi.fn(),
+  loadPublicCatalog: vi.fn(), setCatalogVisibility: vi.fn(), setNamedCatalogVisibility: vi.fn(),
   appSession: { membership: { role: 'OWNER', sections: null as string[] | null }, store: { name: 'Tienda de prueba', phone: '1155551234', currency: 'USD' } },
 }));
 vi.mock('../../context/AppContext', () => ({ useAppContext: () => context }));
 const toast = vi.fn();
 function catalog(id = 'default', name = 'Clientes finales'): NamedCatalog {
-  return { id, name, isDefault: id === 'default', slug: `tienda-${id}`, active: true, hideWithoutStock: true, hideReserved: true, minBattery: null, showPrice: true, priceCurrency: 'ORIGINAL', logoUrl: null, hours: null, priceRuleMode: 'LIST_PERCENT', priceAdjustPercent: 0,
+  return { id, name, itemVisibility: id === 'default' ? 'GLOBAL' : 'OWN', isDefault: id === 'default', slug: `tienda-${id}`, active: true, hideWithoutStock: true, hideReserved: true, minBattery: null, showPrice: true, priceCurrency: 'ORIGINAL', logoUrl: null, hours: null, priceRuleMode: 'LIST_PERCENT', priceAdjustPercent: 0,
     counts: { visible: 1, rules: 0, manual: 0, available: 1 },
     items: [{ id: 'item-1', model: 'Equipo de prueba', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%', price: 300, currency: 'USD', catalogVisible: true, reason: null, manualPrice: null, manualCurrency: 'USD' }],
   };
@@ -153,4 +153,45 @@ describe('multiple catalogs list and editor', () => {
     renderList();
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudieron cargar los catálogos');
   });
+});
+
+it('shows GLOBAL shared visibility note and routes saved toggles to the selected catalog', async () => {
+  const user = userEvent.setup(); renderList();
+  const sheet = await edit();
+  expect(sheet).toHaveTextContent('La visibilidad de este catálogo es compartida con los otros catálogos antiguos.');
+  await user.click(within(sheet).getByText('Equipos y visibilidad', { selector: 'summary' }));
+  await user.click(within(sheet).getByRole('switch', { name: 'Visible en catálogo: Equipo de prueba 128GB' }));
+  expect(context.setNamedCatalogVisibility).toHaveBeenCalledWith('default', ['item-1'], false);
+  expect(context.setCatalogVisibility).not.toHaveBeenCalled();
+});
+it('new draft shows all eligible items visible, lets you hide before saving and previews those ids', async () => {
+  const user = userEvent.setup();
+  context.storeCatalogs[0].items[0] = { ...context.storeCatalogs[0].items[0], catalogVisible: false, reason: 'Oculto a mano' };
+  renderList();
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Nuevo catálogo' })).toBeEnabled());
+  await user.click(screen.getByRole('button', { name: 'Nuevo catálogo' }));
+  const sheet = screen.getByRole('dialog', { name: 'Nuevo catálogo' });
+  const toggle = within(sheet).getByRole('switch', { name: 'Visible en catálogo: Equipo de prueba 128GB' });
+  expect(toggle).toBeChecked();
+  await user.click(toggle);
+  expect(toggle).not.toBeChecked();
+  expect(sheet).toHaveTextContent('Oculto a mano');
+  expect(context.setNamedCatalogVisibility).not.toHaveBeenCalled();
+  expect(context.setCatalogVisibility).not.toHaveBeenCalled();
+  await user.type(within(sheet).getByRole('textbox', { name: 'Nombre' }), 'Nueva lista');
+  await user.click(within(sheet).getByText('Vista previa', { selector: 'summary' }));
+  await waitFor(() => expect(context.previewNamedCatalog).toHaveBeenLastCalledWith(null, expect.objectContaining({ hiddenItemIds: ['item-1'] }), expect.any(AbortSignal)));
+  await user.click(within(sheet).getByRole('button', { name: 'Guardar' }));
+  expect(context.saveNamedCatalog).toHaveBeenCalledWith(null, expect.objectContaining({ name: 'Nueva lista', hiddenItemIds: ['item-1'] }));
+});
+it('OWN saved toggles stay scoped and failures keep the item visible with an error', async () => {
+  const user = userEvent.setup(); renderList(); const sheet = await edit('Revendedores');
+  expect(sheet).not.toHaveTextContent('compartida con los otros catálogos antiguos');
+  await user.click(within(sheet).getByText('Equipos y visibilidad', { selector: 'summary' }));
+  context.setNamedCatalogVisibility.mockRejectedValueOnce(new Error('No se pudo ocultar'));
+  const toggle = within(sheet).getByRole('switch', { name: 'Visible en catálogo: Equipo de prueba 128GB' });
+  await user.click(toggle);
+  expect(context.setNamedCatalogVisibility).toHaveBeenCalledWith('resellers', ['item-1'], false);
+  expect(await within(sheet).findByRole('alert')).toHaveTextContent('No se pudo ocultar');
+  expect(toggle).toBeChecked();
 });

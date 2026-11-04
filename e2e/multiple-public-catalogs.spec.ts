@@ -42,3 +42,46 @@ for (const width of [1440, 390]) test(`multiple catalogs keep independent prices
   const paused = await request.get(`${api}/api/public/catalog/${resellerLink!.split('/c/')[1]}`);
   expect((await paused.json()).active).toBe(false);
 });
+
+test('new catalog starts visible and hides only the selected item @smoke', async ({ page, request }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const email = buildTestEmail(info, 'catalog-own-visibility');
+  await bootstrapStoreViaApi(page, request, email, 'Tienda ficticia');
+  const first = await createInventoryItemViaApi(request, email, { imei: '359740000000011', model: 'Equipo Alfa', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '95%', cost: 100, price: 200 });
+  await createInventoryItemViaApi(request, email, { imei: '359740000000012', model: 'Equipo Beta', capacity: '128GB', color: 'Azul', condition: 'USADO', grade: 'A', batteryHealth: '90%', cost: 100, price: 250 });
+  // No global publication: OWN must include both without changing those flags.
+  await page.reload();
+  await openDeskSection(page, 'publicCatalog');
+  const add = page.getByRole('button', { name: 'Nuevo catálogo' });
+  await expect(add).toBeEnabled();
+  await add.click();
+  const draft = page.getByRole('dialog', { name: 'Nuevo catálogo' });
+  await expect(draft.getByRole('switch', { name: 'Visible en catálogo: Equipo Alfa 128GB' })).toBeChecked();
+  await expect(draft.getByRole('switch', { name: 'Visible en catálogo: Equipo Beta 128GB' })).toBeChecked();
+  await draft.getByRole('textbox', { name: 'Nombre', exact: true }).fill('Lista propia');
+  await draft.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(draft).toBeHidden();
+  const row = page.getByRole('article', { name: 'Lista propia' });
+  await expect(row.locator('.cat-catalog-count b')).toHaveText('2');
+  const link = (await row.getByRole('link').getAttribute('href'))!;
+  const publicUrl = `${api}/api/public/catalog/${link.split('/c/')[1]}`;
+  const before = await request.get(publicUrl);
+  expect(before.ok()).toBeTruthy();
+  expect((await before.json()).items).toHaveLength(2);
+  await row.getByRole('button', { name: 'Editar ›' }).click();
+  const editor = page.getByRole('dialog', { name: 'Lista propia' });
+  await editor.getByText('Equipos y visibilidad', { exact: true }).click();
+  const toggle = editor.getByRole('switch', { name: 'Visible en catálogo: Equipo Alfa 128GB' });
+  await expect(toggle).toBeChecked();
+  const saved = page.waitForResponse(response => response.request().method() === 'PATCH' && /\/api\/catalog\/list\/[^/]+\/items$/.test(new URL(response.url()).pathname));
+  await toggle.click();
+  expect((await saved).ok()).toBeTruthy();
+  await expect(toggle).not.toBeChecked();
+  const after = await request.get(publicUrl);
+  expect((await after.json()).items.map((item: { model: string }) => item.model)).toEqual(['Equipo Beta']);
+  const inventory = await request.get(`${api}/api/inventory`, { headers: authHeaders(email) });
+  expect((await inventory.json()).inventory.find((item: { id: string }) => item.id === first.inventoryItem.id)).toMatchObject({ catalogVisible: false, catalogNames: [], catalogIncluded: false });
+  await editor.getByRole('button', { name: 'Guardar', exact: true }).click();
+  await expect(editor).toBeHidden();
+  await expect(row.locator('.cat-catalog-count b')).toHaveText('1');
+});

@@ -4,7 +4,7 @@ import type { AppSession } from '../types/app-session';
 import type { NamedCatalog } from '../types/public-catalog';
 import * as api from '../services/public-catalog-api';
 import { usePublicCatalogState } from './public-catalog-state';
-vi.mock('../services/public-catalog-api', () => ({ fetchStoreCatalogs: vi.fn(), saveStoreCatalog: vi.fn(), deleteStoreCatalog: vi.fn(), regenerateStoreCatalog: vi.fn(), previewStoreCatalog: vi.fn(), fetchCatalogSettings: vi.fn(), saveCatalogSettings: vi.fn(), regenerateCatalog: vi.fn(), changeCatalogVisibility: vi.fn() }));
+vi.mock('../services/public-catalog-api', () => ({ changeStoreCatalogVisibility: vi.fn(), fetchStoreCatalogs: vi.fn(), saveStoreCatalog: vi.fn(), deleteStoreCatalog: vi.fn(), regenerateStoreCatalog: vi.fn(), previewStoreCatalog: vi.fn(), fetchCatalogSettings: vi.fn(), saveCatalogSettings: vi.fn(), regenerateCatalog: vi.fn(), changeCatalogVisibility: vi.fn() }));
 const user = { uid: 'fake-owner', email: null, displayName: null, getIdToken: vi.fn(async () => 'fake-token') };
 function session(id = 'fake-store'): AppSession {
   return { user: { id: 'fake-user', firebaseUid: user.uid, email: null, displayName: null, avatarUrl: null }, store: { id, name: 'Tienda falsa', legalName: null, taxId: null, phone: null, email: null, instagram: null, address: null, currency: 'USD', timezone: 'America/Argentina/Buenos_Aires' }, membership: { role: 'OWNER', isDefault: true }, onboardingRequired: false };
@@ -47,4 +47,21 @@ describe('catalog session and completed writes', () => {
     expect(result.current.publicCatalog).toBeNull();
     expect(updateInventory).not.toHaveBeenCalled();
   });
+});
+
+it('refreshes authoritative inventory after non-default writes and deletion, never passes default-only data', async () => {
+  const saved = { ...catalog('Mayoristas'), id: 'own', isDefault: false, itemVisibility: 'OWN' as const };
+  vi.mocked(api.saveStoreCatalog).mockResolvedValue(saved);
+  vi.mocked(api.changeStoreCatalogVisibility).mockResolvedValue(saved);
+  vi.mocked(api.deleteStoreCatalog).mockResolvedValue(undefined);
+  const refresh = vi.fn();
+  const { result } = renderHook(() => usePublicCatalogState(user, session(), 'ready', refresh));
+  await act(async () => { await result.current.saveNamedCatalog('own', { active: true }); });
+  expect(refresh).toHaveBeenLastCalledWith();
+  await act(async () => { await result.current.setNamedCatalogVisibility('own', ['item'], false); });
+  expect(api.changeStoreCatalogVisibility).toHaveBeenCalledWith(user, 'own', ['item'], false);
+  expect(api.changeCatalogVisibility).not.toHaveBeenCalled();
+  await act(async () => { await result.current.deleteNamedCatalog('own'); });
+  expect(refresh).toHaveBeenCalledTimes(3);
+  expect(api.fetchStoreCatalogs).not.toHaveBeenCalled();
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { batteryMinimum, convertCatalogPrice, countAvailable, ruleReason } from './rules.js';
+import { itemVisibleInCatalog, batteryMinimum, convertCatalogPrice, countAvailable, ruleReason } from './rules.js';
 import { settingsSchema } from './schema.js';
 import { catalogPreviewPng, escapeXml } from './preview.js';
 import sharp from 'sharp';
@@ -32,5 +32,16 @@ describe('catalog rules', () => {
     const png = await catalogPreviewPng({ store: { name: 'Tienda <&>', phone: null, address: null, logoUrl: null, hours: null, currency: 'USD' }, active: true, showPrice: false, priceCurrency: 'USD', items: [{ model: 'iPhone <15>', capacity: '128GB', color: 'Negro', condition: 'USADO', grade: 'A', batteryHealth: '90%' }] });
     const metadata = await sharp(png).metadata();
     expect([metadata.width, metadata.height, metadata.format]).toEqual([1200, 630, 'png']);
+  });
+});
+
+describe('catalog visibility modes', () => {
+  it.each([
+    ['GLOBAL', false, false, false], ['GLOBAL', true, false, true],
+    ['GLOBAL', true, true, true], ['GLOBAL', false, true, false],
+    ['OWN', false, false, true], ['OWN', true, false, true],
+    ['OWN', false, true, false], ['OWN', true, true, false],
+  ])('%s with global=%s hidden=%s yields %s', (mode, global, hidden, expected) => {
+    expect(itemVisibleInCatalog(String(mode), Boolean(global), Boolean(hidden))).toBe(expected);
   });
 });

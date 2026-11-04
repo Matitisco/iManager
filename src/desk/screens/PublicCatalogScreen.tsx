@@ -24,9 +24,13 @@ export function CatalogToggle({ label, checked, disabled, onChange }: { label: s
 }
 export { StoreCatalogList as PublicCatalogScreen } from './StoreCatalogList';
 
-export function CatalogEquipmentScreen({ catalogOverride, embedded = false }: { catalogOverride?: ManagedCatalog; embedded?: boolean } = {}) {
-  const { publicCatalog: contextCatalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, appSession } = useAppContext();
+export function CatalogEquipmentScreen({ catalogOverride, embedded = false, disabled = false, onBusyChange, onVisibilityChange }: { catalogOverride?: ManagedCatalog; embedded?: boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void; onVisibilityChange?: (ids: string[], visible: boolean) => Promise<void> } = {}) {
+  const { publicCatalog: contextCatalog, loadPublicCatalog, savePublicCatalog, setCatalogVisibility, setNamedCatalogVisibility, appSession } = useAppContext();
   const catalog = catalogOverride ?? contextCatalog;
+  const changeVisibility = onVisibilityChange ?? ((ids: string[], visible: boolean) =>
+    catalogOverride && 'id' in catalogOverride && typeof catalogOverride.id === 'string'
+      ? setNamedCatalogVisibility(catalogOverride.id, ids, visible)
+      : setCatalogVisibility(ids, visible));
   const { toast, open, back } = useDesk();
   const phone = usePhoneLayout();
   const [query, setQuery] = useState('');
@@ -51,10 +55,10 @@ export function CatalogEquipmentScreen({ catalogOverride, embedded = false }: { 
     return () => { active = false; };
   }, [loadPublicCatalog, embedded]);
   const run = async (action: () => Promise<void>) => {
-    if (pending.current) return;
-    pending.current = true; setBusy(true); setError('');
+    if (pending.current || disabled) return;
+    pending.current = true; setBusy(true); onBusyChange?.(true); setError('');
     try { await action(); } catch (cause) { setError(toActionMessage(cause)); }
-    finally { pending.current = false; setBusy(false); }
+    finally { pending.current = false; setBusy(false); onBusyChange?.(false); }
   };
   const link = catalog ? `${window.location.origin}/c/${catalog.slug}` : '';
   const copy = async () => {
@@ -120,8 +124,8 @@ export function CatalogEquipmentScreen({ catalogOverride, embedded = false }: { 
                 {selectedElsewhere > 0 && <small>{selectedElsewhere} en otras páginas</small>}
               </div>
               <div className="cat-bulk-actions">
-                <button className="cat-button" disabled={busy || !selectedIds.length} onClick={() => void run(async () => { await setCatalogVisibility(selectedIds, true); setSelected(new Set()); })}><Eye size={16} />Mostrar</button>
-                <button className="cat-button" disabled={busy || !selectedIds.length} onClick={() => void run(async () => { await setCatalogVisibility(selectedIds, false); setSelected(new Set()); })}><EyeOff size={16} />Ocultar</button>
+                <button className="cat-button" disabled={disabled || busy || !selectedIds.length} onClick={() => void run(async () => { await changeVisibility(selectedIds, true); setSelected(new Set()); })}><Eye size={16} />Mostrar</button>
+                <button className="cat-button" disabled={disabled || busy || !selectedIds.length} onClick={() => void run(async () => { await changeVisibility(selectedIds, false); setSelected(new Set()); })}><EyeOff size={16} />Ocultar</button>
               </div>
             </div>
             <label className="cat-select-all">
@@ -132,7 +136,7 @@ export function CatalogEquipmentScreen({ catalogOverride, embedded = false }: { 
           {page.visible.map(item => <div className={`cat-equipment-row${selected.has(item.id) ? ' selected' : ''}`} key={item.id}>
             {selecting && <input type="checkbox" aria-label={`Seleccionar ${item.model} ${item.capacity}`} checked={selected.has(item.id)} onChange={() => setSelected(current => { const next = new Set(current); next.has(item.id) ? next.delete(item.id) : next.add(item.id); return next; })} />}
             <div className="cat-equipment-info"><b>{item.model} · {item.capacity}</b><small>{item.color} · {catalogCondition(item)} · bat. {item.batteryHealth}</small>{item.reason && <span className={`cat-reason${item.reason === 'Oculto a mano' ? ' manual' : ''}`}><EyeOff size={11} />{item.reason}</span>}</div>
-            {!selecting && <><strong data-ph-mask>{catalogPrice({ ...item, currency: item.currency ?? appSession?.store?.currency })}</strong><CatalogToggle label={`Visible en catálogo: ${item.model} ${item.capacity}`} checked={item.catalogVisible && !item.reason} disabled={busy || (!!item.reason && item.reason !== 'Oculto a mano')} onChange={() => void run(() => setCatalogVisibility([item.id], !item.catalogVisible))} /></>}
+            {!selecting && <><strong data-ph-mask>{catalogPrice({ ...item, currency: item.currency ?? appSession?.store?.currency })}</strong><CatalogToggle label={`Visible en catálogo: ${item.model} ${item.capacity}`} checked={item.catalogVisible && !item.reason} disabled={disabled || busy || (!!item.reason && item.reason !== 'Oculto a mano')} onChange={() => void run(() => changeVisibility([item.id], !item.catalogVisible))} /></>}
           </div>)}
           {!rows.length && <p className="cat-empty">{catalog.items.length ? 'No hay equipos con esa búsqueda.' : 'Agregá equipos en Inventario para publicarlos.'}</p>}
           <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} pageSize={CATALOG_PAGE_SIZE} />

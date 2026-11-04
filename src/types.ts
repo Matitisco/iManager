@@ -2,6 +2,7 @@ export interface Product {
   cantidad?: number;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
+  catalogNames?: string[];
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
   reservedClientName?: string | null;

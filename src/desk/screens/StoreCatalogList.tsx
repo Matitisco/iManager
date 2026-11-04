@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAppContext } from '../../context/AppContext';
 import type { CatalogEdit, NamedCatalog, PublicCatalog } from '../../types/public-catalog';
 import { toActionMessage } from '../../lib/user-message';
+import { draftCatalogReason } from '../../catalog/draft-visibility';
 import { PriceList } from '../../catalog/PriceList';
 import { canSeeFinancials } from '../sections';
 import { usePhoneLayout } from '../section-notices';
@@ -15,7 +16,7 @@ import './public-catalog.css';
 
 const defaults = { active: true, hideWithoutStock: true, hideReserved: true, minBattery: null, showPrice: true, priceCurrency: 'ORIGINAL', logoUrl: null, hours: null, priceRuleMode: 'LIST_PERCENT', priceAdjustPercent: 0 } as const;
 function settings(catalog: NamedCatalog | null, financials: boolean): CatalogEdit {
-  if (!catalog) return { ...defaults, name: '' };
+  if (!catalog) return { ...defaults, name: '', hiddenItemIds: [] };
   return { name: catalog.name, active: catalog.active, hideWithoutStock: catalog.hideWithoutStock, hideReserved: catalog.hideReserved, minBattery: catalog.minBattery, showPrice: catalog.showPrice, priceCurrency: catalog.priceCurrency, logoUrl: catalog.logoUrl, hours: catalog.hours, ...(catalog.priceRuleMode && (financials || catalog.priceRuleMode !== 'COST_PERCENT') ? { priceRuleMode: catalog.priceRuleMode, priceAdjustPercent: catalog.priceAdjustPercent ?? 0 } : {}) };
 }
 export function catalogSummary(catalog: NamedCatalog, financials = true) {
@@ -74,12 +75,14 @@ export function StoreCatalogList() {
 }
 
 function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog | null; copy: (slug: string) => Promise<boolean>; onClose: () => void }) {
-  const { regenerateNamedCatalog, saveNamedCatalog, deleteNamedCatalog, previewNamedCatalog, appSession } = useAppContext();
+  const { regenerateNamedCatalog, saveNamedCatalog, deleteNamedCatalog, previewNamedCatalog, storeCatalogs, appSession } = useAppContext();
   const owner = appSession?.membership?.role === 'OWNER';
   const financials = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const [draft, setDraft] = useState<CatalogEdit>(() => settings(catalog, financials));
   const [adjustment, setAdjustment] = useState(() => String(catalog?.priceAdjustPercent ?? 0));
-  const [busy, setBusy] = useState(false);
+  const [saving, setBusy] = useState(false);
+  const [visibilityBusy, setVisibilityBusy] = useState(false);
+  const busy = saving || visibilityBusy;
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
@@ -98,9 +101,9 @@ function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog 
       void previewRequest.current(catalog?.id ?? null, JSON.parse(visibleDraft) as CatalogEdit, controller.signal).then(data => { if (!controller.signal.aborted) setPreview(data); }).catch(cause => { if (!controller.signal.aborted) setPreviewError(toActionMessage(cause)); });
     }, 300);
     return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [visibleDraft, catalog?.id, showPreview]);
+  }, [visibleDraft, catalog, showPreview]);
   const save = async (remove = false, regenerate = false) => {
-    if (pending.current) return;
+    if (pending.current || visibilityBusy) return;
     if (!remove && !regenerate && !draft.name?.trim()) { setError('Poné un nombre para el catálogo.'); return; }
     pending.current = true; setBusy(true); setError('');
     try {
@@ -115,7 +118,30 @@ function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog 
     finally { pending.current = false; setBusy(false); }
   };
   const rule = (key: 'hideWithoutStock' | 'hideReserved' | 'showPrice', label: string) => <div className="cat-rule-row"><b>{label}</b><CatalogToggle label={label} checked={!!draft[key]} disabled={busy} onChange={() => setDraft(current => ({ ...current, [key]: !current[key] }))} /></div>;
-  const itemsPage = usePagedRows(catalog?.items ?? [], catalog?.id, 16);
+  // Management data is available even to catalog editors without Inventory access.
+  const originalSource = catalog?.items ?? storeCatalogs.find(row => row.isDefault)?.items ?? [];
+  // A new list must not inherit the default catalog's manual prices or markup.
+  const source = catalog ? originalSource : originalSource.map(item => ({ ...item, manualPrice: null,
+    price: item.listPrice !== undefined ? item.listPrice : item.price,
+    currency: item.listCurrency ?? item.currency,
+    manualCurrency: item.listCurrency ?? item.currency ?? appSession?.store?.currency ?? 'USD',
+  }));
+  const hidden = new Set(draft.hiddenItemIds ?? []);
+  const draftSettings = { ...defaults, ...draft };
+  const draftItems = source.map(item => ({ ...item, catalogVisible: !hidden.has(item.id), reason: draftCatalogReason(item, draftSettings, hidden.has(item.id)) }));
+  const draftCatalog = { ...draftSettings, slug: '', itemVisibility: 'OWN' as const, items: draftItems, counts: {
+    visible: draftItems.filter(item => !item.reason).length,
+    manual: draftItems.filter(item => item.reason === 'Oculto a mano').length,
+    rules: draftItems.filter(item => item.reason && item.reason !== 'Oculto a mano').length,
+    available: draftItems.filter(item => !item.status || item.status === 'DISPONIBLE').reduce((total, item) => total + (item.cantidad ?? 1), 0),
+  } };
+  const itemsPage = usePagedRows(source, catalog?.id, 16);
+  const changeDraftVisibility = async (ids: string[], visible: boolean) => {
+    const next = new Set(draft.hiddenItemIds ?? []);
+    ids.forEach(id => { if (visible) next.delete(id); else next.add(id); });
+    if (next.size > 500) throw new Error('Podés ocultar hasta 500 equipos al crear el catálogo. Guardalo para seguir editando.');
+    setDraft(current => ({ ...current, hiddenItemIds: [...next] }));
+  };
   const manual = draft.priceRuleMode === 'MANUAL';
   const manualEdit = (inventoryItemId: string, price: number | null, currency: 'ARS' | 'USD') => setDraft(current => ({ ...current, manualPrices: [...(current.manualPrices ?? []).filter(row => row.inventoryItemId !== inventoryItemId), { inventoryItemId, price, currency }] }));
   return <><Sheet title={catalog?.name ?? 'Nuevo catálogo'} onClose={() => { if (!busy) onClose(); }} busy={busy} mobileBack className="cat-rules-sheet cat-multiple-editor" overlayClassName="cat-editor-overlay" footer={<Actions primary="Guardar" onPrimary={() => void save()} onSecondary={onClose} busy={busy} />}>
@@ -124,7 +150,7 @@ function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog 
       <label className="cat-rule-row"><b>Nombre</b><input aria-label="Nombre" maxLength={100} value={draft.name ?? ''} disabled={busy} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></label>
       <div className="cat-rule-row"><b>Link</b>{catalog ? <><a className="cat-editor-link" href={`/c/${catalog.slug}`} target="_blank" rel="noreferrer">/c/{catalog.slug}</a><button className="cat-button dark" onClick={() => { void copy(catalog.slug).then(copied => { if (!copied) setError('No se pudo copiar el link. Podés abrirlo y copiar la dirección.'); }); }}>Copiar</button></> : <small>Se crea al guardar.</small>}</div>
     </div>
-    <div className="cat-label">Qué equipos se muestran <span>{catalog?.counts.visible ?? 0} visibles</span></div>
+    <div className="cat-label">Qué equipos se muestran <span>{catalog?.counts.visible ?? draftCatalog.counts.visible} visibles</span></div>
     <div className="cat-rule-box">{rule('hideWithoutStock', 'Ocultar sin stock y vendidos')}{rule('hideReserved', 'Ocultar reservados')}
       <div className="cat-rule-row"><b>Ocultar batería menor a</b><input type="number" aria-label="Batería mínima" min="0" max="100" value={draft.minBattery ?? 80} disabled={busy || draft.minBattery == null} onChange={event => setDraft(current => ({ ...current, minBattery: Number(event.target.value) }))} /><CatalogToggle label="Ocultar batería menor a" checked={draft.minBattery != null} disabled={busy} onChange={() => setDraft(current => ({ ...current, minBattery: current.minBattery == null ? 80 : null }))} /></div>
     </div>
@@ -139,14 +165,14 @@ function StoreCatalogEditor({ catalog, copy, onClose }: { catalog: NamedCatalog 
       {draft.priceRuleMode && !manual && <label className="cat-rule-row"><b>Ajuste sobre el precio</b><input aria-label="Ajuste sobre el precio" type="number" min="-100" max="10000" step="0.01" disabled={busy} value={adjustment} onChange={event => { setAdjustment(event.target.value); setDraft(current => ({ ...current, priceAdjustPercent: Number(event.target.value) })); }} /><span>%</span></label>}
       <div className="cat-currency"><b>Moneda</b><div>{(['USD', 'ARS', 'ORIGINAL'] as const).map(currency => <button key={currency} className={draft.priceCurrency === currency ? 'on' : ''} disabled={busy} onClick={() => setDraft(current => ({ ...current, priceCurrency: currency }))}>{currency === 'ORIGINAL' ? 'Como está cargado' : currency}</button>)}</div><small>Los precios se convierten con la cotización de venta de la tienda.</small></div>
     </div>
-    <p className="cat-editor-note">Todos los catálogos comparten los equipos marcados como visibles. Cada uno tiene sus propias reglas y precios.</p>
-    {manual && <div className="cat-manual-prices"><div className="cat-label">Precio por equipo</div><p className="cat-editor-note">Si dejás un precio vacío, se usa el precio de lista. La moneda se convierte según la opción de arriba.</p>{!catalog && <p>Guardá el catálogo para cargar precios por equipo.</p>}{itemsPage.visible.map(item => {
+    {catalog && catalog.itemVisibility !== 'OWN' ? <p className="cat-editor-note">La visibilidad de este catálogo es compartida con los otros catálogos antiguos.</p> : <p className="cat-editor-note">Los equipos nuevos se muestran por defecto. Podés ocultarlos solo en este catálogo.</p>}
+    {manual && <div className="cat-manual-prices"><div className="cat-label">Precio por equipo</div><p className="cat-editor-note">Si dejás un precio vacío, se usa el precio de lista. La moneda se convierte según la opción de arriba.</p>{itemsPage.visible.map(item => {
       const changed = draft.manualPrices?.find(row => row.inventoryItemId === item.id);
       const value = changed ? changed.price : item.manualPrice;
       const currency = changed?.currency ?? (item.manualCurrency === 'USD' ? 'USD' : 'ARS');
       return <div className="cat-manual-row" key={item.id}><div><b>{item.model} · {item.capacity}</b><small>{item.color}{item.reason ? ` · ${item.reason}` : ''}</small></div><input aria-label={`Precio manual de ${item.model} ${item.capacity} ${item.color}`} type="number" min="0" max="9999999999.99" step="0.01" disabled={busy} value={value ?? ''} placeholder="Lista" onChange={event => manualEdit(item.id, event.target.value === '' ? null : Number(event.target.value), currency)} /><DeskSelect label={`Moneda de ${item.model} ${item.capacity} ${item.color}`} value={currency} disabled={busy} options={[{ value: 'ARS', label: 'ARS' }, { value: 'USD', label: 'USD' }]} onChange={next => manualEdit(item.id, value ?? null, next as 'ARS' | 'USD')} /></div>;
     })}<TablePager page={itemsPage.page} pages={itemsPage.pages} total={itemsPage.total} from={itemsPage.from} to={itemsPage.to} onPage={itemsPage.setPage} pageSize={16} /></div>}
-    {catalog && <details className="cat-editor-equipment"><summary>Equipos y visibilidad compartida</summary><CatalogEquipmentScreen catalogOverride={catalog} embedded /></details>}
+    <details className="cat-editor-equipment" open={!catalog || undefined}><summary>Equipos y visibilidad</summary><CatalogEquipmentScreen catalogOverride={catalog ?? draftCatalog} embedded disabled={saving} onBusyChange={setVisibilityBusy} onVisibilityChange={catalog ? undefined : changeDraftVisibility} /></details>
     <details className="cat-brand-details"><summary>Logo y horario</summary><div className="cat-brand-fields"><label>Logo de la tienda (URL https)<input type="url" value={draft.logoUrl ?? ''} disabled={busy} onChange={event => setDraft(current => ({ ...current, logoUrl: event.target.value || null }))} /></label><label>Horario de atención<input maxLength={120} value={draft.hours ?? ''} disabled={busy} onChange={event => setDraft(current => ({ ...current, hours: event.target.value || null }))} /></label></div></details>
     <details className="cat-editor-preview" onToggle={event => setShowPreview(event.currentTarget.open)}><summary>Vista previa</summary>{showPreview && (previewError ? <div role="alert" className="ferr">{previewError}</div> : preview ? <div className="cat-preview public-price-page"><PriceList items={preview.items.slice(0, 6)} /></div> : <ListSkeleton variant="lines" rows={3} />)}</details>
     {catalog && owner && <button className="cat-button" disabled={busy} onClick={() => setConfirmRegenerate(true)}>Regenerar link</button>}
