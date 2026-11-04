@@ -16,7 +16,14 @@ La transacción Serializable revalida la membresía OWNER con bloqueo compartido
 
 ## Confirmación y dependencias
 
-La acción aparece para OWNER y registros con baja previa en el menú contextual y en el detalle. El modal muestra etiqueta, identificador, aviso irreversible y consecuencias de la entidad. Exige escribir exactamente `BORRAR`, bloquea doble envío y cierre mientras guarda y muestra errores sin cerrar como éxito.
+La acción aparece para OWNER y registros con baja previa en el menú contextual y en el detalle. El modal muestra etiqueta, identificador, aviso irreversible y consecuencias de la entidad. Exige escribir exactamente `BORRAR`; durante la petición muestra `Borrando…`, deshabilita botón principal, Cancelar e input y bloquea doble envío y cierre. Muestra errores dentro del modal sin cerrarlo como éxito.
+
+| Falla | Mensaje |
+| --- | --- |
+| 404 | No encontramos este registro: puede que ya se haya borrado. Actualizá la pantalla. |
+| 403 | Solo el dueño de la tienda puede borrar definitivamente. |
+| 409 | Primero anulá o archivá el registro para poder borrarlo. |
+| Red u otra | No se pudo borrar. Revisá tu conexión y reintentá. |
 
 Se respetan las relaciones existentes:
 
@@ -26,9 +33,13 @@ Se respetan las relaciones existentes:
 - Canje: conserva venta y equipo recibido.
 - Reparación: elimina eventos de estados; conserva cliente, cobros y auditoría.
 
-El borrado definitivo no vuelve a modificar stock, saldos, caja ni comisiones. AppContext retira el registro solo después de la respuesta exitosa y reconcilia las listas relacionadas al liberar el bloqueo de escritura. La revisión compartida de archivos invalida respuestas que comenzaron antes del borrado. Las respuestas de otra tienda no alteran las listas/cachés actuales.
+El borrado definitivo no vuelve a modificar stock, saldos, caja ni comisiones. AppContext retira el registro después de la respuesta exitosa o de un 404, que confirma su ausencia. En 404 conserva la identificación del registro y el error dentro del modal; los demás errores conservan el registro local. Tras un éxito reconcilia las listas relacionadas al liberar el bloqueo de escritura. La revisión compartida de archivos invalida respuestas que comenzaron antes del borrado. Las respuestas de otra tienda no alteran las listas/cachés actuales, incluso si son 404.
 
 ## Validación
+
+Seguimiento #703 (2026-11-04): 176 pruebas frontend relevantes aprobadas entre transporte de borrado, confirmación, concurrencia de AppContext, cliente HTTP y componentes de modal. Las URLs se prueban hasta `fetchWithTimeout` usando el cliente real, incluyendo `/api`, las cinco entidades, base con barra final e ID codificado. Typecheck de frontend/backend aprobado. Oxlint 1.90.0 aprobado con advertencias preexistentes; ejecutado con `npm exec --yes --package=oxlint@1.90.0 -- oxlint -c .oxlintrc.json src backend/src scripts` porque el binario local no estaba instalado. Sin cambios de backend ni acceso a bases en este seguimiento; commit solicitado sin push.
+
+Validación de la implementación original:
 
 - `npm run lint` y `npm --prefix backend run lint`: TypeScript sin emitir archivos; sin build.
 - Suite completa frontend: 2.987 pruebas.

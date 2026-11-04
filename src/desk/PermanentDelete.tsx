@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import type { Client, Product, RepairOrder, Sale, TradeIn } from '../types';
-import type { PermanentDeleteKind } from '../services/permanent-delete-api';
+import { permanentDeleteErrorMessage, type PermanentDeleteKind } from '../services/permanent-delete-api';
 import { archivedClient, archivedProduct, archivedRepair, voidedSale, voidedTrade } from './archive-cache';
 import { isVoidRow } from './format';
 import { Actions, Field, Sheet, useDesk } from './ui';
@@ -51,12 +51,18 @@ export function PermanentDeleteConfirmation({ kind, id, busy, error, run }: {
   const { close } = useDesk();
   const [confirmation, setConfirmation] = useState('');
   const pending = useRef(false);
-  const record = permanentDeleteRecord(kind, id, ctx);
+  // A 404 removes the local row; keep its identity and error visible until close.
+  const [record] = useState(() => permanentDeleteRecord(kind, id, ctx));
   if (ctx.appSession?.membership?.role !== 'OWNER' || !record?.inactive) return null;
   const submit = async () => {
     if (pending.current || busy || confirmation !== 'BORRAR') return;
     pending.current = true;
-    try { await run(() => ctx.permanentlyDeleteRecord(kind, id), 'Registro borrado definitivamente'); }
+    try {
+      await run(async () => {
+        try { await ctx.permanentlyDeleteRecord(kind, id); }
+        catch (error) { throw new Error(permanentDeleteErrorMessage(error), { cause: error }); }
+      }, 'Registro borrado definitivamente');
+    }
     finally { pending.current = false; }
   };
   return <Sheet title="Borrar definitivamente" subtitle={record.label} maskSubtitle onClose={close} busy={busy}

@@ -5,3 +5,6 @@
 - [x] Agregar regresiones React de visibilidad, confirmación, errores, doble submit y AppContext.
 - [x] Ejecutar lint/typecheck y pruebas relevantes en DB local exclusiva.
 - [x] Documentar evidencia y crear commit requerido en rama actual sin push.
+- [x] #703: corregir URL /api y mensajes por status; reconciliar 404 sin cerrar el modal.
+- [x] #703: probar cinco URLs finales, errores, reconciliación 404 y estado Borrando… sin doble envío.
+- [x] #703: correr lint, typecheck y tests relevantes; commit solicitado sin push.
