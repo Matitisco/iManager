@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { Children, cloneElement, isValidElement, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useCatalogs } from './catalog';
@@ -92,24 +93,36 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const [menuLeft, setMenuLeft] = useState<number>();
+  const [place, setPlace] = useState<{ top: number; left: number; maxHeight: number }>();
   useLayoutEffect(() => {
     if (!open) return;
-    const place = () => {
+    const update = () => {
       if (!box.current || !menu.current) return;
       const anchor = box.current.getBoundingClientRect();
       const width = menu.current.getBoundingClientRect().width;
-      const left = Math.max(12, Math.min(anchor.right - width, window.innerWidth - 12 - width));
-      setMenuLeft(left - anchor.left);
+      const start = box.current.classList.contains('menu-start') || Boolean(box.current.closest('.sale-pills'));
+      const left = Math.max(12, Math.min(start ? anchor.left : anchor.right - width, window.innerWidth - 12 - width));
+      const below = window.innerHeight - anchor.bottom - 18;
+      const above = anchor.top - 18;
+      const natural = menu.current.scrollHeight;
+      const flip = natural > below && above > below;
+      const maxHeight = Math.max(120, flip ? above : below);
+      const top = flip ? Math.max(12, anchor.top - 6 - Math.min(natural, maxHeight)) : anchor.bottom + 6;
+      setPlace({ top, left, maxHeight });
     };
-    place();
-    window.addEventListener('resize', place);
-    return () => window.removeEventListener('resize', place);
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
   }, [open]);
   useEffect(() => {
     if (!open) return;
     const down = (event: MouseEvent) => {
-      if (!box.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!box.current?.contains(target) && !menu.current?.contains(target)) setOpen(false);
     };
     const key = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -123,18 +136,20 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
   }, [open]);
   return (
     <div className={`dsel${active ? ' on' : ''}`} ref={box} data-testid={testId}>
-      <button type="button" onClick={() => setOpen((current) => !current)}>
+      <button type="button" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         {label}
         <ChevronIcon />
       </button>
-      {open && (
-        <div ref={menu} className="menu" style={menuLeft === undefined ? undefined : { left: menuLeft, right: 'auto' }}>
+      {open && createPortal(
+        <div ref={menu} className="menu menu-floating" data-testid={testId ? `${testId}-menu` : undefined}
+          style={place ? { top: place.top, left: place.left, maxHeight: place.maxHeight } : { visibility: 'hidden', top: 0, left: 0 }}>
           {options.map((option) => (
             <button key={option} type="button" className={option === value ? 'on' : ''} onClick={() => { onChange(option); setOpen(false); }}>
               {option}
             </button>
           ))}
-        </div>
+        </div>,
+        box.current?.closest('.desk-app') ?? document.body,
       )}
     </div>
   );

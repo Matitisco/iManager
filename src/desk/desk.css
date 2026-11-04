@@ -302,6 +302,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 .rbadge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--primary); color: var(--theme-on-action, #fff); font-size: 10px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; pointer-events: none; }
 .htools { position: relative; }
 .menu button:disabled { opacity: .45; }
+.menu.menu-floating { position: fixed; right: auto; z-index: 1000; overflow-y: auto; overscroll-behavior: contain; max-width: calc(100vw - 24px); }
 .phone-row .pending-sale-label { max-width: 100%; flex-wrap: wrap; }
 .sale-hero { background: var(--theme-surface, #fff); border: 1px solid var(--border); border-radius: 22px; padding: 16px; margin-bottom: 14px; max-width: 100%; }
 .sale-hero .eb { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--section); }
