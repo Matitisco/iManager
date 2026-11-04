@@ -16,7 +16,7 @@ for (const width of [390, 1440]) {
       let editor = page.getByRole('dialog', { name: 'Registrar venta' });
       await editor.getByRole('combobox', { name: 'Equipo', exact: true }).fill('Equipo por encargue ficticio');
       await editor.getByLabel('Precio completo de salida').fill('1500,31');
-      await editor.getByRole('textbox', { name: 'Costo de compra' }).fill('900,12');
+      await editor.getByRole('textbox', { name: 'Costo del equipo' }).fill('900,12');
       await expect(editor.getByLabel('Ganancia', { exact: true })).toContainText('600,19');
       const createResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/operations/sales'));
       await editor.getByRole('button', { name: 'Confirmar venta', exact: true }).click();
@@ -34,8 +34,8 @@ for (const width of [390, 1440]) {
       await row.click();
       await (await sheetAction(page.getByRole('dialog', { name: /V-/ }), 'Editar')).click();
       editor = page.getByRole('dialog', { name: 'Editar operación' });
-      await expect(editor.getByRole('textbox', { name: 'Costo de compra' })).toHaveValue('900,12');
-      await editor.getByRole('textbox', { name: 'Costo de compra' }).fill('1000,12');
+      await expect(editor.getByRole('textbox', { name: 'Costo del equipo' })).toHaveValue('900,12');
+      await editor.getByRole('textbox', { name: 'Costo del equipo' }).fill('1000,12');
       await expect(editor.getByLabel('Ganancia', { exact: true })).toContainText('500,19');
       const editResponse = page.waitForResponse(r => r.request().method() === 'PATCH' && r.url().endsWith(`/operations/sales/sales/${sale!.id}`));
       await editor.getByRole('button', { name: 'Guardar cambios', exact: true }).click();
