@@ -755,7 +755,7 @@ describe('Inventory phone list', () => {
     renderScreen();
 
     await user.click(screen.getByRole('button', { name: 'Recientes' }));
-    await user.click(screen.getByRole('button', { name: 'Calidad ↑' }));
+    await user.click(screen.getByRole('button', { name: 'Calidad' }));
     const cards = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
     expect(cards[0]).toContain('Plus');
     expect(cards[1]).toContain('Charlie');
@@ -786,7 +786,7 @@ describe('Inventory phone list', () => {
     expect(within(azul).getByText('Nuevo · Azul')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Recientes' }));
-    await user.click(screen.getByRole('button', { name: 'Color ↑' }));
+    await user.click(screen.getByRole('button', { name: 'Color' }));
     const ascending = [...document.querySelectorAll('.phone-row')].map((row) => row.textContent ?? '');
     expect(ascending[0]).toContain('Azul');
     expect(ascending[1]).toContain('Negro');
@@ -1110,12 +1110,11 @@ it('respeta Precio ↑ y ↓ aunque los equipos sean novedades', async () => {
   renderScreen();
   const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
   await user.click(screen.getByRole('button', { name: 'Recientes' }));
-  await user.click(screen.getByRole('button', { name: 'Precio ↑' }));
+  await user.click(screen.getByRole('button', { name: 'Precio' }));
   const models = () => screen.getAllByRole('row').slice(1).map(row => row.textContent);
   expect(models()[0]).toContain('Barato');
   expect(models()[1]).toContain('Caro');
-  await user.click(screen.getByRole('button', { name: 'Precio ↑' }));
-  await user.click(screen.getByRole('button', { name: 'Precio ↓' }));
+  await user.click(screen.getByRole('button', { name: /cambiar a descendente/ }));
   expect(models()[0]).toContain('Caro');
   expect(models()[1]).toContain('Barato');
   context.sectionChanges = {};
