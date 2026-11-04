@@ -397,6 +397,29 @@ describe('operation detail', () => {
     await waitFor(() => expect(ctx.deleteSale).toHaveBeenCalledWith('s1', ''));
   });
 
+  it('announces the refund for a collected consignment sale without an integrated operation', async () => {
+    const user = userEvent.setup();
+    ctx.sales = [sale({ integratedOperation: false, tradeInId: null, amount: 500310, amountCurrency: 'ARS' })];
+    ctx.tradeIns = [];
+    renderOverlay({ type: 'sale', id: 's1' });
+
+    await openMoreActions(user);
+    await user.click(screen.getByRole('button', { name: 'Anular' }));
+    const dialog = screen.getByRole('dialog', { name: 'Anular venta V-0004' });
+    expect(dialog).toHaveTextContent('Se devolverán $ 500.310.');
+    expect(ctx.deleteSale).not.toHaveBeenCalled();
+
+    ctx.deleteSale.mockRejectedValueOnce(new Error('No se pudo anular'));
+    await user.click(within(dialog).getByRole('button', { name: 'Anular' }));
+    expect(await within(dialog).findByText('No se pudo anular')).toBeInTheDocument();
+    expect(close).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Anular' }));
+    await waitFor(() => expect(close).toHaveBeenCalledOnce());
+    expect(ctx.deleteSale).toHaveBeenCalledWith('s1', '');
+    expect(ctx.fetchSaleOperation).not.toHaveBeenCalled();
+  });
+
   it('shows the cash to return before cancelling a partly paid sale', async () => {
     const user = userEvent.setup();
     ctx.user = { getIdToken: async () => 'token' };

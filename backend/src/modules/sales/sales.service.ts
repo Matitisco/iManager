@@ -606,6 +606,8 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     // Cancellation already restored the operation. Its stock may have been sold again.
     if (!cancelled && existing.inventoryItemId) await releaseStock(tx, storeId, existing);
 
+    if (!cancelled) await reverseCashSource(tx, storeId, 'sale', id, actor);
+
     if (!cancelled && existing.clientId) {
       await recomputeClientStats(tx, storeId, existing.clientId, id);
     }
