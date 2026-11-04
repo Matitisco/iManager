@@ -118,7 +118,7 @@ jobs:
         run: npm run prisma:generate
         working-directory: backend
       - name: Prepare test database
-        run: npx prisma db push --skip-generate
+        run: npx prisma db push --skip-generate && npx prisma db execute --file prisma/post-push.sql --schema prisma/schema.prisma
         working-directory: backend
       - name: Test backend unit
         if: needs.changes.outputs.backend == 'full'
