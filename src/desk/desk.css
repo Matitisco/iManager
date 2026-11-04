@@ -2734,6 +2734,8 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
 
 /* Stock units reuse table typography and neutral controls. */
 .inv-imei-col { white-space: nowrap; }
+.inv-catalog-col { white-space: nowrap; }
+.inv-catalog-col .catalog-mark { display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
 .inv-stock-table .inv-quantity-cell { text-align: center; }
 .inv-stock-table th.inv-quantity-cell .thf { display: grid; grid-template-columns: 22px auto 22px; justify-content: center; }
 .inv-stock-table th.inv-quantity-cell .thf::before { content: ''; }

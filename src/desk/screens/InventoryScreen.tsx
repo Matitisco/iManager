@@ -401,6 +401,11 @@ export function InventoryScreen() {
                     <InventoryNumberRange label="Cantidad" min={columns.quantityMin} max={columns.quantityMax} onMin={quantityMin => setColumn({ quantityMin })} onMax={quantityMax => setColumn({ quantityMax })} />
                   </ColumnFilter>
                 </span></th>
+                <th className="inv-catalog-col"><span className="thf">Catálogo
+                  <ColumnFilter label="catálogo" {...menu('catálogo')} active={columnFilterActive(columns, 'catalog')} onClear={() => setColumn({ catalog: [] })}>
+                    <InventoryCatalogFilter value={columns.catalog} onChange={catalog => setColumn({ catalog })} />
+                  </ColumnFilter>
+                </span></th>
                 {seeCosts ? <th className="r"><span className="thf">Costo
                   <ColumnFilter label="costo" {...menu('costo')} active={columnFilterActive(columns, 'costMin')} onClear={() => setColumn({ costMin: '', costMax: '' })}>
                     <InventoryNumberRange label="Costo" min={columns.costMin} max={columns.costMax} onMin={costMin => setColumn({ costMin })} onMax={costMax => setColumn({ costMax })} />
@@ -518,11 +523,6 @@ export function InventoryScreen() {
                     </ColumnFilter>
                   </span>
                 </th>
-                <th><span className="thf">Catálogo
-                  <ColumnFilter label="catálogo" align="right" {...menu('catálogo')} active={columnFilterActive(columns, 'catalog')} onClear={() => setColumn({ catalog: [] })}>
-                    <InventoryCatalogFilter value={columns.catalog} onChange={catalog => setColumn({ catalog })} />
-                  </ColumnFilter>
-                </span></th>
               </tr>
             </thead>
             <tbody>
@@ -544,6 +544,7 @@ export function InventoryScreen() {
                   </td>
                   <td className="inv-imei-col" data-ph-mask>{item.imei?.trim() ? formatImei(item.imei) : '—'}</td>
                   <InventoryQuantityCell item={item} updateProduct={updateProduct} />
+                  <td className="inv-catalog-col">{item.catalogNames?.length ? <small className="catalog-mark" title={item.catalogNames.join(', ')}>{item.catalogNames.length === 1 ? item.catalogNames[0] : `${item.catalogNames.length} catálogos`}</small> : '—'}</td>
                   {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}
                   <td>{(item.color ?? '').trim() || '—'}</td>
                   <td>{conditionLabel(item.condition)}</td>
@@ -556,7 +557,6 @@ export function InventoryScreen() {
                     {item.reservedClientName ? <small className="reservation-label">Para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
-                  <td>{item.catalogNames?.length ? <small className="catalog-mark" title={item.catalogNames.join(', ')}>{item.catalogNames.length === 1 ? item.catalogNames[0] : `${item.catalogNames.length} catálogos`}</small> : '—'}</td>
                 </PressTarget>
               ))}
             </tbody>
