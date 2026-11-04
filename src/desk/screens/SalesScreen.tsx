@@ -46,7 +46,7 @@ import { salesMatchingSellers, sellerChipLabel, sellerFilterOptions } from '../s
 import { canManageCommissions, canSeeFinancials } from '../sections';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { DeskCta, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { DeskCta, IconButton, ImportButton, MenuButton, SortControl, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product, Sale } from '../../types';
 import type { ReturnCaseView } from '../../services/returns-api';
 import { fetchVoidedSales } from '../../services/sales-api';
@@ -178,7 +178,7 @@ export function SalesScreen() {
       {label}{sort.startsWith(`${label} `) ? ` ${sort.slice(-1)}` : ''}
     </button>
   );
-  const sortControl = <MenuButton testId="sales-sort" label={sort === SALE_LOAD_ORDER ? 'Ordenar' : sort} options={[SALE_LOAD_ORDER, ...SALE_SORT_LABELS.filter(label => seeFinancials || label !== 'Ganancia').flatMap(label => [`${label} ↑`, `${label} ↓`])]} value={sort} active={sort !== SALE_LOAD_ORDER} onChange={setSort} />;
+  const sortControl = <SortControl testId="sales-sort" placeholder="Ordenar" defaultLabel={SALE_LOAD_ORDER} fields={SALE_SORT_LABELS.filter(label => seeFinancials || label !== 'Ganancia')} value={sort} onChange={setSort} />;
   const page = usePagedRows(shown, `${query}|${period}|${sort}|${saleFilterKey(columns)}|${notices.key}|${statusOn ? statusPill : ''}`, undefined, 'Sales');
   const scope = useBulkScope();
   const selection = useBulkSelection(shown, scope);
