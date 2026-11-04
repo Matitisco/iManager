@@ -28,4 +28,13 @@ La UI SHALL ofrecer Borrar definitivamente solo al OWNER para registros con baja
 
 #### Scenario: Persistence failure
 - **WHEN** falla el borrado
-- **THEN** conserva el modal abierto y muestra el error sin retirar el registro
+- **THEN** conserva el modal abierto y muestra según status: 404 «No encontramos este registro: puede que ya se haya borrado. Actualizá la pantalla.»; 403 «Solo el dueño de la tienda puede borrar definitivamente.»; 409 «Primero anulá o archivá el registro para poder borrarlo.»; red/otro «No se pudo borrar. Revisá tu conexión y reintentá.»
+- **AND** solo en 404 retira el registro de la lista y caché local de la tienda actual, conservando su identidad y el error en el modal
+
+#### Scenario: Pending deletion
+- **WHEN** el borrado está en curso
+- **THEN** muestra «Borrando…», deshabilita el botón principal, Cancelar y el input, impide cerrar y no permite enviar una segunda petición
+
+#### Scenario: Permanent deletion URL
+- **WHEN** solicita el borrado de cualquiera de las cinco entidades
+- **THEN** envía DELETE a `${API_BASE}/api/<entidad>/<id>/permanent`, con el identificador codificado
