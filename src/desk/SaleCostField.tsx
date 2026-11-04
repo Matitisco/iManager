@@ -12,7 +12,7 @@ export function SaleCostField({ visible, value, onChange, cost, amount, cantidad
   if (!visible) return null;
   const preview = saleCostPreview({ amount, cost, cantidad, currency, costCurrency, rate });
   return <>
-    <Field label="Costo de compra" mark={costCurrency}>
+    <Field label="Costo del equipo" mark={costCurrency}>
       <input value={value} disabled={busy} inputMode="decimal"
         onChange={event => onChange(formatMoneyInput(event.target.value))} placeholder="$ 0" />
     </Field>
