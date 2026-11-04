@@ -39,7 +39,7 @@ import { useOperationDraftError } from '../operation-drafts';
 import { PendingDrafts } from '../pending-drafts';
 import { ImanagerIcon } from '../icons';
 import { ListSkeleton, listsAreLoading } from '../list-skeleton';
-import { Actions, Battery, ChipRow, DeskCta, DeskIcon, Field, IconButton, ImportButton, MenuButton, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
+import { Actions, Battery, ChipRow, DeskCta, DeskIcon, Field, IconButton, ImportButton, MenuButton, SortControl, MobileDock, Pill, PressTarget, ScreenTitle, SearchBox, Sheet, useDesk } from '../ui';
 import type { Product } from '../../types';
 
 function StatusMenu({ options, pressed, onToggle }: {
@@ -327,7 +327,7 @@ export function InventoryScreen() {
       <div className="dbar">
         {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
-        <MenuButton label={sort} options={['Recientes', 'Precio ↑', 'Precio ↓', 'Calidad ↑', 'Calidad ↓', 'Color ↑', 'Color ↓']} value={sort} onChange={setSort} />
+        <SortControl defaultLabel="Recientes" fields={['Precio', 'Calidad', 'Color']} value={sort} onChange={setSort} />
       </div>
       <div className="inventory-selection-tools">
         <BulkActions key={scope} selection={selection} total={listed.length}

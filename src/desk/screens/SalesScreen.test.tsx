@@ -702,7 +702,7 @@ describe('orden por carga y encabezados de Ventas (#748)', () => {
     await user.click(screen.getByRole('button', { name: 'Filtrar cliente' }));
     expect(screen.getByRole('dialog', { name: 'Filtrar cliente' })).toBeInTheDocument();
     await user.keyboard('{Escape}');
-    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
+    await user.click(within(screen.getByTestId('sales-sort-field')).getByRole('button'));
     await user.click(screen.getByRole('button', { name: 'Orden de carga' }));
     expect(codes()).toEqual(['V-0007', 'V-0016', 'V-0013']);
     expect(header.closest('th')).toHaveAttribute('aria-sort', 'none');
@@ -738,9 +738,15 @@ describe('orden por carga y encabezados de Ventas (#748)', () => {
     renderScreen();
     const records = () => [...document.querySelectorAll('.sale-node')].map(row => row.textContent?.match(/V-\d{4}/)?.[0]);
     expect(records()).toEqual(['V-0007', 'V-0016', 'V-0013']);
-    await user.click(within(screen.getByTestId('sales-sort')).getByRole('button'));
-    await user.click(screen.getByRole('button', { name: 'Venta ↑' }));
+    await user.click(within(screen.getByTestId('sales-sort-field')).getByRole('button'));
+    await user.click(screen.getByRole('button', { name: 'Venta' }));
     expect(records()).toEqual(['V-0007', 'V-0013', 'V-0016']);
+    expect(document.querySelectorAll('.menu')).toHaveLength(0);
+    await user.click(screen.getByRole('button', { name: /cambiar a descendente/ }));
+    expect(records()).toEqual(['V-0016', 'V-0013', 'V-0007']);
+    await user.click(within(screen.getByTestId('sales-sort-field')).getByRole('button'));
+    expect(screen.queryByRole('button', { name: 'Venta ↑' })).toBeNull();
+    expect(document.querySelectorAll('.menu button')).toHaveLength(11);
   });
 
   it('ordena el conjunto completo antes de paginar y vuelve a la primera página', async () => {

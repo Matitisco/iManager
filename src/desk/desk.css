@@ -2880,3 +2880,7 @@ button.mini { background: var(--theme-surface, #fff); border: 1px solid var(--bo
   .desk-app .seller-picker .ds-select-option { flex-shrink: 0; }
   .desk-app .seller-picker .reseller-add { margin-top: auto; justify-content: center; background: var(--primary); color: var(--theme-on-action, #fff); }
 }
+
+.sort-control { display: inline-flex; align-items: center; gap: 4px; }
+.sort-control .sort-dir { min-width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--border); background: var(--theme-surface, #fff); color: inherit; font-weight: 800; font-size: 14px; }
+.sort-control .sort-dir:hover { background: var(--theme-hover, #F3F4F6); }
