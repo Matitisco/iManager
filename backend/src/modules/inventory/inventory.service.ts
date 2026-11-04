@@ -530,6 +530,7 @@ export async function createInventoryItem(
   actor?: Actor | null,
   options?: { allowRetiredImei?: boolean; source?: "app" | "bulk" | "import" | "system" },
 ) {
+  if (input.status === 'EN_CONSIGNACION') throw new InventoryError('Creá la consignación desde Consignaciones', 400);
   if (input.kind === "ACCESSORY") {
     const message = accessoryError({ ...input, cantidad: input.cantidad ?? 1 });
     if (message) throw new InventoryError(message, 400);
@@ -696,6 +697,7 @@ export async function updateInventoryItem(
     });
     if (!existing) return null;
     if (input.kind && input.kind !== existing.kind) throw new InventoryError("No se puede cambiar el tipo de un producto registrado", 409);
+    if ((existing.status === 'EN_CONSIGNACION' && (input.status !== undefined && input.status !== existing.status || input.cantidad !== undefined && input.cantidad !== existing.cantidad)) || (input.status === 'EN_CONSIGNACION' && existing.status !== 'EN_CONSIGNACION')) throw new InventoryError('Gestioná este equipo desde Consignaciones', 409);
     if (existing.kind === "ACCESSORY") {
       const message = accessoryError({ ...existing, ...input });
       if (message) throw new InventoryError(message, 400);
@@ -914,6 +916,7 @@ export async function archiveInventoryItems(tx: Prisma.TransactionClient, storeI
   if (!ordered.length) return 0;
   await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "InventoryItem" WHERE "storeId" = ${storeId} AND "id" IN (${Prisma.join(ordered)}) ORDER BY "id" FOR UPDATE`);
   const items = await tx.inventoryItem.findMany({ where: { storeId, id: { in: ordered }, archivedAt: null } });
+  if (items.some(item => item.status === 'EN_CONSIGNACION')) throw new InventoryError('No se puede archivar un equipo en consignación', 409);
   const activeIds = items.map(item => item.id);
   if (!activeIds.length) return 0;
   const [sales, trades] = await Promise.all([
@@ -1223,7 +1226,7 @@ export async function importInventoryItems(
         const costChanges = providedCost !== undefined && (moneyChanged(existing.cost, providedCost) || (raw.currency !== undefined && existingCurrency !== rowCurrency));
         const changedAt = new Date();
         await db.inventoryItem.update({
-          where: { id: existing.id, AND: [{ reservedDepositId: null }] },
+          where: { id: existing.id, AND: [{ reservedDepositId: null }, { status: { not: 'EN_CONSIGNACION' } }] },
           data: {
             model: input.model,
             ...(raw.capacity !== undefined ? { capacity: input.capacity } : {}),

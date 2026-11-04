@@ -10,6 +10,7 @@ export type DeskTab =
   | 'accessories'
   | 'publicCatalog'
   | 'sales'
+  | 'consignments'
   | 'tradeins'
   | 'clients'
   | 'service'

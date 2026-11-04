@@ -27,6 +27,7 @@ model User {
 }
 
 model Store {
+  consignments        Consignment[]
   customFieldDefinitions CustomFieldDefinition[]
   productEvents ProductEvent[]
   // Existing stores remain internal for life, including plain db push deploys.
@@ -133,6 +134,7 @@ model StoreMember {
 }
 
 model Client {
+  consignments        Consignment[]
   id             String          @id @default(cuid())
   storeId        String
   categoryId     String?
@@ -202,6 +204,7 @@ model InventoryCategory {
 }
 
 model InventoryItem {
+  consignments        Consignment[]
   kind          String  @default("DEVICE") @db.VarChar(20)
   accessoryType String? @db.VarChar(40)
   compatibleWith String? @db.VarChar(120)
@@ -284,6 +287,7 @@ model StoreCounter {
 }
 
 model Sale {
+  consignment     Consignment?
   cantidad        Int            @default(1)
   stockDeducted   Boolean        @default(false)
   id              String         @id @default(cuid())
@@ -1344,4 +1348,29 @@ model StoreReseller {
 
   @@index([storeId])
   @@unique([storeId, name])
+}
+
+// One pending entry per inventory row; price is per unit, cantidad snapshots all units sent out.
+model Consignment {
+  id              String        @id @default(cuid())
+  storeId         String
+  clientId        String
+  inventoryItemId String
+  amount          Decimal       @db.Decimal(12, 2)
+  currency        String        @db.VarChar(3)
+  cantidad        Int           @default(1)
+  deliveredAt     DateTime      @default(now())
+  paidAt          DateTime?
+  saleId          String?       @unique
+  store           Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  client          Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  sale            Sale?         @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([storeId])
+  @@index([storeId, paidAt, deliveredAt])
+  @@index([clientId])
+  @@index([inventoryItemId])
 }

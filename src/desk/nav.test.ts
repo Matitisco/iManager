@@ -40,7 +40,7 @@ describe('navegación por rol', () => {
     expect(nav.main.map((block) => block.kind === 'group' ? block.label : block.item.label)).toEqual([
       'Dashboard', 'Comercial', 'Stock', 'Atención', 'Finanzas', 'Análisis',
     ]);
-    expect(group(null, null, 'comercial')).toEqual(['sales', 'tradeins', 'returns']);
+    expect(group(null, null, 'comercial')).toEqual(['sales', 'consignments', 'tradeins', 'returns']);
     expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'accessories', 'stockCount', 'publicCatalog']);
     expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
     expect(group('OWNER', null, 'finanzas')).toEqual(['expenses', 'suppliers']);
@@ -124,7 +124,7 @@ describe('barra del celular', () => {
   it('fija Dashboard, Ventas, Equipos y Clientes y mantiene activo el grupo', () => {
     const owner = mobileBar(null, 'OWNER');
     expect(owner.map((slot) => slot.label)).toEqual(['Dashboard', 'Ventas', 'Equipos', 'Clientes']);
-    expect(owner.find((slot) => slot.id === 'sales')?.activeIds).toEqual(['sales', 'tradeins', 'returns']);
+    expect(owner.find((slot) => slot.id === 'sales')?.activeIds).toEqual(['sales', 'consignments', 'tradeins', 'returns']);
     expect(owner.find((slot) => slot.id === 'inventory')?.activeIds).toEqual(['inventory', 'accessories', 'stockCount', 'publicCatalog']);
     expect(owner.find((slot) => slot.id === 'clients')?.activeIds).toEqual(['clients', 'service']);
   });

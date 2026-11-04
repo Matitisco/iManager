@@ -1162,7 +1162,7 @@ export async function updateSaleOperationInTx(tx: Prisma.TransactionClient, stor
     let removedTrade: TradeIn | null = null;
     if (trade && !hasTrade) {
       const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
-      if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) {
+      if (received && (received.status === "VENDIDO" || received.status === "EN_CONSIGNACION" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) {
         throw new OperationError("No se puede quitar el canje: el equipo recibido ya está en uso", 409);
       }
       if (received) archivedIncoming = await tx.inventoryItem.update({ where: { id: received.id }, data: { archivedAt: new Date() } });
@@ -1722,7 +1722,7 @@ export async function cancelTradeOperation(storeId: string, tradeId: string, act
     const saveCancellation = sale ? await captureSaleCancellation(tx, sale, trade) : null;
     const labelCurrency = await copyCurrency(tx, storeId, trade.currency ?? sale?.amountCurrency);
     const received = trade.receivedInventoryItemId ? await tx.inventoryItem.findFirst({ where: { id: trade.receivedInventoryItemId, storeId } }) : null;
-    if (received && (received.status === "VENDIDO" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
+    if (received && (received.status === "VENDIDO" || received.status === "EN_CONSIGNACION" || received.pendingSaleRegistration || await tx.sale.findFirst({ where: { storeId, inventoryItemId: received.id, status: await storedStateFilter(tx, 'Sale', storeId, ["CANCELADA"], true) } }))) throw new OperationError("No se puede cancelar: el equipo recibido ya está en uso", 409);
     if (sale) await reverseCashSource(tx, storeId, 'sale', sale.id, actor);
     const plan = sale ? await planSaleCancellation(tx, storeId, sale, operationCash(toNum(trade.differencePaid), Number(sale.depositAppliedAmount))) : { refund: 0, debtToRemove: 0, credit: 0 };
     const refund = sale

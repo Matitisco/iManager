@@ -24,7 +24,7 @@ export const STORE_RESET_DELETE_MODELS = [
   'NotificationRead', 'SectionRecordView', 'StockCountScan', 'StockCountExpected',
   'StockCount', 'CreditNoteApplication', 'CreditNote', 'ReturnEvent', 'ReturnCase',
   'SaleInstallment', 'SaleInstallmentPlan', 'SaleTender', 'ClientDeposit',
-  'ClientPayment', 'CommissionAccrual', 'CashMovement', 'Sale', 'TradeIn',
+  'ClientPayment', 'CommissionAccrual', 'CashMovement', 'Consignment', 'Sale', 'TradeIn',
   'CatalogItemPrice', 'CatalogItemHidden', 'InventoryItem', 'StoreNotification',
 ] as const satisfies readonly Prisma.ModelName[];
 
@@ -109,6 +109,7 @@ async function planReset(tx: Tx, storeId: string, full: boolean) {
     plan.SectionRecordView = Prisma.sql`t."storeId" = ${storeId} AND (${sections} OR ${inIds('recordId', records)})`;
     return { plan, inventory: ids.InventoryItem! };
   }
+  await select('Consignment');
   await select('Sale');
   // Also clean structured references left by sales that were deleted previously.
   const references = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`

@@ -245,3 +245,20 @@ export interface ClientDeposit {
   cancelledAt: string | null;
   createdAt: string;
 }
+
+export interface Consignment {
+  id: string;
+  clientId: string;
+  clientName: string;
+  phone: string | null;
+  productId: string;
+  deviceLabel: string;
+  imei: string | null;
+  amount: number;
+  currency: 'ARS' | 'USD';
+  cantidad: number;
+  deliveredAt: string;
+  daysOut: number;
+  paidAt: string | null;
+  saleId: string | null;
+}

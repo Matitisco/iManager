@@ -57,6 +57,7 @@ async function fixture(suffix = 'one') {
   await prisma.client.update({ where: { id: clientId }, data: { archivedAt: now, totalSpent: 100, pendingBalance: 60, lastPurchaseAt: now, importedSpent: 500, importedSpentCurrency: 'USD' } });
   const trade = await prisma.tradeIn.create({ data: { storeId, clientId, categoryId: catalog.tradeInCategory.id, dateLabel: '01/10', deviceReceived: 'Ficticio', receivedInventoryItemId: itemId, takeValue: 10, differencePaid: 90, status: 'COMPLETADO', tradeAt: now, tradeNumber: 43 } });
   const sale = await prisma.sale.create({ data: { storeId, clientId, sellerMemberId: membership!.id, categoryId: catalog.saleCategory.id, inventoryItemId: itemId, tradeInId: trade.id, dateLabel: '01/10', amount: 100, paymentMethod: 'EFECTIVO', status: 'PENDIENTE', openBalance: 60, soldAt: now, saleNumber: 42 } });
+  await prisma.consignment.create({ data: { storeId, clientId, inventoryItemId: itemId, amount: 100, currency: 'ARS', paidAt: now, saleId: sale.id } });
   const repair = await prisma.repairOrder.create({ data: { storeId, clientId, device: 'Ficticio', orderNumber: 44 } });
   await prisma.repairStatusEvent.create({ data: { storeId, orderId: repair.id, status: 'RECIBIDO' } });
   await prisma.clientPayment.create({ data: { storeId, clientId, saleId: sale.id, amount: 10, method: 'EFECTIVO' } });
