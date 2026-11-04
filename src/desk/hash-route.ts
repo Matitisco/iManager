@@ -4,6 +4,7 @@ import type { DeskTab } from './types';
 export const ROUTE: Record<DeskTab, string> = {
   dashboard: 'dashboard',
   sales: 'comercial/ventas',
+  consignments: 'comercial/consignaciones',
   tradeins: 'comercial/canjes',
   returns: 'comercial/devoluciones',
   patterns: 'analisis/fallas',

@@ -1,3 +1,4 @@
+import { consignmentRoutes } from './modules/consignments/consignments.routes.js';
 import { registerSecurityRateLimits } from "./middleware/security-rate-limit.js";
 import { customFieldRoutes } from './modules/custom-fields/custom-fields.routes.js';
 import { imeiTacMissRoutes } from './modules/imei-tac-misses/routes.js';
@@ -88,6 +89,7 @@ export function buildApp({ publicCatalogReadLimit = 60 }: { publicCatalogReadLim
   app.register(supplierRoutes, { prefix: "/api/suppliers" });
   app.register(expenseRoutes, { prefix: "/api/expenses" });
   app.register(returnRoutes, { prefix: "/api/returns" });
+  app.register(consignmentRoutes, { prefix: '/api/consignments' });
   app.register(salesRoutes, { prefix: "/api/sales" });
   app.register(tradeInsRoutes, { prefix: "/api/trade-ins" });
   app.register(storesRoutes, { prefix: "/api/stores" });

@@ -1,0 +1,276 @@
+.consignment-tools {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.consignment-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.consignment-stats .dstat {
+  min-height: 126px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.consignment-stats .dstat > span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--secondary);
+}
+.consignment-stats .dstat strong {
+  font-size: clamp(20px, 2.2vw, 30px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.consignment-stats small {
+  color: var(--secondary);
+  font-size: 13px;
+}
+.consignment-person {
+  margin-bottom: 18px;
+  box-shadow: none;
+}
+.consignment-person > header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
+}
+.consignment-avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--lime);
+  color: #16181d;
+  font-size: 13px;
+  font-weight: 700;
+}
+.consignment-person-name {
+  min-width: 0;
+}
+.consignment-person h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.consignment-person p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--secondary);
+}
+.consignment-debt {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-left: auto;
+  text-align: right;
+}
+.consignment-debt span {
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.consignment-debt strong {
+  font-size: 19px;
+}
+.consignment-table-wrap {
+  overflow-x: auto;
+}
+.consignment-person table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.consignment-person th {
+  padding: 13px 20px;
+  background: var(--bg);
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.consignment-person td {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.consignment-person th.consignment-amount,
+.consignment-person td.consignment-amount {
+  text-align: right;
+}
+.consignment-person td:last-child {
+  text-align: right;
+}
+.consignment-device {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.consignment-device > span {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--row);
+}
+.consignment-expand {
+  width: 100%;
+  text-align: left;
+  padding: 14px 20px;
+  text-decoration: underline;
+  background: var(--row);
+  font-size: 14px;
+  font-weight: 700;
+}
+.consignment-empty {
+  padding: 28px;
+}
+.consignment-empty h2 {
+  font-size: 17px;
+}
+.consignment-empty p,
+.consignment-hint {
+  font-size: 13px;
+  color: var(--secondary);
+  line-height: 1.5;
+  margin: 14px 0;
+}
+.consignment-sheet fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.consignment-sheet .xsearch {
+  width: 100%;
+}
+.consignment-options {
+  margin: 16px 0;
+}
+.consignment-option {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.consignment-option > label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+.consignment-option input[type='checkbox'] {
+  accent-color: var(--lime);
+  width: 18px;
+  height: 18px;
+}
+.consignment-option small {
+  display: block;
+  color: var(--secondary);
+  margin-top: 4px;
+}
+.consignment-price {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px;
+  gap: 12px;
+  margin: 12px 0 0 30px;
+}
+.consignment-payment-total {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 18px 0;
+}
+.consignment-mobile-search {
+  display: none;
+}
+@media (max-width: 767px) {
+  .consignment-mobile-search {
+    display: block;
+    margin-bottom: 16px;
+  }
+  .consignment-mobile-search .xsearch {
+    width: 100%;
+  }
+  .consignment-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .consignment-stats .dstat {
+    min-height: 106px;
+    padding: 14px;
+    gap: 8px;
+  }
+  .consignment-stats .dstat strong {
+    font-size: 22px;
+  }
+  .consignment-person > header {
+    padding: 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .consignment-person-name {
+    flex: 1;
+  }
+  .consignment-debt {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .consignment-person table,
+  .consignment-person tbody {
+    display: block;
+    width: 100%;
+    white-space: normal;
+  }
+  .consignment-person thead {
+    display: none;
+  }
+  .consignment-person tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .consignment-person td {
+    padding: 0;
+    border: 0;
+  }
+  .consignment-person td:first-child {
+    grid-column: 1 / -1;
+  }
+  .consignment-person td:nth-child(2) {
+    color: var(--secondary);
+    font-size: 12px;
+  }
+  .consignment-person td:nth-child(3) {
+    grid-column: 1 / -1;
+    color: var(--secondary);
+    font-size: 12px;
+  }
+  .consignment-person td.consignment-amount {
+    grid-column: 1;
+    text-align: left;
+    align-self: center;
+    margin-top: 4px;
+  }
+  .consignment-person td:last-child {
+    grid-column: 2;
+    margin-top: 4px;
+  }
+  .consignment-device strong {
+    overflow-wrap: anywhere;
+  }
+  .consignment-device > span {
+    flex-shrink: 0;
+  }
+  .consignment-debt strong {
+    overflow-wrap: anywhere;
+  }
+}
