@@ -9,23 +9,54 @@ import { trackFirstSale } from '../analytics/first-sale.js';
 import { lockTransactionKey } from '../../lib/advisory-lock.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { lockInventory } from '../deposits/deposits.service.js';
-import { saleExchangeRate } from "../../lib/blue-rate.js";
-import { assertBeneficiary, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
-import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
-import { Decimal } from "@prisma/client/runtime/library";
-import { Prisma } from "@prisma/client";
-import { normalizeCustomFields } from "../../lib/custom-fields.js";
-import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
-import { allocateDocumentNumber } from "../../lib/store-sequence.js";
-import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
-import { cleanReason, saleCode, type ArchiveMeta } from "../audit/archive.js";
-import { DomainError } from "../../lib/domain-error.js";
-import { prisma } from "../../plugins/prisma.js";
-import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
-import { decideClientLink, decideInventoryLink, matchOpenTradeIn, matchSellerUserId } from "../import/link-imported-sale.js";
-import { normalizeCurrencyToken, normalizeImei, normalizeImportDate, normalizeImportedDni, normalizeImportedPhone, normalizePayment, normalizeTradeIn } from "../import/normalize-import.js";
-import { parseMoney } from "../import/sheet-plan.js";
-import { saleDaysFromStore } from "../warranty/warranty.js";
+import { saleExchangeRate } from '../../lib/blue-rate.js';
+import {
+  assertBeneficiary,
+  recordSaleCommission,
+  refreshSaleCommission,
+  voidSaleCommission,
+} from '../commissions/commission-ledger.js';
+import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
+import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+import { normalizeCustomFields } from '../../lib/custom-fields.js';
+import {
+  formatArDate,
+  formatStoredDate,
+  parseArDateOr,
+} from '../../lib/ar-date.js';
+import { allocateDocumentNumber } from '../../lib/store-sequence.js';
+import {
+  cancellationStamp,
+  moneyChanged,
+  writeAudit,
+  type Actor,
+} from '../audit/audit.js';
+import { cleanReason, saleCode, type ArchiveMeta } from '../audit/archive.js';
+import { DomainError } from '../../lib/domain-error.js';
+import { prisma } from '../../plugins/prisma.js';
+import {
+  convertMoney,
+  currencyOnWrite,
+  storeCurrency,
+} from '../../lib/money-currency.js';
+import {
+  decideClientLink,
+  decideInventoryLink,
+  matchOpenTradeIn,
+  matchSellerUserId,
+} from '../import/link-imported-sale.js';
+import {
+  normalizeCurrencyToken,
+  normalizeImei,
+  normalizeImportDate,
+  normalizeImportedDni,
+  normalizeImportedPhone,
+  normalizePayment,
+  normalizeTradeIn,
+} from '../import/normalize-import.js';
+import { parseMoney } from '../import/sheet-plan.js';
+import { saleDaysFromStore } from '../warranty/warranty.js';
 
 export interface SaleInput {
   cantidad?: number;
@@ -175,19 +206,52 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
 async function recomputeClientStats(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   storeId: string,
-  clientId: string
+  clientId: string,
+  excludeSaleId?: string,
 ) {
-  const aggregate = await tx.sale.aggregate({
-    where: { storeId, clientId, voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } },
-    _sum: { amount: true },
-    _max: { soldAt: true },
+  const client = await tx.client.findFirst({
+    where: { id: clientId, storeId },
+    select: { balanceCurrency: true },
   });
+  if (!client) return;
+  const currency = await storeCurrency(storeId, tx);
+  const target = client.balanceCurrency ?? currency;
+  const sales = await tx.sale.findMany({
+    where: {
+      storeId,
+      clientId,
+      ...(excludeSaleId ? { id: { not: excludeSaleId } } : {}),
+      voidedAt: null,
+      status: { notIn: ['CANCELADA', 'ANULADA'] },
+    },
+    select: {
+      amount: true,
+      amountCurrency: true,
+      exchangeRate: true,
+      soldAt: true,
+    },
+  });
+
+  let totalSpent = new Decimal(0);
+  let lastPurchaseAt: Date | null = null;
+  for (const sale of sales) {
+    totalSpent = totalSpent.add(
+      convertMoney(
+        sale.amount,
+        sale.amountCurrency ?? currency,
+        target,
+        sale.exchangeRate,
+      ),
+    );
+    if (!lastPurchaseAt || sale.soldAt > lastPurchaseAt)
+      lastPurchaseAt = sale.soldAt;
+  }
 
   await tx.client.updateMany({
     where: { id: clientId, storeId },
     data: {
-      totalSpent: aggregate._sum.amount ?? new Decimal(0),
-      lastPurchaseAt: aggregate._max.soldAt ?? null,
+      totalSpent,
+      lastPurchaseAt,
     },
   });
 }
@@ -292,9 +356,18 @@ export async function createSaleInTransaction(tx: Prisma.TransactionClient, stor
     where: { id: storeId },
     select: { usedWarrantyDays: true, sealedWarrantyDays: true },
   });
-  const warrantyDays = saleDaysFromStore(input.warrantyDays, inventoryItem?.condition, warrantyStore);
-  const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-  const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
+  const warrantyDays = saleDaysFromStore(
+    input.warrantyDays,
+    inventoryItem?.condition,
+    warrantyStore,
+  );
+  const saleNumber = await allocateDocumentNumber(tx, storeId, 'sale');
+  const currency = await storeCurrency(storeId, tx);
+  const amountCurrency = currencyOnWrite(
+    input.amountCurrency,
+    true,
+    currency,
+  );
 
   await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
   const exchangeRate = await saleExchangeRate(input.exchangeRate);
@@ -335,7 +408,14 @@ export async function createSaleInTransaction(tx: Prisma.TransactionClient, stor
     await tx.client.update({
       where: { id: client.id },
       data: {
-        totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
+        totalSpent: {
+          increment: convertMoney(
+            input.amount,
+            amountCurrency ?? currency,
+            client.balanceCurrency ?? currency,
+            exchangeRate,
+          ),
+        },
         lastPurchaseAt: soldAt,
       },
     });
@@ -488,6 +568,8 @@ export async function updateSale(
 
     if (
       input.amount !== undefined ||
+      input.amountCurrency !== undefined ||
+      input.exchangeRate !== undefined ||
       input.date !== undefined ||
       input.clientId !== undefined ||
       input.status !== undefined
@@ -525,25 +607,7 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     if (!cancelled && existing.inventoryItemId) await releaseStock(tx, storeId, existing);
 
     if (!cancelled && existing.clientId) {
-      const aggregate = await tx.sale.aggregate({
-        where: {
-          storeId,
-          clientId: existing.clientId,
-          id: { not: id },
-          voidedAt: null,
-          status: { notIn: ["CANCELADA", "ANULADA"] },
-        },
-        _sum: { amount: true },
-        _max: { soldAt: true },
-      });
-
-      await tx.client.updateMany({
-        where: { id: existing.clientId, storeId },
-        data: {
-          totalSpent: aggregate._sum.amount ?? new Decimal(0),
-          lastPurchaseAt: aggregate._max.soldAt ?? null,
-        },
-      });
+      await recomputeClientStats(tx, storeId, existing.clientId, id);
     }
 
     const reason = cleanReason(meta?.reason);
@@ -651,10 +715,242 @@ export async function importSales(
       const duplicate = await tx.sale.findFirst({
         where: { storeId, customFields: { path: ['importFingerprint'], equals: importFingerprint } }, select: { id: true },
       });
-      if (duplicate) {
-        updated++;
-        warnings.push({ row: rowNum, message: 'Venta ya importada: se conservó la existente, sin duplicarla' });
-        continue;
+      const members = await tx.storeMember.findMany({
+        where: { storeId },
+        select: {
+          id: true,
+          userId: true,
+          user: { select: { displayName: true } },
+        },
+      });
+      const sellers = members.map((member) => ({
+        userId: member.userId,
+        displayName: member.user.displayName,
+      }));
+      // Stable ordering plus one store lock keeps concurrent retries and batch changes atomic.
+      await lockTransactionKey(tx, `sale-import:${storeId}`);
+      for (let i = 0; i < prepared.length; i++) {
+        const r: SaleReviewRow = { ...prepared[i] };
+        const rowNum = Number(r.sourceRow || r._sourceRow) || i + 2;
+        const importFingerprint = r._importFingerprint;
+        const duplicate = await tx.sale.findFirst({
+          where: {
+            storeId,
+            customFields: {
+              path: ['importFingerprint'],
+              equals: importFingerprint,
+            },
+          },
+          select: { id: true },
+        });
+        await assertStoreReferences(tx, storeId, 'Sale', duplicate);
+        if (duplicate) {
+          updated++;
+          warnings.push({
+            row: rowNum,
+            message:
+              'Venta ya importada: se conservó la existente, sin duplicarla',
+          });
+          continue;
+        }
+        const clientName = r.clientName || '';
+        const device = r.device || '';
+        const imei = normalizeImei(r.productImei);
+        const dni = normalizeImportedDni(r.clientDni);
+        const phone = normalizeImportedPhone(r.clientPhone);
+        const tradeIn = normalizeTradeIn(r.tradeIn);
+        const seller = r.seller?.trim() || '';
+        const isTotal = r._possibleTotal === 'true';
+        const originalAmount =
+          isTotal || r._unpriced === 'true'
+            ? 0
+            : (parseMoney(r.amount || '') ?? 0);
+        const amount =
+          r.currency === 'ARS' ? Number(r._amountUsd) : originalAmount;
+        const amountCurrency = 'USD';
+        const paymentMethod = normalizePayment(r.paymentMethod);
+        const status =
+          r.status?.trim() === 'PENDIENTE' ? 'PENDIENTE' : 'COMPLETADA';
+        const soldAt = parseArDateOr(r.date);
+        const dateLabel = (r.date || 'Por revisar').slice(0, 120);
+        const clientLink =
+          !isTotal && (clientName || dni || phone)
+            ? decideClientLink(clients, { name: clientName, dni, phone })
+            : { action: 'skip' as const };
+        let clientId: string | null = null;
+        if (clientLink.action === 'use') clientId = clientLink.clientId;
+        if (clientLink.action === 'ambiguous')
+          addSaleReview(r, 'Cliente ambiguo: se conserva sin vincular');
+        if (clientLink.action === 'create' && clientName) {
+          const created = await tx.client.create({
+            data: {
+              storeId,
+              name: clientName.slice(0, 120),
+              dni: dni || null,
+              phone: phone || null,
+            },
+            select: {
+              id: true,
+              name: true,
+              dni: true,
+              phone: true,
+              email: true,
+              totalSpent: true,
+              lastPurchaseAt: true,
+            },
+          });
+          await assertStoreReferences(tx, storeId, 'Client', created);
+          clients.push(created);
+          clientId = created.id;
+        }
+        let item =
+          imei && !isTotal
+            ? await tx.inventoryItem.findFirst({
+                where: { storeId, imei },
+                select: {
+                  id: true,
+                  status: true,
+                  archivedAt: true,
+                  reservedDepositId: true,
+                },
+              })
+            : null;
+        if (item) {
+          await lockInventory(tx, storeId, item.id);
+          item = await tx.inventoryItem.findFirst({
+            where: { id: item.id, storeId },
+            select: {
+              id: true,
+              status: true,
+              archivedAt: true,
+              reservedDepositId: true,
+            },
+          });
+        }
+        const activeSale = item
+          ? await tx.sale.findFirst({
+              where: {
+                storeId,
+                inventoryItemId: item.id,
+                status: { not: 'CANCELADA' },
+              },
+              select: { id: true },
+            })
+          : null;
+        const stock = decideInventoryLink(
+          item,
+          Boolean(activeSale) ||
+            Boolean(item?.reservedDepositId) ||
+            Boolean(r._review?.includes('IMEI repetido')),
+        );
+        const inventoryItemId =
+          stock.action === 'link' ? stock.inventoryItemId : null;
+        if (imei && !inventoryItemId)
+          addSaleReview(
+            r,
+            item
+              ? 'IMEI no disponible en stock: se importó sin modificar el equipo'
+              : 'IMEI no encontrado en stock: se importó sin vincular equipo',
+          );
+        const openTrades =
+          clientId && tradeIn
+            ? await tx.tradeIn.findMany({
+                where: { storeId, clientId, sale: { is: null } },
+                select: { id: true, deviceReceived: true },
+              })
+            : [];
+        const tradeInId = matchOpenTradeIn(openTrades, tradeIn);
+        const sellerUserId = matchSellerUserId(sellers, seller);
+        const customFields: Record<string, string> = { importFingerprint };
+        if (seller) customFields.vendedor = seller;
+        if (sellerUserId) customFields.sellerUserId = sellerUserId;
+        if (tradeIn) customFields.canje = tradeIn;
+        if (imei && !inventoryItemId) customFields.imei = imei;
+        customFields.notas = saleImportNotes(r);
+        if (r._review) customFields.importReview = r._review;
+        if (r._sourceData) customFields.importSourceData = r._sourceData;
+        if (r._sourceSheet) customFields.importSourceSheet = r._sourceSheet;
+        customFields.importSourceRow = String(rowNum);
+        customFields.importOriginalAmount = r.amount || '';
+        customFields.importOriginalCurrency = r.currency;
+        if (r._rateDate) customFields.importRateDate = r._rateDate;
+        if (r._rateSource) customFields.importRateSource = r._rateSource;
+        const deviceLabel =
+          [device, !inventoryItemId && imei ? imei : '']
+            .filter(Boolean)
+            .join(' · ')
+            .slice(0, 120) || null;
+        const linkedClient = clientId
+          ? await tx.client.findFirst({ where: { storeId, id: clientId } })
+          : null;
+        const saleNumber = await allocateDocumentNumber(tx, storeId, 'sale');
+        const sellerMemberId =
+          r.sellerMemberId ||
+          (sellerUserId
+            ? (members.find((member) => member.userId === sellerUserId)?.id ??
+              null)
+            : null);
+        await assertBeneficiary(tx, storeId, sellerMemberId, r.resellerId);
+        const exchangeRate = await saleExchangeRate(
+          r._exchangeRate
+            ? Number(r._exchangeRate)
+            : r.exchangeRate
+              ? Number(r.exchangeRate)
+              : undefined,
+        );
+        const sale = await tx.sale.create({
+          data: {
+            saleNumber,
+            sellerMemberId,
+            resellerId: r.resellerId ?? null,
+            registeredByUserId: actor?.userId ?? null,
+            exchangeRate,
+            storeId,
+            clientId,
+            clientName: clientName || linkedClient?.name || '',
+            inventoryItemId,
+            tradeInId,
+            deviceLabel,
+            dateLabel,
+            amount: toDecimal(amount),
+            amountCurrency,
+            paymentMethod,
+            status,
+            customFields: normalizeCustomFields(customFields),
+            soldAt,
+            warrantyDays: null,
+          },
+        });
+        await assertStoreReferences(tx, storeId, 'Sale', sale);
+        if (sellerMemberId || r.resellerId)
+          await recordSaleCommission(tx, storeId, sale.id);
+        if (inventoryItemId)
+          await tx.inventoryItem.update({
+            where: { id: inventoryItemId },
+            data: { status: 'VENDIDO' },
+          });
+        if (linkedClient)
+          await tx.client.update({
+            where: { id: linkedClient.id },
+            data: {
+              totalSpent: {
+                increment: convertMoney(
+                  amount,
+                  amountCurrency,
+                  linkedClient.balanceCurrency ?? currency,
+                  exchangeRate,
+                ),
+              },
+              lastPurchaseAt:
+                !linkedClient.lastPurchaseAt ||
+                soldAt > linkedClient.lastPurchaseAt
+                  ? soldAt
+                  : linkedClient.lastPurchaseAt,
+            },
+          });
+        if (r._review) warnings.push({ row: rowNum, message: r._review });
+        saleIds.push(sale.id);
+        imported++;
       }
       const clientName = r.clientName || '';
       const device = r.device || '';

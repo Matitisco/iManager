@@ -128,11 +128,12 @@ describe("sales.service", () => {
 
   it("keeps restoring stock and recomputing client stats for active historical sales", async () => {
     prismaMock.sale.findFirst.mockResolvedValue({ id: "sale-1", status: "COMPLETADA", inventoryItemId: "item-1", clientId: "client-1" });
-    prismaMock.sale.aggregate.mockResolvedValue({ _sum: { amount: new Decimal(500) }, _max: { soldAt: null } });
+    prismaMock.client.findFirst.mockResolvedValue({ balanceCurrency: 'ARS' });
+    prismaMock.sale.findMany.mockResolvedValue([{ amount: new Decimal(500), amountCurrency: 'ARS', exchangeRate: null, soldAt: null }]);
     await expect(deleteSale("store-1", "sale-1")).resolves.toBe(true);
-    expect(prismaMock.sale.aggregate).toHaveBeenCalledWith({
+    expect(prismaMock.sale.findMany).toHaveBeenCalledWith({
       where: { storeId: "store-1", clientId: "client-1", id: { not: "sale-1" }, voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } },
-      _sum: { amount: true }, _max: { soldAt: true },
+      select: { amount: true, amountCurrency: true, exchangeRate: true, soldAt: true },
     });
     expect(prismaMock.inventoryItem.update).toHaveBeenCalledWith({ where: { id: "item-1", storeId: "store-1" }, data: { status: "DISPONIBLE", pendingSaleRegistration: false } });
     expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(500), lastPurchaseAt: null } });
@@ -226,9 +227,10 @@ describe("sales.service", () => {
     };
     prismaMock.sale.findFirst.mockResolvedValue(existing);
     prismaMock.sale.update.mockResolvedValue({ ...existing, status });
-    prismaMock.sale.aggregate.mockResolvedValue({ _sum: { amount: new Decimal(100) }, _max: { soldAt: null } });
+    prismaMock.client.findFirst.mockResolvedValue({ balanceCurrency: 'ARS' });
+    prismaMock.sale.findMany.mockResolvedValue([{ amount: new Decimal(100), amountCurrency: 'ARS', exchangeRate: null, soldAt: null }]);
     await updateSale("store-1", "sale-1", { status });
-    expect(prismaMock.sale.aggregate).toHaveBeenCalledWith({ where: { storeId: "store-1", clientId: "client-1", voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } }, _sum: { amount: true }, _max: { soldAt: true } });
+    expect(prismaMock.sale.findMany).toHaveBeenCalledWith({ where: { storeId: "store-1", clientId: "client-1", voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } }, select: { amount: true, amountCurrency: true, exchangeRate: true, soldAt: true } });
     expect(prismaMock.client.updateMany).toHaveBeenCalledWith({ where: { id: "client-1", storeId: "store-1" }, data: { totalSpent: new Decimal(100), lastPurchaseAt: null } });
   });
 
@@ -320,7 +322,7 @@ describe("sales.service", () => {
       lastPurchaseAt: null,
     }]);
 
-    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1", name: "Ana Gómez", lastPurchaseAt: null });
+    prismaMock.client.findFirst.mockResolvedValue({ id: "client-1", name: "Ana Gómez", lastPurchaseAt: null, balanceCurrency: 'USD' });
     const result = await importSales("store-1", [{ clientName: "ana gómez", device: "iPhone 13", amount: "1000" }]);
 
     expect(result.imported).toBe(1);
