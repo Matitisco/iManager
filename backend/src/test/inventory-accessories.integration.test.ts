@@ -73,12 +73,15 @@ it('no permite sobreventa concurrente ni cambiar un accesorio a celular', async 
 it('devuelve parcialmente conservando tipo, compatibilidad y cantidad sin contaminar Equipos', async () => {
   const { id, clientId } = await fixture();
   const sale = await sell(id, clientId, 3, 'return-accessory');
+  expect(sale.statusCode, sale.body).toBe(201);
   const opened = await request('POST', '/api/returns', { saleId: sale.json().sale.id, cantidad: 2, reason: 'Cable defectuoso ficticio', openedOn: new Date().toISOString().slice(0, 10) });
   expect(opened.statusCode, opened.body).toBe(201);
-  const resolved = await request('POST', `/api/returns/${opened.json().return.id}/resolve`, { resolution: 'REINTEGRO', settlement: 'REINTEGRO', amount: 12000, destination: 'STOCK', stockStatus: 'DISPONIBLE' });
+  const resolved = await request('POST', `/api/returns/${opened.json().return.id}/resolve`, { resolution: 'REINTEGRO', settlement: 'REINTEGRO', amount: 12000, destination: 'STOCK', stockStatus: 'EN_REVISION' });
   expect(resolved.statusCode, resolved.body).toBe(200);
   const all = await prisma.inventoryItem.findMany({ where: { kind: 'ACCESSORY' } });
   expect(all).toHaveLength(2);
+  expect(all).toContainEqual(expect.objectContaining({ id, cantidad: 5, status: 'DISPONIBLE' }));
+  expect(all).toContainEqual(expect.objectContaining({ cantidad: 2, status: 'EN_REVISION' }));
   expect(all.reduce((sum, item) => sum + item.cantidad, 0)).toBe(7);
   expect(all.every(item => item.accessoryType === 'Cable' && item.compatibleWith === 'Todos' && !item.imei)).toBe(true);
   expect((await request('GET', '/api/inventory')).json().inventory).toHaveLength(1);
