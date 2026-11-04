@@ -254,6 +254,7 @@ model InventoryItem {
   category      InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   sales         Sale[]
   catalogPrices CatalogItemPrice[]
+  catalogHidden CatalogItemHidden[]
   receivedTradeIns TradeIn[]       @relation("ReceivedInventory")
   returnCases   ReturnCase[]
   createdAt     DateTime           @default(now())
@@ -1275,7 +1276,7 @@ model CustomFieldDefinition {
   @@index([storeId])
 }
 
-// Public catalogs share inventory visibility; only their rules and prices differ.
+// Existing catalogs keep global visibility; new lists use their own hidden exceptions.
 model StoreCatalog {
   id String @id @default(cuid())
   storeId String
@@ -1293,11 +1294,24 @@ model StoreCatalog {
   logoUrl String? @db.VarChar(2000)
   hours String? @db.VarChar(120)
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  itemVisibility String @default("GLOBAL") @db.VarChar(10)
   itemPrices CatalogItemPrice[]
+  hiddenItems CatalogItemHidden[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([storeId, isDefault])
+}
+
+model CatalogItemHidden {
+  catalogId String
+  inventoryItemId String
+  createdAt DateTime @default(now())
+  catalog StoreCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@id([catalogId, inventoryItemId])
+  @@index([inventoryItemId])
 }
 
 model CatalogItemPrice {

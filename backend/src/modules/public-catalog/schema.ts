@@ -20,6 +20,7 @@ export type CatalogSettingsInput = z.infer<typeof settingsSchema>;
 
 export const catalogEditSchema = settingsSchema.extend({
   name: z.string().trim().min(1).max(100).optional(),
+  hiddenItemIds: z.array(z.string().min(1).max(120)).max(500).optional(),
   priceRuleMode: z.enum(['LIST_PERCENT', 'COST_PERCENT', 'MANUAL']).optional(),
   priceAdjustPercent: z.number().finite().min(-100).max(10000).refine(value => Math.abs(value * 100 - Math.round(value * 100)) < 1e-7, 'Usá hasta dos decimales').optional(),
   manualPrices: z.array(z.object({

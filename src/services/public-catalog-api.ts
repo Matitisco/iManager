@@ -44,3 +44,7 @@ export async function previewStoreCatalog(user: AuthUserLike, id: string | null,
 export async function regenerateStoreCatalog(user: AuthUserLike, id: string) {
   return (await apiRequest<{ catalog: NamedCatalog }>(user, `/api/catalog/list/${encodeURIComponent(id)}/regenerate`, { method: 'POST', fallback: 'No se pudo regenerar el link', errorFrom: 'friendly' })).catalog;
 }
+
+export async function changeStoreCatalogVisibility(user: AuthUserLike, id: string, ids: string[], visible: boolean) {
+  return (await apiRequest<{ catalog: NamedCatalog }>(user, `/api/catalog/list/${encodeURIComponent(id)}/items`, { method: 'PATCH', body: { ids, visible }, fallback: 'No se pudo cambiar la visibilidad', errorFrom: 'friendly' })).catalog;
+}
