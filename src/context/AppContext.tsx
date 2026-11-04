@@ -275,6 +275,7 @@ interface AppState
   }) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   reloadSession: () => Promise<void>;
+  applyStoreSession: (session: AppSession) => void;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -920,6 +921,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
     const session = await completeBackendOnboarding(user, input);
     if (scopeRef.current !== currentScope) return;
     // Contact details can be completed later from settings.
+    setBackendStatus('ready');
+    setSessionConfirmed(true);
+    setBackendMessage(null);
+    setAppSession(session);
+    rememberSession(user, session);
+  };
+
+  const applyStoreSession = (session: AppSession) => {
+    if (!user || scopeRef.current !== currentScope || session.user.firebaseUid !== user.uid) return;
     setBackendStatus('ready');
     setSessionConfirmed(true);
     setBackendMessage(null);
@@ -1845,6 +1855,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({
         updateStore,
         updateUserProfile,
         reloadSession,
+        applyStoreSession,
         ...billingState,
         user,
         loading,

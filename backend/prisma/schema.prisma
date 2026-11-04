@@ -26,7 +26,55 @@ model User {
   updatedAt         DateTime      @updatedAt
 }
 
+model StoreGroup {
+  id String @id @default(cuid())
+  name String @db.VarChar(120)
+  primaryStoreId String
+  createdByUserId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  stores Store[]
+  transfers StockTransfer[]
+}
+
+model StockTransfer {
+  id String @id @default(cuid())
+  groupId String
+  fromStoreId String
+  toStoreId String
+  actorUserId String
+  actorName String @db.VarChar(255)
+  requestKey String? @db.VarChar(80)
+  createdAt DateTime @default(now())
+  group StoreGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  items StockTransferItem[]
+  @@unique([groupId, requestKey])
+  @@index([fromStoreId])
+  @@index([toStoreId])
+  @@index([groupId, createdAt])
+}
+
+model StockTransferItem {
+  id String @id @default(cuid())
+  transferId String
+  fromItemId String
+  toItemId String
+  quantity Int
+  label String @db.VarChar(200)
+  cost Decimal @db.Decimal(12, 2)
+  currency String? @db.VarChar(3)
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  @@index([transferId])
+  @@index([fromItemId])
+  @@index([toItemId])
+}
+
 model Store {
+  groupId String?
+  groupKind String? @db.VarChar(12)
+  group StoreGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  @@index([groupId])
+  @@unique([groupId, groupKind])
   consignments        Consignment[]
   customFieldDefinitions CustomFieldDefinition[]
   productEvents ProductEvent[]

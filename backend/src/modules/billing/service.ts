@@ -19,7 +19,14 @@ function paidTerm(remote: RemoteSubscription, months: number) {
   return (remote.summarized?.charged_quantity ?? 0) > 0 && last && Number.isFinite(last.getTime()) && last <= new Date() ? addMonths(last, months) : null;
 }
 
+/** Grouped stores share the original store's subscription, without opening a trial. */
+export async function billingStoreId(storeId: string, db: Prisma.TransactionClient = prisma) {
+  const store = await db.store.findUniqueOrThrow({ where: { id: storeId }, include: { group: true } });
+  return store.group?.primaryStoreId ?? storeId;
+}
+
 export async function getBillingSummary(storeId: string, db: Prisma.TransactionClient = prisma) {
+  storeId = await billingStoreId(storeId, db);
   const store = await db.store.findUniqueOrThrow({ where: { id: storeId } });
   return billingSummary(store, await db.storeMember.count({ where: { storeId, removedAt: null } }));
 }
@@ -180,6 +187,7 @@ async function supersedeAbandonedCheckouts(storeId: string, exceptId?: string) {
 }
 const RECENT_ACTIVATION_MS = 30 * 60_000;
 export async function billingDetails(storeId: string) {
+  storeId = await billingStoreId(storeId);
   const summary = await getBillingSummary(storeId);
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId }, select: { billingPlan: true, billingStatus: true, billingRemoteUpdatedAt: true } });
   const [pendingCheckout, failedCheckout, plans] = await Promise.all([
@@ -222,6 +230,7 @@ function assertCheckoutAllowed(summary: Awaited<ReturnType<typeof getBillingSumm
 }
 
 export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: string) {
+  storeId = await billingStoreId(storeId);
   if (await supersedeAbandonedCheckouts(storeId) === 'authorized') throw new DomainError(ACTIVE_SUBSCRIPTION, 409);
   const rate = await currentBlueRate();
   return prisma.$transaction(async tx => {
@@ -246,6 +255,7 @@ export async function quoteCheckout(storeId: string, key: PlanKey, payerEmail: s
   }, { timeout: 25_000, maxWait: 10_000 });
 }
 export async function openCheckout(storeId: string, quoteId: string) {
+  storeId = await billingStoreId(storeId);
   limitCheckout(storeId);
   if (await supersedeAbandonedCheckouts(storeId, quoteId) === 'authorized') throw new DomainError(ACTIVE_SUBSCRIPTION, 409);
   // Persist the claim BEFORE contacting MP. A timeout or process crash must not permit a second charge.
@@ -414,6 +424,7 @@ export async function reconcileInvoice(id: string) {
   return reconcilePreapproval(invoice.data.preapproval_id);
 }
 export async function cancelSubscription(storeId: string) {
+  storeId = await billingStoreId(storeId);
   return prisma.$transaction(async tx => {
     await lockTransactionKey(tx, storeBillingLock(storeId));
     const store = await tx.store.findUniqueOrThrow({ where: { id: storeId } });
@@ -522,6 +533,7 @@ export async function repriceOpenSubscriptions(log: SyncLog = console) {
 }
 
 export async function refreshBilling(storeId: string, log: SyncLog = console, options?: { replaceAbandoned?: boolean }) {
+  storeId = await billingStoreId(storeId);
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
   if (store.billingPlan === 'INTERNAL') return billingDetails(storeId);
   try {

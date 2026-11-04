@@ -386,3 +386,25 @@ it('identifies only the confirmed business session, refreshes store/role and res
   expect(resetPostHog).toHaveBeenCalledOnce();
   expect(result.current.user).toBeNull();
 });
+
+it('aplica la sesión de otra tienda, limpia las listas anteriores y recuerda la activa', async () => {
+  const { result } = await mount();
+  const next: AppSession = { ...session, store: { ...session.store!, id: 'retail', name: 'Minorista ficticia' }, stores: [
+    { id: 'store', name: 'Store', role: 'OWNER', isDefault: false, groupId: 'g', kind: 'WHOLESALE' },
+    { id: 'retail', name: 'Minorista ficticia', role: 'OWNER', isDefault: true, groupId: 'g', kind: 'RETAIL' },
+  ] };
+  const fresh = deferred<Product[]>();
+  vi.mocked(fetchBackendInventory).mockReturnValue(fresh.promise);
+  act(() => { result.current.applyStoreSession(next); });
+  expect(result.current.appSession?.store?.id).toBe('retail');
+  expect(result.current.inventory).toEqual([]);
+  expect(readBootSession()?.session.store?.id).toBe('retail');
+  await act(async () => { fresh.resolve([product('retail-stock', 'Stock minorista ficticio')]); await fresh.promise; });
+  await waitFor(() => expect(result.current.inventory.map(item => item.id)).toEqual(['retail-stock']));
+});
+
+it('ignora una sesión de multitienda que pertenece a otro usuario', async () => {
+  const { result } = await mount();
+  act(() => { result.current.applyStoreSession({ ...session, user: { ...session.user, firebaseUid: 'another-user' }, store: { ...session.store!, id: 'foreign' } }); });
+  expect(result.current.appSession?.store?.id).toBe('store');
+});
