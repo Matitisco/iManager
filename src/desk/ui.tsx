@@ -102,12 +102,16 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
       const width = menu.current.getBoundingClientRect().width;
       const start = box.current.classList.contains('menu-start') || Boolean(box.current.closest('.sale-pills'));
       const left = Math.max(12, Math.min(start ? anchor.left : anchor.right - width, window.innerWidth - 12 - width));
-      const below = window.innerHeight - anchor.bottom - 18;
-      const above = anchor.top - 18;
+      const gap = 12;
+      const below = window.innerHeight - anchor.bottom - 6 - gap;
+      const above = anchor.top - 6 - gap;
       const natural = menu.current.scrollHeight;
-      const flip = natural > below && above > below;
-      const maxHeight = Math.max(120, flip ? above : below);
-      const top = flip ? Math.max(12, anchor.top - 6 - Math.min(natural, maxHeight)) : anchor.bottom + 6;
+      let top: number;
+      const maxHeight = window.innerHeight - gap * 2;
+      if (natural <= below) top = anchor.bottom + 6;
+      else if (natural <= above) top = anchor.top - 6 - natural;
+      else top = Math.max(gap, window.innerHeight - gap - natural);
+      if (natural > maxHeight) top = gap;
       setPlace({ top, left, maxHeight });
     };
     update();
@@ -141,7 +145,7 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
         <ChevronIcon />
       </button>
       {open && createPortal(
-        <div ref={menu} className="menu menu-floating" data-testid={testId ? `${testId}-menu` : undefined}
+        <div ref={menu} className={`menu menu-floating${options.length > 8 ? ' compact' : ''}`} data-testid={testId ? `${testId}-menu` : undefined}
           style={place ? { top: place.top, left: place.left, maxHeight: place.maxHeight } : { visibility: 'hidden', top: 0, left: 0 }}>
           {options.map((option) => (
             <button key={option} type="button" className={option === value ? 'on' : ''} onClick={() => { onChange(option); setOpen(false); }}>

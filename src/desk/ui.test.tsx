@@ -88,3 +88,24 @@ describe('MenuButton flotante', () => {
     expect(picked).toEqual(['B']);
   });
 });
+
+describe('MenuButton alto disponible', () => {
+  it('se abre hacia arriba si no entra abajo y no se sale de la ventana', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1280 });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 });
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('menu') ? new DOMRect(0, 0, 200, 600) : new DOMRect(900, 640, 100, 36);
+    });
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) { return this.classList.contains('menu') ? 600 : 0; });
+    const options = Array.from({ length: 19 }, (_, i) => `Opción ${i}`);
+    render(<MenuButton label="Ordenar" options={options} value="Opción 0" onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Ordenar' }));
+    const menu = document.querySelector<HTMLElement>('.menu')!;
+    expect(menu).toHaveClass('compact');
+    const top = Number.parseFloat(menu.style.top);
+    expect(top).toBe(640 - 6 - 600);
+    expect(top + 600).toBeLessThanOrEqual(800);
+    expect(Number.parseFloat(menu.style.maxHeight)).toBeGreaterThanOrEqual(600);
+    expect(screen.getByRole('button', { name: 'Opción 18' })).toBeInTheDocument();
+  });
+});
