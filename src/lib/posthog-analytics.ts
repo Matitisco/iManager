@@ -1,5 +1,8 @@
 import posthog from 'posthog-js';
-import { sanitizeImportEvent, type ImportEventProperties } from './import-diagnostics';
+import {
+  sanitizeImportEvent,
+  type ImportEventProperties,
+} from './import-diagnostics';
 import { ROUTE, tabFromHash } from '../desk/hash-route';
 import type { AppMembershipRole } from '../types/app-session';
 
@@ -40,21 +43,34 @@ const emptyStores = new Set<string>();
 const addedStores = new Set<string>();
 
 function disabled(): boolean {
-  return import.meta.env.DEV || import.meta.env.MODE === 'test' || Boolean(import.meta.env.VITEST)
-    || import.meta.env.VITE_TEST_AUTH_MODE === 'e2e'
-    || ['1', 'true'].includes(import.meta.env.VITE_E2E ?? '')
-    || ['1', 'true'].includes(import.meta.env.VITE_POSTHOG_DISABLED ?? '')
-    || typeof window === 'undefined' || navigator.webdriver === true
-    || !(import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo').trim();
+  return (
+    import.meta.env.DEV ||
+    import.meta.env.MODE === 'test' ||
+    Boolean(import.meta.env.VITEST) ||
+    import.meta.env.VITE_TEST_AUTH_MODE === 'e2e' ||
+    ['1', 'true'].includes(import.meta.env.VITE_E2E ?? '') ||
+    ['1', 'true'].includes(import.meta.env.VITE_POSTHOG_DISABLED ?? '') ||
+    typeof window === 'undefined' ||
+    navigator.webdriver === true ||
+    !(
+      import.meta.env.VITE_POSTHOG_KEY ??
+      'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo'
+    ).trim()
+  );
 }
 
 /** Only fixed route labels leave the browser. Never queries, record IDs or invite tokens. */
 function pageUrl(): string {
   const path = window.location.pathname;
-  const section = path.startsWith('/invite/') ? '/invite'
-    : path.startsWith('/c/') ? '/catalog'
-    : path !== '/' ? '/account'
-    : window.location.hash ? `/#/${ROUTE[tabFromHash(window.location.hash)]}` : '/';
+  const section = path.startsWith('/invite/')
+    ? '/invite'
+    : path.startsWith('/c/')
+      ? '/catalog'
+      : path !== '/'
+        ? '/account'
+        : window.location.hash
+          ? `/#/${ROUTE[tabFromHash(window.location.hash)]}`
+          : '/';
   return `${window.location.origin}${section}`;
 }
 
@@ -65,14 +81,17 @@ function pageview(): void {
     if (url === lastPage) return;
     lastPage = url;
     posthog.capture('$pageview', { $current_url: url });
-  } catch { /* Analytics never controls navigation. */ }
+  } catch {
+    /* Analytics never controls navigation. */
+  }
 }
 
 function stripUrls(value: unknown): void {
   if (!value || typeof value !== 'object') return;
   for (const key of Object.keys(value)) {
     const object = value as Record<string, unknown>;
-    if (/url|pathname|referrer|\butm_|\bgclid|\bfbclid/i.test(key)) delete object[key];
+    if (/url|pathname|referrer|\butm_|\bgclid|\bfbclid/i.test(key))
+      delete object[key];
     else stripUrls(object[key]);
   }
 }
@@ -81,7 +100,12 @@ function stripPrivateProperties(value: unknown): void {
   if (!value || typeof value !== 'object') return;
   for (const key of Object.keys(value)) {
     const object = value as Record<string, unknown>;
-    if (/^(name|email|store_name|client_name|phone|dni|imei|password|authorization|token|access_token|refresh_token)$/i.test(key)) delete object[key];
+    if (
+      /^(store_name|client_name|phone|dni|imei|password|authorization|token|access_token|refresh_token)$/i.test(
+        key,
+      )
+    )
+      delete object[key];
     else stripPrivateProperties(object[key]);
   }
 }
@@ -89,7 +113,10 @@ function stripPrivateProperties(value: unknown): void {
 export function initAnalytics(): void {
   try {
     if (disabled() || initialized) return;
-    const projectKey = (import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo').trim();
+    const projectKey = (
+      import.meta.env.VITE_POSTHOG_KEY ??
+      'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo'
+    ).trim();
     posthog.init(projectKey, {
       api_host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
       autocapture: true,
@@ -123,7 +150,7 @@ export function initAnalytics(): void {
         maskCapturedNetworkRequestFn: () => null,
       },
       // SDK-generated URLs can contain reset codes, invitation tokens and filters.
-      before_send: event => {
+      before_send: (event) => {
         if (!event) return null;
         stripUrls(event.properties);
         // Also strip legacy persisted superproperties and nested person updates.
@@ -142,35 +169,52 @@ export function initAnalytics(): void {
     // replaceState is also used when leaving onboarding without a hashchange.
     for (const method of ['pushState', 'replaceState'] as const) {
       const original = window.history[method];
-      window.history[method] = function (...args: Parameters<History[typeof method]>) {
+      window.history[method] = function (
+        ...args: Parameters<History[typeof method]>
+      ) {
         original.apply(this, args);
         pageview();
       };
     }
     pageview();
-  } catch { /* SDK, storage and browser failures must not break the app. */ }
+  } catch {
+    /* SDK, storage and browser failures must not break the app. */
+  }
 }
 
-export function capture<Name extends keyof EventProps>(name: Name, ...args: EventProps[Name] extends undefined ? [] : [EventProps[Name]]): void {
+export function capture<Name extends keyof EventProps>(
+  name: Name,
+  ...args: EventProps[Name] extends undefined ? [] : [EventProps[Name]]
+): void {
   try {
     if (disabled() || !initialized) return;
     const input = args[0];
     if (name === 'sale_created') {
       const source = input as SaleCreatedProps | undefined;
       const props: SaleCreatedProps = {};
-      for (const key of ['quantity', 'unit_price', 'total', 'stock_left'] as const) {
+      for (const key of [
+        'quantity',
+        'unit_price',
+        'total',
+        'stock_left',
+      ] as const) {
         const value = source?.[key];
-        if (typeof value === 'number' && Number.isFinite(value)) props[key] = value;
+        if (typeof value === 'number' && Number.isFinite(value))
+          props[key] = value;
       }
       for (const key of ['model', 'capacity', 'sale_id'] as const) {
         const value = source?.[key];
         if (typeof value !== 'string') continue;
         const trimmed = value.trim();
-        if (trimmed) props[key] = key === 'sale_id' ? trimmed : trimmed.slice(0, 60);
+        if (trimmed)
+          props[key] = key === 'sale_id' ? trimmed : trimmed.slice(0, 60);
       }
-      if (source?.currency === 'ARS' || source?.currency === 'USD') props.currency = source.currency;
-      if (typeof source?.stock_deducted === 'boolean') props.stock_deducted = source.stock_deducted;
-      if (source?.status === 'COMPLETADA' || source?.status === 'PENDIENTE') props.status = source.status;
+      if (source?.currency === 'ARS' || source?.currency === 'USD')
+        props.currency = source.currency;
+      if (typeof source?.stock_deducted === 'boolean')
+        props.stock_deducted = source.stock_deducted;
+      if (source?.status === 'COMPLETADA' || source?.status === 'PENDIENTE')
+        props.status = source.status;
       posthog.capture(name, props);
       return;
     }
@@ -182,38 +226,89 @@ export function capture<Name extends keyof EventProps>(name: Name, ...args: Even
     let props: { rows?: number; step?: string } | undefined;
     if (name === 'excel_import_succeeded' || name === 'excel_import_failed') {
       const rows = input && 'rows' in input ? input.rows : 0;
-      props = { rows: Number.isFinite(rows) ? Math.max(0, Math.trunc(rows)) : 0 };
-    } else if (name === 'onboarding_step_completed' || name === 'onboarding_step_skipped') {
+      props = {
+        rows: Number.isFinite(rows) ? Math.max(0, Math.trunc(rows)) : 0,
+      };
+    } else if (
+      name === 'onboarding_step_completed' ||
+      name === 'onboarding_step_skipped'
+    ) {
       const step = input && 'step' in input ? input.step : undefined;
-      if (step !== 'stock' && !(name === 'onboarding_step_completed' && step === 'store')) return;
+      if (
+        step !== 'stock' &&
+        !(name === 'onboarding_step_completed' && step === 'store')
+      )
+        return;
       props = { step };
-    } else if (!['signup_completed', 'first_device_added', 'trade_in_created', 'employee_invite_sent', 'employee_invite_accepted'].includes(name)) return;
+    } else if (
+      ![
+        'signup_completed',
+        'first_device_added',
+        'trade_in_created',
+        'employee_invite_sent',
+        'employee_invite_accepted',
+      ].includes(name)
+    )
+      return;
     posthog.capture(name, props);
-  } catch { /* Best effort only. */ }
+  } catch {
+    /* Best effort only. */
+  }
 }
 
-export type IdentityDetails = { email?: string | null; name?: string | null; storeName?: string | null };
+export type IdentityDetails = {
+  email?: string | null;
+  name?: string | null;
+  storeName?: string | null;
+};
 
-/** Analytics uses internal IDs and roles; identity details stay in the application. */
-export function identify(userId: string, storeId: string | null, role: AppMembershipRole | null, _details: IdentityDetails = {}): void {
+/** Identifies by internal user ID, sending email and name as person properties. */
+export function identify(
+  userId: string,
+  storeId: string | null,
+  role: AppMembershipRole | null,
+  details: IdentityDetails = {},
+): void {
   try {
     if (disabled() || !initialized || !userId) return;
-    const key = JSON.stringify([userId, storeId, role]);
+    const email = details.email?.trim() || undefined;
+    const name = details.name?.trim() || undefined;
+    const key = JSON.stringify([
+      userId,
+      storeId,
+      role,
+      email ?? null,
+      name ?? null,
+    ]);
     if (key === identityKey) return;
     if (identity && identity !== userId) reset();
-    posthog.identify(userId, { store_id: storeId, role });
+    posthog.identify(userId, {
+      store_id: storeId,
+      role,
+      ...(email ? { email } : {}),
+      ...(name ? { name } : {}),
+    });
     posthog.register({ store_id: storeId, role });
     if (storeId) posthog.group('store', storeId);
-    identity = userId; store = storeId; identityKey = key;
-  } catch { /* Never block session bootstrap. */ }
+    identity = userId;
+    store = storeId;
+    identityKey = key;
+  } catch {
+    /* Never block session bootstrap. */
+  }
 }
 
 export function reset(): void {
   try {
     if (disabled() || !initialized) return;
     posthog.reset();
-  } catch { /* Logout still succeeds if storage/SDK fails. */ }
-  finally { identity = null; store = null; identityKey = ''; }
+  } catch {
+    /* Logout still succeeds if storage/SDK fails. */
+  } finally {
+    identity = null;
+    store = null;
+    identityKey = '';
+  }
 }
 
 /** Baseline only after a successful inventory read; never infer an empty store from loading. */
@@ -224,20 +319,43 @@ export function observeInventory(count: number): void {
     else {
       emptyStores.delete(store);
       addedStores.add(store);
-      try { localStorage.setItem(`imanager:posthog:first-device:${store}`, '1'); } catch { /* Memory still prevents duplicates. */ }
+      try {
+        localStorage.setItem(`imanager:posthog:first-device:${store}`, '1');
+      } catch {
+        /* Memory still prevents duplicates. */
+      }
     }
-  } catch { /* Best effort. */ }
+  } catch {
+    /* Best effort. */
+  }
 }
 
 /** Deduplicated per store/browser, across manual, batch and import writes. */
 export function deviceAdded(): void {
   try {
-    if (disabled() || !initialized || !store || !emptyStores.has(store) || addedStores.has(store)) return;
+    if (
+      disabled() ||
+      !initialized ||
+      !store ||
+      !emptyStores.has(store) ||
+      addedStores.has(store)
+    )
+      return;
     const key = `imanager:posthog:first-device:${store}`;
-    try { if (localStorage.getItem(key)) return; } catch { /* Use in-memory dedupe. */ }
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      /* Use in-memory dedupe. */
+    }
     addedStores.add(store);
     emptyStores.delete(store);
     capture('first_device_added');
-    try { localStorage.setItem(key, '1'); } catch { /* Use in-memory dedupe. */ }
-  } catch { /* Best effort. */ }
+    try {
+      localStorage.setItem(key, '1');
+    } catch {
+      /* Use in-memory dedupe. */
+    }
+  } catch {
+    /* Best effort. */
+  }
 }
