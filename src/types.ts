@@ -1,4 +1,8 @@
 export interface Product {
+  kind?: "DEVICE" | "ACCESSORY";
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
+  costValue?: number;
   cantidad?: number;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
@@ -52,6 +56,7 @@ export interface CustomColumn {
 }
 
 export interface Sale {
+  productKind?: string;
   createdAt?: string | null;
   cantidad?: number;
   stockDeducted?: boolean;
@@ -124,6 +129,9 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
+  kind?: "DEVICE" | "ACCESSORY";
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
   cost?: number;
   cantidad?: number;
   reservedDepositId?: string | null;

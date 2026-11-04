@@ -66,6 +66,7 @@ export interface SalePatchInput {
 }
 
 export interface SaleResponse {
+  productKind?: string;
   hasInitialDeposit?: boolean;
   cantidad: number;
   depositAppliedAmount?: number;
@@ -131,7 +132,7 @@ type SaleRecord = {
   voidedBy?: string | null;
   voidReason?: string | null;
   warrantyDays?: number | null;
-  inventoryItem?: { model: string; capacity: string; condition?: string } | null;
+  inventoryItem?: { kind?: string; model: string; capacity: string; condition?: string } | null;
 };
 
 export interface SaleCategoryResponse {
@@ -193,6 +194,7 @@ async function recomputeClientStats(
 
 function serializeSale(sale: SaleRecord): SaleResponse {
   return {
+    productKind: sale.inventoryItem?.kind,
     cantidad: sale.cantidad ?? 1,
     id: sale.id,
     saleNumber: sale.saleNumber,
@@ -235,7 +237,7 @@ export async function listSales(storeId: string, options?: { voided?: boolean; c
       ...(!options?.includeVoided ? { voidedAt: options?.voided ? { not: null } : null } : {}),
     },
     orderBy: [{ createdAt: "desc" }, { saleNumber: "desc" }, { id: "desc" }],
-    include: { inventoryItem: { select: { model: true, capacity: true } } },
+    include: { inventoryItem: { select: { kind: true, model: true, capacity: true } } },
   });
 
   return sales.map(serializeSale);

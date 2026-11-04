@@ -41,7 +41,7 @@ describe('navegación por rol', () => {
       'Dashboard', 'Comercial', 'Stock', 'Atención', 'Finanzas', 'Análisis',
     ]);
     expect(group(null, null, 'comercial')).toEqual(['sales', 'tradeins', 'returns']);
-    expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'stockCount', 'publicCatalog']);
+    expect(group('OWNER', null, 'stock')).toEqual(['inventory', 'accessories', 'stockCount', 'publicCatalog']);
     expect(group('OWNER', null, 'atencion')).toEqual(['clients', 'service']);
     expect(group('OWNER', null, 'finanzas')).toEqual(['expenses', 'suppliers']);
     expect(group('OWNER', null, 'analisis')).toEqual(['reports', 'patterns', 'commissions', 'history', 'periodicSummary']);
@@ -62,7 +62,7 @@ describe('navegación por rol', () => {
     expect(commissionsStandalone(null, 'STAFF')).toBe(false);
     expect(group('STAFF', null, 'finanzas')).toEqual(['suppliers']);
     expect(group('STAFF', null, 'analisis')).toEqual(['patterns', 'commissions']);
-    expect(group('STAFF', null, 'stock')).toEqual(['inventory', 'stockCount']);
+    expect(group('STAFF', null, 'stock')).toEqual(['inventory', 'accessories', 'stockCount']);
     expect(group('STAFF', null, 'stock')).not.toContain('publicCatalog');
     expect(group('STAFF', ['inventory'], 'finanzas')).toEqual(['suppliers']);
     expect(group('STAFF', [], 'finanzas')).toBeNull();
@@ -125,7 +125,7 @@ describe('barra del celular', () => {
     const owner = mobileBar(null, 'OWNER');
     expect(owner.map((slot) => slot.label)).toEqual(['Dashboard', 'Ventas', 'Equipos', 'Clientes']);
     expect(owner.find((slot) => slot.id === 'sales')?.activeIds).toEqual(['sales', 'tradeins', 'returns']);
-    expect(owner.find((slot) => slot.id === 'inventory')?.activeIds).toEqual(['inventory', 'stockCount', 'publicCatalog']);
+    expect(owner.find((slot) => slot.id === 'inventory')?.activeIds).toEqual(['inventory', 'accessories', 'stockCount', 'publicCatalog']);
     expect(owner.find((slot) => slot.id === 'clients')?.activeIds).toEqual(['clients', 'service']);
   });
 

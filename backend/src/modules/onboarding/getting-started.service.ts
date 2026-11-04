@@ -44,7 +44,7 @@ export async function getGettingStarted(member: Member) {
       }),
       can("inventory")
         ? prisma.inventoryItem.count({
-            where: { storeId, archivedAt: null, sampleBatchId: null },
+            where: { storeId, kind: "DEVICE", archivedAt: null, sampleBatchId: null },
           })
         : 0,
       can("sales") ? prisma.sale.count({ where: { storeId, voidedAt: null } }) : 0,
@@ -59,7 +59,7 @@ export async function getGettingStarted(member: Member) {
         : null,
       can("inventory")
         ? prisma.inventoryItem.count({
-            where: { storeId, archivedAt: null, sampleBatchId: { not: null } },
+            where: { storeId, kind: "DEVICE", archivedAt: null, sampleBatchId: { not: null } },
           })
         : 0,
     ]);

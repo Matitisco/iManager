@@ -65,7 +65,7 @@ describe('equipment model from TAC', () => {
     expect(screen.getByLabelText('Modelo')).toHaveValue('iPhone 11 Pro Max');
     expect(imei).toHaveFocus();
     for (const label of ['Color', 'Batería %', 'Costo', 'Precio de venta']) expect(screen.getByLabelText(label)).toHaveValue('');
-    expect(document.querySelectorAll('.sg.on')).toHaveLength(1); // Only existing inventory status.
+    expect([...document.querySelectorAll('.sgs:not(.register-kind) .sg.on')]).toEqual([screen.getByRole('button', { name: 'Disponible' })]);
     change(imei, other);
     expect(screen.getByLabelText('Modelo')).toHaveValue('iPhone 12');
   });
@@ -76,7 +76,7 @@ describe('equipment model from TAC', () => {
     await user.paste(testImei('35001772'));
     expect(screen.getByLabelText('Modelo')).toHaveValue('Samsung Galaxy S24 Ultra');
     for (const label of ['Color', 'Batería %', 'Costo', 'Precio de venta']) expect(screen.getByLabelText(label)).toHaveValue('');
-    expect(document.querySelectorAll('.sg.on')).toHaveLength(1);
+    expect([...document.querySelectorAll('.sgs:not(.register-kind) .sg.on')]).toEqual([screen.getByRole('button', { name: 'Disponible' })]);
     change(screen.getByLabelText('Modelo'), 'Modelo elegido');
     change(screen.getByLabelText('IMEI (opcional)'), known);
     expect(screen.getByLabelText('Modelo')).toHaveValue('Modelo elegido');

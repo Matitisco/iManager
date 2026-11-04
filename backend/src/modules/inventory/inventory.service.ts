@@ -1,3 +1,4 @@
+import { accessoryError, type InventoryKind } from "../../lib/import-shared/accessories.js";
 import { getDefaultCatalog } from '../public-catalog/default-catalog.js';
 import { inventoryImportGroups } from './import-grouping.js';
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
@@ -27,6 +28,9 @@ import { readPurchaseName } from "../suppliers/purchase-name.js";
 import { inventoryGrade } from "./quality.js";
 
 export interface InventoryItemInput {
+  kind?: InventoryKind | string;
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
   cantidad?: number;
   imei?: string | null;
   model: string;
@@ -49,6 +53,9 @@ export interface InventoryItemInput {
 }
 
 export interface InventoryItemResponse {
+  kind?: InventoryKind | string;
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
   cantidad: number;
   catalogVisible: boolean;
   catalogIncluded: boolean;
@@ -68,6 +75,7 @@ export interface InventoryItemResponse {
   batteryNote?: string | null;
   batteryHealth: string;
   cost: number;
+  costValue?: number;
   price: number | null;
   currency: string | null;
   status: string;
@@ -102,6 +110,9 @@ export interface InventoryItemDetailResponse extends InventoryItemResponse {
 }
 
 type InventoryRecord = {
+  kind?: InventoryKind | string;
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
   catalogNames?: string[];
@@ -206,6 +217,7 @@ function visibleImei(imei: string | null | undefined, customFields: Prisma.JsonV
 
 export function serializeInventoryItem(item: InventoryRecord): InventoryItemResponse {
   return {
+    kind: item.kind ?? "DEVICE", accessoryType: item.accessoryType ?? null, compatibleWith: item.compatibleWith ?? null,
     cantidad: item.cantidad ?? 1,
     catalogVisible: item.catalogVisible ?? false,
     catalogIncluded: item.catalogIncluded ?? false,
@@ -221,6 +233,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     batteryNote: item.batteryNote ?? null,
     batteryHealth: item.batteryHealth,
     cost: item.cost.toNumber(),
+    ...(item.kind === "ACCESSORY" ? { costValue: item.cost.mul(item.cantidad ?? 1).toNumber() } : {}),
     price: item.price?.toNumber() ?? null,
     currency: item.currency ?? null,
     status: item.status as InventoryItemResponse["status"],
@@ -252,6 +265,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
 // ─── Paged listing ────────────────────────────────────────────────────────────
 
 export interface ListInventoryParams {
+  kind?: InventoryKind | "ALL";
   skip: number;
   take: number;
   search?: string;
@@ -269,6 +283,8 @@ export interface ListInventoryParams {
 
 function buildWhereConditions(storeId: string, params: Omit<ListInventoryParams, 'skip' | 'take' | 'sortKey' | 'sortDir'>): Prisma.Sql {
   const parts: Prisma.Sql[] = [Prisma.sql`"storeId" = ${storeId}`, Prisma.sql`"archivedAt" IS NULL`];
+
+  if (params.kind !== "ALL") parts.push(Prisma.sql`"kind" = ${params.kind ?? "DEVICE"}`);
 
   if (params.search) {
     const search = `%${params.search.trim()}%`;
@@ -329,6 +345,9 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 }
 
 type RawInventoryRow = {
+  kind?: InventoryKind | string;
+  accessoryType?: string | null;
+  compatibleWith?: string | null;
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
   catalogNames?: string[];
@@ -356,6 +375,7 @@ type RawInventoryRow = {
 
 function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
   return {
+    kind: row.kind ?? "DEVICE", accessoryType: row.accessoryType ?? null, compatibleWith: row.compatibleWith ?? null,
     cantidad: row.cantidad ?? 1,
     catalogVisible: row.catalogVisible ?? false,
     catalogIncluded: row.catalogIncluded ?? false,
@@ -403,7 +423,7 @@ export async function listInventoryPaged(
 
   const [rows, countResult] = await Promise.all([
     prisma.$queryRaw<RawInventoryRow[]>`
-      SELECT "catalogVisible", "quantity" AS "cantidad", "id", "imei", "model", "capacity", "color", "condition", "grade",
+      SELECT "kind", "accessoryType", "compatibleWith", "catalogVisible", "quantity" AS "cantidad", "id", "imei", "model", "capacity", "color", "condition", "grade",
              "entryDate", "batteryNote", "batteryHealth", "cost"::float8, "price"::float8, "currency", "status", "reservedDepositId", "reservedClientId", "reservedClientName", "reservedAt", "categoryId", "customFields", "createdAt", "archivedAt", "pendingSaleRegistration", "needsCompletion",
              "priceChangedBy", "priceChangedAt", "costChangedBy", "costChangedAt",
              "supplierId", "stockPurchaseId"
@@ -453,9 +473,9 @@ export async function getInventoryFilteredIds(
 
 // ─── Full listing (legacy, used by AppContext) ─────────────────────────────────
 
-export async function listInventory(storeId: string, options?: { archived?: boolean; supplierId?: string }) {
+export async function listInventory(storeId: string, options?: { archived?: boolean; supplierId?: string; kind?: InventoryKind | "ALL" }) {
   const inventory = await inventoryPrisma.inventoryItem.findMany({
-    where: { storeId, archivedAt: options?.archived ? { not: null } : null, supplierId: options?.supplierId },
+    where: { storeId, ...(options?.kind === "ALL" ? {} : { kind: options?.kind ?? "DEVICE" }), archivedAt: options?.archived ? { not: null } : null, supplierId: options?.supplierId },
     include: {
       sales: {
         select: { soldAt: true },
@@ -510,6 +530,10 @@ export async function createInventoryItem(
   actor?: Actor | null,
   options?: { allowRetiredImei?: boolean; source?: "app" | "bulk" | "import" | "system" },
 ) {
+  if (input.kind === "ACCESSORY") {
+    const message = accessoryError({ ...input, cantidad: input.cantidad ?? 1 });
+    if (message) throw new InventoryError(message, 400);
+  }
   await assertCategoryBelongsToStore(storeId, input.categoryId);
   const imei = storedImei(input.imei);
   if (imei && !options?.allowRetiredImei) {
@@ -561,6 +585,9 @@ export async function createInventoryItem(
     }
     const created = await tx.inventoryItem.create({ data: {
       storeId,
+      kind: input.kind ?? "DEVICE",
+      accessoryType: input.kind === "ACCESSORY" ? input.accessoryType : null,
+      compatibleWith: input.kind === "ACCESSORY" ? input.compatibleWith?.trim() || null : null,
       imei,
       model: input.model.trim(),
       capacity: input.capacity.trim(),
@@ -593,7 +620,7 @@ export async function createInventoryItem(
         source: options?.source ?? "app",
       });
     }
-    if (created.status === "VENDIDO") {
+    if (created.status === "VENDIDO" && created.pendingSaleRegistration) {
       await writeOperationNotifications(tx, storeId, [{
         section: "inventory",
         title: "Venta manual por registrar",
@@ -668,6 +695,11 @@ export async function updateInventoryItem(
       where: { id, storeId, archivedAt: null },
     });
     if (!existing) return null;
+    if (input.kind && input.kind !== existing.kind) throw new InventoryError("No se puede cambiar el tipo de un producto registrado", 409);
+    if (existing.kind === "ACCESSORY") {
+      const message = accessoryError({ ...existing, ...input });
+      if (message) throw new InventoryError(message, 400);
+    }
     if (existing.reservedDepositId && input.status !== undefined && input.status !== existing.status) throw new InventoryError("Cancelá la seña para liberar o vender este equipo", 409);
 
     const priceChanges = input.price !== undefined && moneyChanged(existing.price, input.price);
@@ -712,6 +744,10 @@ export async function updateInventoryItem(
 
     const cantidad = validCantidad(input.cantidad ?? existing.cantidad, input.imei === undefined ? existing.imei : input.imei);
     const data: Prisma.InventoryItemUpdateInput = {};
+    if (existing.kind === "ACCESSORY") {
+      if (input.accessoryType !== undefined) data.accessoryType = input.accessoryType;
+      if (input.compatibleWith !== undefined) data.compatibleWith = input.compatibleWith?.trim() || null;
+    }
     if (input.cantidad !== undefined) {
       if (existing.reservedDepositId && cantidad !== existing.cantidad) throw new InventoryError("Cancelá la seña antes de cambiar la cantidad", 409);
       data.cantidad = cantidad;
@@ -801,6 +837,7 @@ export async function updateInventoryItem(
     if (options?.actor) {
       const changes = diffFields(
         {
+          cantidad: existing.cantidad, accessoryType: existing.accessoryType, compatibleWith: existing.compatibleWith,
           model: existing.model,
           capacity: existing.capacity,
           color: existing.color,
@@ -811,6 +848,7 @@ export async function updateInventoryItem(
           status: existing.status,
         },
         {
+          cantidad, accessoryType: input.accessoryType ?? existing.accessoryType, compatibleWith: input.compatibleWith === undefined ? existing.compatibleWith : input.compatibleWith?.trim() || null,
           model: input.model?.trim() ?? existing.model,
           capacity: input.capacity?.trim() ?? existing.capacity,
           color: input.color?.trim() ?? existing.color,
@@ -821,6 +859,9 @@ export async function updateInventoryItem(
           status: input.status ?? existing.status,
         },
         [
+          { field: "cantidad", label: "Cantidad" },
+          { field: "accessoryType", label: "Tipo de accesorio" },
+          { field: "compatibleWith", label: "Compatible con" },
           { field: "model", label: "Modelo" },
           { field: "capacity", label: "Capacidad" },
           { field: "color", label: "Color" },

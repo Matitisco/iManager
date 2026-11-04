@@ -8,6 +8,7 @@ export const ROUTE: Record<DeskTab, string> = {
   returns: 'comercial/devoluciones',
   patterns: 'analisis/fallas',
   inventory: 'stock/equipos',
+  accessories: 'stock/accesorios',
   stockCount: 'stock/control',
   suppliers: 'finanzas/proveedores',
   publicCatalog: 'stock/catalogo',

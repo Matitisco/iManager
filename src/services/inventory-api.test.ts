@@ -97,7 +97,7 @@ describe('inventory-api', () => {
       .mockResolvedValueOnce(jsonResponse({ error: 'Filtro invalido' }, 400));
 
     await expect(fetchBackendInventory(mockUser)).resolves.toEqual([inventoryItem]);
-    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/inventory', {
+    expect(fetchWithTimeout).toHaveBeenCalledWith('https://api.imanager.test/api/inventory?kind=ALL', {
       method: 'GET',
       cache: 'no-store',
       headers: {
