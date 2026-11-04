@@ -90,7 +90,9 @@ const LEGACY: Record<string, DeskTab> = {
 };
 
 export function hashPath(hash: string) {
-  return (hash.replace(/^#\/?/, '').split('?')[0] ?? '').split('/').filter(Boolean);
+  return (hash.replace(/^#\/?/, '').split('?')[0] ?? '')
+    .split('/')
+    .filter(Boolean);
 }
 
 function hashQuery(hash: string) {
@@ -98,23 +100,45 @@ function hashQuery(hash: string) {
 }
 
 function isSettingsPath(parts: string[]) {
-  return parts[0] === 'config' || parts[0] === 'configuracion' || parts[0] === 'settings'
-    || (parts[0] === 'cuenta' && parts[1] === 'configuracion');
+  return (
+    parts[0] === 'config' ||
+    parts[0] === 'configuracion' ||
+    parts[0] === 'settings' ||
+    (parts[0] === 'cuenta' && parts[1] === 'configuracion')
+  );
 }
 
-export type ConfigPlace = { page: 'settings' | 'team'; memberId: string | null };
+export type ConfigPlace = {
+  page: 'settings' | 'team';
+  memberId: string | null;
+};
 
 /** `#/config`, `#/cuenta/configuracion/equipo` y `#/cuenta/configuracion/equipo/:id`. */
 export function configPlace(hash: string): ConfigPlace {
   const parts = hashPath(hash);
-  const equipoAt = parts[0] === 'cuenta' && parts[1] === 'configuracion' ? 2 : (parts[0] === 'config' || parts[0] === 'configuracion' || parts[0] === 'settings' ? 1 : -1);
-  if (equipoAt < 0 || parts[equipoAt] !== 'equipo') return { page: 'settings', memberId: null };
+  const equipoAt =
+    parts[0] === 'cuenta' && parts[1] === 'configuracion'
+      ? 2
+      : parts[0] === 'config' ||
+          parts[0] === 'configuracion' ||
+          parts[0] === 'settings'
+        ? 1
+        : -1;
+  if (equipoAt < 0 || parts[equipoAt] !== 'equipo')
+    return { page: 'settings', memberId: null };
   const memberId = parts[equipoAt + 1];
-  return { page: 'team', memberId: memberId ? decodeURIComponent(memberId) : null };
+  return {
+    page: 'team',
+    memberId: memberId ? decodeURIComponent(memberId) : null,
+  };
 }
 
-export function configHash(page: 'settings' | 'team', memberId?: string | null) {
-  if (page === 'team' && memberId) return `#/cuenta/configuracion/equipo/${encodeURIComponent(memberId)}`;
+export function configHash(
+  page: 'settings' | 'team',
+  memberId?: string | null,
+) {
+  if (page === 'team' && memberId)
+    return `#/cuenta/configuracion/equipo/${encodeURIComponent(memberId)}`;
   if (page === 'team') return '#/cuenta/configuracion/equipo';
   return '#/cuenta/configuracion';
 }
@@ -129,7 +153,9 @@ export function tabFromHash(hash: string): DeskTab {
   if (canonical && canonical !== hash) return tabFromHash(canonical);
   const full = parts.join('/');
   const nested = parts.slice(0, 2).join('/');
-  const match = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full || path === nested);
+  const match = (Object.entries(ROUTE) as [DeskTab, string][]).find(
+    ([, path]) => path === full || path === nested,
+  );
   if (match) return match[0];
   if (LEGACY[full]) return LEGACY[full];
   return LEGACY[parts[0] ?? ''] ?? 'dashboard';
@@ -148,7 +174,9 @@ export function canonicalHash(hash: string): string | null {
     return `${configHash(place.page, place.memberId)}${query}`;
   }
   const full = parts.join('/');
-  const exact = (Object.entries(ROUTE) as [DeskTab, string][]).find(([, path]) => path === full);
+  const exact = (Object.entries(ROUTE) as [DeskTab, string][]).find(
+    ([, path]) => path === full,
+  );
   let tab = exact?.[0] ?? LEGACY[full];
   if (!tab) return null;
   const params = new URLSearchParams(query);
@@ -156,10 +184,19 @@ export function canonicalHash(hash: string): string | null {
   if (tab === 'returns' && (view === 'patterns' || view === 'claims')) {
     if (view === 'patterns') tab = 'patterns';
     params.delete('view');
-  } else if (tab === 'reports' && (view === 'periodic' || view === 'periodicSummary' || view === 'periodic-summary' || view === 'resumen-periodico')) {
+  } else if (
+    tab === 'reports' &&
+    (view === 'periodic' ||
+      view === 'periodicSummary' ||
+      view === 'periodic-summary' ||
+      view === 'resumen-periodico')
+  ) {
     tab = 'periodicSummary';
     params.delete('view');
-  } else if (tab === 'publicCatalog' && (view === 'summary' || view === 'items')) {
+  } else if (
+    tab === 'publicCatalog' &&
+    (view === 'summary' || view === 'items')
+  ) {
     params.delete('view');
   } else return `#/${ROUTE[tab]}${query}`;
   const search = params.toString();

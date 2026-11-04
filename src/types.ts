@@ -1,5 +1,5 @@
 export interface Product {
-  kind?: "DEVICE" | "ACCESSORY";
+  kind?: 'DEVICE' | 'ACCESSORY';
   accessoryType?: string | null;
   compatibleWith?: string | null;
   costValue?: number;
@@ -45,7 +45,8 @@ export interface Product {
   customFields?: Record<string, any>;
 }
 
-export type CustomColumnEntity = 'inventory' | 'clients' | 'sales' | 'trade-ins';
+export type CustomColumnEntity =
+  'inventory' | 'clients' | 'sales' | 'trade-ins';
 
 export interface CustomColumn {
   id: string;
@@ -129,7 +130,7 @@ export interface RepairOrder {
 }
 
 export interface OperationProductOption {
-  kind?: "DEVICE" | "ACCESSORY";
+  kind?: 'DEVICE' | 'ACCESSORY';
   accessoryType?: string | null;
   compatibleWith?: string | null;
   cost?: number;

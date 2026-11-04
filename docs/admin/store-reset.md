@@ -34,7 +34,10 @@ Respuesta **200**:
 ```ts
 {
   dryRun: boolean;
-  store: { id: string; name: string };
+  store: {
+    id: string;
+    name: string;
+  }
   willDelete: Record<string, number>;
   willKeep: Record<string, number>;
 }
@@ -61,7 +64,11 @@ Preview ejecuta las mismas mutaciones, ajustes, verificaciones y auditoría de a
 Repetir los campos del preview, incluido `scope` si se usó, con `dryRun: false` y agregar **`expect` igual al objeto `willDelete` completo recibido**. En JavaScript:
 
 ```js
-const applyBody = { ...previewBody, dryRun: false, expect: previewResponse.willDelete };
+const applyBody = {
+  ...previewBody,
+  dryRun: false,
+  expect: previewResponse.willDelete,
+};
 ```
 
 `expect` debe incluir las 23 claves del modo actual o las 26 de full, incluso las que tienen valor 0, particularmente `Sale` e `InventoryItem`. Si falta el objeto, falta/sobra una clave o cambia cualquier conteo recalculado, devuelve **409 sin cambios** y hay que repetir el preview. No se pueden usar conteos del modo actual para confirmar full ni viceversa. El body es estricto: no acepta claves adicionales, `storeId`, `confirm`, otros valores de `scope` ni strings como conteos; formatos inválidos devuelven 400. `expect` es opcional en preview y solo se verifica al aplicar.
