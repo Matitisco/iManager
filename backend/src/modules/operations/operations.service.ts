@@ -4,60 +4,27 @@ import { captureSaleCancellation, restoreCancelledSale } from './sale-restoratio
 import { trackFirstSale } from '../analytics/first-sale.js';
 import { recordCash, reverseCashSource } from '../cash/service.js';
 import { coverSaleWithCredits } from '../returns/returns.service.js';
-import {
-  applyDeposits,
-  receiveDeposit,
-  restoreSaleDeposits,
-  lockInventory,
-} from '../deposits/deposits.service.js';
-import {
-  balanceAfterDeposit,
-  depositMoney,
-} from '../deposits/deposit-money.js';
-import {
-  hasSettlement,
-  settleNewSale,
-  type SettlementRequest,
-} from '../accounts/settlement.js';
-import { recordPriceRise } from '../accounts/accounts.service.js';
-import { priceRiseDebt } from '../accounts/ledger.js';
-import { saleExchangeRate } from '../../lib/blue-rate.js';
-import {
-  assertBeneficiary,
-  recordSaleCommission,
-  refreshSaleCommission,
-  voidSaleCommission,
-} from '../commissions/commission-ledger.js';
-import { Prisma } from '@prisma/client';
-import type { Client, InventoryItem, Sale, TradeIn } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
-import {
-  formatArDate,
-  formatStoredDate,
-  parseArDateOr,
-} from '../../lib/ar-date.js';
-import { formatArMoney } from '../../lib/ar-money.js';
-import {
-  cancellationSettlement,
-  type RefundTarget,
-} from '../../lib/cancel-refund.js';
-import { allocateDocumentNumber } from '../../lib/store-sequence.js';
-import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
-import { DomainError } from '../../lib/domain-error.js';
-import { prisma } from '../../plugins/prisma.js';
-import {
-  cancellationStamp,
-  moneyChanged,
-  writeAudit,
-  type Actor,
-} from '../audit/audit.js';
-import { cleanReason, saleCode } from '../audit/archive.js';
-import { parseOptionalImei } from '../../lib/imei.js';
-import {
-  convertMoney,
-  currencyOnWrite,
-  storeCurrency,
-} from '../../lib/money-currency.js';
+import { applyDeposits, receiveDeposit, restoreSaleDeposits, lockInventory } from '../deposits/deposits.service.js';
+import { balanceAfterDeposit, depositMoney } from '../deposits/deposit-money.js';
+import { hasSettlement, settleNewSale, type SettlementRequest } from "../accounts/settlement.js";
+import { recordPriceRise } from "../accounts/accounts.service.js";
+import { priceRiseDebt } from "../accounts/ledger.js";
+import { saleExchangeRate } from "../../lib/blue-rate.js";
+import { assertBeneficiary, recordSaleCommission, refreshSaleCommission, voidSaleCommission } from "../commissions/commission-ledger.js";
+import { Prisma } from "@prisma/client";
+import type { Client, InventoryItem, Sale, TradeIn } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/library";
+import { formatArDate, formatStoredDate, parseArDateOr } from "../../lib/ar-date.js";
+import { formatArMoney } from "../../lib/ar-money.js";
+import { cancellationSettlement, type RefundTarget } from "../../lib/cancel-refund.js";
+import { allocateDocumentNumber } from "../../lib/store-sequence.js";
+import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
+import { DomainError } from "../../lib/domain-error.js";
+import { prisma } from "../../plugins/prisma.js";
+import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
+import { cleanReason, saleCode } from "../audit/archive.js";
+import { parseOptionalImei } from "../../lib/imei.js";
+import { convertMoney, currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 async function copyCurrency(db: Prisma.TransactionClient, storeId: string, explicit?: string | null) {
   if (explicit === "ARS" || explicit === "USD") return explicit;
@@ -398,12 +365,7 @@ async function stampDepositClientCurrency(tx: Prisma.TransactionClient, storeId:
 }
 type MovementCurrency = { currency: string; exchangeRate: Decimal | number | null };
 
-function convertedMovement(
-  amount: number,
-  from: string,
-  to: string,
-  rate: MovementCurrency['exchangeRate'],
-) {
+function convertedMovement(amount: number, from: string, to: string, rate: MovementCurrency["exchangeRate"]) {
   return convertMoney(amount, from, to, rate);
 }
 

@@ -10,7 +10,7 @@ import { withSerializableRetry } from '../../lib/with-serializable-retry.js';
 import {
   lockStoreMembers,
   withMembershipTransaction,
-} from '../stores/member-transaction.js';
+} from './membership-tx.js';
 import { canSeeFinancials } from '../stores/sections.js';
 import {
   lockInventory,
