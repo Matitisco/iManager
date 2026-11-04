@@ -2,20 +2,20 @@ name: CI
 
 # PRs run lint/tsc and only related tests. Global config/dependency changes fall
 # back to complete suites; UI/assets/E2E changes also run browser smoke.
-# Push to main, nightly and dispatch keep full unit/integration, 8 E2E shards
+# Push to main/test, nightly and dispatch keep full unit/integration, 8 E2E shards
 # and all three PWA projects. The required aggregator is always named "test".
 # Browser jobs use the lockfile-matched Playwright image.
 on:
   push:
-    branches: [main]
+    branches: [main, test]
   pull_request:
   schedule:
-    - cron: "0 6 * * *" # 03:00 Buenos Aires
+    - cron: '0 6 * * *' # 03:00 Buenos Aires
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/test' }}
 
 defaults:
   run:
@@ -23,10 +23,10 @@ defaults:
 
 env:
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/imanager_test
-  ENABLE_TEST_AUTH_BYPASS: "true"
+  ENABLE_TEST_AUTH_BYPASS: 'true'
   NODE_ENV: test
   # Generate explicitly in backend jobs; postinstall schema lookup depends on INIT_CWD.
-  PRISMA_SKIP_POSTINSTALL_GENERATE: "true"
+  PRISMA_SKIP_POSTINSTALL_GENERATE: 'true'
   FULL: ${{ github.event_name != 'pull_request' }}
 
 jobs:
@@ -44,6 +44,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          filter: blob:none
       - name: Verify selection safety
         run: node --test scripts/ci-test-plan.test.mjs
       - id: f
@@ -59,38 +60,90 @@ jobs:
           node -e 'const version = require("./package-lock.json").packages["node_modules/@playwright/test"].version; console.log(`image=mcr.microsoft.com/playwright:v${version}-noble`)' >> "$GITHUB_OUTPUT"
 
   lint:
-    needs: changes
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/dependencies
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
-      - name: Install frontend and backend dependencies (once per project)
-        run: |
-          npm ci --prefer-offline --no-audit --no-fund &
-          frontend_install=$!
-          npm --prefix backend ci --prefer-offline --no-audit --no-fund
-          wait "$frontend_install"
-      - name: Generate Prisma client
-        run: npm run prisma:generate
-        working-directory: backend
-      - name: Lint frontend
-        run: npm run lint
-      - name: Lint backend
-        run: npm run lint
-        working-directory: backend
+          projects: frontend
+      - name: Lint source
+        run: npm run lint:code
+      - name: Verify CI tooling
+        run: node --test scripts/ci-*.test.mjs scripts/pre-push.test.mjs
 
-  backend-tests:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
+        with:
+          projects: both
+      - name: Generate Prisma client
+        run: npm --prefix backend run prisma:generate
+      - name: Typecheck
+        run: |
+          if [[ "${{ matrix.project }}" == backend ]]; then
+            npm --prefix backend run lint
+          else
+            npm run lint
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [frontend, backend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
+        with:
+          projects: ${{ matrix.project }}
+      - name: Build
+        run: |
+          if [[ "${{ matrix.project }}" == backend ]]; then
+            npm --prefix backend run build
+          else
+            NODE_ENV=production npm run build
+          fi
+
+  backend-unit:
+    needs: changes
+    if: needs.changes.outputs.backend != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/dependencies
+        with:
+          projects: backend
+      - name: Generate Prisma client
+        run: npm --prefix backend run prisma:generate
+      - name: Test backend unit
+        if: needs.changes.outputs.backend == 'full'
+        run: npm --prefix backend run test:unit
+      - name: Test related backend unit
+        if: needs.changes.outputs.backend == 'related'
+        env:
+          TEST_PLAN: ${{ needs.changes.outputs.plan }}
+        run: node scripts/ci-related-tests.mjs unit
+
+  backend-integration:
     needs: changes
     if: needs.changes.outputs.backend != 'off'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.changes.outputs.backend == 'full' && '[1,2,3]' || '[1]') }}
     services:
       postgres:
         image: mirror.gcr.io/library/postgres:16
@@ -107,34 +160,24 @@ jobs:
           --health-retries 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/dependencies
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci --prefer-offline --no-audit --no-fund
-        working-directory: backend
+          projects: backend
       - name: Generate Prisma client
         run: npm run prisma:generate
         working-directory: backend
       - name: Prepare test database
         run: npx prisma db push --skip-generate
         working-directory: backend
-      - name: Test backend unit
-        if: needs.changes.outputs.backend == 'full'
-        run: npm run test:unit
-        working-directory: backend
       - name: Test backend integration
         if: needs.changes.outputs.backend == 'full'
-        run: npm run test:integration
+        run: npm run test:integration -- --shard=${{ matrix.shard }}/3
         working-directory: backend
-      - name: Test related backend unit and integration
+      - name: Test related backend integration
         if: needs.changes.outputs.backend == 'related'
         env:
           TEST_PLAN: ${{ needs.changes.outputs.plan }}
-        run: |
-          node scripts/ci-related-tests.mjs unit
-          node scripts/ci-related-tests.mjs integration
+        run: node scripts/ci-related-tests.mjs integration
 
   frontend-unit:
     needs: changes
@@ -150,27 +193,15 @@ jobs:
         shard: ${{ fromJSON(needs.changes.outputs.frontend-shards) }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/dependencies
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
-      # Frontend tests import backend modules (backend deps needed) but use no database.
-      # jsdom is the default; layout/animation tests launch real Chromium directly.
-      - name: Install frontend and backend dependencies (once per project)
-        run: |
-          npm ci --prefer-offline --no-audit --no-fund &
-          frontend_install=$!
-          npm --prefix backend ci --prefer-offline --no-audit --no-fund
-          wait "$frontend_install"
+          projects: both
       - name: Generate Prisma client
         run: npm run prisma:generate
         working-directory: backend
       - name: Test frontend
         if: needs.changes.outputs.frontend == 'full'
-        run: npx vitest run --shard=${{ matrix.shard }}/2
+        run: npx vitest run --shard=${{ matrix.shard }}/4
       - name: Test related frontend
         if: needs.changes.outputs.frontend == 'related'
         env:
@@ -191,12 +222,9 @@ jobs:
         project: ${{ fromJSON(github.event_name == 'pull_request' && '["android-chromium"]' || '["desktop-chromium","iphone-webkit","android-chromium"]') }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/dependencies
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci --prefer-offline --no-audit --no-fund
+          projects: frontend
       - name: Test PWA assets, worker and serving
         run: npm run test:pwa
         if: matrix.project == 'android-chromium'
@@ -248,19 +276,9 @@ jobs:
           --health-retries 30
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: ./.github/actions/dependencies
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            backend/package-lock.json
-      - name: Install frontend and backend dependencies (once per project)
-        run: |
-          npm ci --prefer-offline --no-audit --no-fund &
-          frontend_install=$!
-          npm --prefix backend ci --prefer-offline --no-audit --no-fund
-          wait "$frontend_install"
+          projects: both
       - name: Generate Prisma client
         run: npm run prisma:generate
         working-directory: backend
@@ -281,7 +299,18 @@ jobs:
 
   test:
     name: test
-    needs: [changes, lint, backend-tests, frontend-unit, pwa, e2e]
+    needs:
+      [
+        changes,
+        lint,
+        typecheck,
+        build,
+        backend-unit,
+        backend-integration,
+        frontend-unit,
+        pwa,
+        e2e,
+      ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

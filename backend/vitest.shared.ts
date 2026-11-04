@@ -1,23 +1,30 @@
-import { defineConfig } from "vitest/config";
+import { availableParallelism } from 'node:os';
+import { defineConfig } from 'vitest/config';
 
-export function createBackendVitestConfig(include: string[], exclude?: string[]) {
+export function createBackendVitestConfig(
+  include: string[],
+  exclude?: string[],
+) {
   return defineConfig({
     test: {
-      environment: "node",
+      environment: 'node',
+      pool: 'threads',
+      isolate: true,
+      maxWorkers: Math.min(2, availableParallelism()),
+      restoreMocks: true,
+      unstubEnvs: true,
+      unstubGlobals: true,
       include,
       exclude,
-      setupFiles: ["src/test/setup-env.ts"],
+      setupFiles: ['src/test/setup-env.ts'],
       coverage: {
-        provider: "v8",
+        provider: 'v8',
         include: [
-          "src/modules/**/*.service.ts",
-          "src/modules/auth/session.service.ts",
-          "src/middleware/**/*.ts",
+          'src/modules/**/*.service.ts',
+          'src/modules/auth/session.service.ts',
+          'src/middleware/**/*.ts',
         ],
-        exclude: [
-          "src/**/*.test.ts",
-          "src/**/*.integration.test.ts",
-        ],
+        exclude: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
         thresholds: {
           lines: 80,
           functions: 80,

@@ -20,7 +20,11 @@
     "test:pwa": "node scripts/pwa.test.mjs && node --test scripts/basic-auth.test.mjs && node --test scripts/http-security.test.mjs",
     "test:pwa:e2e": "playwright test --config playwright.pwa.config.ts",
     "test:ci": "npm run test:frontend && npm run test:backend:unit && npm run test:backend:integration && npm run test:e2e",
-    "build:imei-tac": "node scripts/build-imei-tac.mjs"
+    "build:imei-tac": "node scripts/build-imei-tac.mjs",
+    "prepare": "husky",
+    "lint:code": "oxlint -c .oxlintrc.json src backend/src scripts",
+    "format:changed": "node scripts/pre-push.mjs --format",
+    "check:push": "node scripts/pre-push.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.14",
@@ -45,7 +49,10 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitest/coverage-v8": "^4.1.12",
+    "husky": "^9.1.7",
     "jsdom": "^29.0.1",
+    "oxlint": "^1.90.0",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.23.15",
     "typescript": "~5.8.2",
