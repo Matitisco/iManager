@@ -49,6 +49,26 @@ describe('selector de tienda', () => {
     expect(activateStore).toHaveBeenCalledWith(ctx.user, 'retail');
     expect(toast).toHaveBeenCalledWith('Cambiaste a Local ficticio');
   });
+  it('lista mayorista primero con descripción y etiqueta de tipo, y Todas con balance combinado', () => {
+    wrap(<StoreSelector />); fireEvent.click(screen.getByRole('combobox'));
+    const options = screen.getAllByRole('option');
+    expect(options.map(option => option.getAttribute('aria-label'))).toEqual(['Central ficticia · Mayorista', 'Local ficticio · Minorista', 'Todas las tiendas']);
+    expect(options[0]).toHaveTextContent('Venta por mayor');
+    expect(options[1]).toHaveTextContent('Venta al público');
+    expect(options[2]).toHaveTextContent('Balance combinado');
+    expect(screen.getByRole('combobox')).toHaveTextContent('Mayorista');
+  });
+  it('en Balance el disparador muestra Todas las tiendas', () => {
+    wrap(<DeskProvider value={{ tab: 'balance', go, toast, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), isStaff: false }}><StoreSelector /></DeskProvider>);
+    expect(screen.getByRole('combobox')).toHaveTextContent('Todas las tiendas');
+    expect(screen.getByRole('combobox')).toHaveTextContent('Balance combinado');
+  });
+  it('place decide dónde vive el selector multitienda', () => {
+    const { container, rerender } = wrap(<StoreSelector place="brand" />);
+    expect(container.querySelector('[role="combobox"]')).toBeNull();
+    rerender(<DeskProvider value={{ tab: 'dashboard', go, toast, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), isStaff: false }}><StoreSelector place="below" /></DeskProvider>);
+    expect(screen.getByRole('combobox', { name: 'Cambiar tienda' })).toBeInTheDocument();
+  });
   it('Todas las tiendas abre Balance sin cambiar la activa', () => {
     wrap(<StoreSelector />); fireEvent.click(screen.getByRole('combobox'));
     fireEvent.click(screen.getByRole('option', { name: 'Todas las tiendas' }));
