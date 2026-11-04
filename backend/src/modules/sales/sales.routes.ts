@@ -1,3 +1,4 @@
+import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import { requireSaleCostAccess, saleCostInput } from './sale-cost-input.js';
 import { saleStateSchema, tradeStateSchema } from '../../lib/accounting-states.js';
 import type { FastifyInstance } from "fastify";
@@ -81,6 +82,7 @@ const salePatchSchema = z
   });
 
 export async function salesRoutes(app: FastifyInstance) {
+  registerPermanentDelete(app, "sales", "sales");
   app.post('/:id/restore', { preHandler: [authenticate, resolveAppUser, requireSectionAccess('sales')] }, async (request, reply) => {
     requireMember(request);
     const actor = await requireSensitiveActor(request.appUser, reply);

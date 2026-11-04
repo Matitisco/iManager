@@ -1,6 +1,22 @@
 import type { ExpenseView } from '../services/expenses-api';
 import type { ReturnCaseView } from '../services/returns-api';
 import type { Client, Product, RepairOrder, Sale, TradeIn } from '../types';
+import type { PermanentDeleteKind } from '../services/permanent-delete-api';
+
+let revision = 0;
+const listeners = new Set<() => void>();
+export function archivedRevision() { return revision; }
+export function subscribeArchivedRevision(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
+
+export function forgetArchivedRecord(kind: PermanentDeleteKind, id: string) {
+  if (kind === 'eq') products = products.filter(row => row.id !== id);
+  if (kind === 'cl') clients = clients.filter(row => row.id !== id);
+  if (kind === 'sale') sales = sales.filter(row => row.id !== id);
+  if (kind === 'cj') trades = trades.filter(row => row.id !== id);
+  if (kind === 'ot') repairs = repairs.filter(row => row.id !== id);
+  revision += 1;
+  for (const listener of listeners) listener();
+}
 
 let products: Product[] = [];
 let clients: Client[] = [];

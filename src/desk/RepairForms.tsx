@@ -1,3 +1,4 @@
+import { PermanentDeleteButton } from './PermanentDelete';
 import { toActionMessage } from '../lib/user-message';
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
@@ -245,6 +246,7 @@ export function RepairOrderDetail({ id, busy }: { id: string; busy: boolean }) {
   const warrantyRow = <div className="kv" data-testid="repair-warranty"><span>Garantía</span><b>{coverage.phrase}</b></div>;
   const footer = (
     <SheetActions>
+      <PermanentDeleteButton kind="ot" id={order.id} disabled={busy || saving} />
       <SheetActionMenu>
         <button type="button" className="btn2 s" disabled={busy || saving} onClick={close}>Cerrar</button>
         {next ? <button type="button" className="btn2 s" onClick={shareReceipt}>Compartir comprobante</button> : null}

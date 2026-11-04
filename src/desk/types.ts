@@ -1,3 +1,4 @@
+import type { PermanentDeleteKind } from '../services/permanent-delete-api';
 import type { ScanDraft } from './scan/draft';
 import type { MenuAnchor } from './menu-position';
 
@@ -55,6 +56,7 @@ export type Overlay =
   | { type: 'new-cl' }
   | { type: 'cl'; id: string }
   | { type: 'edit-cl'; id: string }
+  | { type: 'permanent-delete'; kind: PermanentDeleteKind; id: string }
   | { type: 'del'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string }
   | ({ type: 'ctx'; kind: 'eq' | 'sale' | 'cj' | 'cl' | 'ot' | 'return'; id: string; label: string; onSelect?: () => void } & MenuAnchor)
   | { type: 'import'; kind: 'inv' | 'sale' | 'cl'; supplierId?: string; supplierName?: string }

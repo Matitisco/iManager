@@ -1,0 +1,7 @@
+- [x] Backend: implementar cinco endpoints con autorización, validación de estado y auditoría transaccional.
+- [x] Frontend: integrar servicio HTTP y mutación en AppContext.tsx con reconciliación de listas y cachés.
+- [x] Frontend: integrar acción y confirmación fuerte en los detalles y menús de las cinco entidades.
+- [x] Agregar regresiones HTTP de permisos, estado, aislamiento, dependencias, rollback y concurrencia.
+- [x] Agregar regresiones React de visibilidad, confirmación, errores, doble submit y AppContext.
+- [x] Ejecutar lint/typecheck y pruebas relevantes en DB local exclusiva.
+- [x] Documentar evidencia y crear commit requerido en rama actual sin push.
