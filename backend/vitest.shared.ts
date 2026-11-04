@@ -8,7 +8,7 @@ export function createBackendVitestConfig(
   return defineConfig({
     test: {
       environment: 'node',
-      pool: 'threads',
+      pool: 'forks',
       isolate: true,
       maxWorkers: Math.min(2, availableParallelism()),
       restoreMocks: true,
