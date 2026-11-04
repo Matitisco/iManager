@@ -3,7 +3,9 @@ import { DomainError } from "../../lib/domain-error.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { writeAudit, type Actor } from "./audit.js";
 import { deviceLabel, saleCode } from "./archive.js";
-const isSaleCancelled = (status: string | null | undefined) => status != null && ["CANCELADA", "ANULADA"].includes(status.trim().toUpperCase());
+const CANCELLED_TOKENS = new Set(["CANCELADA", "CANCELADO", "CANCELLED", "CANCELED", "ANULADA", "ANULADO"]);
+const isSaleCancelled = (status: string | null | undefined) =>
+  status != null && CANCELLED_TOKENS.has(status.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase());
 
 const ENTITIES = {
   inventory: { table: "InventoryItem", type: "inventory" },
