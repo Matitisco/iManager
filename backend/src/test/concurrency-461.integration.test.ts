@@ -228,7 +228,7 @@ describe('import consistency #461', () => {
     const rows = [{ clientName: f.client.name, clientDni: f.client.dni!, device: 'Imported', amount: '30', currency: 'USD', date: '01/01/2026' }];
     const result = await overlap('Client', () => importSales(f.storeId, rows, f.actor), () => mode === 'ordinary sale' ? pending(f) : importSales(f.storeId, rows.map(row => ({ ...row, device: 'Another imported device' })), f.actor), 'findMany');
     expect(result).toMatchObject({ status: 'fulfilled', value: { imported: 1, errors: [] } });
-    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).totalSpent)).toBe(mode === 'ordinary sale' ? 130 : 60);
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: f.client.id } })).totalSpent)).toBe(mode === 'ordinary sale' ? 30_100 : 60_000); // #800: USD 30 importado se suma convertido (cotización 1000) a la moneda ARS del cliente
     expect(await cash(f.storeId)).toBe(0);
   });
   it('rechecks reservation after the initial item lookup', async () => {
