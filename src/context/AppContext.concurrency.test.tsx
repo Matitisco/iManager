@@ -18,7 +18,8 @@ import { fetchBackendRepairs, updateBackendRepair, createBackendRepair, changeBa
 import { AppProvider, useAppContext } from './AppContext';
 import { dashboardCacheVersion, readDashboardCache, writeDashboardCache } from '../desk/dashboard-cache';
 import { permanentlyDeleteBackendRecord } from '../services/permanent-delete-api';
-import { archivedProduct, rememberArchivedProducts } from '../desk/archive-cache';
+import { ApiError } from '../services/api-client';
+import { archivedClient, archivedProduct, archivedRepair, rememberArchivedClients, rememberArchivedProducts, rememberArchivedRepairs, rememberVoidedSales, rememberVoidedTrades, voidedSale, voidedTrade } from '../desk/archive-cache';
 
 const auth = vi.hoisted(() => ({ listener: null as null | ((user: AuthUserLike | null) => void), adapter: { onAuthStateChanged: vi.fn(), logout: vi.fn(), getCurrentUser: vi.fn() } }));
 vi.mock('../services/auth-adapter', () => ({ getAuthAdapter: () => auth.adapter }));
@@ -90,30 +91,55 @@ describe('AppContext concurrency #461', () => {
     expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(readsBefore);
   });
 
-  it('retains records and archive cache when permanent deletion fails', async () => {
+  it.each([
+    ['eq', 'inventory', 'p', () => rememberArchivedProducts([product('p'), product('p2')]), archivedProduct],
+    ['sale', 'sales', 's', () => rememberVoidedSales([sale]), voidedSale],
+    ['cl', 'clients', 'c', () => rememberArchivedClients([client('c'), client('c2')]), archivedClient],
+    ['cj', 'tradeIns', 't', () => rememberVoidedTrades([trade]), voidedTrade],
+    ['ot', 'repairOrders', 'r', () => rememberArchivedRepairs([repair]), archivedRepair],
+  ] as const)('removes missing %s from local lists and archive cache but still rejects 404', async (kind, list, id, remember, archived) => {
+    const { result } = await mount();
+    remember();
+    const remaining = result.current[list].filter(row => row.id !== id);
+    const error = new ApiError(404, 'Not Found');
+    vi.mocked(permanentlyDeleteBackendRecord).mockRejectedValueOnce(error);
+    await act(async () => {
+      await expect(result.current.permanentlyDeleteRecord(kind, id)).rejects.toBe(error);
+    });
+    expect(result.current[list]).toEqual(remaining);
+    expect(archived(id)).toBeNull();
+    rememberArchivedProducts([]); rememberArchivedClients([]); rememberVoidedSales([]); rememberVoidedTrades([]); rememberArchivedRepairs([]);
+  });
+
+  it.each([new ApiError(403, 'Forbidden'), new ApiError(409, 'Conflict'), new ApiError(500, 'Server error'), new TypeError('Failed to fetch')])('retains records and archive cache when permanent deletion fails with $name: $message', async error => {
     const { result } = await mount();
     rememberArchivedProducts([{ ...product('p'), archivedAt: '2026-11-04T12:00:00Z' }]);
-    vi.mocked(permanentlyDeleteBackendRecord).mockRejectedValueOnce(new Error('No tenés permiso.'));
+    vi.mocked(permanentlyDeleteBackendRecord).mockRejectedValueOnce(error);
     await act(async () => {
-      await expect(result.current.permanentlyDeleteRecord('eq', 'p')).rejects.toThrow('No tenés permiso.');
+      await expect(result.current.permanentlyDeleteRecord('eq', 'p')).rejects.toBe(error);
     });
     expect(result.current.inventory.some(row => row.id === 'p')).toBe(true);
     expect(archivedProduct('p')).toBeTruthy();
     rememberArchivedProducts([]);
   });
 
-  it('does not remove records or invalidate caches in a new store after an old permanent delete completes', async () => {
+  it.each(['success', '404'])('does not remove records or invalidate caches in a new store after an old permanent delete returns %s', async outcome => {
     const { result } = await mount();
     const pending = deferred<void>();
     vi.mocked(permanentlyDeleteBackendRecord).mockReturnValueOnce(pending.promise);
     let write!: Promise<void>;
     act(() => { write = result.current.permanentlyDeleteRecord('eq', 'p'); });
+    const completion = write.catch(error => error);
     vi.mocked(fetchBackendSession).mockResolvedValue({ status: 'ready', session: { ...session, store: { ...session.store!, id: 'other' } }, message: null });
     vi.mocked(fetchBackendInventory).mockResolvedValue([product('p', 'Other store')]);
     await act(() => result.current.reloadSession());
     await waitFor(() => expect(result.current.inventory[0]?.model).toBe('Other store'));
     rememberArchivedProducts([{ ...product('p', 'Other archive'), archivedAt: '2026-11-04T12:00:00Z' }]);
-    await act(async () => { pending.resolve(); await write; });
+    await act(async () => {
+      if (outcome === '404') pending.reject(new ApiError(404, 'Not Found'));
+      else pending.resolve();
+      await completion;
+    });
     expect(result.current.inventory[0]?.model).toBe('Other store');
     expect(archivedProduct('p')?.model).toBe('Other archive');
     rememberArchivedProducts([]);

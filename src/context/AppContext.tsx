@@ -1,4 +1,5 @@
 import { permanentlyDeleteBackendRecord, type PermanentDeleteKind } from '../services/permanent-delete-api';
+import { ApiError } from '../services/api-client';
 import { forgetArchivedRecord } from '../desk/archive-cache';
 import { useCustomFieldsState } from './custom-fields-state';
 import { identify as identifyPostHog, reset as resetPostHog } from '../lib/posthog-analytics';
@@ -855,14 +856,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     if (appSession.membership?.role !== 'OWNER') throw new Error('Solo el dueño de la tienda puede borrar definitivamente.');
     const current = beginRecordWrite('permanent-delete', id);
-    await permanentlyDeleteBackendRecord(user, kind, id);
+    const removeLocalRecord = () => {
+      if (!current()) return;
+      forgetArchivedRecord(kind, id);
+      if (kind === 'eq') setInventory(rows => rows.filter(row => row.id !== id));
+      if (kind === 'sale') setSales(rows => rows.filter(row => row.id !== id));
+      if (kind === 'cl') setClients(rows => rows.filter(row => row.id !== id));
+      if (kind === 'cj') setTradeIns(rows => rows.filter(row => row.id !== id));
+      if (kind === 'ot') setRepairOrders(rows => rows.filter(row => row.id !== id));
+    };
+    try {
+      await permanentlyDeleteBackendRecord(user, kind, id);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) removeLocalRecord();
+      throw error;
+    }
     if (!current()) return;
-    forgetArchivedRecord(kind, id);
-    if (kind === 'eq') setInventory(rows => rows.filter(row => row.id !== id));
-    if (kind === 'sale') setSales(rows => rows.filter(row => row.id !== id));
-    if (kind === 'cl') setClients(rows => rows.filter(row => row.id !== id));
-    if (kind === 'cj') setTradeIns(rows => rows.filter(row => row.id !== id));
-    if (kind === 'ot') setRepairOrders(rows => rows.filter(row => row.id !== id));
+    removeLocalRecord();
     // withListWrite refreshes related SetNull links after releasing the write gate.
     writes.current.overlapped = true;
   };

@@ -1,7 +1,8 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Client, Product, RepairOrder, Sale, TradeIn } from '../types';
 import type { PermanentDeleteKind } from '../services/permanent-delete-api';
+import { ApiError } from '../services/api-client';
 import type { Overlay } from './types';
 import { DeskOverlays } from './DeskOverlays';
 import { DeskProvider } from './ui';
@@ -80,15 +81,41 @@ describe.each(kinds)('borrado definitivo %s', kind => {
     expect(toast).toHaveBeenCalledWith('Registro borrado definitivamente');
   });
 
-  it('keeps the confirmation and record on a backend error', async () => {
-    ctx.permanentlyDeleteRecord.mockRejectedValue(new Error('Primero anulá o archivá el registro.'));
+  it.each([
+    [new ApiError(403, 'Forbidden'), 'Solo el dueño de la tienda puede borrar definitivamente.'],
+    [new ApiError(409, 'Conflict'), 'Primero anulá o archivá el registro para poder borrarlo.'],
+    [new ApiError(500, 'Internal Server Error'), 'No se pudo borrar. Revisá tu conexión y reintentá.'],
+    [new ApiError(400, 'Bad Request'), 'No se pudo borrar. Revisá tu conexión y reintentá.'],
+    [new TypeError('Failed to fetch'), 'No se pudo borrar. Revisá tu conexión y reintentá.'],
+  ])('keeps the modal open and shows the requested message for $0', async (error, message) => {
+    ctx.permanentlyDeleteRecord.mockRejectedValue(error);
     mount({ type: 'permanent-delete', kind, id: 'record' });
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'BORRAR' } });
     fireEvent.click(screen.getByRole('button', { name: 'Borrar definitivamente' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Primero anulá o archivá el registro.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(String(message));
     expect(close).not.toHaveBeenCalled();
     expect(toast).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Borrar definitivamente' })).toBeEnabled();
+  });
+
+  it('keeps the 404 error and record identity in the modal after local reconciliation', async () => {
+    ctx.permanentlyDeleteRecord.mockImplementationOnce(async () => {
+      ctx.inventory = []; ctx.clients = []; ctx.sales = []; ctx.tradeIns = []; ctx.repairOrders = [];
+      forgetArchivedRecord(kind, 'record');
+      throw new ApiError(404, 'Not Found');
+    });
+    mount({ type: 'permanent-delete', kind, id: 'record' });
+    const identity = screen.getByRole('dialog').querySelector('.sheet-title .sub')?.textContent;
+    expect(identity).toBeTruthy();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'BORRAR' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar definitivamente' }));
+    const dialog = screen.getByRole('dialog', { name: 'Borrar definitivamente' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('No encontramos este registro: puede que ya se haya borrado. Actualizá la pantalla.');
+    expect(within(dialog).getByText('record')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(identity!).length).toBeGreaterThan(0);
+    expect(close).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toBeEnabled();
   });
 
   it('does not call the backend if cancelled', () => {
@@ -99,16 +126,21 @@ describe.each(kinds)('borrado definitivo %s', kind => {
   });
 });
 
-it('blocks double submit and closing while deletion is pending', async () => {
+it.each(kinds)('shows Borrando… and blocks double submit and closing while %s deletion is pending', async kind => {
   let resolve!: () => void;
   ctx.permanentlyDeleteRecord.mockReturnValue(new Promise<void>(done => { resolve = done; }));
-  mount({ type: 'permanent-delete', kind: 'cl', id: 'record' });
+  mount({ type: 'permanent-delete', kind, id: 'record' });
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'BORRAR' } });
   const submit = screen.getByRole('button', { name: 'Borrar definitivamente' });
-  fireEvent.click(submit); fireEvent.click(submit);
+  act(() => { fireEvent.click(submit); fireEvent.click(submit); });
   expect(ctx.permanentlyDeleteRecord).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: 'Borrando…' })).toBeDisabled();
   expect(screen.getByRole('textbox')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
+  fireEvent.keyDown(document, { key: 'Escape' });
+  fireEvent.mouseDown(screen.getByRole('dialog').parentElement!);
   expect(close).not.toHaveBeenCalled();
   await act(async () => { resolve(); });
   expect(close).toHaveBeenCalledTimes(1);
