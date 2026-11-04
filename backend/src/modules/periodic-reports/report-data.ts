@@ -11,10 +11,10 @@ export async function loadMailReport(storeId: string, period: DuePeriod, now: Da
   const [summary, profit, stock, trades, clients, reviewCount] = await Promise.all([
     getPeriodicSummary(storeId, { role: 'OWNER' }, selection, now),
     getNetProfit(storeId, period.start, addCalendarDays(period.end, -1)),
-    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'DISPONIBLE' } }),
+    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, kind: "DEVICE", archivedAt: null, status: 'DISPONIBLE' } }),
     prisma.tradeIn.findMany({ where: { storeId, confirmationStatus: 'CONFIRMED', voidedAt: null, cancelledAt: null, status: await storedStateFilter(prisma, 'TradeIn', storeId, ["CANCELADO","ANULADO","CANCELADA","ANULADA"], true) }, select: { dateLabel: true, tradeAt: true } }),
     prisma.client.findMany({ where: { storeId, archivedAt: null, pendingBalance: { gt: 0 } }, select: { pendingBalance: true, balanceCurrency: true } }),
-    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, archivedAt: null, status: 'EN_REVISION' } }),
+    prisma.inventoryItem.aggregate({ _sum: { cantidad: true }, where: { storeId, kind: "DEVICE", archivedAt: null, status: 'EN_REVISION' } }),
   ]);
   const inPeriod = (day: string) => day >= period.start && day < period.end;
   const currency = profit.currency;

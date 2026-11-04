@@ -18,7 +18,7 @@ async function catalogData(config: StoreCatalog, publicOnly = false, overrides: 
   const store = { name: storeRecord.name, phone: storeRecord.phone, address: storeRecord.address, logoUrl: config.logoUrl, hours: config.hours, currency: storeRecord.currency };
   if (publicOnly && !config.active) return { store, active: false, showPrice: false, priceCurrency: config.priceCurrency, items: [], counts: { visible: 0, rules: 0, manual: 0, available: 0 } };
   const [rows, savedPrices, savedHidden] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { storeId: config.storeId, archivedAt: null, ...(publicOnly ? { needsCompletion: false } : {}) }, select: { ...itemSelect, ...(config.priceRuleMode === 'COST_PERCENT' ? { cost: true } : {}) }, orderBy: [{ model: 'desc' }, { capacity: 'asc' }, { color: 'asc' }, { id: 'asc' }] }),
+    prisma.inventoryItem.findMany({ where: { storeId: config.storeId, kind: "DEVICE", archivedAt: null, ...(publicOnly ? { needsCompletion: false } : {}) }, select: { ...itemSelect, ...(config.priceRuleMode === 'COST_PERCENT' ? { cost: true } : {}) }, orderBy: [{ model: 'desc' }, { capacity: 'asc' }, { color: 'asc' }, { id: 'asc' }] }),
     prisma.catalogItemPrice.findMany({ where: { catalogId: config.id } }),
     config.itemVisibility === 'OWN' ? prisma.catalogItemHidden.findMany({ where: { catalogId: config.id }, select: { inventoryItemId: true } }) : [],
   ]);
@@ -73,7 +73,7 @@ export async function editStoreCatalog(storeId: string, id: string | null, input
     if (manualPrices) {
       const ids = [...new Set(manualPrices.map(row => row.inventoryItemId))];
       if (ids.length !== manualPrices.length) throw new DomainError('Hay equipos repetidos', 400);
-      if (await tx.inventoryItem.count({ where: { storeId, id: { in: ids }, archivedAt: null } }) !== ids.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
+      if (await tx.inventoryItem.count({ where: { storeId, kind: "DEVICE", id: { in: ids }, archivedAt: null } }) !== ids.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
     }
     const saved = current
       ? await tx.storeCatalog.update({ where: { id: current.id }, data: { ...settings, ...(regenerate ? { slug: newSlug(current.name) } : {}) } })
@@ -114,9 +114,9 @@ export async function saveSettings(storeId: string, input: CatalogSettingsInput,
 export async function setVisibility(storeId: string, ids: string[], visible: boolean, actor: Actor, financials = true) {
   const unique = [...new Set(ids)];
   await prisma.$transaction(async tx => {
-    const count = await tx.inventoryItem.count({ where: { storeId, id: { in: unique }, archivedAt: null } });
+    const count = await tx.inventoryItem.count({ where: { storeId, kind: "DEVICE", id: { in: unique }, archivedAt: null } });
     if (count !== unique.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
-    await tx.inventoryItem.updateMany({ where: { storeId, id: { in: unique }, archivedAt: null }, data: { catalogVisible: visible } });
+    await tx.inventoryItem.updateMany({ where: { storeId, kind: "DEVICE", id: { in: unique }, archivedAt: null }, data: { catalogVisible: visible } });
     const noun = unique.length === 1 ? 'equipo' : 'equipos';
     await writeAudit(tx, {
       storeId, actor, action: 'catalog.visibility', entityType: 'catalog', entityId: storeId,
@@ -132,7 +132,7 @@ export async function setVisibility(storeId: string, ids: string[], visible: boo
 async function validateItemIds(tx: Prisma.TransactionClient, storeId: string, ids: string[]) {
   const unique = [...new Set(ids)];
   if (unique.length !== ids.length) throw new DomainError('Hay equipos repetidos', 400);
-  if (await tx.inventoryItem.count({ where: { storeId, id: { in: unique }, archivedAt: null } }) !== unique.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
+  if (await tx.inventoryItem.count({ where: { storeId, kind: "DEVICE", id: { in: unique }, archivedAt: null } }) !== unique.length) throw new DomainError('Uno de los equipos no pertenece a esta tienda o ya no está disponible', 404);
 }
 export async function setStoreCatalogVisibility(storeId: string, catalogId: string, ids: string[], visible: boolean, actor: Actor, financials: boolean) {
   const config = await prisma.$transaction(async tx => {
@@ -145,7 +145,7 @@ export async function setStoreCatalogVisibility(storeId: string, catalogId: stri
       if (visible) await tx.catalogItemHidden.deleteMany({ where: { catalogId, inventoryItemId: { in: unique } } });
       else await tx.catalogItemHidden.createMany({ data: unique.map(inventoryItemId => ({ catalogId, inventoryItemId })), skipDuplicates: true });
     } else {
-      await tx.inventoryItem.updateMany({ where: { storeId, id: { in: unique }, archivedAt: null }, data: { catalogVisible: visible } });
+      await tx.inventoryItem.updateMany({ where: { storeId, kind: "DEVICE", id: { in: unique }, archivedAt: null }, data: { catalogVisible: visible } });
     }
     await writeAudit(tx, { storeId, actor, action: 'catalog.visibility', entityType: 'catalog', entityId: catalogId, entityLabel: config.name, detail: `${visible ? 'Mostrar' : 'Ocultar'}: ${unique.length} equipos` });
     return config;

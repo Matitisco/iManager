@@ -202,6 +202,9 @@ model InventoryCategory {
 }
 
 model InventoryItem {
+  kind          String  @default("DEVICE") @db.VarChar(20)
+  accessoryType String? @db.VarChar(40)
+  compatibleWith String? @db.VarChar(120)
   // Server-managed provenance; never accepted by inventory create/import/update.
   sampleBatchId String? @db.VarChar(80)
   catalogVisible Boolean @default(false)

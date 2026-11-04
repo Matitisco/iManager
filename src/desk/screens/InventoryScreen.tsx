@@ -1,3 +1,4 @@
+import { isDevice } from "../../lib/accessories";
 import { canSeeFinancials } from '../sections';
 import { InventoryModelGroups, useInventoryLineView } from '../InventoryModelGroups';
 import { ReplayValue } from '../replay-privacy';
@@ -180,7 +181,8 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
 }
 
 export function InventoryScreen() {
-  const { inventory, suppliers, deleteProduct, updateProduct, appSession, operationDrafts = [], listsLoaded } = useAppContext();
+  const { inventory: allInventory, suppliers, deleteProduct, updateProduct, appSession, operationDrafts = [], listsLoaded } = useAppContext();
+  const inventory = useMemo(() => allInventory.filter(isDevice), [allInventory]);
   const [lineView, toggleLineView] = useInventoryLineView(appSession?.store?.id);
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const loadingLists = listsAreLoading(listsLoaded);
@@ -231,7 +233,7 @@ export function InventoryScreen() {
     return () => window.removeEventListener('hashchange', showReview);
   }, [setColumns, setQuery, setArchivedMode]);
 
-  const source = archivedMode ? archived : mergeRecordRows(inventory, archived).filter(item => !isVoidRow(item));
+  const source = (archivedMode ? archived : mergeRecordRows(inventory, archived).filter(item => !isVoidRow(item))).filter(isDevice);
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = source.filter((item) => {

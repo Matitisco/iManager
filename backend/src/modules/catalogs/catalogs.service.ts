@@ -125,7 +125,7 @@ async function seedMissing(storeId: string) {
 
 async function usageCounts(storeId: string) {
   const [items, sales, trades, clients, repairs] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { storeId }, select: { status: true, capacity: true, condition: true } }),
+    prisma.inventoryItem.findMany({ where: { storeId, kind: "DEVICE" }, select: { status: true, capacity: true, condition: true } }),
     prisma.sale.findMany({ where: { storeId }, select: { status: true } }),
     prisma.tradeIn.findMany({ where: { storeId }, select: { status: true } }),
     prisma.client.findMany({ where: { storeId }, select: { tag: true } }),

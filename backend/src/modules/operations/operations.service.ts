@@ -185,8 +185,9 @@ async function receiveDevice(tx: Prisma.TransactionClient, data: Prisma.Inventor
 }
 
 type TradeForResponse = TradeIn & { saleId?: string | null; sale?: { id: string } | null };
-function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capacity"> | null) {
+function serializeSale(sale: Sale, product?: Pick<InventoryItem, "model" | "capacity"> & { kind?: string } | null) {
   return {
+    productKind: product?.kind,
     cantidad: sale.cantidad ?? 1,
     stockDeducted: Boolean(sale.stockDeducted),
     id: sale.id,
@@ -265,6 +266,8 @@ function serializeTrade(trade: TradeForResponse) {
 
 function serializeProduct(product: InventoryItem) {
   return {
+    kind: product.kind, accessoryType: product.accessoryType, compatibleWith: product.compatibleWith,
+    ...(product.kind === "ACCESSORY" ? { costValue: product.cost.mul(product.cantidad ?? 1).toNumber() } : {}),
     cantidad: product.cantidad ?? 1,
     id: product.id,
     imei: product.imei ?? "",
@@ -523,6 +526,7 @@ export async function getOperationOptions(storeId: string) {
       },
       select: {
         id: true,
+        kind: true, accessoryType: true, compatibleWith: true,
         model: true,
         capacity: true,
         color: true,

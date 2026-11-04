@@ -372,6 +372,7 @@ async function returnedItem(tx: Tx, storeId: string, current: CaseRow, sale: { s
   if (!fresh.imei && (sale.cantidad > 1 || fresh.cantidad > 0)) {
     const returned = await tx.inventoryItem.create({ data: {
       storeId, categoryId: fresh.categoryId, supplierId: fresh.supplierId, stockPurchaseId: fresh.stockPurchaseId,
+      kind: fresh.kind, accessoryType: fresh.accessoryType, compatibleWith: fresh.compatibleWith,
       model: fresh.model, capacity: fresh.capacity, color: fresh.color, condition: fresh.condition,
       grade: fresh.grade, batteryHealth: fresh.batteryHealth, batteryNote: fresh.batteryNote,
       cost: fresh.cost, price: fresh.price, currency: fresh.currency, cantidad, acquiredQuantity: 0,
