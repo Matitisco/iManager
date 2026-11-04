@@ -42,6 +42,7 @@ async function fixture(suffix = 'one') {
   await prisma.storePublicCatalog.create({ data: { storeId, slug: `reset-${suffix}`, active: true } });
   const publicCatalog = await prisma.storeCatalog.create({ data: { id: `default:${storeId}`, storeId, slug: `reset-${suffix}`, isDefault: true, active: true } });
   await prisma.catalogItemPrice.create({ data: { catalogId: publicCatalog.id, inventoryItemId: itemId, price: 120, currency: 'USD' } });
+  await prisma.catalogItemHidden.create({ data: { catalogId: publicCatalog.id, inventoryItemId: itemId } });
   await prisma.storeCatalogOption.create({ data: { storeId, kind: 'CLIENT_TAG', value: 'VIP', label: 'VIP' } });
   await prisma.customFieldDefinition.create({ data: { storeId, key: 'test', label: 'Test', type: 'text' } });
   const rule = await prisma.commissionRule.create({ data: { storeId, memberId: membership!.id, rate: 10, effectiveFrom: now, createdBy: user.id } });
@@ -224,7 +225,7 @@ describe('POST /admin/store-reset', () => {
     // unrelated rows of the same store. Capture identities independently of plan.
     const base = await snapshot();
     const removed = Object.fromEntries(STORE_RESET_DELETE_MODELS.map(model => [model,
-      (base[model] as Row[]).filter(({ row }) => model === 'NotificationRead' ? row.notificationId === f.notification.id : model === 'CatalogItemPrice' ? row.inventoryItemId === f.item.id : row.storeId === f.store.id),
+      (base[model] as Row[]).filter(({ row }) => model === 'NotificationRead' ? row.notificationId === f.notification.id : (model === 'CatalogItemPrice' || model === 'CatalogItemHidden') ? row.inventoryItemId === f.item.id : row.storeId === f.store.id),
     ]));
     const independent = await seedIndependent(f);
     const before = await snapshot();
@@ -337,7 +338,7 @@ describe('POST /admin/store-reset', () => {
       }
       const expected = originals.filter(({ row }) => {
         if (model === 'NotificationRead') return !removedNoticeIds.has(row.notificationId);
-        if (model === 'CatalogItemPrice') return row.inventoryItemId !== f.item.id;
+        if (model === 'CatalogItemPrice' || model === 'CatalogItemHidden') return row.inventoryItemId !== f.item.id;
         if (row.storeId !== f.store.id) return true;
         if (model === 'CashMovement') return row.id === manual.id;
         if (model === 'StoreNotification') return row.id === configNotice.id;
