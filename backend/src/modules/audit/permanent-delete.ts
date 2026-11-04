@@ -39,6 +39,7 @@ export async function permanentlyDelete(storeId: string, entity: PermanentDelete
         const row = await tx.inventoryItem.findFirst({ where });
         if (!row) throw new DomainError("Equipo no encontrado.", 404);
         if (!row.archivedAt) throw new DomainError(INACTIVE_ONLY, 409);
+        if (await tx.consignment.findFirst({ where: { storeId, inventoryItemId: id } })) throw new DomainError('El equipo tiene historial de consignaciones y no se puede borrar definitivamente.', 409);
         label = deviceLabel(row);
         await tx.inventoryItem.delete({ where });
         break;
@@ -47,6 +48,7 @@ export async function permanentlyDelete(storeId: string, entity: PermanentDelete
         const row = await tx.sale.findFirst({ where });
         if (!row) throw new DomainError("Venta no encontrada.", 404);
         if (!row.voidedAt && !isSaleCancelled(row.status)) throw new DomainError(INACTIVE_ONLY, 409);
+        if (await tx.consignment.findFirst({ where: { storeId, saleId: id } })) throw new DomainError('La venta cierra una consignación y no se puede borrar definitivamente.', 409);
         label = `${saleCode(row.saleNumber)} · ${row.clientName || row.deviceLabel || "Venta"}`;
         await tx.sale.delete({ where });
         break;
@@ -55,6 +57,7 @@ export async function permanentlyDelete(storeId: string, entity: PermanentDelete
         const row = await tx.client.findFirst({ where });
         if (!row) throw new DomainError("Cliente no encontrado.", 404);
         if (!row.archivedAt) throw new DomainError(INACTIVE_ONLY, 409);
+        if (await tx.consignment.findFirst({ where: { storeId, clientId: id } })) throw new DomainError('El cliente tiene consignaciones y no se puede borrar definitivamente.', 409);
         label = row.dni ? `${row.name} · DNI ${row.dni}` : row.name;
         // ClientDeposit uses Restrict; remove the client's own dependent rows
         // explicitly, in the same transaction as the deletion and its audit.

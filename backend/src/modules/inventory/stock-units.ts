@@ -10,6 +10,7 @@ export function saleUnits(cantidad = 1, item?: Pick<InventoryItem, 'cantidad' | 
 
 /** Call after locking the inventory row in the transaction. */
 export async function takeStock(tx: Prisma.TransactionClient, item: InventoryItem, cantidad = 1) {
+  if (item.status === 'EN_CONSIGNACION') throw new DomainError('Cobrá el equipo desde Consignaciones', 409);
   saleUnits(cantidad, item);
   const remaining = (item.cantidad ?? 1) - cantidad;
   return tx.inventoryItem.update({ where: { id: item.id }, data: {

@@ -1,3 +1,4 @@
+import { ConsignmentsScreen } from './screens/ConsignmentsScreen';
 import { AccessoriesScreen } from './screens/AccessoriesScreen';
 import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
 import { BillingScreen, BillingAccessBanner } from './screens/BillingScreen';
@@ -328,6 +329,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'suppliers' && <SuppliersScreen />}
             {tab === 'publicCatalog' && <PublicCatalogScreen />}
             {tab === 'sales' && <SalesScreen />}
+            {tab === 'consignments' && <ConsignmentsScreen />}
             {tab === 'returns' && <ReturnsScreen />}
             {tab === 'patterns' && <PatternsScreen />}
             {tab === 'tradeins' && <TradeInsScreen />}

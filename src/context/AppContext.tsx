@@ -1,3 +1,4 @@
+import { useConsignmentsState } from './consignments-state';
 import { permanentlyDeleteBackendRecord, type PermanentDeleteKind } from '../services/permanent-delete-api';
 import { ApiError } from '../services/api-client';
 import { forgetArchivedRecord } from '../desk/archive-cache';
@@ -44,7 +45,7 @@ import { fetchCommissionExchangeRate } from '../services/commissions-api';
 import { useCommissionState } from './commission-state';
 import { useReturnsState } from './returns-state';
 
-interface AppState extends ReturnType<typeof useCustomFieldsState>, ReturnType<typeof useSectionViewsState>, ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState>, ReturnType<typeof useReturnsState> {
+interface AppState extends ReturnType<typeof useConsignmentsState>, ReturnType<typeof useCustomFieldsState>, ReturnType<typeof useSectionViewsState>, ReturnType<typeof useGettingStartedState>, ReturnType<typeof useCashState>, ReturnType<typeof useLedgerState>, ReturnType<typeof useCommissionState>, ReturnType<typeof usePublicCatalogState>, ReturnType<typeof useReturnsState> {
   inventory: Product[];
   repairOrders: RepairOrder[];
   repairOrdersError: string | null;
@@ -206,6 +207,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const billingState = useBillingState(user, appSession?.store?.id, appSession?.membership?.role);
   const cashState = useCashState(user, appSession, backendStatus);
   const ledgerState = useLedgerState(user, appSession, backendStatus);
+  const consignmentsState = useConsignmentsState(user, appSession, backendStatus, sessionConfirmed, (rows, sale) => {
+    noteLocalMutation();
+    setInventory(old => old.map(item => {
+      const row = rows.find(saved => saved.productId === item.id);
+      return row ? { ...item, status: row.paidAt ? 'VENDIDO' : 'EN_CONSIGNACION', ...(row.paidAt ? { cantidad: 0 } : {}) } : item;
+    }));
+    if (sale) {
+      setSales(old => [sale, ...old.filter(row => row.id !== sale.id)]);
+      setClients(old => old.map(client => client.id === sale.clientId ? { ...client, totalSpent: (client.totalSpent ?? 0) + sale.amount } : client));
+    }
+    void refreshLists();
+  });
   const commissions = useCommissionState(user, appSession, backendStatus, sessionConfirmed);
   const catalogState = usePublicCatalogState(user, appSession, backendStatus, () => {
     // Membership belongs to all active catalogs. Keep the backend's authoritative
@@ -1025,6 +1038,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       ...cashState,
       ...ledgerState,
       ...gettingStartedState,
+      ...consignmentsState,
       ...commissions,
       ...catalogState,
       ...returnsState,

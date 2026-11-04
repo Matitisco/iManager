@@ -80,7 +80,7 @@ describe('sidenav accordion', () => {
     const props = { nav: owner, pending: EMPTY_PENDING, mobile, onOpen };
     const view = render(<SidenavNavigation {...props} activeHash="#/comercial/devoluciones" />);
     expect(screen.getByRole('button', { name: 'Devoluciones' })).toHaveAttribute('aria-current', 'page');
-    expect(within(screen.getByTestId('nav-group-comercial')).getAllByRole('button').map(item => item.textContent)).toEqual(['Comercial', 'Ventas', 'Canjes', 'Devoluciones']);
+    expect(within(screen.getByTestId('nav-group-comercial')).getAllByRole('button').map(item => item.textContent)).toEqual(['Comercial', 'Ventas', 'Consignaciones', 'Canjes', 'Devoluciones']);
     expect(screen.queryByText('Reclamos')).not.toBeInTheDocument();
     for (const panel of document.querySelectorAll('.sn-children')) {
       expect(panel.querySelector('.sn-children, .sn-detail, [aria-expanded]')).toBeNull();

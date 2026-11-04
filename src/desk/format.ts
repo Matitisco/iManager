@@ -88,6 +88,7 @@ export function formatImei(value: string): string {
 
 const STATUS_LABEL: Record<string, string> = {
   DISPONIBLE: 'Disponible',
+  EN_CONSIGNACION: 'En consignación',
   EN_REVISION: 'En revisión',
   VENDIDO: 'Vendido',
   RESERVADO: 'Reservado',
@@ -120,6 +121,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   DISPONIBLE: '#25A66A',
+  EN_CONSIGNACION: '#B58105',
   Disponible: '#25A66A',
   EN_REVISION: '#E8A33D',
   'En revisión': '#E8A33D',
