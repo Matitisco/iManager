@@ -12,6 +12,8 @@ export interface SelectOption {
   icon?: ReactNode;
   group?: string;
   className?: string;
+  /** Custom row body. `label` stays the accessible name and the typeahead text. */
+  content?: ReactNode;
 }
 
 interface Props {
@@ -33,12 +35,14 @@ interface Props {
   placeholder?: string;
   'data-testid'?: string;
   maskValues?: boolean;
+  popupMinWidth?: number;
+  triggerIcon?: ReactNode;
 }
 
 const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 
 /** Controlled single select. The native control only handles form data/validation. */
-export function DeskSelect({ popupClassName, className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId, maskValues = false }: Props) {
+export function DeskSelect({ popupClassName, className, triggerClassName, displayValue, id: suppliedId, label, sheetTitle = label, value, options, onChange, disabled, name, required, invalid, describedBy, placeholder = 'Seleccionar', 'data-testid': testId, maskValues = false, popupMinWidth = 240, triggerIcon }: Props) {
   const autoId = useId();
   const id = suppliedId ?? autoId;
   const listId = `${id}-list`;
@@ -86,7 +90,7 @@ export function DeskSelect({ popupClassName, className, triggerClassName, displa
     const place = () => {
       const rect = trigger.current?.getBoundingClientRect();
       if (!rect) return;
-      const width = Math.min(Math.max(rect.width, 240), window.innerWidth - 24);
+      const width = Math.min(Math.max(rect.width, popupMinWidth), window.innerWidth - 24);
       const height = Math.min(popup.current?.scrollHeight || 320, 320);
       const below = window.innerHeight - rect.bottom - 20;
       const above = rect.top - 20;
@@ -99,7 +103,7 @@ export function DeskSelect({ popupClassName, className, triggerClassName, displa
     window.addEventListener('resize', place);
     document.addEventListener('scroll', place, true);
     return () => { window.removeEventListener('resize', place); document.removeEventListener('scroll', place, true); };
-  }, [open, phone, options.length]);
+  }, [open, phone, options.length, popupMinWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -189,7 +193,7 @@ export function DeskSelect({ popupClassName, className, triggerClassName, displa
         disabled={disabled} aria-label={label} aria-expanded={open} aria-haspopup={phone ? 'dialog' : 'listbox'} aria-controls={open ? phone ? `${id}-popup` : listId : undefined}
         aria-activedescendant={!phone ? activeId : undefined} aria-required={required} aria-invalid={invalid || validationError || undefined} aria-describedby={describedBy}
         onClick={() => open ? close() : show()} onKeyDown={keys}>
-        <span data-ph-mask={maskValues && Boolean(selected) || undefined}>{displayValue ?? selected?.label ?? placeholder}</span><ChevronDown size={16} aria-hidden="true" />
+        <span data-ph-mask={maskValues && Boolean(selected) || undefined}>{displayValue ?? selected?.label ?? placeholder}</span>{triggerIcon ?? <ChevronDown size={16} aria-hidden="true" />}
       </button>
       {open && createPortal(
         <AnimatePresence>
@@ -215,10 +219,10 @@ export function DeskSelect({ popupClassName, className, triggerClassName, displa
               initial={{ opacity: 0, y: reducedMotion ? 0 : phone ? 18 : 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reducedMotion ? 0 : .16 }} onKeyDown={phone ? keys : undefined}>
               {phone && <><div className="ds-select-grab" aria-hidden="true" /><div className="ds-select-heading"><h3>{sheetTitle}</h3><button ref={closeButton} type="button" aria-label="Cerrar selector" onClick={() => close()}><X size={20} /></button></div></>}
               <div ref={list} id={listId} role="listbox" aria-label={label} tabIndex={phone ? 0 : -1} aria-activedescendant={phone ? activeId : undefined} className="ds-select-list">
-                {options.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== options[index - 1]?.group ? <div className="ds-select-group" role="presentation">{option.group}</div> : null}<div id={`${id}-option-${index}`} role="option" aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
+                {options.map((option, index) => <Fragment key={option.value}>{option.group && option.group !== options[index - 1]?.group ? <div className="ds-select-group" role="presentation">{option.group}</div> : null}<div id={`${id}-option-${index}`} role="option" aria-label={option.content ? option.label : undefined} aria-selected={option.value === value} aria-disabled={option.disabled || undefined}
                   className={`ds-select-option${option.value === value ? ' selected' : ''}${index === activeIndex ? ' active' : ''}${option.className ? ` ${option.className}` : ''}`}
                   onPointerDown={(event) => event.preventDefault()} onPointerMove={() => { if (!option.disabled) setActive(index); }} onClick={() => choose(index)}>
-                  <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.icon && <span className="ds-select-option-icon" aria-hidden="true">{option.icon}</span>}{option.label}</span>{option.value === value && <Check size={18} aria-hidden="true" />}
+                  {option.content ? <span className="ds-select-option-content" data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.content}</span> : <span data-ph-mask={maskValues && Boolean(option.value) || undefined}>{option.icon && <span className="ds-select-option-icon" aria-hidden="true">{option.icon}</span>}{option.label}</span>}{option.value === value && <Check size={18} aria-hidden="true" />}
                 </div></Fragment>)}
               </div>
             </motion.div>

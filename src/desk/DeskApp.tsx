@@ -296,9 +296,10 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             <BrandIsotipo size={38} className="dlogo" />
             <div className="dbrand-copy">
               <b>iManager</b>
-              <StoreSelector />
+              <StoreSelector place="brand" />
             </div>
           </div>
+          <StoreSelector place="below" />
           {navigation}
           <BlueDollar variant="compact" />
           <div className="duser-row">
