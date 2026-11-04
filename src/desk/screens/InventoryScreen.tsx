@@ -1,4 +1,5 @@
 import { canSeeFinancials } from '../sections';
+import { InventoryModelGroups, useInventoryLineView } from '../InventoryModelGroups';
 import { ReplayValue } from '../replay-privacy';
 import { DeskSelect } from '../select';
 import { consumePriceToDefineFilter, PRICE_TO_DEFINE_EVENT } from '../price-to-define-filter';
@@ -180,6 +181,7 @@ function InventoryQuantityCell({ item, updateProduct }: { item: Product; updateP
 
 export function InventoryScreen() {
   const { inventory, suppliers, deleteProduct, updateProduct, appSession, operationDrafts = [], listsLoaded } = useAppContext();
+  const [lineView, toggleLineView] = useInventoryLineView(appSession?.store?.id);
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const loadingLists = listsAreLoading(listsLoaded);
   const money = useMoney();
@@ -327,22 +329,32 @@ export function InventoryScreen() {
       <div className="dbar">
         {phone ? <StatusMenu options={filters} pressed={statusPressed} onToggle={toggleStatus} /> : <ChipRow options={filters} pressed={statusPressed} onToggle={toggleStatus} />}
         <button type="button" className={`wchip${archivedMode ? ' on' : ''}`} aria-pressed={archivedMode} onClick={() => setArchivedMode((current) => !current)}>Archivados</button>
-        <SortControl testId="inventory-sort" placeholder="Ordenar" defaultLabel="Recientes" fields={['Precio', 'Calidad', 'Color']} value={sort} onChange={setSort} />
+        {!lineView ? <SortControl testId="inventory-sort" placeholder="Ordenar" defaultLabel="Recientes" fields={['Precio', 'Calidad', 'Color']} value={sort} onChange={setSort} /> : null}
+        <button type="button" className={`wchip inv-line-view${lineView ? ' on' : ''}`} aria-pressed={lineView} disabled={selection.locked} onClick={() => { selection.clear(); toggleLineView(); }}>Por línea</button>
       </div>
-      <div className="inventory-selection-tools">
+      {!lineView ? <div className="inventory-selection-tools">
         <BulkActions key={scope} selection={selection} total={listed.length}
           label={(item) => equipmentTitle(item.model, item.capacity)}
           action={{ label: 'Archivar selección', doneLabel: 'archivados', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
         />
         {phone ? <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} /> : null}
-      </div>
-      {phone && source.length > 0 ? (
+      </div> : null}
+      {phone && !lineView && source.length > 0 ? (
         <>
           <div className="sale-sec"><span>Equipos</span><span data-testid="inventory-total">{archivedMode ? `${listed.length} ${listed.length === 1 ? 'archivado' : 'archivados'}` : `${listed.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)} de ${source.reduce((sum, item) => sum + (item.cantidad ?? 1), 0)}`}</span></div>
           {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
         </>
       ) : null}
       <div className="dcard flush">
+        {lineView ? <>
+          <div className="dch pad inv-model-toolbar">
+            <h3>Equipos</h3>
+            <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} />
+            {!phone ? <button type="button" className="wchip" onClick={openFilters}>Filtros{filterCount ? ` · ${filterCount}` : ''}</button> : null}
+            {columnFiltersActive(columns) ? <button className="wlink" type="button" onClick={clearColumns}>Limpiar filtros</button> : null}
+          </div>
+          {loadingLists ? <ListSkeleton variant={phone ? 'cards' : 'rows'} rows={4} testId="inventory-loading" /> : <InventoryModelGroups items={rows} money={money} seeCosts={seeCosts} onOpen={id => open({ type: 'eq', id })} resetKey={`${appSession?.store?.id}|${query}|${columnFilterKey(columns)}|${archivedMode}`} />}
+        </> : <>
         {phone ? (
           page.visible.length === 0 ? null : <PhoneRecords>
             {page.visible.map((item) => {
@@ -569,9 +581,10 @@ export function InventoryScreen() {
             : <div className="table-empty">No hay equipos con ese filtro.</div>
         ) : null}
         <TablePager page={page.page} pages={page.pages} total={page.total} from={page.from} to={page.to} onPage={page.setPage} />
+        </>}
       </div>
-      {showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
-      {inventory.length === 0 ? null : <div className="dhint">{phone ? 'Mantené presionado un equipo para seleccionarlo. Tocá ⋯ para más acciones.' : 'Tip: usá los checkboxes para seleccionar varios equipos. Clic derecho para más acciones.'}</div>}
+      {!lineView && showApprox ? <p className="inv-fx">Los precios en dólares son aproximados, con la cotización de la tienda.</p> : null}
+      {lineView ? <div className="dhint">Desplegá un modelo y tocá una unidad para abrir su detalle.</div> : inventory.length === 0 ? null : <div className="dhint">{phone ? 'Mantené presionado un equipo para seleccionarlo. Tocá ⋯ para más acciones.' : 'Tip: usá los checkboxes para seleccionar varios equipos. Clic derecho para más acciones.'}</div>}
       {phone && !selection.mode ? <MobileDock primary="Registrar equipo" onPrimary={() => open({ type: 'new-eq' })} secondary="Importar" onSecondary={() => open({ type: 'import', kind: 'inv' })} /> : null}
       {filtersOpen ? (
         <Sheet title="Filtros" onClose={() => setFiltersOpen(false)} className="inv-filter-sheet">
