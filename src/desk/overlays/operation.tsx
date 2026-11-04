@@ -727,7 +727,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   });
   const buyer = clients.find((item) => item.id === sale.clientId);
   const displayedDue = accountDue ?? displayedSaleDue(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0);
-  const plan = (sale.integratedOperation || sale.tradeInId) && sale.status !== 'CANCELADA'
+  const plan = sale.status !== 'CANCELADA'
     ? cancellationPlan(refundTarget, refundSales, movements, buyer?.pendingBalance ?? 0)
     : { refund: 0, credit: 0 };
   if (confirmCancel && !isVoidRow(sale)) {

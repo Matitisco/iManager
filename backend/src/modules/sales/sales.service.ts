@@ -785,6 +785,8 @@ export async function deleteSale(
     if (!cancelled && existing.inventoryItemId)
       await releaseStock(tx, storeId, existing);
 
+    if (!cancelled) await reverseCashSource(tx, storeId, 'sale', id, actor);
+
     if (!cancelled && existing.clientId) {
       const aggregate = await tx.sale.aggregate({
         where: {
