@@ -60,7 +60,7 @@ export function indexProblems<T extends Pick<ProblemDevice, "id" | "supplierId" 
 /** Three queries regardless of the number of devices, purchases or suppliers; no monetary data. */
 export async function loadProblems(storeId: string, where: Prisma.InventoryItemWhereInput = {}) {
   const [items, claims, repairs] = await Promise.all([
-    prisma.inventoryItem.findMany({ where: { ...where, storeId, archivedAt: null }, select: deviceSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }] }),
+    prisma.inventoryItem.findMany({ where: { ...where, storeId, kind: "DEVICE", archivedAt: null }, select: deviceSelect, orderBy: [{ createdAt: "desc" }, { id: "asc" }] }),
     prisma.returnCase.findMany({ where: { storeId, ...await activeClaims(storeId) }, select: claimSelect }),
     prisma.repairOrder.findMany({
       where: { storeId, archivedAt: null, status: { notIn: ["ENTREGADO", "CANCELADO", "CANCELADA", "ANULADO"] }, imei: { not: "" } },

@@ -90,6 +90,16 @@ describe.each([false, true])('Inventario por línea (móvil=%s)', (phone) => {
     );
   });
 
+  it('excluye accesorios antes de agrupar y de contar equipos', () => {
+    context.inventory.push(item('accessory', { kind: 'ACCESSORY', model: 'Funda ficticia', cantidad: 50, imei: '' }));
+    renderScreen();
+    expect(screen.queryByText('Funda ficticia')).not.toBeInTheDocument();
+    expect(screen.getByTestId('inventory-total')).toHaveTextContent('5 de 5');
+    fireEvent.click(screen.getByRole('button', { name: 'Por línea' }));
+    expect(screen.getByTestId('inventory-group-total')).toHaveTextContent('1 modelo · 5 equipos');
+    expect(screen.queryByText('Funda ficticia')).not.toBeInTheDocument();
+  });
+
   it('conserva la vista inicial, muestra tres unidades y permite ver todas y abrir detalle', () => {
     renderScreen();
     expect(

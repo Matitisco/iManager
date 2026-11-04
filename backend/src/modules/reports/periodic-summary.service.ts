@@ -48,12 +48,12 @@ export async function getPeriodicSummary(storeId: string, member: Member, select
   const dateEnvelope = { gte: new Date(envelope.gte), lt: new Date(envelope.lt) };
   const [saleRecords, claims, counts] = await Promise.all([
     salesAllowed ? prisma.sale.findMany({
-      where: { storeId },
+      where: { storeId, NOT: { inventoryItem: { kind: "ACCESSORY" } } },
       select: { cantidad: true, id: true, dateLabel: true, soldAt: true, amount: true, amountCurrency: true, status: true, voidedAt: true, cancelledAt: true, deviceLabel: true, clientName: true, client: { select: { name: true } }, inventoryItem: { select: { model: true, capacity: true } } },
       orderBy: [{ soldAt: 'desc' }, { id: 'desc' }],
     }) : [],
     salesAllowed ? prisma.returnCase.findMany({
-      where: { storeId, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true) },
+      where: { storeId, NOT: { sale: { inventoryItem: { kind: "ACCESSORY" } } }, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true) },
       select: { id: true, openedAt: true, resolvedAt: true, deviceLabel: true, clientName: true, imei: true, moneyAmount: true, moneyCurrency: true, settlement: true, resolution: true, rmaStatus: true, status: true,
         events: { where: { storeId, status: await storedStateFilter(prisma, 'ReturnEvent', storeId, ["EN_PROVEEDOR","RESUELTO"], false) }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 1, select: { createdAt: true } },
       },

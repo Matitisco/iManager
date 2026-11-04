@@ -1,3 +1,4 @@
+import { isDevice } from '../../lib/accessories';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
@@ -53,14 +54,14 @@ export function DepositForm({ clientId }: { clientId: string }) {
   const requestKey = useRef(`deposit-${crypto.randomUUID()}`);
   const [method, setMethod] = useState('TRANSFERENCIA');
   const [productId, setProductId] = useState('');
-  const [products, setProducts] = useState(inventory.filter(item => !item.archivedAt && !item.reservedDepositId && (!item.status || item.status === 'DISPONIBLE')));
+  const [products, setProducts] = useState(inventory.filter(item => isDevice(item) && !item.archivedAt && !item.reservedDepositId && (!item.status || item.status === 'DISPONIBLE')));
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState('');
   useEffect(() => { if (!rateDirty.current && money.rate) setRate(String(money.rate)); }, [money.rate]);
   useEffect(() => {
     let active = true;
-    loadOperationOptions('clients').then(options => { if (active) setProducts(options.products.filter(item => !item.reservedDepositId && !item.pendingSaleRegistration).map(item => ({ ...item, imei: item.imei ?? '', condition: item.condition ?? '', grade: item.grade ?? '', batteryHealth: '', status: 'DISPONIBLE' }))); }).catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los equipos')); });
+    loadOperationOptions('clients').then(options => { if (active) setProducts(options.products.filter(item => isDevice(item) && !item.reservedDepositId && !item.pendingSaleRegistration).map(item => ({ ...item, imei: item.imei ?? '', condition: item.condition ?? '', grade: item.grade ?? '', batteryHealth: '', status: 'DISPONIBLE' }))); }).catch(cause => { if (active) setError(toUserMessage(cause, 'No se pudieron cargar los equipos')); });
     return () => { active = false; };
   }, []);
   const back = () => { if (!saving.current) open({ type: 'cl', id: clientId }); };

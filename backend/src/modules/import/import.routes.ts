@@ -70,7 +70,7 @@ export async function importRoutes(app: FastifyInstance) {
     try {
       const [currency, existing] = await Promise.all([
         storeCurrency(request.appUser.storeId, prisma),
-        prisma.inventoryItem.findMany({ where: { storeId: request.appUser.storeId }, distinct: ["model"], select: { model: true }, take: 2000 }),
+        prisma.inventoryItem.findMany({ where: { storeId: request.appUser.storeId, kind: "DEVICE" }, distinct: ["model"], select: { model: true }, take: 2000 }),
       ]);
       const streaming = request.headers.accept === 'application/x-ndjson';
       if (streaming) {

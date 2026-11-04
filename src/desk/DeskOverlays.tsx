@@ -1,7 +1,8 @@
+import { AccessoryDetail } from './overlays/accessories';
 import { PermanentDeleteButton, PermanentDeleteConfirmation } from './PermanentDelete';
 import { IMPORT_SALES_ENABLED } from '../config/featureFlags';
 import { useModalLayer } from './modal-layer';
-import { archivedReturn, voidedSale } from './archive-cache';
+import { archivedProduct, archivedReturn, voidedSale } from './archive-cache';
 import { StockOnboarding } from '../pages/StockOnboarding';
 import { DepositForm, RepairDepositSheet } from './overlays/deposits';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -252,8 +253,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
     );
   }
 
-  if (overlay.type === 'eq') return <EquipmentDetail id={overlay.id} />;
-  if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm id={overlay.type === 'edit-eq' ? overlay.id : undefined} supplierId={overlay.type === 'new-eq' ? overlay.supplierId : undefined} run={run} busy={busy} error={error} />;
+  if (overlay.type === 'eq') return (ctx.inventory.find(item => item.id === overlay.id) ?? archivedProduct(overlay.id))?.kind === 'ACCESSORY' ? <AccessoryDetail id={overlay.id} /> : <EquipmentDetail id={overlay.id} />;
+  if (overlay.type === 'new-eq' || overlay.type === 'edit-eq') return <EquipmentForm initialKind={overlay.type === 'new-eq' ? overlay.kind : undefined} id={overlay.type === 'edit-eq' ? overlay.id : undefined} supplierId={overlay.type === 'new-eq' ? overlay.supplierId : undefined} run={run} busy={busy} error={error} />;
   if (overlay.type === 'batch-eq') return <BatchLoad />;
   if (overlay.type === 'scan-review') return <ScanReviewHost draft={overlay.draft} resume={overlay.resume} run={run} busy={busy} error={error} />;
   if (overlay.type === 'supplier') return <SupplierDetail id={overlay.id} />;

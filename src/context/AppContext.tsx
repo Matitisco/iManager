@@ -510,7 +510,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         if (item.archivedAt) next.delete(item.id);
         else {
           const merged = { ...next.get(item.id), ...item };
-          if (!canSeeCosts()) delete merged.cost;
+          if (!canSeeCosts()) { delete merged.cost; delete merged.costValue; }
           next.set(item.id, merged);
         }
       }

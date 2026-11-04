@@ -1,0 +1,5 @@
+- [x] Agregar migración aditiva, validación y serialización de accesorios.
+- [x] Separar lectores de equipos y conservar venta/restitución transaccional.
+- [x] Agregar navegación, lista y formulario con permisos financieros.
+- [x] Escribir unitarias, integración, componentes y E2E; validar TypeScript y pruebas relacionadas.
+- [ ] Publicar PR contra test, esperar CI y mergear a test.

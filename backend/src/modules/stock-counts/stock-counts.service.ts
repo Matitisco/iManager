@@ -155,7 +155,7 @@ export async function listStockCounts(storeId: string): Promise<CountListItem[]>
 
 export async function previewStockCount(storeId: string) {
   const rows = await prisma.inventoryItem.findMany({
-    where: { storeId, archivedAt: null },
+    where: { storeId, kind: "DEVICE", archivedAt: null },
     select: { imei: true, status: true },
   });
   const countable = rows.filter((row) => isCountableStatus(row.status));
@@ -241,7 +241,7 @@ export async function startStockCount(storeId: string, member: Member, actor: Ac
   if (!canManageStockCount(member)) throw new DomainError("Solo el propietario o un socio puede iniciar el control", 403);
   const { timeZone, currency } = await storeZone(storeId);
   const rows = await prisma.inventoryItem.findMany({
-    where: { storeId, archivedAt: null },
+    where: { storeId, kind: "DEVICE", archivedAt: null },
     select: { id: true, imei: true, model: true, capacity: true, color: true, status: true, price: true, currency: true },
   });
   const countable = rows.filter((row) => isCountableStatus(row.status));

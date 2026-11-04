@@ -153,7 +153,7 @@ async function calculateInventoryDuplicates(tx: Tx, store: Store, lockRows: bool
   const [totals] = await tx.$queryRaw<{ rowsBefore: number; unitsBefore: bigint; rowsWithImeiSkipped: number }[]>(Prisma.sql`
     SELECT count(*)::int AS "rowsBefore", coalesce(sum("quantity"), 0)::bigint AS "unitsBefore",
       count(*) FILTER (WHERE "imei" IS NOT NULL AND btrim("imei") <> '')::int AS "rowsWithImeiSkipped"
-    FROM "InventoryItem" WHERE "storeId" = ${store.id} AND "archivedAt" IS NULL`);
+    FROM "InventoryItem" WHERE "storeId" = ${store.id} AND "archivedAt" IS NULL AND "kind" = 'DEVICE'`);
   const candidates = await tx.$queryRaw<Candidate[]>(Prisma.sql`
     SELECT to_jsonb(i) || jsonb_build_object(${Prisma.join(decimalOverrides)}) AS row,
       ${KEY_SQL} AS "groupKey", i."entryDate"::date::text AS "entryDay",
@@ -170,7 +170,7 @@ async function calculateInventoryDuplicates(tx: Tx, store: Store, lockRows: bool
           AND a."entityId" = i."id" AND a."action" IN (${Prisma.join(EDIT_ACTIONS)})
           AND a."actorName" <> 'Agrupado automático') THEN 'editado a mano (historial)' END
       ], NULL) AS reasons
-    FROM "InventoryItem" i WHERE i."storeId" = ${store.id} AND i."archivedAt" IS NULL
+    FROM "InventoryItem" i WHERE i."storeId" = ${store.id} AND i."archivedAt" IS NULL AND i."kind" = 'DEVICE'
       AND (i."imei" IS NULL OR btrim(i."imei") = '')
       AND i."status" IN ('DISPONIBLE', 'EN_REVISION') AND i."quantity" >= 1
     ORDER BY i."createdAt", i."id" ${lockRows ? Prisma.sql`FOR UPDATE OF i` : Prisma.empty}`);

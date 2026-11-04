@@ -36,7 +36,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
   const currency: MoneyCurrency = store.currency === "USD" ? "USD" : "ARS";
   const rate = await reportSellRate(store);
   const sales = await prisma.sale.findMany({
-    where: { storeId, voidedAt: null, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true) },
+    where: { storeId, NOT: { inventoryItem: { kind: "ACCESSORY" } }, voidedAt: null, status: await storedStateFilter(prisma, 'Sale', storeId, ["CANCELADA"], true) },
     select: {
       amount: true,
       status: true, voidedAt: true, cancelledAt: true,
@@ -52,7 +52,7 @@ export async function getNetProfit(storeId: string, from: string, to: string) {
     select: { amount: true, currency: true, spentAt: true },
   });
   const claims = await prisma.returnCase.findMany({
-    where: { storeId, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true), resolution: { in: ["CAMBIO", "REINTEGRO"] } },
+    where: { storeId, NOT: { sale: { inventoryItem: { kind: "ACCESSORY" } } }, deletedAt: null, status: await storedStateFilter(prisma, 'ReturnCase', storeId, ["ANULADO"], true), resolution: { in: ["CAMBIO", "REINTEGRO"] } },
     select: {
       ...await returnRecognitionSelect(prisma, storeId),
       moneyAmount: true,

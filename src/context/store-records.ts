@@ -36,9 +36,10 @@ function normalizeCustomColumn(id: string, raw: Record<string, unknown>): Custom
 }
 
 export function withoutStoredCost(item: Product): Product {
-  if (!Object.prototype.hasOwnProperty.call(item, 'cost')) return item;
+  if (!Object.prototype.hasOwnProperty.call(item, 'cost') && !Object.prototype.hasOwnProperty.call(item, 'costValue')) return item;
   const next = { ...item };
   delete next.cost;
+  delete next.costValue;
   return next;
 }
 
