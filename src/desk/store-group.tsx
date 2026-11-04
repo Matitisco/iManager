@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ChevronsUpDown, Store as ShopIcon, Warehouse } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { activateStore, enableStoreGroup } from '../services/store-group-api';
 import type { StoreKind } from '../types/app-session';
@@ -10,7 +11,11 @@ import './store-group.css';
 
 export const storeKindLabel = (kind?: StoreKind | null) => kind === 'WHOLESALE' ? 'Mayorista' : kind === 'RETAIL' ? 'Minorista' : '';
 
-export function StoreSelector({ mobile = false }: { mobile?: boolean }) {
+const storeBlurb = (kind?: StoreKind | null) => kind === 'WHOLESALE' ? 'Venta por mayor' : kind === 'RETAIL' ? 'Venta al público' : '';
+const KindTile = ({ kind }: { kind?: StoreKind | null }) => <span className={`store-tile ${kind === 'RETAIL' ? 'retail' : 'wholesale'}`} aria-hidden="true">{kind === 'RETAIL' ? <ShopIcon size={16} /> : <Warehouse size={16} />}</span>;
+const KindStack = () => <span className="store-stack" aria-hidden="true"><KindTile kind="WHOLESALE" /><KindTile kind="RETAIL" /></span>;
+
+export function StoreSelector({ mobile = false, place }: { mobile?: boolean; place?: 'brand' | 'below' }) {
   const { user, appSession, applyStoreSession } = useAppContext();
   const { go, tab, toast } = useDesk();
   const [busy, setBusy] = useState(false);
@@ -18,14 +23,29 @@ export function StoreSelector({ mobile = false }: { mobile?: boolean }) {
   const current = appSession?.stores?.find(store => store.id === appSession.store?.id);
   const name = appSession?.store?.name || 'Tienda';
   const kind = storeKindLabel(current?.kind);
+  const multi = (appSession?.stores?.length ?? 0) >= 2;
+  // Desktop multi-store lives in its own row under the brand; mobile keeps it in the header.
+  if (place === 'below' ? !multi || mobile : place === 'brand' && multi && !mobile) return null;
   // Preserve the single-store header, including its mobile identifier.
-  if ((appSession?.stores?.length ?? 0) < 2) return <><small data-testid={mobile ? 'mobile-store-name' : undefined} title={name}>{name}</small>{kind && <span className="store-kind">{kind}</span>}</>;
+  if (!multi) return <><small data-testid={mobile ? 'mobile-store-name' : undefined} title={name}>{name}</small>{kind && <span className="store-kind">{kind}</span>}</>;
+  const stores = appSession?.stores ?? [];
   const grouped = ownedStoreGroup(appSession).length > 0;
-  return <div className="store-selector" aria-busy={busy}>
-    <DeskSelect label="Cambiar tienda" sheetTitle="Tus tiendas" data-testid={mobile ? 'mobile-store-name' : 'store-selector'}
-      value={grouped && tab === 'balance' ? '__all' : appSession?.store?.id ?? ''} disabled={busy}
-      displayValue={<span>{busy ? 'Cambiando tienda…' : grouped && tab === 'balance' ? 'Todas las tiendas' : name}</span>}
-      options={[...(appSession?.stores ?? []).map(store => ({ value: store.id, label: `${store.name}${store.kind ? ` · ${storeKindLabel(store.kind)}` : ''}` })), ...(grouped ? [{ value: '__all', label: 'Todas las tiendas' }] : [])]}
+  const all = grouped && tab === 'balance';
+  const options = [
+    ...[...stores].sort((a, b) => Number(b.kind === 'WHOLESALE') - Number(a.kind === 'WHOLESALE')).map(store => ({
+      value: store.id, group: 'Tus tiendas', label: `${store.name}${store.kind ? ` · ${storeKindLabel(store.kind)}` : ''}`,
+      content: <><KindTile kind={store.kind} /><span className="store-opt-copy"><b>{store.name}</b>{store.kind ? <small>{storeBlurb(store.kind)}</small> : null}</span>{store.kind ? <span className={`store-pill ${store.kind === 'RETAIL' ? 'retail' : 'wholesale'}`}>{storeKindLabel(store.kind)}</span> : null}</>,
+    })),
+    ...(grouped ? [{ value: '__all', label: 'Todas las tiendas', className: 'store-all', content: <><KindStack /><span className="store-opt-copy"><b>Todas las tiendas</b><small>Balance combinado</small></span></> }] : []),
+  ];
+  const title = busy ? 'Cambiando tienda…' : all ? (mobile ? 'Todas' : 'Todas las tiendas') : name;
+  const sub = all ? (mobile ? `${stores.length} tiendas` : 'Balance combinado') : kind;
+  return <div className={`store-selector multi${mobile ? ' m' : ' below'}`} aria-busy={busy}>
+    <DeskSelect label="Cambiar tienda" sheetTitle="Tus tiendas" triggerClassName="store-trigger" popupClassName="store-popup" popupMinWidth={344}
+      triggerIcon={<ChevronsUpDown size={14} aria-hidden="true" className="store-trigger-icon" />} data-testid={mobile ? 'mobile-store-name' : 'store-selector'}
+      value={all ? '__all' : appSession?.store?.id ?? ''} disabled={busy}
+      displayValue={<span className="store-trigger-body">{all ? <KindStack /> : <KindTile kind={current?.kind} />}<span className="store-trigger-copy"><b title={title}>{title}</b><small>{sub}{mobile ? <ChevronsUpDown size={12} aria-hidden="true" className="store-sub-icon" /> : null}</small></span></span>}
+      options={options}
       onChange={async id => {
         if (id === '__all') { go('balance'); return; }
         if (!user || pending.current) return;
@@ -39,7 +59,6 @@ export function StoreSelector({ mobile = false }: { mobile?: boolean }) {
         } catch (cause) { toast(getFriendlyErrorMessage(cause, 'No se pudo cambiar de tienda.')); }
         finally { pending.current = false; setBusy(false); }
       }} />
-    {kind && !(grouped && tab === 'balance') ? <span className="store-kind">{kind}</span> : null}
   </div>;
 }
 
