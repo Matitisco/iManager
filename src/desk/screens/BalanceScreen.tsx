@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
+import { Skeleton } from '../../components/Skeleton';
 import { getFriendlyErrorMessage } from '../../lib/utils';
 import { fetchStoreGroupBalance, type GroupBalance } from '../../services/store-group-api';
 import { ownedStoreGroup, canSeeFinancials } from '../sections';
@@ -51,7 +52,7 @@ function BalanceContent() {
   const kpi = (label: string, revenue: number, profit: number) => <article className="dcard balance-kpi" key={label} aria-label={label}><h2>{label}</h2><strong data-ph-mask>{shortBalanceMoney(revenue)}</strong><p data-ph-mask>ganancia {shortBalanceMoney(profit)}</p></article>;
   return <div className="dscreen balance-screen" data-testid="balance-screen">
     <ScreenTitle title="Balance" back={back} tools={period} desktop={period} />
-    {loading ? <p className="wempty" role="status">Cargando balance…</p> : error ? <p className="ferr" role="alert">{error} <button className="wlink" type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button></p> : data ? <>
+    {loading ? <div className="wempty" role="status" aria-label="Cargando balance" aria-busy="true"><Skeleton className="skeleton-field" /><span className="sr-only">Cargando balance</span></div> : error ? <p className="ferr" role="alert">{error} <button className="wlink" type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button></p> : data ? <>
       {data.mixedCurrency ? <p className="balance-warning" role="status">Las tiendas usan monedas distintas. Cada importe está en la moneda de su tienda y no se muestra un total general.</p> : <span className="sr-only">Importes en {data.currency}</span>}
       <div className="balance-kpis">
         {stores.map(store => kpi(storeKindLabel(store.kind), store.totals.revenue, store.totals.netProfit))}
