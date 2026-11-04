@@ -29,7 +29,7 @@ for (const device of [
     await expect(catalogRow.getByRole('switch')).toBeChecked();
     const link = new URL((await catalogRow.getByRole('link').getAttribute('href'))!, page.url()).href;
     await catalogRow.getByRole('button', { name: 'Editar ›' }).click();
-    await page.getByText('Equipos y visibilidad compartida', { exact: true }).click();
+    await page.getByText('Equipos y visibilidad', { exact: true }).click();
     // Summary and equipment now share the same Catálogo destination.
     await page.getByRole('button', { name: 'Seleccionar', exact: true }).click();
     await page.getByRole('checkbox', { name: 'Seleccionar iPhone 15 Pro 128GB' }).check();
