@@ -155,6 +155,30 @@ export function MenuButton({ label, options, value, onChange, testId, active }: 
   );
 }
 
+/** Short sort menu: one item per field plus an asc/desc toggle. Value format: "Campo ↑" | "Campo ↓" | defaultLabel. */
+export function SortControl({ defaultLabel, fields, value, onChange, testId, placeholder }: {
+  defaultLabel: string;
+  fields: readonly string[];
+  value: string;
+  onChange: (value: string) => void;
+  testId?: string;
+  placeholder?: string;
+}) {
+  const sorted = value !== defaultLabel && /[↑↓]$/.test(value);
+  const field = sorted ? value.slice(0, -2) : defaultLabel;
+  const dir = sorted ? value.slice(-1) : '↑';
+  return (
+    <div className="sort-control" data-testid={testId}>
+      <MenuButton testId={testId ? `${testId}-field` : undefined} label={sorted ? field : placeholder ?? defaultLabel} options={[defaultLabel, ...fields]} value={field} active={sorted}
+        onChange={(next) => onChange(next === defaultLabel ? defaultLabel : `${next} ${dir}`)} />
+      {sorted && (
+        <button type="button" className="sort-dir" aria-label={dir === '↑' ? 'Orden ascendente, cambiar a descendente' : 'Orden descendente, cambiar a ascendente'}
+          title={dir === '↑' ? 'Ascendente' : 'Descendente'} onClick={() => onChange(`${field} ${dir === '↑' ? '↓' : '↑'}`)}>{dir}</button>
+      )}
+    </div>
+  );
+}
+
 export function PageHead({ title, action, back, maskTitle = false }: { maskTitle?: boolean; title: string; action?: React.ReactNode; back?: () => void }) {
   return (
     <>
