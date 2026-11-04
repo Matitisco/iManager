@@ -1,9 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { DomainError } from "../../lib/domain-error.js";
-import { isSaleCancelled } from "../../lib/accounting-states.js";
 import { withSerializableRetry } from "../../lib/with-serializable-retry.js";
 import { writeAudit, type Actor } from "./audit.js";
 import { deviceLabel, saleCode } from "./archive.js";
+const isSaleCancelled = (status: string | null | undefined) => status != null && ["CANCELADA", "ANULADA"].includes(status.trim().toUpperCase());
 
 const ENTITIES = {
   inventory: { table: "InventoryItem", type: "inventory" },
