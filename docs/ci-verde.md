@@ -71,3 +71,16 @@ El log verde expuso un flaky adicional, fuera de los 34: `delete-cancelled-sales
 [CI rápida inicial](https://github.com/Matitisco/iManager/actions/runs/41686443002): verde, camino de jobs de aproximadamente 3m20s sin contar cola de runners (E2E 2m24s, PWA 1m34s). La cola hizo mayor el tiempo calendario; no se amplió el trabajo del PR. Rebase inicial sobre `origin/test` sin cambios ni conflictos.
 
 Verificación del seguimiento: tanda original con dos workers 12/12. Tanda con aislamiento: 9 aprobados y dos timeouts de transporte HTTP (sin 409), uno no ejecutado por el grupo serial existente de canjes. Repetición focalizada con un worker: 4/4 aprobados en 22,7s; TypeScript frontend/backend aprobado. No se aumentaron límites para absorber esa lentitud local.
+
+
+## Login HTML del entorno test
+
+En `test.imanager.com.ar`, el servidor estático usa las mismas `BASIC_AUTH_USER` y `BASIC_AUTH_PASS` del gate anterior. Sin ambas variables el gate queda deshabilitado; configurar solo una impide iniciar el servidor. No se agregan variables ni se modifica producción, que no tiene estas credenciales configuradas.
+
+Sin autorización válida, una navegación GET que acepta HTML muestra el formulario español con estado **401**; `GET /__login` explícito devuelve **200**. No se envía `www-authenticate`, por lo que no aparece el diálogo nativo. API, assets, worker, versión y helpers reciben 401 plano; catálogos tampoco se sirven. El formulario funciona sin JavaScript y conserva la CSP del servidor. Las rutas `/__login` y `/__logout` quedan reservadas y nunca devuelven el SPA ni pasan al proxy Firebase; con el gate deshabilitado responden 404.
+
+`POST /__login` acepta `application/x-www-form-urlencoded` hasta 8 KB. Credenciales correctas redirigen con 303 a `next`, limitado a rutas internas con una sola `/` inicial, sin barras inversas ni caracteres de control; destinos inválidos vuelven a `/`. El servidor escapa el HTML y no refleja las credenciales ingresadas. Los errores muestran «Usuario o contraseña incorrectos» con 401. Se mantiene el límite compartido de 30 rechazos por minuto por IP de socket (no se confía en `X-Forwarded-For`); los POST fallidos cuentan y luego reciben 429. Las credenciales válidas siguen entrando aunque otros usuarios de la misma IP agoten el límite.
+
+El acceso exitoso entrega `imanager_test_session` por 30 días (`Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000`), por lo que requiere HTTPS. El token contiene un vencimiento en milisegundos y una firma HMAC-SHA256, con clave derivada de ambas credenciales. Se verifican firma y vencimiento; cambiar usuario o contraseña invalida las cookies anteriores. `GET /__logout` borra la cookie y redirige a `/__login`. Todas las respuestas de login, errores del gate y redirecciones llevan `Cache-Control: no-store`. Este acceso es independiente del login Firebase de la aplicación.
+
+CI y scripts conservan `Authorization: Basic` válido sin necesitar cookie. Regresiones locales: `node --test scripts/basic-auth.test.mjs` y `node --test scripts/http-security.test.mjs scripts/pwa.test.mjs`: **42 pruebas aprobadas**; sin build, instalación de dependencias ni suite completa.
