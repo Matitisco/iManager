@@ -5,33 +5,52 @@ import { seedCatalogFixture, seedStoreContext } from './db.js';
 import { useIntegrationApp } from './integration-helpers.js';
 
 useIntegrationApp();
-const sql = readFileSync(new URL('../../prisma/post-push.sql', import.meta.url), 'utf8');
+const sql = readFileSync(
+  new URL('../../prisma/post-push.sql', import.meta.url),
+  'utf8',
+);
 const runGuard = () => prisma.$executeRawUnsafe(sql);
 
 // Simulates production, where `prisma db push` created the table without guards.
 async function dropGuards() {
-  await prisma.$executeRawUnsafe(`DROP INDEX IF EXISTS "Consignment_pending_item_key"`);
+  await prisma.$executeRawUnsafe(
+    `DROP INDEX IF EXISTS "Consignment_pending_item_key"`,
+  );
   const checks = await prisma.$queryRawUnsafe<{ conname: string }[]>(
     `SELECT conname FROM pg_constraint WHERE conrelid = '"Consignment"'::regclass AND contype = 'c'`,
   );
   for (const { conname } of checks)
-    await prisma.$executeRawUnsafe(`ALTER TABLE "Consignment" DROP CONSTRAINT "${conname}"`);
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE "Consignment" DROP CONSTRAINT "${conname}"`,
+    );
 }
 const guards = async () => ({
-  index: (await prisma.$queryRawUnsafe<unknown[]>(
-    `SELECT 1 FROM pg_indexes WHERE indexname = 'Consignment_pending_item_key'`,
-  )).length,
-  checks: (await prisma.$queryRawUnsafe<unknown[]>(
-    `SELECT 1 FROM pg_constraint WHERE conrelid = '"Consignment"'::regclass AND contype = 'c'`,
-  )).length,
+  index: (
+    await prisma.$queryRawUnsafe<unknown[]>(
+      `SELECT 1 FROM pg_indexes WHERE indexname = 'Consignment_pending_item_key'`,
+    )
+  ).length,
+  checks: (
+    await prisma.$queryRawUnsafe<unknown[]>(
+      `SELECT 1 FROM pg_constraint WHERE conrelid = '"Consignment"'::regclass AND contype = 'c'`,
+    )
+  ).length,
 });
 async function fixture() {
   const owner = await seedStoreContext();
   const storeId = owner.store!.id;
   const f = await seedCatalogFixture(storeId);
-  const row = (extra: object = {}) => prisma.consignment.create({
-    data: { storeId, clientId: f.client.id, inventoryItemId: f.inventoryItem.id, amount: 100, currency: 'ARS', ...extra },
-  });
+  const row = (extra: object = {}) =>
+    prisma.consignment.create({
+      data: {
+        storeId,
+        clientId: f.client.id,
+        inventoryItemId: f.inventoryItem.id,
+        amount: 100,
+        currency: 'ARS',
+        ...extra,
+      },
+    });
   return { row };
 }
 afterEach(async () => {
@@ -64,11 +83,21 @@ it('si hay datos que violarían el índice, lo saltea sin fallar ni tocar filas'
   const b = await row();
   await expect(runGuard()).resolves.toBeDefined();
   expect((await guards()).index).toBe(0);
-  expect(await prisma.consignment.findMany({ orderBy: { createdAt: 'asc' } })).toHaveLength(2);
-  expect(await prisma.consignment.findUnique({ where: { id: a.id } })).toEqual(a);
-  expect(await prisma.consignment.findUnique({ where: { id: b.id } })).toEqual(b);
+  expect(
+    await prisma.consignment.findMany({ orderBy: { createdAt: 'asc' } }),
+  ).toHaveLength(2);
+  expect(await prisma.consignment.findUnique({ where: { id: a.id } })).toEqual(
+    a,
+  );
+  expect(await prisma.consignment.findUnique({ where: { id: b.id } })).toEqual(
+    b,
+  );
 });
 
 it('no rompe si la tabla todavía no existe', async () => {
-  await expect(prisma.$executeRawUnsafe(sql.replaceAll('"Consignment"', '"ConsignmentMissing"'))).resolves.toBeDefined();
+  await expect(
+    prisma.$executeRawUnsafe(
+      sql.replaceAll('"Consignment"', '"ConsignmentMissing"'),
+    ),
+  ).resolves.toBeDefined();
 });
