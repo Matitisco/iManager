@@ -1,3 +1,4 @@
+import { storeGroupRoutes } from './modules/store-groups/routes.js';
 import { consignmentRoutes } from './modules/consignments/consignments.routes.js';
 import { registerSecurityRateLimits } from './middleware/security-rate-limit.js';
 import { customFieldRoutes } from './modules/custom-fields/custom-fields.routes.js';
@@ -111,6 +112,7 @@ export function buildApp({
   app.register(consignmentRoutes, { prefix: '/api/consignments' });
   app.register(salesRoutes, { prefix: '/api/sales' });
   app.register(tradeInsRoutes, { prefix: '/api/trade-ins' });
+  app.register(storeGroupRoutes, { prefix: '/api/store-group' });
   app.register(storesRoutes, { prefix: '/api/stores' });
   app.register(periodicReportRoutes, { prefix: '/api/stores' });
   app.register(usersRoutes, { prefix: '/api/users' });

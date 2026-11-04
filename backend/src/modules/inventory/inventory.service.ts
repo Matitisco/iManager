@@ -1444,6 +1444,9 @@ export async function restoreInventoryItem(
     where: { id, storeId },
   });
   if (!existing || !existing.archivedAt) return null;
+  if (existing.archiveReason?.startsWith('Transferido a ')) {
+    throw new InventoryError('Este equipo fue transferido. Para recuperarlo, transferilo desde la otra tienda.', 409);
+  }
   if (existing.imei) {
     const clash = await inventoryPrisma.inventoryItem.findFirst({
       where: {
