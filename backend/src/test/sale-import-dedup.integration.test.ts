@@ -24,7 +24,10 @@ describe('sale import physical duplicates and concurrent retries', () => {
     const saved = await prisma.sale.findFirstOrThrow({ where: { storeId, inventoryItemId: stock.id } });
     expect(saved.inventoryItemId).toBe(stock.id);
     expect(saved.saleNumber).toBe(1);
-    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).totalSpent)).toBe(841);
+    expect(saved.amountCurrency).toBe('USD');
+    expect(Number(saved.amount)).toBe(420.5);
+    // Sin balanceCurrency, la cuenta usa ARS de la tienda: 2 × USD 420,50 × 1.000.
+    expect(Number((await prisma.client.findUniqueOrThrow({ where: { id: client.id } })).totalSpent)).toBe(841000);
     expect((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: stock.id } })).status).toBe('VENDIDO');
     // The same source row belongs independently to another store.
     const other = await seedStoreContext({ firebaseUid: 'other-import', email: 'other-import@example.com' });

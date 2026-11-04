@@ -51,7 +51,11 @@ import {
 import { cleanReason, saleCode, type ArchiveMeta } from '../audit/archive.js';
 import { DomainError } from '../../lib/domain-error.js';
 import { prisma } from '../../plugins/prisma.js';
-import { currencyOnWrite, storeCurrency } from '../../lib/money-currency.js';
+import {
+  convertMoney,
+  currencyOnWrite,
+  storeCurrency,
+} from '../../lib/money-currency.js';
 import {
   decideClientLink,
   decideInventoryLink,
@@ -224,11 +228,20 @@ async function recomputeClientStats(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   storeId: string,
   clientId: string,
+  excludeSaleId?: string,
 ) {
-  const aggregate = await tx.sale.aggregate({
+  const client = await tx.client.findFirst({
+    where: { id: clientId, storeId },
+    select: { balanceCurrency: true },
+  });
+  if (!client) return;
+  const currency = await storeCurrency(storeId, tx);
+  const target = client.balanceCurrency ?? currency;
+  const sales = await tx.sale.findMany({
     where: {
       storeId,
       clientId,
+      ...(excludeSaleId ? { id: { not: excludeSaleId } } : {}),
       voidedAt: null,
       status: await storedStateFilter(
         tx,
@@ -238,15 +251,34 @@ async function recomputeClientStats(
         true,
       ),
     },
-    _sum: { amount: true },
-    _max: { soldAt: true },
+    select: {
+      amount: true,
+      amountCurrency: true,
+      exchangeRate: true,
+      soldAt: true,
+    },
   });
+
+  let totalSpent = new Decimal(0);
+  let lastPurchaseAt: Date | null = null;
+  for (const sale of sales) {
+    totalSpent = totalSpent.add(
+      convertMoney(
+        sale.amount,
+        sale.amountCurrency ?? currency,
+        target,
+        sale.exchangeRate,
+      ),
+    );
+    if (!lastPurchaseAt || sale.soldAt > lastPurchaseAt)
+      lastPurchaseAt = sale.soldAt;
+  }
 
   await tx.client.updateMany({
     where: { id: clientId, storeId },
     data: {
-      totalSpent: aggregate._sum.amount ?? new Decimal(0),
-      lastPurchaseAt: aggregate._max.soldAt ?? null,
+      totalSpent,
+      lastPurchaseAt,
     },
   });
 }
@@ -395,10 +427,11 @@ export async function createSaleInTransaction(
     warrantyStore,
   );
   const saleNumber = await allocateDocumentNumber(tx, storeId, 'sale');
+  const currency = await storeCurrency(storeId, tx);
   const amountCurrency = currencyOnWrite(
     input.amountCurrency,
     true,
-    await storeCurrency(storeId, tx),
+    currency,
   );
 
   await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
@@ -459,7 +492,14 @@ export async function createSaleInTransaction(
     await tx.client.update({
       where: { id: client.id },
       data: {
-        totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
+        totalSpent: {
+          increment: convertMoney(
+            input.amount,
+            amountCurrency ?? currency,
+            client.balanceCurrency ?? currency,
+            exchangeRate,
+          ),
+        },
         lastPurchaseAt: soldAt,
       },
     });
@@ -737,6 +777,8 @@ export async function updateSale(
 
     if (
       input.amount !== undefined ||
+      input.amountCurrency !== undefined ||
+      input.exchangeRate !== undefined ||
       input.date !== undefined ||
       input.clientId !== undefined ||
       input.status !== undefined
@@ -786,31 +828,7 @@ export async function deleteSale(
       await releaseStock(tx, storeId, existing);
 
     if (!cancelled && existing.clientId) {
-      const aggregate = await tx.sale.aggregate({
-        where: {
-          storeId,
-          clientId: existing.clientId,
-          id: { not: id },
-          voidedAt: null,
-          status: await storedStateFilter(
-            tx,
-            'Sale',
-            storeId,
-            ['CANCELADA', 'ANULADA'],
-            true,
-          ),
-        },
-        _sum: { amount: true },
-        _max: { soldAt: true },
-      });
-
-      await tx.client.updateMany({
-        where: { id: existing.clientId, storeId },
-        data: {
-          totalSpent: aggregate._sum.amount ?? new Decimal(0),
-          lastPurchaseAt: aggregate._max.soldAt ?? null,
-        },
-      });
+      await recomputeClientStats(tx, storeId, existing.clientId, id);
     }
 
     const reason = cleanReason(meta?.reason);
@@ -1180,7 +1198,14 @@ export async function importSales(
           await tx.client.update({
             where: { id: linkedClient.id },
             data: {
-              totalSpent: { increment: toDecimal(amount) },
+              totalSpent: {
+                increment: convertMoney(
+                  amount,
+                  amountCurrency,
+                  linkedClient.balanceCurrency ?? currency,
+                  exchangeRate,
+                ),
+              },
               lastPurchaseAt:
                 !linkedClient.lastPurchaseAt ||
                 soldAt > linkedClient.lastPurchaseAt
