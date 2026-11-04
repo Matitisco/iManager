@@ -53,6 +53,7 @@ export async function createDeposit(storeId: string, clientId: string, input: De
     if (!client) throw new DomainError('Cliente no encontrado', 404);
     if (input.productId) await lockInventory(tx, storeId, input.productId);
     const product = input.productId ? await tx.inventoryItem.findFirst({ where: { id: input.productId, storeId, archivedAt: null } }) : null;
+    if (product?.kind === 'ACCESSORY') throw new DomainError('La reserva por seña es solo para celulares', 400);
     if (input.productId && !product) throw new DomainError('Equipo no encontrado', 404);
     if (product && (product.reservedDepositId || product.status && product.status !== 'DISPONIBLE' || await tx.sale.findFirst({ where: { storeId, inventoryItemId: product.id, status: { not: 'CANCELADA' } }, select: { id: true } }))) throw new DomainError('El equipo no está disponible para reservar', 409);
     const row = await receiveDeposit(tx, storeId, clientId, input, actor, product);

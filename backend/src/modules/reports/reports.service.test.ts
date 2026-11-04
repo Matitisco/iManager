@@ -330,6 +330,7 @@ describe("getReportsOverview", () => {
       _sum: { cantidad: true },
       where: {
         archivedAt: null,
+        kind: "DEVICE",
         storeId: "store-1",
         createdAt: {
           gte: new Date("2026-04-01T00:00:00.000Z"),
@@ -420,7 +421,7 @@ describe("getReportsOverview", () => {
     });
     expect(saleFindManyMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: {
-        storeId: "store-1", status: { in: ["COMPLETADA", "PENDIENTE"] }, voidedAt: null, cancelledAt: null,
+        storeId: "store-1", NOT: { inventoryItem: { kind: "ACCESSORY" } }, status: { in: ["COMPLETADA", "PENDIENTE"] }, voidedAt: null, cancelledAt: null,
         soldAt: { gte: new Date(`${previousStart}T00:00:00-03:00`), lte: new Date(`${previousEnd}T23:59:59.999-03:00`) },
       },
     }));
@@ -449,7 +450,7 @@ describe("getReportsOverview", () => {
     ]);
     const overview = await getReportsOverview("store-1", normalizeReportsOverviewInput({ rangeKey: "all_time" }));
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
-    expect(saleFindManyMock.mock.calls[0][0].where).toEqual({ storeId: "store-1", voidedAt: null, cancelledAt: null, status: { in: ["COMPLETADA", "PENDIENTE"] } });
+    expect(saleFindManyMock.mock.calls[0][0].where).toEqual({ storeId: "store-1", NOT: { inventoryItem: { kind: "ACCESSORY" } }, voidedAt: null, cancelledAt: null, status: { in: ["COMPLETADA", "PENDIENTE"] } });
     expect(overview.summary).toMatchObject({ revenue: 1200, grossProfit: 240, unitsSold: 3, marginRate: 80 });
     expect(overview.salesSeries).toEqual([
       { start: "2025-11-01", label: "01/11/2025", revenue: 100, unitsSold: 1 },
@@ -470,7 +471,7 @@ describe("getReportsOverview", () => {
     });
 
     expect(saleFindManyMock).toHaveBeenCalledTimes(1);
-    expect(inventoryAggregateMock).toHaveBeenNthCalledWith(1, { _sum: { cantidad: true }, where: { storeId: "store-1", archivedAt: null } });
+    expect(inventoryAggregateMock).toHaveBeenNthCalledWith(1, { _sum: { cantidad: true }, where: { storeId: "store-1", kind: "DEVICE", archivedAt: null } });
     expect(overview.comparison.available).toBe(false);
     expect(overview.comparison.revenueChange).toBeNull();
   });

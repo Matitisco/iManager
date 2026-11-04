@@ -7,6 +7,7 @@ export type DeskTab =
   | 'cash'
   | 'dashboard'
   | 'inventory'
+  | 'accessories'
   | 'publicCatalog'
   | 'sales'
   | 'tradeins'
@@ -36,7 +37,7 @@ export type SaleResume = {
 
 export type Overlay =
   | { type: 'onboarding-stock' }
-  | { type: 'new-eq'; supplierId?: string }
+  | { type: 'new-eq'; supplierId?: string; kind?: 'DEVICE' | 'ACCESSORY' }
   | { type: 'eq'; id: string }
   | { type: 'edit-eq'; id: string }
   | { type: 'new-sale'; clientName?: string; clientId?: string; productId?: string; source?: 'inventory' | 'sales' | 'tradeins' | 'clients'; tradeInId?: string; resumeAmount?: string }

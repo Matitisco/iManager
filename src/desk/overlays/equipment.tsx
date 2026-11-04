@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react';
+import { AccessoryForm } from './accessories';
+import { isDevice } from "../../lib/accessories";
 import { PermanentDeleteButton } from '../PermanentDelete';
 import { DatePicker } from '../date-picker';
 import { ReplayValue } from '../replay-privacy';
@@ -151,7 +154,15 @@ export function EquipmentDetail({ id }: { id: string }) {
   );
 }
 
-export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & { id?: string; supplierId?: string }) {
+export function EquipmentForm(props: FormProps & { id?: string; supplierId?: string; initialKind?: 'DEVICE' | 'ACCESSORY' }) {
+  const { inventory } = useAppContext();
+  const current = inventory.find(item => item.id === props.id);
+  const [kind, setKind] = useState(current?.kind ?? props.initialKind ?? 'DEVICE');
+  const segment = !current ? <div className="sgs register-kind" role="group" aria-label="Tipo de producto">{(['DEVICE', 'ACCESSORY'] as const).map(value => <button type="button" key={value} className={`sg${kind === value ? ' on' : ''}`} aria-pressed={kind === value} disabled={props.busy} onClick={() => setKind(value)}>{value === 'DEVICE' ? 'Celular' : 'Accesorio'}</button>)}</div> : null;
+  return kind === 'ACCESSORY' ? <AccessoryForm {...props} segment={segment} /> : <DeviceForm {...props} segment={segment} />;
+}
+
+function DeviceForm({ id, run, busy, error, supplierId, segment }: FormProps & { id?: string; supplierId?: string; segment?: ReactNode }) {
   const { inventory, addProduct, updateProduct, appSession, suppliers, reloadLedger, customFieldDefinitions = [], customFieldDefinitionsError } = useAppContext();
   const money = useMoney();
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
@@ -165,7 +176,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
     ...BASE_CONDITIONS,
     ...[...new Set(inventory.map((item) => item.condition).filter((value) => value && !BASE_CONDITIONS.some((item) => item.id === value)))].map((value) => ({ id: value, label: value === 'PRE-OWNED' ? 'Pre-owned' : value })),
   ];
-  const models = [...new Set([...MODELS, ...inventory.map((item) => item.model).filter(Boolean)])];
+  const models = [...new Set([...MODELS, ...inventory.filter(isDevice).map((item) => item.model).filter(Boolean)])];
   const [model, setModel] = useState(current?.model ?? '');
   const { editModel, fillModel } = useModelAutofill(model, setModel, !current);
   const [capacity, setCapacity] = useState(current?.capacity ?? '');
@@ -231,6 +242,7 @@ export function EquipmentForm({ id, run, busy, error, supplierId }: FormProps & 
     <>
     <Sheet title={current ? 'Editar equipo' : 'Registrar equipo'} onClose={close} busy={busy} className="eq-sheet">
       {error && <div className="ferr">{error}</div>}
+      {segment}
       <DatePicker label="Fecha de ingreso" value={entryDate} onChange={setEntryDate} panel={phoneLayout ? 'inline' : 'float'} boundary="sheet" />
       <Field label="Modelo" error={bad.model}><input list="eq-models" value={model} onChange={(event) => { editModel(event.target.value); clearBad(setBad, 'model'); }} placeholder="Ej. iPhone 13" /></Field>
       <datalist id="eq-models">{models.map((item) => <option key={item} value={item} />)}</datalist>

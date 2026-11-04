@@ -1,0 +1,48 @@
+import { expect, test } from '@playwright/test';
+import { authHeaders, buildTestEmail } from './utils';
+import { openDeskSection } from './navigation';
+
+const api = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:3100';
+for (const width of [1440, 390]) for (const theme of ['light', 'dark']) test.describe(`Accesorios ${width} ${theme}`, () => {
+  test.use({ viewport: { width, height: width === 1440 ? 1000 : 844 } });
+  test('registra, separa equipos, vende cantidad y anula restituyendo stock', async ({ page, request }, info) => {
+    const email = buildTestEmail(info, 'accessories');
+    const headers = authHeaders(email);
+    await request.get(`${api}/api/me`, { headers });
+    expect((await request.post(`${api}/api/stores`, { headers, data: { name: 'Accesorios ficticios' } })).ok()).toBe(true);
+    await request.patch(`${api}/api/stores/current`, { headers, data: { instagram: 'tienda.ficticia' } });
+    await page.addInitScript(email => localStorage.setItem('imanager:test-auth-user', JSON.stringify({ email })), email);
+    await page.addInitScript(theme => localStorage.setItem('imanager-theme', theme), theme);
+    await page.goto('/');
+    await openDeskSection(page, 'accessories');
+    await page.getByRole('button', { name: 'Registrar accesorio' }).filter({ visible: true }).click();
+    const sheet = page.getByRole('dialog', { name: 'Registrar' });
+    await expect(sheet.getByRole('button', { name: 'Accesorio', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(sheet.getByText(/IMEI/)).toHaveCount(0);
+    await sheet.getByRole('textbox', { name: 'Nombre' }).fill('Cable ficticio USB-C');
+    await sheet.getByRole('button', { name: 'Cable', exact: true }).click();
+    await sheet.getByRole('textbox', { name: 'Compatible con' }).fill('Todos');
+    await sheet.getByRole('spinbutton', { name: 'Cantidad' }).fill('4');
+    await sheet.getByRole('textbox', { name: 'Costo unitario' }).fill('1800,25');
+    await sheet.getByRole('textbox', { name: 'Precio de venta' }).fill('6000,50');
+    await sheet.getByRole('button', { name: 'Guardar accesorio' }).click();
+    await expect(sheet).toBeHidden();
+    await expect(page.getByText('Cable ficticio USB-C', { exact: true })).toBeVisible();
+    await expect(page.getByText('Poco stock', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await openDeskSection(page, 'inventory');
+    await expect(page.getByText('Cable ficticio USB-C', { exact: true })).toHaveCount(0);
+    await openDeskSection(page, 'accessories');
+    const inventory = await request.get(`${api}/api/inventory?kind=ACCESSORY`, { headers });
+    const item = (await inventory.json()).inventory[0];
+    const sale = await request.post(`${api}/api/operations/sales`, { headers, data: { productId: item.id, cantidad: 3, amount: 18001.50, currency: 'ARS', status: 'COMPLETADA', paymentMethod: 'EFECTIVO', requestKey: `accessories-${width}` } });
+    expect(sale.ok(), await sale.text()).toBe(true);
+    const saleId = (await sale.json()).sale.id;
+    await page.reload(); await openDeskSection(page, 'accessories');
+    await expect(page.locator('.accessory-stock').getByText('1 u.', { exact: true })).toBeVisible();
+    expect((await request.post(`${api}/api/operations/sales/sales/${saleId}/void`, { headers, data: {} })).ok()).toBe(true);
+    await page.reload(); await openDeskSection(page, 'accessories');
+    await expect(page.locator('.accessory-stock').getByText('4 u.', { exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+});

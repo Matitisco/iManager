@@ -169,7 +169,7 @@ describe('agrupación después de filtros', () => {
   });
 
   it('excluye accesorios cuando el dato opcional kind está presente', () => {
-    const accessory = { ...item('a'), kind: 'ACCESSORY' };
+    const accessory: Product = { ...item('a'), kind: 'ACCESSORY' };
     expect(groupInventoryModels([accessory, item('b')])[0].units).toBe(1);
   });
 });

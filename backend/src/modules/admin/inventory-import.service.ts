@@ -90,7 +90,7 @@ async function runImport(tx: Prisma.TransactionClient, body: InventoryImportBody
       columnIndex: mappingColumnIndex(sheetHeaders(sheets.find(sheet => sheet.name === plan.name)!.rows, plan.headerRow), column),
     })));
 
-  const before = await tx.inventoryItem.findMany({ where: { storeId: store.id } });
+  const before = await tx.inventoryItem.findMany({ where: { storeId: store.id, kind: "DEVICE" } });
   const saleCount = await tx.sale.count({ where: { storeId: store.id } });
   const { willUpdate, possibleDuplicates } = detectInventoryImportDuplicates(rows, before);
   if (!body.dryRun && possibleDuplicates.length && !body.allowPossibleDuplicates) throw new InventoryImportDuplicatesError(possibleDuplicates);

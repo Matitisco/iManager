@@ -1,3 +1,4 @@
+import { isDevice } from "../lib/accessories";
 import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../context/AppContext";
@@ -74,7 +75,7 @@ export function OnboardingInventorySummary() {
   const { appSession, inventory } = useAppContext();
   const money = useMoney();
   if (!appSession?.store?.onboardingStartedAt) return null;
-  const equipment = inventory.filter((item) => !item.archivedAt);
+  const equipment = inventory.filter((item) => isDevice(item) && !item.archivedAt);
   const counts = new Map<string, number>([
     ['DISPONIBLE', 0], ['EN_REVISION', 0], ['RESERVADO', 0], ['VENDIDO', 0],
   ]);
@@ -89,7 +90,7 @@ export function OnboardingInventorySummary() {
       : statusLabel(status).toLocaleLowerCase('es-AR');
     return `${count} ${label}`;
   }).join(' · ');
-  const stock = inventory.filter((item) => isInStock(item.status));
+  const stock = inventory.filter((item) => isDevice(item) && isInStock(item.status));
   const totals = onboardingTotals(
     stock.map((item) => ({
       price: item.price == null ? "" : String(item.price),

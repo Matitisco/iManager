@@ -1,3 +1,4 @@
+import { accessorySalesThisMonth } from "./accessory-sales.js";
 import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import { definitionSchema } from '../custom-fields/custom-fields.service.js';
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
@@ -33,6 +34,9 @@ import {
 } from "./inventory.service.js";
 
 const inventoryItemSchema = z.object({
+  kind: z.enum(["DEVICE", "ACCESSORY"]).optional(),
+  accessoryType: z.string().trim().max(40).nullable().optional(),
+  compatibleWith: z.string().trim().max(120).nullable().optional(),
   cantidad: z.number().int().min(0).max(2147483647).optional(),
   imei: zodOptionalImei().optional(),
   model: z.string().trim().min(1).max(100),
@@ -53,6 +57,13 @@ const inventoryItemSchema = z.object({
 });
 
 const inventoryCreateSchema = inventoryItemSchema.extend({
+  cost: z.number().nonnegative().default(0),
+  capacity: z.string().trim().max(50).default(''),
+  color: z.string().trim().max(50).default(''),
+  condition: z.string().trim().max(20).default(''),
+  grade: z.string().trim().max(20).default(''),
+  batteryHealth: z.string().trim().max(50).refine(validBatteryHealth, BATTERY_HEALTH_MESSAGE).default(''),
+  status: z.string().trim().max(20).default('DISPONIBLE'),
   ...purchaseNameFields,
   restockRetired: z.boolean().optional(),
 });
@@ -68,6 +79,7 @@ const inventoryPatchSchema = inventoryItemSchema
 export async function inventoryRoutes(app: FastifyInstance) {
   registerPermanentDelete(app, "inventory", "inventory");
   const pagedQuerySchema = z.object({
+    kind: z.enum(["DEVICE", "ACCESSORY", "ALL"]).optional(),
     skip: z.coerce.number().int().nonnegative().optional(),
     take: z.coerce.number().int().min(1).max(100).optional(),
     search: z.string().trim().optional(),
@@ -95,12 +107,13 @@ export async function inventoryRoutes(app: FastifyInstance) {
       const query = pagedQuerySchema.parse(request.query);
 
       if (query.archived) {
-        const inventory = await listInventory(request.appUser.storeId, { archived: true, supplierId: query.supplierId });
+        const inventory = await listInventory(request.appUser.storeId, { archived: true, supplierId: query.supplierId, kind: query.kind });
         return { inventory };
       }
 
       if (query.skip !== undefined || query.take !== undefined) {
         const params: ListInventoryParams = {
+          kind: query.kind,
           skip: query.skip ?? 0,
           take: query.take ?? 30,
           search: query.search,
@@ -119,10 +132,15 @@ export async function inventoryRoutes(app: FastifyInstance) {
         return { items, total };
       }
 
-      const inventory = await listInventory(request.appUser.storeId, { supplierId: query.supplierId });
+      const inventory = await listInventory(request.appUser.storeId, { supplierId: query.supplierId, kind: query.kind });
       return { inventory };
     }
   );
+
+  app.get("/accessories/sold", { preHandler: [authenticate, resolveAppUser, requireSectionAccess("inventory")] }, async request => {
+    requireMember(request);
+    return accessorySalesThisMonth(request.appUser.storeId);
+  });
 
   app.get(
     "/ids",
@@ -132,6 +150,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       const query = pagedQuerySchema.parse(request.query);
       const ids = await getInventoryFilteredIds(request.appUser.storeId, {
+        kind: query.kind,
         search: query.search,
         supplierId: query.supplierId,
         categoryId: query.categoryId,
@@ -164,6 +183,7 @@ export async function inventoryRoutes(app: FastifyInstance) {
 
       const body = inventoryCreateSchema.parse(request.body);
       const { restockRetired, ...item } = body;
+      if (!canSeeFinancials(request.appUser)) item.cost = 0;
       const inventoryItem = await createInventoryItem(
         request.appUser.storeId,
         item as InventoryItemInput,

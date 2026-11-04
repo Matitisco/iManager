@@ -1,3 +1,4 @@
+import { isDevice } from "../../lib/accessories";
 import { beneficiaryKey } from '../../types/commissions';
 import { ReplayValue } from '../replay-privacy';
 import { ListSkeleton } from '../list-skeleton';
@@ -91,8 +92,8 @@ export function ReportsScreen() {
 
 function StandardReports({ navigation }: { navigation: ReactNode }) {
   const {
-    sales,
-    inventory,
+    sales: allSales,
+    inventory: allInventory,
     customFieldDefinitions = [],
     tradeIns,
     clients,
@@ -104,8 +105,11 @@ function StandardReports({ navigation }: { navigation: ReactNode }) {
     sessionConfirmed,
     expenses = [],
     expensesLoaded = true,
-    returns,
+    returns: allReturns,
   } = useAppContext();
+  const inventory = useMemo(() => allInventory.filter(isDevice), [allInventory]);
+  const sales = useMemo(() => allSales.filter(sale => sale.productKind !== 'ACCESSORY' && !allInventory.some(item => item.id === sale.productId && !isDevice(item))), [allSales, allInventory]);
+  const returns = useMemo(() => allReturns?.filter(row => !allSales.some(sale => sale.id === row.saleId && (sale.productKind === "ACCESSORY" || allInventory.some(item => item.id === sale.productId && !isDevice(item))))) ?? allReturns, [allReturns, allSales, allInventory]);
   const money = useMoney();
   const phone = usePhoneLayout();
   const { open, toast, back } = useDesk();

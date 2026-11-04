@@ -92,7 +92,7 @@ export async function listStoreActivity(range: StoreActivityRange, now = new Dat
     ? [[], [], [], [], [], []] as [CountRow[], CountActivityRow[], CountActivityRow[], CountActivityRow[], CountRow[], ActivityRow[]]
     : await Promise.all([
       prisma.storeMember.groupBy({ by: ["storeId"], where, _count: { _all: true } }),
-      prisma.inventoryItem.groupBy({ by: ["storeId"], where, _count: { _all: true }, _max: { createdAt: true } }),
+      prisma.inventoryItem.groupBy({ by: ["storeId"], where: { ...where, kind: "DEVICE" }, _count: { _all: true }, _max: { createdAt: true } }),
       prisma.sale.groupBy({ by: ["storeId"], where, _count: { _all: true }, _max: { createdAt: true } }),
       prisma.client.groupBy({ by: ["storeId"], where, _count: { _all: true }, _max: { createdAt: true } }),
       prisma.repairOrder.groupBy({ by: ["storeId"], where, _count: { _all: true } }),

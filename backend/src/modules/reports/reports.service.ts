@@ -349,6 +349,7 @@ export async function getReportsOverview(
   const currency: MoneyCurrency = store.currency === 'USD' ? 'USD' : 'ARS';
   const salesWhere = {
     storeId,
+    NOT: { inventoryItem: { kind: "ACCESSORY" } },
     voidedAt: null,
     cancelledAt: null,
     // PENDIENTE describes collection, not whether the equipment was sold.
@@ -363,6 +364,7 @@ export async function getReportsOverview(
   const previousWindow = resolvePreviousWindow(input);
   const inventoryWhere = {
     storeId,
+    kind: "DEVICE",
     archivedAt: null,
     ...buildDateRangeWhere("createdAt", input.startDate, input.endDate),
   };
@@ -413,6 +415,7 @@ export async function getReportsOverview(
       ? prisma.sale.findMany({
           where: {
             storeId,
+            NOT: { inventoryItem: { kind: "ACCESSORY" } },
             voidedAt: null,
             cancelledAt: null,
             status: { in: ["COMPLETADA", "PENDIENTE"] },
@@ -490,6 +493,7 @@ export async function getReportsOverview(
     where: {
       storeId,
       deletedAt: null,
+      NOT: { sale: { inventoryItem: { kind: "ACCESSORY" } } },
       status: { not: "ANULADO" }, resolution: { in: ["CAMBIO", "REINTEGRO"] },
     },
     select: {

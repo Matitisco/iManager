@@ -1,3 +1,4 @@
+import { isDevice } from "../../lib/accessories";
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronRight, UserPlus } from 'lucide-react';
 import type { Sale } from '../../types';
@@ -55,7 +56,9 @@ export function DashboardContent() {
 }
 
 function ScopedDashboardContent({ scope }: { scope: string }) {
-  const { appSession, user, backendStatus, sales, inventory, tradeIns, clients, operationNotifications, listsLoaded, listsSettled, listsLoadFailed } = useAppContext();
+  const { appSession, user, backendStatus, sales: allSales, inventory: allInventory, tradeIns, clients, operationNotifications, listsLoaded, listsSettled, listsLoadFailed } = useAppContext();
+  const inventory = useMemo(() => allInventory.filter(isDevice), [allInventory]);
+  const sales = useMemo(() => allSales.filter(sale => sale.productKind !== 'ACCESSORY' && !allInventory.some(item => item.id === sale.productId && !isDevice(item))), [allSales, allInventory]);
   const loadingLists = listsAreLoading(listsLoaded) || listsSettled === false;
   const money = useMoney();
   const { go, open } = useDesk();

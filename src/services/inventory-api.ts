@@ -9,7 +9,7 @@ type BackendInventoryResponse = {
 };
 
 export async function fetchBackendInventory(user: AuthUserLike): Promise<Product[]> {
-  const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory', {
+  const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory?kind=ALL', {
     fallback: (status) => `No se pudo cargar el inventario (${status})`,
   });
   observeInventory((data.inventory ?? []).length);
@@ -77,7 +77,7 @@ export async function updateBackendInventoryItem(user: AuthUserLike, item: Produ
 }
 
 export async function fetchArchivedInventory(user: AuthUserLike): Promise<Product[]> {
-  const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory?archived=1', {
+  const data = await apiRequest<BackendInventoryResponse>(user, '/api/inventory?archived=1&kind=ALL', {
     fallback: (status) => `No se pudo cargar el archivo (${status})`,
   });
   return data.inventory ?? [];
@@ -112,4 +112,8 @@ export async function fetchBackendInventoryItem(user: AuthUserLike, id: string):
   });
   if (!data.inventoryItem) throw new Error('Respuesta inválida al abrir el equipo');
   return data.inventoryItem;
+}
+
+export async function fetchAccessorySales(user: AuthUserLike) {
+  return apiRequest<{ month: string; sold: Record<string, number> }>(user, '/api/inventory/accessories/sold', { fallback: 'No se pudieron cargar los accesorios vendidos del mes' });
 }
