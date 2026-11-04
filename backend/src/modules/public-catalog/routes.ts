@@ -6,7 +6,7 @@ import { resolveAppUser } from '../../middleware/resolve-app-user.js';
 import { requireMember, requireSectionAccess } from '../../middleware/section-access.js';
 import { loadActor } from '../audit/audit.js';
 import { catalogEditSchema, catalogPreviewSchema, catalogIdSchema, settingsSchema, visibilitySchema, slugSchema } from './schema.js';
-import { createStoreCatalog, deleteStoreCatalog, editStoreCatalog, listStoreCatalogs, previewStoreCatalog, getSettings, saveSettings, setVisibility, getPublicCatalog } from './service.js';
+import { createStoreCatalog, deleteStoreCatalog, editStoreCatalog, listStoreCatalogs, previewStoreCatalog, getSettings, saveSettings, setVisibility, setStoreCatalogVisibility, getPublicCatalog } from './service.js';
 
 async function owner(request: FastifyRequest, reply: FastifyReply) {
   requireMember(request);
@@ -29,6 +29,12 @@ export async function catalogManagementRoutes(app: FastifyInstance) {
     requireMember(request);
     const { id } = catalogIdSchema.parse(request.params);
     return { catalog: await editStoreCatalog(request.appUser.storeId, id, catalogEditSchema.parse(request.body), await loadActor(request.appUser.userId), permissions(request)) };
+  });
+  app.patch('/list/:id/items', async request => {
+    requireMember(request);
+    const { id } = catalogIdSchema.parse(request.params);
+    const { ids, visible } = visibilitySchema.parse(request.body);
+    return { catalog: await setStoreCatalogVisibility(request.appUser.storeId, id, ids, visible, await loadActor(request.appUser.userId), canSeeFinancials(request.appUser)) };
   });
   app.post('/list/:id/regenerate', { preHandler: owner }, async request => {
     requireMember(request);

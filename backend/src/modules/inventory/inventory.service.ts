@@ -1,4 +1,3 @@
-import { getDefaultCatalog } from '../public-catalog/default-catalog.js';
 import { storedStateFilter } from '../../lib/accounting-states.js';
 import { inventoryImportGroups } from './import-grouping.js';
 import { normalizeInventoryImportStatus } from "../import/inventory-status.js";
@@ -7,8 +6,7 @@ import { convertFields, entryDateValue, ensureDefinitions, listDefinitions, vali
 import { importErrorCollector, type ImportDiagnostics } from "../import/import-diagnostics.js";
 import { parseArDate } from "../../lib/ar-date.js";
 import { validateInventoryImportRow, prepareInventoryImportRow, MAX_INVENTORY_IMPORT_ITEMS } from "./import-validation.js";
-import { ruleReason } from '../public-catalog/rules.js';
-import type { StorePublicCatalog } from '@prisma/client';
+import { itemVisibleInCatalog, ruleReason } from '../public-catalog/rules.js';
 import { lockInventory } from '../deposits/deposits.service.js';
 import { Decimal } from "@prisma/client/runtime/library";
 import { Prisma } from "@prisma/client";
@@ -54,6 +52,7 @@ export interface InventoryItemResponse {
   cantidad: number;
   catalogVisible: boolean;
   catalogIncluded: boolean;
+  catalogNames: string[];
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
   reservedClientName?: string | null;
@@ -105,6 +104,7 @@ export interface InventoryItemDetailResponse extends InventoryItemResponse {
 type InventoryRecord = {
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
+  catalogNames?: string[];
   cantidad?: number;
   reservedDepositId?: string | null;
   reservedClientId?: string | null;
@@ -174,8 +174,25 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
   return value as Record<string, unknown>;
 };
 
-function inPublicCatalog(item: { catalogVisible?: boolean; cantidad?: number; status: string; batteryHealth: string; archivedAt?: Date | string | null; needsCompletion?: boolean }, catalog: StorePublicCatalog | null) {
-  return Boolean(catalog?.active && item.catalogVisible && !ruleReason({ ...item, quantity: item.cantidad ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog));
+type CatalogInventoryItem = { id: string; catalogVisible?: boolean; cantidad?: number; status: string; batteryHealth: string; archivedAt?: Date | string | null; needsCompletion?: boolean };
+// Two bounded queries for a whole page/list, never one query per inventory item.
+async function catalogMemberships(storeId: string, items: CatalogInventoryItem[]) {
+  const catalogs = await prisma.storeCatalog.findMany({ where: { storeId, active: true }, select: { id: true, name: true, itemVisibility: true, hideWithoutStock: true, hideReserved: true, minBattery: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+  const ownIds = catalogs.filter(catalog => catalog.itemVisibility === 'OWN').map(catalog => catalog.id);
+  const hidden = ownIds.length && items.length ? await prisma.catalogItemHidden.findMany({
+    where: { catalogId: { in: ownIds }, inventoryItemId: { in: items.map(item => item.id) } },
+    select: { catalogId: true, inventoryItemId: true },
+  }) : [];
+  const hiddenByCatalog = new Map<string, Set<string>>();
+  for (const row of hidden) {
+    if (!hiddenByCatalog.has(row.catalogId)) hiddenByCatalog.set(row.catalogId, new Set());
+    hiddenByCatalog.get(row.catalogId)!.add(row.inventoryItemId);
+  }
+  return new Map(items.map(item => {
+    const catalogNames = catalogs.filter(catalog => itemVisibleInCatalog(catalog.itemVisibility, item.catalogVisible ?? false, hiddenByCatalog.get(catalog.id)?.has(item.id) ?? false)
+      && !ruleReason({ ...item, quantity: item.cantidad ?? 1, archivedAt: item.archivedAt ? new Date(item.archivedAt) : null }, catalog)).map(catalog => catalog.name);
+    return [item.id, { catalogNames, catalogIncluded: catalogNames.length > 0 }];
+  }));
 }
 
 function keptImei(customFields: Prisma.JsonValue | null | undefined): string {
@@ -192,6 +209,7 @@ export function serializeInventoryItem(item: InventoryRecord): InventoryItemResp
     cantidad: item.cantidad ?? 1,
     catalogVisible: item.catalogVisible ?? false,
     catalogIncluded: item.catalogIncluded ?? false,
+    catalogNames: item.catalogNames ?? [],
     id: item.id,
     imei: visibleImei(item.imei, item.customFields),
     model: item.model,
@@ -313,6 +331,7 @@ function buildOrderByClause(sortKey?: string, sortDir?: 'asc' | 'desc'): Prisma.
 type RawInventoryRow = {
   catalogVisible?: boolean;
   catalogIncluded?: boolean;
+  catalogNames?: string[];
   cantidad?: number;
   id: string; imei: string | null; model: string; capacity: string; color: string;
   condition: string; grade: string; batteryHealth: string; cost: unknown; price: unknown;
@@ -340,6 +359,7 @@ function deserializeRawRow(row: RawInventoryRow): InventoryItemResponse {
     cantidad: row.cantidad ?? 1,
     catalogVisible: row.catalogVisible ?? false,
     catalogIncluded: row.catalogIncluded ?? false,
+    catalogNames: row.catalogNames ?? [],
     id: row.id,
     imei: visibleImei(row.imei, row.customFields),
     model: row.model,
@@ -397,7 +417,7 @@ export async function listInventoryPaged(
     `,
   ]);
 
-  const catalog = await getDefaultCatalog(storeId);
+  const memberships = await catalogMemberships(storeId, rows);
   const supplierIds = [...new Set(rows.map((row) => row.supplierId).filter((id): id is string => Boolean(id)))];
   const suppliers = supplierIds.length
     ? await prisma.supplier.findMany({ where: { storeId, id: { in: supplierIds } }, select: { id: true, name: true } })
@@ -414,7 +434,7 @@ export async function listInventoryPaged(
       purchasedAt: row.stockPurchaseId && purchaseById.has(row.stockPurchaseId) ? calendarDay(purchaseById.get(row.stockPurchaseId)!.purchasedAt, "America/Argentina/Buenos_Aires") : null,
       purchaseName: row.stockPurchaseId ? purchaseById.get(row.stockPurchaseId)?.name ?? null : null,
       supplierName: row.supplierId ? supplierName.get(row.supplierId) ?? null : null,
-      catalogIncluded: inPublicCatalog(row, catalog),
+      ...memberships.get(row.id),
     })),
     total: Number(countResult[0].count),
   };
@@ -448,8 +468,8 @@ export async function listInventory(storeId: string, options?: { archived?: bool
     orderBy: { createdAt: "desc" },
   });
 
-  const catalog = await getDefaultCatalog(storeId);
-  return inventory.map((item: InventoryRecord) => serializeInventoryItem({ ...item, catalogIncluded: inPublicCatalog(item, catalog) }));
+  const memberships = await catalogMemberships(storeId, inventory);
+  return inventory.map((item: InventoryRecord) => serializeInventoryItem({ ...item, ...memberships.get(item.id) }));
 }
 
 /** Secondary detail for the equipment modal; list responses keep only cheap purchase metadata. */
@@ -463,13 +483,13 @@ export async function getInventoryItem(storeId: string, id: string): Promise<Inv
     },
   });
   if (!item) return null;
-  const catalog = await getDefaultCatalog(storeId);
+  const memberships = await catalogMemberships(storeId, [item]);
   let purchaseSummary: ProblemSummary | null = null;
   if (item.stockPurchaseId && item.stockPurchase && !item.stockPurchase.deletedAt) {
     const snapshot = await loadProblems(storeId, { stockPurchaseId: item.stockPurchaseId });
     purchaseSummary = summarizeProblems(snapshot.items, snapshot.problems);
   }
-  return { ...serializeInventoryItem({ ...item, catalogIncluded: inPublicCatalog(item, catalog) }), purchaseSummary };
+  return { ...serializeInventoryItem({ ...item, ...memberships.get(item.id) }), purchaseSummary };
 }
 
 function storedImei(value: string | null | undefined) {
@@ -589,7 +609,8 @@ export async function createInventoryItem(
     });
   });
 
-  return serializeInventoryItem(inventoryItem);
+  const memberships = await catalogMemberships(storeId, [inventoryItem]);
+  return serializeInventoryItem({ ...inventoryItem, ...memberships.get(inventoryItem.id) });
 }
 
 export interface BatchCreateResult {
@@ -842,8 +863,8 @@ export async function updateInventoryItem(
   });
 
   if (!updated) return null;
-  const catalog = updated.catalogVisible ? await getDefaultCatalog(storeId) : null;
-  return serializeInventoryItem({ ...updated, catalogIncluded: inPublicCatalog(updated, catalog) });
+  const memberships = await catalogMemberships(storeId, [updated]);
+  return serializeInventoryItem({ ...updated, ...memberships.get(updated.id) });
 }
 
 /** Caller owns the transaction. Lock all items in a stable order before checking associations. */
@@ -903,8 +924,8 @@ export async function restoreInventoryItem(storeId: string, id: string, actor?: 
     source: meta?.source ?? (actor ? "app" : "system"),
     changes: [{ field: "status", label: "Estado", before: "Archivado", after: "Activo" }],
   });
-  const catalog = restored.catalogVisible ? await getDefaultCatalog(storeId) : null;
-  return serializeInventoryItem({ ...restored, catalogIncluded: inPublicCatalog(restored, catalog) });
+  const memberships = await catalogMemberships(storeId, [restored]);
+  return serializeInventoryItem({ ...restored, ...memberships.get(restored.id) });
 }
 
 // ─── Categories ───────────────────────────────────────────────────────────────

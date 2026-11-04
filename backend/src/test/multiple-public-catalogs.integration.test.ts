@@ -54,7 +54,7 @@ describe('multiple public catalogs', () => {
     await patch(catalogs[0].id, { hours: '10 a 19' });
     expect(await prisma.storePublicCatalog.findUniqueOrThrow({ where: { storeId: store!.id } })).toMatchObject({ hours: '9 a 18' });
   });
-  it('serves each rule by slug without exposing private fields and shares visibility', async () => {
+  it('serves each rule by slug without exposing private fields or changing OWN visibility', async () => {
     const { item } = await fixture();
     const list = (await post({ name: 'Descuento', active: true, priceAdjustPercent: -10 })).json().catalog;
     const cost = (await post({ name: 'Mayorista', active: true, priceRuleMode: 'COST_PERCENT', priceAdjustPercent: 25 })).json().catalog;
@@ -72,7 +72,7 @@ describe('multiple public catalogs', () => {
     await patch(cost.id, { showPrice: false });
     expect((await get(`/api/public/catalog/${cost.slug}`)).json().items[0]).not.toHaveProperty('price');
     await getApp().inject({ method: 'PATCH', url: '/api/catalog/items', headers, payload: { ids: [item.id], visible: false } });
-    for (const catalog of [list, cost, manual]) expect((await get(`/api/public/catalog/${catalog.slug}`)).json().items).toEqual([]);
+    for (const catalog of [list, cost, manual]) expect((await get(`/api/public/catalog/${catalog.slug}`)).json().items).toHaveLength(1);
   });
   it('previews unsaved rules of the chosen catalog without persisting them', async () => {
     const { item } = await fixture();

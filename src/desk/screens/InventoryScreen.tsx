@@ -358,7 +358,7 @@ export function InventoryScreen() {
                 >
                   <InventoryCard item={item} money={money} sell={sell} />
                   <small>Cantidad: {item.cantidad ?? 1}{seeCosts && item.cost != null ? ` · Costo: ${money.show(item.cost, item.currency)}` : ''}</small>
-                  {item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : null}
+                  {item.catalogIncluded ? <small className="catalog-mark" title={item.catalogNames?.join(', ')}>En catálogo</small> : null}
                   {item.reservedClientName ? <small className="reservation-label">Reservado para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                   {item.pendingSaleRegistration ? <small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small> : null}
                 </PhoneRecord>
@@ -556,7 +556,7 @@ export function InventoryScreen() {
                     {item.reservedClientName ? <small className="reservation-label">Para <ReplayValue>{item.reservedClientName}</ReplayValue></small> : null}
                     {item.pendingSaleRegistration ? <div className="pending-sale-cell"><small className="pending-sale-label"><ImanagerIcon name="venta-por-registrar" size={16} />Venta por registrar</small><button type="button" onClick={(event) => { event.stopPropagation(); open({ type: 'new-sale', productId: item.id, source: 'inventory' }); }}>Retomar</button></div> : null}
                   </td>
-                  <td>{item.catalogIncluded ? <small className="catalog-mark">En catálogo</small> : '—'}</td>
+                  <td>{item.catalogNames?.length ? <small className="catalog-mark" title={item.catalogNames.join(', ')}>{item.catalogNames.length === 1 ? item.catalogNames[0] : `${item.catalogNames.length} catálogos`}</small> : '—'}</td>
                 </PressTarget>
               ))}
             </tbody>

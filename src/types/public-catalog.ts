@@ -14,9 +14,12 @@ export interface CatalogItem {
   price?: number | null; currency?: string | null;
 }
 export interface ManagedCatalogItem extends CatalogItem {
+  listPrice?: number | null; listCurrency?: string;
+  status?: string; cantidad?: number; needsCompletion?: boolean;
   id: string; catalogVisible: boolean; reason: string | null; manualPrice?: number | null; manualCurrency?: string;
 }
 export interface ManagedCatalog extends CatalogSettings {
+  itemVisibility?: 'GLOBAL' | 'OWN';
   slug: string;
   items: ManagedCatalogItem[];
   counts: { visible: number; rules: number; manual: number; available: number };
@@ -40,5 +43,6 @@ export interface CatalogEdit extends Partial<CatalogSettings> {
   name?: string;
   priceRuleMode?: CatalogPriceRule;
   priceAdjustPercent?: number;
+  hiddenItemIds?: string[];
   manualPrices?: { inventoryItemId: string; price: number | null; currency: 'ARS' | 'USD' }[];
 }

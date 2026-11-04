@@ -1,5 +1,10 @@
 import { Prisma } from '@prisma/client';
 
+// OWN stores only exceptions: inventory added later is visible automatically.
+export function itemVisibleInCatalog(mode: string, globalVisible: boolean, hidden: boolean): boolean {
+  return mode === 'OWN' ? !hidden : globalVisible;
+}
+
 export function batteryMinimum(value: string): number | null {
   const normalized = value.trim().replace(',', '.');
   if (!/^\d/.test(normalized)) return null;
