@@ -102,7 +102,21 @@ describe('PostHog collection and privacy', () => {
     if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
     const event = beforeSend({ uuid: 'test-uuid', event: '$autocapture', properties: { $current_url: location.href,
       $initial_current_url: location.href, $referrer: 'https://test/?token=secret', $pathname: '/invite/secret', utm_source: 'private', $set_once: { $initial_current_url: location.href, role: 'OWNER' } } });
-    expect(event!.properties).toEqual({ $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
+    expect(event!.properties).toEqual({ token: 'phc_test', $current_url: `${location.origin}/invite`, $pathname: '/invite', $set_once: { role: 'OWNER' } });
+  });
+  it.each(['$pageview', '$snapshot'])('preserves the configured public project identifier for %s while removing identity tokens', async eventName => {
+    const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();
+    const beforeSend = vi.mocked(posthog.init).mock.calls[0][1]!.before_send;
+    if (typeof beforeSend !== 'function') throw new Error('Missing privacy hook');
+    const event = beforeSend({ uuid: 'test-uuid', event: eventName, properties: {
+      token: 'private-auth-token', access_token: 'private-access', refresh_token: 'private-refresh',
+      $set: { token: 'private-nested-token', email: 'private@email.test', role: 'OWNER' },
+      $snapshot_data: [{ type: 2, data: { token: 'private-replay-token', text: 'masked' } }],
+    } });
+    expect(event!.properties.token).toBe('phc_test');
+    expect(event!.properties.$set).toEqual({ role: 'OWNER' });
+    expect(JSON.stringify(event)).not.toContain('private');
+    expect(event!.properties.$snapshot_data).toEqual([{ type: 2, data: { text: 'masked' } }]);
   });
   it.each(['import_analysis_completed', 'import_result'])('strips inherited names and email from %s before sending', async eventName => {
     const { initAnalytics } = await import('./posthog-analytics'); initAnalytics();

@@ -89,7 +89,8 @@ function stripPrivateProperties(value: unknown): void {
 export function initAnalytics(): void {
   try {
     if (disabled() || initialized) return;
-    posthog.init(import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo', {
+    const projectKey = (import.meta.env.VITE_POSTHOG_KEY ?? 'phc_yusUYUHJ7W28DSuYBW6v6n7te8VbzkZZcXnracPnXaeo').trim();
+    posthog.init(projectKey, {
       api_host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://us.i.posthog.com',
       autocapture: true,
       mask_all_text: true,
@@ -127,6 +128,9 @@ export function initAnalytics(): void {
         stripUrls(event.properties);
         // Also strip legacy persisted superproperties and nested person updates.
         stripPrivateProperties(event.properties);
+        // The SDK requires its public project identifier for ingestion. Restore
+        // only our configured value, never a token supplied by event properties.
+        event.properties.token = projectKey;
         event.properties.$current_url = pageUrl();
         event.properties.$pathname = new URL(pageUrl()).pathname;
         return event;
