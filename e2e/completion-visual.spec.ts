@@ -79,7 +79,7 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await settleSheet(page);
   await desktopTrade.getByLabel('Diferencia').scrollIntoViewIfNeeded();
   await shot(page, 'desktop-1440-trade-difference', desktopTrade);
-  await desktopTrade.locator('.op-summary').scrollIntoViewIfNeeded();
+  await desktopTrade.locator('.op-summary:not(.sale-cost-profit)').scrollIntoViewIfNeeded();
   await shot(page, 'desktop-1440-trade-warning', desktopTrade);
   await desktopTrade.getByRole('button', { name: 'Confirmar canje' }).click();
   await expect(desktopTrade.getByText(NEGATIVE_WARNING).first()).toBeVisible();
@@ -143,6 +143,6 @@ test('hides a negative trade difference and keeps completion marks compact', asy
   await settleSheet(page);
   await phoneTrade.getByLabel('Diferencia').scrollIntoViewIfNeeded();
   await shot(page, 'phone-390-trade-difference', phoneTrade);
-  await phoneTrade.locator('.op-summary').scrollIntoViewIfNeeded();
+  await phoneTrade.locator('.op-summary:not(.sale-cost-profit)').scrollIntoViewIfNeeded();
   await shot(page, 'phone-390-trade-warning', phoneTrade);
 });

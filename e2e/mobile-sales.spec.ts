@@ -125,7 +125,7 @@ test.describe('sales on a phone', () => {
     await expect(form.locator('.sheet-grab')).toBeVisible();
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Confirmar venta' })).toBeVisible();
     await expect(form.locator('.sheet-foot').getByRole('button', { name: 'Cancelar', exact: true })).toBeVisible();
-    await expect(form.getByText(/ARS/)).toBeVisible();
+    await expect(form.getByText(/ARS/).first()).toBeVisible();
     await expect(form.getByRole('button', { name: 'Transferencia' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Efectivo' })).toBeVisible();
     await expect(form.getByRole('button', { name: 'Cobrado' })).toBeVisible();
