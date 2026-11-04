@@ -1,4 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { Decimal } from '@prisma/client/runtime/library';
+import { DomainError } from './domain-error.js';
 
 export const CURRENCIES = ["ARS", "USD"] as const;
 export const EXCHANGE_MODES = ["auto", "manual"] as const;
@@ -38,6 +40,20 @@ export function positiveRate(value: unknown): number | null {
         ? Number(value)
         : NaN;
   return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+/** Convert a movement using its stored ARS-per-USD rate, never today's quote. */
+export function convertMoney(
+  amount: Decimal.Value,
+  from: string,
+  to: string,
+  exchangeRate: unknown,
+): Decimal {
+  const value = new Decimal(amount);
+  if (from === to || value.isZero()) return value.toDecimalPlaces(2);
+  const rate = positiveRate(exchangeRate);
+  if (rate == null) throw new DomainError('Revisá la cotización antes de confirmar');
+  return (from === 'USD' ? value.mul(rate) : value.div(rate)).toDecimalPlaces(2);
 }
 
 export async function storeCurrency(storeId: string, db: Db): Promise<MoneyCurrency> {

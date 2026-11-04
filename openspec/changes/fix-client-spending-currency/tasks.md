@@ -1,0 +1,5 @@
+- [x] Reproducir W4-01 con el caso QA aislado.
+- [x] Compartir conversión e incorporar ventas directas, importación y recálculos.
+- [x] Cubrir ambas direcciones, monedas iguales, legado y cotización histórica.
+- [x] Ejecutar typecheck frontend/backend e integraciones sales/consignments/cash.
+- [x] Preparar un único commit local en español y resumen externo.

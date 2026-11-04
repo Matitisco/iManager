@@ -89,8 +89,8 @@ describe("stores.service", () => {
     ]);
 
     await expect(listStoresForUser("user-1")).resolves.toEqual([
-      { id: "store-1", name: "Casa Central", role: "OWNER", isDefault: true },
-      { id: "store-2", name: "Sucursal Norte", role: "STAFF", isDefault: false },
+      { id: "store-1", name: "Casa Central", role: "OWNER", isDefault: true, kind: null, groupId: null },
+      { id: "store-2", name: "Sucursal Norte", role: "STAFF", isDefault: false, kind: null, groupId: null },
     ]);
   });
 

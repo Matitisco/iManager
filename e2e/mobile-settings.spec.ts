@@ -95,7 +95,7 @@ test.describe('desktop settings stays put', () => {
     const profile = page.getByRole('dialog', { name: 'Perfil' });
     await expect(profile.locator('.cfg-who')).toHaveCount(0);
     await expect(profile.getByLabel('Rol')).toHaveCount(0);
-    await expect(profile.getByLabel('Nombre')).toBeVisible();
+    await expect(profile.getByLabel('Nombre', { exact: true })).toBeVisible();
     await profile.getByRole('button', { name: 'Cancelar' }).click();
 
     await expect(page.getByTestId('settings-screen').getByRole('button', { name: /Propietario/ })).toBeDisabled();
@@ -137,7 +137,7 @@ test.describe('settings on a phone', () => {
     await expect(editor.getByText('Configuración')).toBeVisible();
     await expect(editor.getByText('Información de la tienda')).toBeVisible();
     await expect(editor.getByText('Moneda y dólar')).toBeVisible();
-    await expect(editor.getByLabel('Nombre')).toBeVisible();
+    await expect(editor.getByLabel('Nombre', { exact: true })).toBeVisible();
     await expect(editor.getByLabel('CUIT')).toBeVisible();
     await expect(editor.getByLabel('Dirección')).toBeVisible();
     await expect(editor.getByLabel('Teléfono')).toBeVisible();
@@ -195,7 +195,7 @@ test.describe('settings on a phone', () => {
     await expect(profile.locator('.cfg-who')).toBeVisible();
     await expect(profile.getByLabel('Rol')).toHaveValue('Propietario');
     await expect(profile.getByLabel('Email')).toBeDisabled();
-    await profile.getByLabel('Nombre').fill('Ana Dueña');
+    await profile.getByLabel('Nombre', { exact: true }).fill('Ana Dueña');
     await settleMotion(page, '.sheet');
     await expectFits(page);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/settings-390-perfil.png` });

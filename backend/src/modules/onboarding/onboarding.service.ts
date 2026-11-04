@@ -1,3 +1,4 @@
+import { createStoreWithOwner } from '../stores/store-creation.js';
 import { trackMany } from '../analytics/track.js';
 import { trialData } from '../billing/domain.js';
 import { prisma } from "../../plugins/prisma.js";
@@ -53,29 +54,18 @@ export async function completeOnboarding(
       });
       if (membershipNow) return;
 
-      const store = await tx.store.create({
-        data: {
-          ...trialData(user.billingLegacy),
-          name: trimmedStoreName,
-          onboardingStartedAt: new Date(),
-          onboardingStage: "stock",
-          instagram,
-          currency: asCurrency(input.currency ?? "USD"),
-          exchangeMode,
-          exchangeSource: asExchangeSource(input.exchangeSource),
-          manualBuy,
-          manualSell,
-        },
-      });
-
-      await tx.storeMember.create({
-        data: {
-          storeId: store.id,
-          userId: user.id,
-          role: "OWNER",
-          isDefault: true,
-        },
-      });
+      const { store } = await createStoreWithOwner(tx, user.id, {
+        ...trialData(user.billingLegacy),
+        name: trimmedStoreName,
+        onboardingStartedAt: new Date(),
+        onboardingStage: "stock",
+        instagram,
+        currency: asCurrency(input.currency ?? "USD"),
+        exchangeMode,
+        exchangeSource: asExchangeSource(input.exchangeSource),
+        manualBuy,
+        manualSell,
+      }, true);
       return store;
     });
     if (created) void trackMany([

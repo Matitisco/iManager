@@ -21,7 +21,7 @@ import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audi
 import { cleanReason, saleCode, type ArchiveMeta } from "../audit/archive.js";
 import { DomainError } from "../../lib/domain-error.js";
 import { prisma } from "../../plugins/prisma.js";
-import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { convertMoney, currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 import { decideClientLink, decideInventoryLink, matchOpenTradeIn, matchSellerUserId } from "../import/link-imported-sale.js";
 import { normalizeCurrencyToken, normalizeImei, normalizeImportDate, normalizeImportedDni, normalizeImportedPhone, normalizePayment, normalizeTradeIn } from "../import/normalize-import.js";
 import { parseMoney } from "../import/sheet-plan.js";
@@ -175,20 +175,34 @@ const toCustomFields = (value: Prisma.JsonValue | null) => {
 async function recomputeClientStats(
   tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
   storeId: string,
-  clientId: string
+  clientId: string,
+  excludeSaleId?: string,
 ) {
-  const aggregate = await tx.sale.aggregate({
-    where: { storeId, clientId, voidedAt: null, status: { notIn: ["CANCELADA", "ANULADA"] } },
-    _sum: { amount: true },
-    _max: { soldAt: true },
+  const client = await tx.client.findFirst({ where: { id: clientId, storeId }, select: { balanceCurrency: true } });
+  if (!client) return;
+  const currency = await storeCurrency(storeId, tx);
+  const target = client.balanceCurrency ?? currency;
+  const sales = await tx.sale.findMany({
+    where: {
+      storeId,
+      clientId,
+      ...(excludeSaleId ? { id: { not: excludeSaleId } } : {}),
+      voidedAt: null,
+      status: { notIn: ["CANCELADA", "ANULADA"] },
+    },
+    select: { amount: true, amountCurrency: true, exchangeRate: true, soldAt: true },
   });
+
+  let totalSpent = new Decimal(0);
+  let lastPurchaseAt: Date | null = null;
+  for (const sale of sales) {
+    totalSpent = totalSpent.add(convertMoney(sale.amount, sale.amountCurrency ?? currency, target, sale.exchangeRate));
+    if (!lastPurchaseAt || sale.soldAt > lastPurchaseAt) lastPurchaseAt = sale.soldAt;
+  }
 
   await tx.client.updateMany({
     where: { id: clientId, storeId },
-    data: {
-      totalSpent: aggregate._sum.amount ?? new Decimal(0),
-      lastPurchaseAt: aggregate._max.soldAt ?? null,
-    },
+    data: { totalSpent, lastPurchaseAt },
   });
 }
 
@@ -294,7 +308,8 @@ export async function createSaleInTransaction(tx: Prisma.TransactionClient, stor
   });
   const warrantyDays = saleDaysFromStore(input.warrantyDays, inventoryItem?.condition, warrantyStore);
   const saleNumber = await allocateDocumentNumber(tx, storeId, "sale");
-  const amountCurrency = currencyOnWrite(input.amountCurrency, true, await storeCurrency(storeId, tx));
+  const currency = await storeCurrency(storeId, tx);
+  const amountCurrency = currencyOnWrite(input.amountCurrency, true, currency);
 
   await assertBeneficiary(tx, storeId, input.sellerMemberId, input.resellerId);
   const exchangeRate = await saleExchangeRate(input.exchangeRate);
@@ -335,7 +350,7 @@ export async function createSaleInTransaction(tx: Prisma.TransactionClient, stor
     await tx.client.update({
       where: { id: client.id },
       data: {
-        totalSpent: new Decimal(client.totalSpent.toString()).add(input.amount),
+        totalSpent: { increment: convertMoney(input.amount, amountCurrency ?? currency, client.balanceCurrency ?? currency, exchangeRate) },
         lastPurchaseAt: soldAt,
       },
     });
@@ -488,6 +503,8 @@ export async function updateSale(
 
     if (
       input.amount !== undefined ||
+      input.amountCurrency !== undefined ||
+      input.exchangeRate !== undefined ||
       input.date !== undefined ||
       input.clientId !== undefined ||
       input.status !== undefined
@@ -524,26 +541,10 @@ export async function deleteSale(storeId: string, id: string, actor?: Actor | nu
     // Cancellation already restored the operation. Its stock may have been sold again.
     if (!cancelled && existing.inventoryItemId) await releaseStock(tx, storeId, existing);
 
-    if (!cancelled && existing.clientId) {
-      const aggregate = await tx.sale.aggregate({
-        where: {
-          storeId,
-          clientId: existing.clientId,
-          id: { not: id },
-          voidedAt: null,
-          status: { notIn: ["CANCELADA", "ANULADA"] },
-        },
-        _sum: { amount: true },
-        _max: { soldAt: true },
-      });
+    if (!cancelled) await reverseCashSource(tx, storeId, 'sale', id, actor);
 
-      await tx.client.updateMany({
-        where: { id: existing.clientId, storeId },
-        data: {
-          totalSpent: aggregate._sum.amount ?? new Decimal(0),
-          lastPurchaseAt: aggregate._max.soldAt ?? null,
-        },
-      });
+    if (!cancelled && existing.clientId) {
+      await recomputeClientStats(tx, storeId, existing.clientId, id);
     }
 
     const reason = cleanReason(meta?.reason);
@@ -725,7 +726,7 @@ export async function importSales(
       if (sellerMemberId || r.resellerId) await recordSaleCommission(tx, storeId, sale.id);
       if (inventoryItemId) await tx.inventoryItem.update({ where: { id: inventoryItemId }, data: { status: 'VENDIDO' } });
       if (linkedClient) await tx.client.update({ where: { id: linkedClient.id }, data: {
-        totalSpent: { increment: toDecimal(amount) }, lastPurchaseAt: !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt ? soldAt : linkedClient.lastPurchaseAt,
+        totalSpent: { increment: convertMoney(amount, amountCurrency, linkedClient.balanceCurrency ?? currency, exchangeRate) }, lastPurchaseAt: !linkedClient.lastPurchaseAt || soldAt > linkedClient.lastPurchaseAt ? soldAt : linkedClient.lastPurchaseAt,
       } });
       if (r._review) warnings.push({ row: rowNum, message: r._review });
       saleIds.push(sale.id); imported++;

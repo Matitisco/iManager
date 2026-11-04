@@ -113,6 +113,14 @@ describe.each([false, true])('equipment actions (phone=%s)', phone => {
     expect(screen.getByRole('button', { name: 'Restaurar' })).toBeInTheDocument();
   });
 
+  it('bloquea restaurar stock archivado por transferencia', () => {
+    ctx.inventory[0].archivedAt = '2026-11-04T10:00:00Z';
+    ctx.inventory[0].archiveReason = 'Transferido a Minorista ficticia';
+    render(<Harness />);
+    expect(screen.getByRole('button', { name: 'Restaurar' })).toBeDisabled();
+    expect(screen.getByText(/Para devolverlo, transferilo desde la otra tienda/)).toBeVisible();
+  });
+
   it('preserves status saving and disables navigation while the request is pending', async () => {
     let resolve!: () => void;
     ctx.updateProduct.mockReturnValueOnce(new Promise<void>(yes => { resolve = yes; }));

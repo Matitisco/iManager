@@ -1,6 +1,13 @@
+import type { AppSession } from '../types/app-session';
+import { ownedStoreGroup } from './sections';
 import { isSectionHidden } from '../config/hiddenSections';
 import type { DeskTab } from './types';
-import { canManageCommissions, canOpenHistory, canOpenSection } from './sections';
+import {
+  canSeeFinancials,
+  canManageCommissions,
+  canOpenHistory,
+  canOpenSection,
+} from './sections';
 
 export type NavGroupId = 'comercial' | 'stock' | 'atencion' | 'finanzas' | 'analisis';
 
@@ -40,33 +47,186 @@ export const NAV_GROUPS: { id: NavGroupId; label: string; icon: NavIcon }[] = [
 ];
 
 export const NAV_SECTIONS: NavSection[] = [
-  { id: 'dashboard', label: 'Dashboard', subtitle: 'Resumen de la tienda', icon: 'grid', group: null },
-  { id: 'sales', label: 'Ventas', subtitle: 'Registro de ventas', icon: 'cart', group: 'comercial' },
-  { id: 'consignments', label: 'Consignaciones', subtitle: 'Equipos afuera y cobros pendientes', icon: 'cart', group: 'comercial' },
-  { id: 'tradeins', label: 'Canjes', subtitle: 'Equipos dados y recibidos', icon: 'swap', group: 'comercial' },
-  { id: 'returns', label: 'Devoluciones', subtitle: 'Reclamos, notas de crédito y RMA', icon: 'swap', group: 'comercial' },
-  { id: 'inventory', label: 'Equipos', subtitle: 'Equipos y stock', icon: 'list', group: 'stock' },
-  { id: 'accessories', label: 'Accesorios', subtitle: 'Accesorios por cantidad', icon: 'list', group: 'stock' },
-  { id: 'stockCount', label: 'Control de stock', subtitle: 'Conteo a ciegas del local', icon: 'list', group: 'stock' },
-  { id: 'publicCatalog', label: 'Catálogos', subtitle: 'Tus listas de precios públicas', icon: 'store', group: 'stock' },
-  { id: 'clients', label: 'Clientes', subtitle: 'Agenda y saldos', icon: 'user', group: 'atencion' },
-  { id: 'followups', label: 'Seguimientos', subtitle: 'A quién escribirle hoy', icon: 'user', group: 'atencion' },
-  { id: 'service', label: 'Servicio técnico', subtitle: 'Órdenes de reparación', icon: 'wrench', group: 'atencion' },
-  { id: 'cash', label: 'Cajas', subtitle: 'Ingresos, egresos y cierre diario', icon: 'register', group: 'finanzas' },
-  { id: 'expenses', label: 'Gastos', subtitle: 'Lo que resta en la ganancia neta', icon: 'card', group: 'finanzas' },
-  { id: 'suppliers', label: 'Proveedores', subtitle: 'Compras y origen del stock', icon: 'store', group: 'finanzas' },
-  { id: 'reports', label: 'Reportes', subtitle: 'Ventas, stock, canjes, clientes y servicio', icon: 'bars', group: 'analisis' },
-  { id: 'patterns', label: 'Fallas', subtitle: '', icon: 'bars', group: 'analisis' },
-  { id: 'commissions', label: 'Comisiones', ownLabel: 'Mis comisiones', subtitle: 'Vendedores y pagos', ownSubtitle: 'Solo las tuyas, de este mes', icon: 'comisiones', group: 'analisis' },
-  { id: 'history', label: 'Historial', subtitle: 'Quién hizo qué y cuándo', icon: 'clock', group: 'analisis' },
-  { id: 'periodicSummary', label: 'Resumen periódico', subtitle: '', icon: 'bars', group: 'analisis' },
-  { id: 'notifications', label: 'Notificaciones', subtitle: 'Avisos de la tienda', icon: 'bell', group: 'cuenta' },
-  { id: 'help', label: 'Ayuda', subtitle: 'Guías y primeros pasos', icon: 'help', group: 'cuenta' },
-  { id: 'settings', label: 'Configuración', subtitle: 'Tienda, equipo y tu cuenta', icon: 'gear', group: 'cuenta' },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    subtitle: 'Resumen de la tienda',
+    icon: 'grid',
+    group: null,
+  },
+  {
+    id: 'sales',
+    label: 'Ventas',
+    subtitle: 'Registro de ventas',
+    icon: 'cart',
+    group: 'comercial',
+  },
+  {
+    id: 'consignments',
+    label: 'Consignaciones',
+    subtitle: 'Equipos afuera y cobros pendientes',
+    icon: 'cart',
+    group: 'comercial',
+  },
+  {
+    id: 'tradeins',
+    label: 'Canjes',
+    subtitle: 'Equipos dados y recibidos',
+    icon: 'swap',
+    group: 'comercial',
+  },
+  {
+    id: 'returns',
+    label: 'Devoluciones',
+    subtitle: 'Reclamos, notas de crédito y RMA',
+    icon: 'swap',
+    group: 'comercial',
+  },
+  {
+    id: 'inventory',
+    label: 'Equipos',
+    subtitle: 'Equipos y stock',
+    icon: 'list',
+    group: 'stock',
+  },
+  {
+    id: 'accessories',
+    label: 'Accesorios',
+    subtitle: 'Accesorios por cantidad',
+    icon: 'list',
+    group: 'stock',
+  },
+  {
+    id: 'stockCount',
+    label: 'Control de stock',
+    subtitle: 'Conteo a ciegas del local',
+    icon: 'list',
+    group: 'stock',
+  },
+  {
+    id: 'publicCatalog',
+    label: 'Catálogos',
+    subtitle: 'Tus listas de precios públicas',
+    icon: 'store',
+    group: 'stock',
+  },
+  {
+    id: 'clients',
+    label: 'Clientes',
+    subtitle: 'Agenda y saldos',
+    icon: 'user',
+    group: 'atencion',
+  },
+  {
+    id: 'followups',
+    label: 'Seguimientos',
+    subtitle: 'A quién escribirle hoy',
+    icon: 'user',
+    group: 'atencion',
+  },
+  {
+    id: 'service',
+    label: 'Servicio técnico',
+    subtitle: 'Órdenes de reparación',
+    icon: 'wrench',
+    group: 'atencion',
+  },
+  {
+    id: 'cash',
+    label: 'Cajas',
+    subtitle: 'Ingresos, egresos y cierre diario',
+    icon: 'register',
+    group: 'finanzas',
+  },
+  {
+    id: 'expenses',
+    label: 'Gastos',
+    subtitle: 'Lo que resta en la ganancia neta',
+    icon: 'card',
+    group: 'finanzas',
+  },
+  {
+    id: 'suppliers',
+    label: 'Proveedores',
+    subtitle: 'Compras y origen del stock',
+    icon: 'store',
+    group: 'finanzas',
+  },
+  {
+    id: 'reports',
+    label: 'Reportes',
+    subtitle: 'Ventas, stock, canjes, clientes y servicio',
+    icon: 'bars',
+    group: 'analisis',
+  },
+  {
+    id: 'balance',
+    label: 'Balance',
+    subtitle: 'Resultado de tus tiendas',
+    icon: 'bars',
+    group: 'analisis',
+  },
+  {
+    id: 'patterns',
+    label: 'Fallas',
+    subtitle: '',
+    icon: 'bars',
+    group: 'analisis',
+  },
+  {
+    id: 'commissions',
+    label: 'Comisiones',
+    ownLabel: 'Mis comisiones',
+    subtitle: 'Vendedores y pagos',
+    ownSubtitle: 'Solo las tuyas, de este mes',
+    icon: 'comisiones',
+    group: 'analisis',
+  },
+  {
+    id: 'history',
+    label: 'Historial',
+    subtitle: 'Quién hizo qué y cuándo',
+    icon: 'clock',
+    group: 'analisis',
+  },
+  {
+    id: 'periodicSummary',
+    label: 'Resumen periódico',
+    subtitle: '',
+    icon: 'bars',
+    group: 'analisis',
+  },
+  {
+    id: 'notifications',
+    label: 'Notificaciones',
+    subtitle: 'Avisos de la tienda',
+    icon: 'bell',
+    group: 'cuenta',
+  },
+  {
+    id: 'help',
+    label: 'Ayuda',
+    subtitle: 'Guías y primeros pasos',
+    icon: 'help',
+    group: 'cuenta',
+  },
+  {
+    id: 'settings',
+    label: 'Configuración',
+    subtitle: 'Tienda, equipo y tu cuenta',
+    icon: 'gear',
+    group: 'cuenta',
+  },
 ];
 
-export function sectionAllowed(id: DeskTab, stored: string[] | null | undefined, role?: string | null) {
+export function sectionAllowed(
+  id: DeskTab,
+  stored: string[] | null | undefined,
+  role?: string | null,
+  session?: AppSession | null,
+) {
   if (isSectionHidden(id)) return false;
+  if (id === 'balance') return role === 'OWNER' && ownedStoreGroup(session).length > 0 && canSeeFinancials(stored, role);
   if (id === 'billing') return role === 'OWNER';
   if (id === 'expenses') return role === 'OWNER';
   if (id === 'accessories' || id === 'suppliers' || id === 'stockCount') return canOpenSection('inventory', stored, role);
@@ -111,25 +271,49 @@ function linkFor(id: DeskTab, ownCommissions: boolean): NavLink {
 
 /** Comisiones queda suelta cuando es la única sección de Análisis. */
 /** Chips de la página: las secciones del mismo grupo, si hay al menos dos. */
-export function pageTabs(tab: DeskTab, stored: string[] | null | undefined, role?: string | null) {
+export function pageTabs(
+  tab: DeskTab,
+  stored: string[] | null | undefined,
+  role?: string | null,
+  session?: AppSession | null,
+) {
   const section = navSection(tab);
   if (!section?.group) return [];
   if (section.group !== 'cuenta' && commissionsStandalone(stored, role) && tab === 'commissions') return [];
   const own = !canManageCommissions(stored, role);
-  const items = section.group === 'cuenta'
-    ? NAV_SECTIONS.filter((item) => item.group === 'cuenta' && sectionAllowed(item.id, stored, role)).map((item) => linkFor(item.id, own))
-    : desktopNav(stored, role).main.flatMap((block) => (block.kind === 'group' && block.id === section.group ? block.items : []));
+  const items =
+    section.group === 'cuenta'
+      ? NAV_SECTIONS.filter(
+          (item) =>
+            item.group === 'cuenta' && sectionAllowed(item.id, stored, role, session),
+        ).map((item) => linkFor(item.id, own))
+      : desktopNav(stored, role, session).main.flatMap((block) =>
+          block.kind === 'group' && block.id === section.group
+            ? block.items
+            : [],
+        );
   return items.length > 1 ? items : [];
 }
 
-export function commissionsStandalone(stored: string[] | null | undefined, role?: string | null) {
-  const analisis = NAV_SECTIONS.filter((section) => section.group === 'analisis' && sectionAllowed(section.id, stored, role));
+export function commissionsStandalone(
+  stored: string[] | null | undefined,
+  role?: string | null,
+  session?: AppSession | null,
+) {
+  const analisis = NAV_SECTIONS.filter(
+    (section) =>
+      section.group === 'analisis' && sectionAllowed(section.id, stored, role, session),
+  );
   return analisis.length === 1 && analisis[0]?.id === 'commissions';
 }
 
-export function desktopNav(stored: string[] | null | undefined, role?: string | null) {
+export function desktopNav(
+  stored: string[] | null | undefined,
+  role?: string | null,
+  session?: AppSession | null,
+) {
   const own = !canManageCommissions(stored, role);
-  const standalone = commissionsStandalone(stored, role);
+  const standalone = commissionsStandalone(stored, role, session);
   const main: NavBlock[] = [];
   if (sectionAllowed('dashboard', stored, role)) main.push({ kind: 'link', item: linkFor('dashboard', own) });
   if (standalone) main.push({ kind: 'link', item: linkFor('commissions', true) });
@@ -137,13 +321,14 @@ export function desktopNav(stored: string[] | null | undefined, role?: string | 
     const items = NAV_SECTIONS
       .filter((section) => section.group === group.id)
       .filter((section) => !(standalone && section.id === 'commissions'))
-      .filter((section) => sectionAllowed(section.id, stored, role))
+      .filter((section) => sectionAllowed(section.id, stored, role, session))
       .map((section) => linkFor(section.id, own));
     if (items.length) main.push({ kind: 'group', id: group.id, label: group.label, icon: group.icon, items });
   }
-  const cuenta = NAV_SECTIONS
-    .filter((section) => section.group === 'cuenta' && sectionAllowed(section.id, stored, role))
-    .map((section) => linkFor(section.id, own));
+  const cuenta = NAV_SECTIONS.filter(
+    (section) =>
+      section.group === 'cuenta' && sectionAllowed(section.id, stored, role, session),
+  ).map((section) => linkFor(section.id, own));
   return { main, cuenta };
 }
 

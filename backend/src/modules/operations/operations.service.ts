@@ -24,7 +24,7 @@ import { prisma } from "../../plugins/prisma.js";
 import { cancellationStamp, moneyChanged, writeAudit, type Actor } from "../audit/audit.js";
 import { cleanReason, saleCode } from "../audit/archive.js";
 import { parseOptionalImei } from "../../lib/imei.js";
-import { currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
+import { convertMoney, currencyOnWrite, storeCurrency } from "../../lib/money-currency.js";
 
 async function copyCurrency(db: Prisma.TransactionClient, storeId: string, explicit?: string | null) {
   if (explicit === "ARS" || explicit === "USD") return explicit;
@@ -366,10 +366,7 @@ async function stampDepositClientCurrency(tx: Prisma.TransactionClient, storeId:
 type MovementCurrency = { currency: string; exchangeRate: Decimal | number | null };
 
 function convertedMovement(amount: number, from: string, to: string, rate: MovementCurrency["exchangeRate"]) {
-  const value = dec(amount);
-  if (from === to || value.isZero()) return value.toDecimalPlaces(2);
-  if (!rate || !Number.isFinite(Number(rate)) || Number(rate) <= 0) throw new OperationError("Revisá la cotización antes de confirmar");
-  return (from === "USD" ? value.mul(rate) : value.div(rate)).toDecimalPlaces(2);
+  return convertMoney(amount, from, to, rate);
 }
 
 async function clientMovement(tx: Prisma.TransactionClient, storeId: string, client: Client, amount: number, money: MovementCurrency) {

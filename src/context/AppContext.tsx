@@ -117,6 +117,7 @@ interface AppState extends ReturnType<typeof useConsignmentsState>, ReturnType<t
   completeOnboarding: (input: { storeName: string; instagram?: string; currency?: 'ARS' | 'USD'; exchangeMode?: 'auto' | 'manual'; exchangeSource?: 'blue' | 'oficial' | 'mep'; manualBuy?: number | null; manualSell?: number | null }) => Promise<void>;
   acceptStoreInvitation: (token: string) => Promise<void>;
   reloadSession: () => Promise<void>;
+  applyStoreSession: (session: AppSession) => void;
   login: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   registerWithEmail: (email: string, password: string) => Promise<void>;
@@ -478,6 +479,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const session = await completeBackendOnboarding(user, input);
     if (scopeRef.current !== currentScope) return;
     // Contact details can be completed later from settings.
+    setBackendStatus('ready');
+    setSessionConfirmed(true);
+    setBackendMessage(null);
+    setAppSession(session);
+    rememberSession(user, session);
+  };
+
+  const applyStoreSession = (session: AppSession) => {
+    if (!user || scopeRef.current !== currentScope || session.user.firebaseUid !== user.uid) return;
     setBackendStatus('ready');
     setSessionConfirmed(true);
     setBackendMessage(null);
@@ -1065,7 +1075,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       permanentlyDeleteRecord: withListWrite(permanentlyDeleteRecord),
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       clientCategories,
-      updateStore, updateUserProfile, reloadSession,
+      updateStore, updateUserProfile, reloadSession, applyStoreSession,
       ...billingState,
       user, loading, appSession, backendStatus, sessionConfirmed, backendMessage, completeOnboarding, acceptStoreInvitation, login, loginWithEmail, registerWithEmail, logout
     }}>

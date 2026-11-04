@@ -77,6 +77,7 @@ export function AccessoryDetail({ id }: { id: string }) {
   const [error, setError] = useState('');
   const item = inventory.find(row => row.id === id) ?? archivedProduct(id);
   if (!item) return null;
+  const transferred = item.archiveReason?.startsWith('Transferido a ');
   return <Sheet title={item.model} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
     {!item.archivedAt ? <button type="button" className="btn2 s" onClick={() => open({ type: 'edit-eq', id })}>Editar</button> : null}
     <PermanentDeleteButton kind="eq" id={id} />
@@ -84,8 +85,8 @@ export function AccessoryDetail({ id }: { id: string }) {
     {!item.archivedAt && (item.cantidad ?? 0) > 0 ? <button type="button" className="btn2 p" onClick={() => open({ type: 'new-sale', productId: id, source: 'inventory' })}>Vender</button> : null}
   </SheetActions>}>
     {error ? <div role="alert" className="ferr">{error}</div> : null}
-    {item.archivedAt ? <div className="pending-sale"><b>Archivado</b>{canManageSensitive ? <button type="button" disabled={busy} onClick={async () => {
-      if (!user) return;
+    {item.archivedAt ? <div className="pending-sale"><div><b>Archivado</b>{transferred ? <small>Este stock fue transferido. Para devolverlo, transferilo desde la otra tienda.</small> : null}</div>{canManageSensitive ? <button type="button" disabled={busy || transferred} onClick={async () => {
+      if (!user || transferred) return;
       setBusy(true); setError('');
       try { await restoreBackendInventoryItem(user, id); await reloadInventory(); toast('Accesorio restaurado'); close(); }
       catch (cause) { setError(getFriendlyErrorMessage(cause, 'No se pudo restaurar')); }

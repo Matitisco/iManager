@@ -946,6 +946,9 @@ export async function deleteInventoryItem(storeId: string, id: string, actor?: A
 export async function restoreInventoryItem(storeId: string, id: string, actor?: Actor | null, meta?: ArchiveMeta) {
   const existing = await inventoryPrisma.inventoryItem.findFirst({ where: { id, storeId } });
   if (!existing || !existing.archivedAt) return null;
+  if (existing.archiveReason?.startsWith('Transferido a ')) {
+    throw new InventoryError('Este equipo fue transferido. Para recuperarlo, transferilo desde la otra tienda.', 409);
+  }
   if (existing.imei) {
     const clash = await inventoryPrisma.inventoryItem.findFirst({
       where: { storeId, imei: existing.imei, archivedAt: null, id: { not: id } },

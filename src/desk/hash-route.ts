@@ -19,6 +19,7 @@ export const ROUTE: Record<DeskTab, string> = {
   cash: 'finanzas/cajas',
   expenses: 'finanzas/gastos',
   reports: 'analisis/reportes',
+  balance: 'analisis/balance',
   periodicSummary: 'analisis/resumen-periodico',
   commissions: 'analisis/comisiones',
   history: 'analisis/historial',
