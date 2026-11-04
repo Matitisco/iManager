@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { archivedRevision, subscribeArchivedRevision } from './archive-cache';
 import { useAppContext } from '../context/AppContext';
 import type { AuthUserLike } from '../types/auth-user';
 
@@ -9,15 +10,16 @@ export function useArchivedRows<T>(
   remember?: (rows: T[]) => void,
 ) {
   const { user, appSession, backendStatus } = useAppContext();
+  const revision = useSyncExternalStore(subscribeArchivedRevision, archivedRevision);
   const enabled = Boolean(user && appSession?.store && !appSession.onboardingRequired && (!backendStatus || backendStatus === 'ready'));
-  const scope = `${user?.uid}:${appSession?.store?.id}:${appSession?.membership?.role}:${JSON.stringify(appSession?.membership?.sections)}`;
+  const scope = `${user?.uid}:${appSession?.store?.id}:${appSession?.membership?.role}:${JSON.stringify(appSession?.membership?.sections)}:${revision}`;
   const [result, setResult] = useState<{ scope: string; rows: T[]; loading: boolean }>({ scope, rows: [], loading: enabled });
   useEffect(() => {
     if (!user || !enabled) return;
     let active = true;
     setResult({ scope, rows: [], loading: true });
     void load(user).then(rows => {
-      if (!active) return;
+      if (!active || revision !== archivedRevision()) return;
       remember?.(rows);
       setResult({ scope, rows, loading: false });
     }).catch((cause: unknown) => {

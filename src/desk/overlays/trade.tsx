@@ -1,3 +1,4 @@
+import { PermanentDeleteButton } from '../PermanentDelete';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { ListSkeleton } from '../list-skeleton';
 import { useEffect, useRef, useState } from 'react';
@@ -213,7 +214,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
       : { refund: 0, credit: 0 };
     const statusChanged = technicalStatus !== trade.status;
     const detailFooter = trade.confirmationStatus === 'CANCELLED'
-      ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>{canManageSensitive && !trade.voidedAt ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button></SheetActionMenu> : null}</SheetActions>
+      ? <SheetActions><PermanentDeleteButton kind="cj" id={trade.id} disabled={busy} /><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>{canManageSensitive && !trade.voidedAt ? <SheetActionMenu><button className="btn2 danger" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'cj', id, label: 'Canje' })}>Anular</button></SheetActionMenu> : null}</SheetActions>
       : trade.confirmationStatus === 'PENDING'
         ? <SheetActions>
             <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
@@ -299,7 +300,7 @@ export function TradeDetail({ id, source = 'tradeins', kind, run, busy, error }:
     <Sheet title={`${code} · ${tradeClientLabel(trade, clients)}`} maskTitle subtitle={`${formatShortDate(trade.date)} · ${statusLabel(trade.status)}`} onClose={close} busy={busy} className="cj-sheet" footer={next && !trade.voidedAt ? <SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={trade.status === 'APROBADO' ? close : () => run(async () => { await updateTradeIn({ ...trade, status: 'RECHAZADO' }); }, `${code} rechazado`)}>{trade.status === 'APROBADO' ? 'Después' : 'Rechazar'}</button>
       <button className="btn2 p sheet-primary" type="button" disabled={busy} onClick={() => run(async () => { await updateTradeIn({ ...trade, status: next }); }, `${code} · ${statusLabel(next)}`, { keepOpen: true })}>{nextLabel[trade.status] || 'Avanzar'}</button>
-    </SheetActions> : <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
+    </SheetActions> : <SheetActions><PermanentDeleteButton kind="cj" id={trade.id} disabled={busy} /><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions>}>
       {error && <div className="ferr">{error}</div>}
       <div className="steps">{flow.map((step, stepIndex) => <i key={step} className={index >= stepIndex ? 'on' : ''} />)}</div>
       <div className="tracking-summary">

@@ -1,3 +1,4 @@
+import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { IMEI_FORMAT_MESSAGE, parseOptionalImei } from "../../lib/imei.js";
@@ -82,6 +83,7 @@ function guard(request: { appUser?: { userId: string; storeId: string; role: str
 }
 
 export async function repairsRoutes(app: FastifyInstance) {
+  registerPermanentDelete(app, "repairs", "service");
   const preHandler = [authenticate, resolveAppUser];
 
   app.get("/", { preHandler }, async (request, reply) => {

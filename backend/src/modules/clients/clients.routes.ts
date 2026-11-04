@@ -1,3 +1,4 @@
+import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { authenticate } from "../../middleware/authenticate.js";
@@ -44,6 +45,7 @@ const clientCreateSchema = z.object({
 const clientPatchSchema = clientCreateSchema.partial();
 
 export async function clientsRoutes(app: FastifyInstance) {
+  registerPermanentDelete(app, "clients", "clients");
   app.get(
     "/",
     {

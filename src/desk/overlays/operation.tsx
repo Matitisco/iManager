@@ -1,3 +1,4 @@
+import { PermanentDeleteButton } from '../PermanentDelete';
 import { SaleCostField } from '../SaleCostField';
 import { canSeeFinancials } from '../sections';
 import { CommissionAvatar } from '../CommissionAvatar';
@@ -755,7 +756,7 @@ export function SaleDetail({ id, run, busy, error }: FormProps & { id: string })
   const renderAmount = (amount: number, currency?: string | null, prefix = '') => <SaleDetailMoney amount={amount} source={recordCurrency(currency, money.active)} display={displayCurrency} secondary={secondaryCurrency} rate={money.rate} prefix={prefix} />;
   return (
     <Sheet title={saleCode(sale)} onClose={close} busy={busy} className="sale-sheet sale-detail-sheet" footer={
-      isVoidRow(sale) ? <SheetActions><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
+      isVoidRow(sale) ? <SheetActions><PermanentDeleteButton kind="sale" id={sale.id} disabled={busy} /><button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button></SheetActions> : sale.status === 'PENDIENTE' ? (
         <SheetActions>
           <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={close}>Cerrar</button>
           <SheetActionMenu>

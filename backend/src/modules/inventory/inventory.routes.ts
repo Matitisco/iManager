@@ -1,3 +1,4 @@
+import { registerPermanentDelete } from "../audit/permanent-delete.routes.js";
 import { definitionSchema } from '../custom-fields/custom-fields.service.js';
 import { validBatteryHealth, BATTERY_HEALTH_MESSAGE } from "../../lib/battery-health.js";
 import type { FastifyInstance } from "fastify";
@@ -65,6 +66,7 @@ const inventoryPatchSchema = inventoryItemSchema
   .partial();
 
 export async function inventoryRoutes(app: FastifyInstance) {
+  registerPermanentDelete(app, "inventory", "inventory");
   const pagedQuerySchema = z.object({
     skip: z.coerce.number().int().nonnegative().optional(),
     take: z.coerce.number().int().min(1).max(100).optional(),

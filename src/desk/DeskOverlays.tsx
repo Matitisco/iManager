@@ -1,3 +1,4 @@
+import { PermanentDeleteButton, PermanentDeleteConfirmation } from './PermanentDelete';
 import { IMPORT_SALES_ENABLED } from '../config/featureFlags';
 import { useModalLayer } from './modal-layer';
 import { archivedReturn, voidedSale } from './archive-cache';
@@ -118,6 +119,7 @@ function ContextMenu({ overlay }: { overlay: Extract<Overlay, { type: 'ctx' }> }
         })() ? <button type="button" onClick={() => open({ type: 'new-return', saleId: overlay.id })}><DeskIcon name="swap" size={18} />Devolver</button> : null}
         {phone && overlay.onSelect ? <button type="button" onClick={() => { overlay.onSelect?.(); close(); }}>Seleccionar varios</button> : null}
         {canManageSensitive && cancelledSale ? <button type="button" onClick={() => open({ type: 'restore-sale', id: overlay.id, label: overlay.label })}><DeskIcon name="swap" size={18} />Revertir anulación</button> : null}
+        {overlay.kind !== 'return' ? <PermanentDeleteButton kind={overlay.kind} id={overlay.id} className="danger" /> : null}
         {canManageSensitive && !cancelledSale ? <button className="danger" type="button" role={overlay.kind === 'return' ? 'menuitem' : undefined} disabled={cancelledReturn} onClick={() => open({ type: 'del', kind: overlay.kind, id: overlay.id, label: overlay.label })}><DeskIcon name="trash" size={18} />{overlay.kind === 'return' || overlay.kind === 'sale' || overlay.kind === 'cj' ? 'Anular' : 'Archivar'}</button> : null}
       </div>
     </div>
@@ -194,6 +196,8 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
       />
     );
   }
+
+  if (overlay.type === 'permanent-delete') return <PermanentDeleteConfirmation kind={overlay.kind} id={overlay.id} busy={busy} error={error} run={run} />;
 
   if (overlay.type === 'restore-sale') return <Dialog
     title="¿Revertir anulación?"

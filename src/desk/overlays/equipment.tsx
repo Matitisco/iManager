@@ -1,3 +1,4 @@
+import { PermanentDeleteButton } from '../PermanentDelete';
 import { DatePicker } from '../date-picker';
 import { ReplayValue } from '../replay-privacy';
 import { parseBatteryHealth, BATTERY_HEALTH_MESSAGE } from '../../lib/battery-health';
@@ -97,6 +98,7 @@ export function EquipmentDetail({ id }: { id: string }) {
     <>
     <Sheet title={equipmentTitle(item.model, item.capacity)} onClose={close} busy={busy} className="eq-sheet" footer={<SheetActions>
       <button className="btn2 s sheet-secondary" type="button" disabled={busy} onClick={() => open({ type: 'edit-eq', id: item.id })}>Editar</button>
+      <PermanentDeleteButton kind="eq" id={item.id} disabled={busy} />
       {canManageSensitive && !item.archivedAt ? <button className="btn2 s" type="button" disabled={busy} onClick={() => open({ type: 'del', kind: 'eq', id: item.id, label: equipmentTitle(item.model, item.capacity) })}>Archivar</button> : null}
       <button className="btn2 p sheet-primary" type="button" disabled={busy || Boolean(item.reservedDepositId)} onClick={() => { void saveStatus(); }}>{busy ? 'Guardando…' : 'Guardar estado'}</button>
     </SheetActions>}>

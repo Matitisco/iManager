@@ -1,3 +1,5 @@
+import { permanentlyDeleteBackendRecord, type PermanentDeleteKind } from '../services/permanent-delete-api';
+import { forgetArchivedRecord } from '../desk/archive-cache';
 import { useCustomFieldsState } from './custom-fields-state';
 import { identify as identifyPostHog, reset as resetPostHog } from '../lib/posthog-analytics';
 import { setTacReportUser } from '../lib/report-unknown-tac';
@@ -84,6 +86,7 @@ interface AppState extends ReturnType<typeof useCustomFieldsState>, ReturnType<t
   deleteSale: (id: string, reason?: string) => Promise<OperationResult | void>;
   addProduct: (product: Omit<Product, 'id'>, options?: { restockRetired?: boolean }) => Promise<Product>;
   updateProduct: (product: Product) => Promise<void>;
+  permanentlyDeleteRecord: (kind: PermanentDeleteKind, id: string) => Promise<void>;
   deleteProduct: (id: string, reason?: string) => Promise<void>;
   addClient: (client: Omit<Client, 'id'>) => Promise<Client>;
   updateClient: (client: ClientPatch) => Promise<void>;
@@ -846,6 +849,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  const permanentlyDeleteRecord = async (kind: PermanentDeleteKind, id: string) => {
+    if (!user || backendStatus !== 'ready' || !appSession?.store || appSession.onboardingRequired) {
+      throw new Error('El backend todavía no está listo. Reintentá en unos segundos.');
+    }
+    if (appSession.membership?.role !== 'OWNER') throw new Error('Solo el dueño de la tienda puede borrar definitivamente.');
+    const current = beginRecordWrite('permanent-delete', id);
+    await permanentlyDeleteBackendRecord(user, kind, id);
+    if (!current()) return;
+    forgetArchivedRecord(kind, id);
+    if (kind === 'eq') setInventory(rows => rows.filter(row => row.id !== id));
+    if (kind === 'sale') setSales(rows => rows.filter(row => row.id !== id));
+    if (kind === 'cl') setClients(rows => rows.filter(row => row.id !== id));
+    if (kind === 'cj') setTradeIns(rows => rows.filter(row => row.id !== id));
+    if (kind === 'ot') setRepairOrders(rows => rows.filter(row => row.id !== id));
+    // withListWrite refreshes related SetNull links after releasing the write gate.
+    writes.current.overlapped = true;
+  };
+
   const reloadInventory = async () => {
     if (!user) return;
     const current = beginRead('inventory');
@@ -1017,6 +1038,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       addClient: withListWrite(addClient), updateClient: withListWrite(updateClient, client => `client:${client.id}`), registerClientPayment: withListWrite(registerClientPayment, id => `client:${id}`), deleteClient: withListWrite(deleteClient, id => `client:${id}`),
       clientDeposits, loadClientDeposits, addClientDeposit: withListWrite(addClientDeposit), cancelClientDeposit: withListWrite(runCancelClientDeposit), applyClientDepositToRepair: withListWrite(runApplyClientDepositToRepair),
       updateTradeIn: withListWrite(updateTradeIn), deleteTradeIn: withListWrite(deleteTradeIn),
+      permanentlyDeleteRecord: withListWrite(permanentlyDeleteRecord),
       reloadInventory, reloadSales, reloadClients, reloadTradeIns,
       clientCategories,
       updateStore, updateUserProfile, reloadSession,
