@@ -1,3 +1,4 @@
+import type { AppUserStore } from '../types/app-session';
 import type { SectionChanges, ViewSection, RecordVersion } from '../services/section-views-api';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,7 @@ const context = vi.hoisted(() => ({
     user: { displayName: 'Ana', email: 'ana@test.com' },
     store: { id: 's', name: 'Casa', ownerDisplayName: 'Matías' },
     membership: { role: 'OWNER' as 'OWNER' | 'MANAGER' | 'STAFF', sections: null as string[] | null },
+    stores: [] as AppUserStore[],
     onboardingRequired: false,
   },
   user: null as { uid: string } | null,
@@ -41,6 +43,7 @@ vi.mock('../services/catalogs-api', () => ({ fetchCatalogs: vi.fn(async () => nu
 describe('sidebar unread counts', () => {
   const originalMatchMedia = window.matchMedia;
   beforeEach(() => {
+    context.appSession.stores = [];
     context.sectionChangesError = '';
     context.sectionChanges = { tradeins: [{ id: 't1', updatedAt: '2026-10-08T12:00:00.000Z' }] };
     window.matchMedia = vi.fn().mockImplementation(query => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
@@ -93,6 +96,23 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it.each(['OWNER', 'STAFF', 'single'] as const)('protege el menú y la ruta Balance para %s', kind => {
+    context.appSession.membership.role = kind === 'STAFF' ? 'STAFF' : 'OWNER';
+    context.appSession.stores = kind === 'single' ? [] : [
+      { id: 's', name: 'Mayorista ficticia', role: 'OWNER', isDefault: true, groupId: 'g', kind: 'WHOLESALE' },
+      { id: 'retail', name: 'Minorista ficticia', role: 'OWNER', isDefault: false, groupId: 'g', kind: 'RETAIL' },
+    ];
+    history.replaceState(null, '', '#/analisis/balance');
+    render(<DeskApp />);
+    if (kind === 'OWNER') {
+      expect(screen.getByTestId('sidebar-tab-balance')).toHaveAttribute('aria-current', 'page');
+      expect(screen.getByRole('heading', { name: 'Balance', level: 1 })).toBeVisible();
+    } else {
+      expect(screen.queryByTestId('sidebar-tab-balance')).not.toBeInTheDocument();
+      expect(screen.getByTestId('no-section-access')).toBeVisible();
+    }
+  });
 
   it.each([390, 1440])('ofrece el interruptor en Más o junto al perfil sin anidar botones a %spx', async width => {
     if (width === 390) usePhone();

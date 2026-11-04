@@ -1,6 +1,9 @@
+import type { AppSession } from '../types/app-session';
+import { ownedStoreGroup } from './sections';
 import { isSectionHidden } from '../config/hiddenSections';
 import type { DeskTab } from './types';
 import {
+  canSeeFinancials,
   canManageCommissions,
   canOpenHistory,
   canOpenSection,
@@ -158,6 +161,13 @@ export const NAV_SECTIONS: NavSection[] = [
     group: 'analisis',
   },
   {
+    id: 'balance',
+    label: 'Balance',
+    subtitle: 'Resultado de tus tiendas',
+    icon: 'bars',
+    group: 'analisis',
+  },
+  {
     id: 'patterns',
     label: 'Fallas',
     subtitle: '',
@@ -214,8 +224,10 @@ export function sectionAllowed(
   id: DeskTab,
   stored: string[] | null | undefined,
   role?: string | null,
+  session?: AppSession | null,
 ) {
   if (isSectionHidden(id)) return false;
+  if (id === 'balance') return role === 'OWNER' && ownedStoreGroup(session).length > 0 && canSeeFinancials(stored, role);
   if (id === 'billing') return role === 'OWNER';
   if (id === 'expenses') return role === 'OWNER';
   if (id === 'accessories' || id === 'suppliers' || id === 'stockCount')
@@ -273,6 +285,7 @@ export function pageTabs(
   tab: DeskTab,
   stored: string[] | null | undefined,
   role?: string | null,
+  session?: AppSession | null,
 ) {
   const section = navSection(tab);
   if (!section?.group) return [];
@@ -287,9 +300,9 @@ export function pageTabs(
     section.group === 'cuenta'
       ? NAV_SECTIONS.filter(
           (item) =>
-            item.group === 'cuenta' && sectionAllowed(item.id, stored, role),
+            item.group === 'cuenta' && sectionAllowed(item.id, stored, role, session),
         ).map((item) => linkFor(item.id, own))
-      : desktopNav(stored, role).main.flatMap((block) =>
+      : desktopNav(stored, role, session).main.flatMap((block) =>
           block.kind === 'group' && block.id === section.group
             ? block.items
             : [],
@@ -300,10 +313,11 @@ export function pageTabs(
 export function commissionsStandalone(
   stored: string[] | null | undefined,
   role?: string | null,
+  session?: AppSession | null,
 ) {
   const analisis = NAV_SECTIONS.filter(
     (section) =>
-      section.group === 'analisis' && sectionAllowed(section.id, stored, role),
+      section.group === 'analisis' && sectionAllowed(section.id, stored, role, session),
   );
   return analisis.length === 1 && analisis[0]?.id === 'commissions';
 }
@@ -311,9 +325,10 @@ export function commissionsStandalone(
 export function desktopNav(
   stored: string[] | null | undefined,
   role?: string | null,
+  session?: AppSession | null,
 ) {
   const own = !canManageCommissions(stored, role);
-  const standalone = commissionsStandalone(stored, role);
+  const standalone = commissionsStandalone(stored, role, session);
   const main: NavBlock[] = [];
   if (sectionAllowed('dashboard', stored, role))
     main.push({ kind: 'link', item: linkFor('dashboard', own) });
@@ -322,7 +337,7 @@ export function desktopNav(
   for (const group of NAV_GROUPS) {
     const items = NAV_SECTIONS.filter((section) => section.group === group.id)
       .filter((section) => !(standalone && section.id === 'commissions'))
-      .filter((section) => sectionAllowed(section.id, stored, role))
+      .filter((section) => sectionAllowed(section.id, stored, role, session))
       .map((section) => linkFor(section.id, own));
     if (items.length)
       main.push({
@@ -335,7 +350,7 @@ export function desktopNav(
   }
   const cuenta = NAV_SECTIONS.filter(
     (section) =>
-      section.group === 'cuenta' && sectionAllowed(section.id, stored, role),
+      section.group === 'cuenta' && sectionAllowed(section.id, stored, role, session),
   ).map((section) => linkFor(section.id, own));
   return { main, cuenta };
 }

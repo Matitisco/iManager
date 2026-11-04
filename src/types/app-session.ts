@@ -43,7 +43,11 @@ export interface AppMembershipSummary {
   sensitiveAccess?: boolean | null;
 }
 
+export type StoreKind = 'WHOLESALE' | 'RETAIL';
+
 export interface AppUserStore {
+  kind: StoreKind | null;
+  groupId: string | null;
   id: string;
   name: string;
   role: AppMembershipRole;

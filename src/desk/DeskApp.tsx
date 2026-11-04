@@ -1,3 +1,5 @@
+import { StoreSelector } from './store-group';
+import { BalanceScreen } from './screens/BalanceScreen';
 import { ConsignmentsScreen } from './screens/ConsignmentsScreen';
 import { AccessoriesScreen } from './screens/AccessoriesScreen';
 import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
@@ -182,7 +184,7 @@ export function DeskApp({
   }).format(new Date());
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
-  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
+  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role, appSession);
   const [tab, setTab] = useState<DeskTab>(() =>
     tabFromHash(window.location.hash),
   );
@@ -412,7 +414,7 @@ export function DeskApp({
     back: showBack ? () => viewport.backToMore(() => go('more')) : undefined,
   };
 
-  const nav = desktopNav(sections, role);
+  const nav = desktopNav(sections, role, appSession);
   const pending: PendingInput = {
     ...EMPTY_PENDING,
     unread: {
@@ -453,12 +455,7 @@ export function DeskApp({
                   <BrandIsotipo size={32} className="mstore-logo" />
                   <span className="mstore-copy">
                     <b className="mstore-word">iManager</b>
-                    <small
-                      data-testid="mobile-store-name"
-                      title={appSession?.store?.name || 'Tienda'}
-                    >
-                      {appSession?.store?.name || 'Tienda'}
-                    </small>
+                    <StoreSelector mobile />
                   </span>
                 </div>
                 <BlueDollar variant="chip" />
@@ -470,9 +467,7 @@ export function DeskApp({
                   <BrandIsotipo size={38} className="dlogo" />
                   <div className="dbrand-copy">
                     <b>iManager</b>
-                    <small title={appSession?.store?.name || 'Tienda'}>
-                      {appSession?.store?.name || 'Tienda'}
-                    </small>
+                    <StoreSelector />
                   </div>
                 </div>
                 {navigation}
@@ -552,6 +547,7 @@ export function DeskApp({
                           {tab === 'sales' && <SalesScreen />}
                           {tab === 'consignments' && <ConsignmentsScreen />}
                           {tab === 'returns' && <ReturnsScreen />}
+                          {tab === 'balance' && <BalanceScreen />}
                           {tab === 'patterns' && <PatternsScreen />}
                           {tab === 'tradeins' && <TradeInsScreen />}
                           {tab === 'clients' && <ClientsScreen />}
