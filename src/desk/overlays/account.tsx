@@ -1,3 +1,4 @@
+import { EnableStoreGroupCard } from '../store-group';
 import { toUserMessage, isNetworkErrorMessage } from '../../lib/user-message';
 import { track } from '../../lib/analytics';
 import { useEffect, useRef, useState } from 'react';
@@ -96,6 +97,7 @@ export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & 
         if (store?.id) clearStoreContactOffer(store.id);
       }, 'Tienda actualizada');
       }} />
+      <EnableStoreGroupCard />
     </Sheet>
   );
 }

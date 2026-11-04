@@ -17,7 +17,7 @@ function GroupTabsOn({ pending, tab, go, labels, showPending = true }: { pending
   const { appSession } = useAppContext();
   const sections = appSession?.membership?.sections;
   const role = appSession?.membership?.role;
-  const tabs = pageTabs(tab, sections, role);
+  const tabs = pageTabs(tab, sections, role, appSession);
   const summaryTab = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (tab === 'periodicSummary') summaryTab.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });

@@ -21,6 +21,7 @@ export type DeskTab =
   | 'returns'
   | 'patterns'
   | 'expenses'
+  | 'balance'
   | 'reports'
   | 'periodicSummary'
   | 'history'

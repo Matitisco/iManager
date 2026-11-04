@@ -1,3 +1,5 @@
+import { StoreSelector } from './store-group';
+import { BalanceScreen } from './screens/BalanceScreen';
 import { ConsignmentsScreen } from './screens/ConsignmentsScreen';
 import { AccessoriesScreen } from './screens/AccessoriesScreen';
 import { BOOT_SPLASH_HIDDEN_EVENT, BOOT_SPLASH_ID } from '../lib/boot-splash';
@@ -104,7 +106,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
   const commissionPeriod = new Intl.DateTimeFormat('sv', { timeZone: appSession?.store?.timezone || 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit' }).format(new Date());
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
-  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role);
+  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role, appSession);
   const [tab, setTab] = useState<DeskTab>(() => tabFromHash(window.location.hash));
   const [followUpCount, setFollowUpCount] = useState(0);
   useEffect(() => {
@@ -254,7 +256,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
     back: showBack ? () => viewport.backToMore(() => go('more')) : undefined,
   };
 
-  const nav = desktopNav(sections, role);
+  const nav = desktopNav(sections, role, appSession);
   const pending: PendingInput = {
     ...EMPTY_PENDING,
     unread: { inventory: sectionChanges.inventory?.length ?? 0, sales: sectionChanges.sales?.length ?? 0, tradeins: sectionChanges.tradeins?.length ?? 0, clients: sectionChanges.clients?.length ?? 0 },
@@ -282,7 +284,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
               <BrandIsotipo size={32} className="mstore-logo" />
               <span className="mstore-copy">
                 <b className="mstore-word">iManager</b>
-                <small data-testid="mobile-store-name" title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
+                <StoreSelector mobile />
               </span>
             </div>
             <BlueDollar variant="chip" />
@@ -294,7 +296,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             <BrandIsotipo size={38} className="dlogo" />
             <div className="dbrand-copy">
               <b>iManager</b>
-              <small title={appSession?.store?.name || 'Tienda'}>{appSession?.store?.name || 'Tienda'}</small>
+              <StoreSelector />
             </div>
           </div>
           {navigation}
@@ -340,6 +342,7 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
             {tab === 'expenses' && <ExpensesScreen />}
             {tab === 'commissions' && <CommissionsScreen />}
             {(tab === 'reports' || tab === 'periodicSummary') && <ReportsScreen />}
+            {tab === 'balance' && <BalanceScreen />}
             {tab === 'history' && <HistoryScreen />}
             {tab === 'notifications' && <NotificationsScreen />}
             {tab === 'billing' && <BillingScreen key={appSession?.store?.id} />}

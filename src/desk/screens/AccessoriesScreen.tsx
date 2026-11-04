@@ -1,3 +1,7 @@
+import { TransferStockAction } from '../StockTransferSheet';
+import { ownedStoreGroup } from '../sections';
+import { useBulkSelection, SelectFiltered, SelectionCheckbox } from '../bulk-selection';
+import { useBulkScope } from '../bulk-actions';
 import { useEffect, useMemo, useState } from 'react';
 import { useAppContext } from '../../context/AppContext';
 import { isAccessory, isLowStock, LOW_STOCK_THRESHOLD } from '../../lib/accessories';
@@ -37,6 +41,8 @@ export function AccessoriesScreen() {
   const seeCosts = canSeeFinancials(appSession?.membership?.sections, appSession?.membership?.role);
   const items = useMemo(() => inventory.filter(item => isAccessory(item) && !item.archivedAt), [inventory]);
   const rows = (archived ? archivedRows.filter(isAccessory) : items).filter(item => [item.model, item.accessoryType, item.compatibleWith].join(' ').toLocaleLowerCase('es').includes(search.trim().toLocaleLowerCase('es')));
+  const selection = useBulkSelection(rows, `${useBulkScope()}:${archived}`);
+  const canTransfer = !archived && ownedStoreGroup(appSession).length > 0;
   const page = usePagedRows(rows, `${search}:${archived}`);
   const units = items.reduce((total, item) => total + (item.cantidad ?? 0), 0);
   const value = seeCosts && items.every(item => item.costValue != null) ? money.sum(items.map(item => ({ amount: item.costValue!, currency: item.currency }))) : null;
@@ -55,14 +61,20 @@ export function AccessoriesScreen() {
     {error ? <p className="ferr" role="alert">{error} <button type="button" onClick={() => setRetry(value => value + 1)}>Reintentar</button></p> : null}
     {listsLoadFailed ? <p className="ferr" role="alert">No se pudo cargar el inventario. Reintentá desde el aviso de conexión.</p> : null}
     <div className="gfilters"><button type="button" className={`gchip${archived ? ' on' : ''}`} aria-pressed={archived} onClick={() => setArchived(value => !value)}>Archivados</button></div>
+    {canTransfer ? <>
+      {phone && !selection.mode ? <button type="button" className="dbtn s" disabled={!rows.length} onClick={() => selection.start()}>Seleccionar</button> : null}
+      {phone && selection.mode ? <div className="bulk-select-filter"><SelectFiltered selection={selection} total={rows.length} /><span>Seleccionar todos</span></div> : null}
+      {selection.selected.length || (phone && selection.mode) ? <div className={`bulk-bar${phone ? ' mobile' : ''}`} role="region" aria-label="Acciones masivas"><div className="bulk-count"><b>{selection.selected.length} seleccionados</b><button type="button" onClick={selection.clear}>Limpiar selección</button></div><div className="bulk-buttons"><TransferStockAction selection={selection} /></div></div> : null}
+    </> : null}
     {loading || (archived && loadingArchive) ? <ListSkeleton variant="rows" rows={5} /> : <div className="dcard flush">
       <div className="accessory-list-title"><b>{archived ? 'Accesorios archivados' : 'Accesorios'}</b><span>{rows.length} {rows.length === 1 ? 'producto' : 'productos'}</span></div>
-      {!rows.length ? <p className="wempty">{search ? 'No encontramos accesorios con esa búsqueda.' : archived ? 'No hay accesorios archivados.' : 'Todavía no cargaste accesorios.'}</p> : phone ? <div className="accessory-phone-list">{page.visible.map(item => <button type="button" className="accessory-phone-row" key={item.id} onClick={() => open({ type: 'eq', id: item.id })}>
+      {!rows.length ? <p className="wempty">{search ? 'No encontramos accesorios con esa búsqueda.' : archived ? 'No hay accesorios archivados.' : 'Todavía no cargaste accesorios.'}</p> : phone ? <div className="accessory-phone-list">{page.visible.map(item => <div key={item.id} className="accessory-select-row">{canTransfer && selection.mode ? <SelectionCheckbox checked={selection.row(item.id, item.model).checked} disabled={selection.locked} label={`Seleccionar ${item.model}`} onToggle={() => selection.row(item.id, item.model).toggle()} /> : null}<button type="button" className="accessory-phone-row" key={item.id} onClick={() => open({ type: 'eq', id: item.id })}>
         <b>{item.model}</b><span className="mut">{item.accessoryType} · {item.compatibleWith || 'Todos'}</span>
         {stock(item.cantidad ?? 0)}
         <span data-ph-mask>{seeCosts ? `Costo: ${item.cost == null ? '—' : money.show(item.cost, item.currency)} · ` : ''}Precio: {item.price == null ? 'A definir' : money.show(item.price, item.currency)}</span>
         <span className="mut">Vendidos del mes: {sold?.[item.id] ?? (sold ? 0 : '—')}</span>
-      </button>)}</div> : <table className="dtable accessory-table"><thead><tr><th>Accesorio</th><th>Tipo</th><th>Compatible con</th><th>Stock</th>{seeCosts ? <th className="r">Costo</th> : null}<th className="r">Precio</th><th className="r">Vendidos (mes)</th></tr></thead><tbody>{page.visible.map(item => <tr key={item.id}>
+      </button></div>)}</div> : <table className="dtable accessory-table"><thead><tr>{canTransfer ? <th className="bulk-cell"><SelectFiltered selection={selection} total={rows.length} /></th> : null}<th>Accesorio</th><th>Tipo</th><th>Compatible con</th><th>Stock</th>{seeCosts ? <th className="r">Costo</th> : null}<th className="r">Precio</th><th className="r">Vendidos (mes)</th></tr></thead><tbody>{page.visible.map(item => <tr key={item.id}>
+        {canTransfer ? <td className="bulk-cell"><SelectionCheckbox checked={selection.row(item.id, item.model).checked} disabled={selection.locked} label={`Seleccionar ${item.model}`} onToggle={range => selection.row(item.id, item.model).toggle(range)} /></td> : null}
         <td><button type="button" className="accessory-name" onClick={() => open({ type: 'eq', id: item.id })}><span className="ico-row"><DeskIcon name="list" size={18} /></span><b>{item.model}</b></button></td>
         <td>{item.accessoryType}</td><td>{item.compatibleWith || 'Todos'}</td><td>{stock(item.cantidad ?? 0)}</td>
         {seeCosts ? <td className="r" data-ph-mask>{item.cost == null ? '—' : money.show(item.cost, item.currency)}</td> : null}

@@ -1,3 +1,4 @@
+import { TransferStockAction } from '../StockTransferSheet';
 import { isDevice } from "../../lib/accessories";
 import { canSeeFinancials } from '../sections';
 import { InventoryModelGroups, useInventoryLineView } from '../InventoryModelGroups';
@@ -338,7 +339,7 @@ export function InventoryScreen() {
         <BulkActions key={scope} selection={selection} total={listed.length}
           label={(item) => equipmentTitle(item.model, item.capacity)}
           action={{ label: 'Archivar selección', doneLabel: 'archivados', explanation: 'Se archivarán los equipos seleccionados. Los equipos vinculados a operaciones activas no se pueden archivar. Podés restaurarlos desde Archivados.', execute: (item, reason) => deleteProduct(item.id, reason) }}
-        />
+        ><TransferStockAction selection={selection} /></BulkActions>
         {phone ? <SupplierFilter suppliers={suppliers} value={columns.supplierId || ''} onChange={(supplierId) => setColumn({ supplierId })} /> : null}
       </div> : null}
       {phone && !lineView && source.length > 0 ? (

@@ -1,3 +1,4 @@
+import type { AppSession } from '../types/app-session';
 export const DESK_SECTIONS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'inventory', label: 'Inventario' },
@@ -58,4 +59,13 @@ export function canViewTeam(role?: string | null) {
 /** Administración del equipo; la navegación a la vista propia está siempre disponible. */
 export function canManageCommissions(stored: string[] | null | undefined, role?: string | null) {
   return role === 'OWNER' || Boolean(stored?.includes('commissions'));
+}
+
+/** Both memberships must be owned by this user; a stored section permission cannot grant cross-store access. */
+export function ownedStoreGroup(session?: AppSession | null) {
+  if (session?.membership?.role !== 'OWNER') return [];
+  const current = session.stores?.find(store => store.id === session.store?.id);
+  if (!current?.groupId) return [];
+  const stores = session.stores?.filter(store => store.groupId === current.groupId) ?? [];
+  return stores.length === 2 && stores.every(store => store.role === 'OWNER') ? stores : [];
 }

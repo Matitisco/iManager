@@ -1,3 +1,4 @@
+import { createStoreWithOwner } from './store-creation.js';
 import { writeAudit } from "../audit/audit.js";
 import { trialData } from '../billing/domain.js';
 import { DomainError } from "../../lib/domain-error.js";
@@ -29,6 +30,8 @@ export interface UserStoreSummary {
   name: string;
   role: StoreRole;
   isDefault: boolean;
+  kind: "WHOLESALE" | "RETAIL" | null;
+  groupId: string | null;
 }
 
 export async function listStoresForUser(userId: string): Promise<UserStoreSummary[]> {
@@ -36,7 +39,7 @@ export async function listStoresForUser(userId: string): Promise<UserStoreSummar
     where: { userId, removedAt: null },
     include: {
       store: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, groupKind: true, groupId: true },
       },
     },
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
@@ -47,6 +50,8 @@ export async function listStoresForUser(userId: string): Promise<UserStoreSummar
     name: membership.store.name,
     role: membership.role,
     isDefault: membership.isDefault,
+    kind: membership.store.groupKind === "WHOLESALE" || membership.store.groupKind === "RETAIL" ? membership.store.groupKind : null,
+    groupId: membership.store.groupId ?? null,
   }));
 }
 
@@ -68,20 +73,7 @@ export async function createStoreForUser(userId: string, storeName: string) {
     }
 
     const account = await tx.user.findUniqueOrThrow({ where: { id: userId } });
-    const store = await tx.store.create({
-      data: { name, ...trialData(account.billingLegacy) },
-    });
-
-    const membership = await tx.storeMember.create({
-      data: {
-        storeId: store.id,
-        userId,
-        role: "OWNER",
-        isDefault: true,
-      },
-    });
-
-    return { store, membership };
+    return createStoreWithOwner(tx, userId, { name, ...trialData(account.billingLegacy) }, true);
   });
 }
 
