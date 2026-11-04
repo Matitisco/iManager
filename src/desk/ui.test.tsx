@@ -49,28 +49,42 @@ describe('dropdown viewport bounds', () => {
       return this.classList.contains('menu') ? new DOMRect(0, 0, 200, 160) : new DOMRect(left, 200, 100, 36);
     });
     const changed = vi.fn();
-    const { container } = render(<MenuButton label="Ordenar" options={['Recientes', 'Nombre']} value="Recientes" onChange={changed} />);
+    render(<MenuButton label="Ordenar" options={['Recientes', 'Nombre']} value="Recientes" onChange={changed} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar' }));
-    const dropdown = container.querySelector<HTMLElement>('.menu')!;
-    const visibleLeft = left + Number.parseFloat(dropdown.style.left);
+    const dropdown = document.querySelector<HTMLElement>('.menu')!;
+    const visibleLeft = Number.parseFloat(dropdown.style.left);
     expect(visibleLeft).toBeGreaterThanOrEqual(12);
     expect(visibleLeft + 200).toBeLessThanOrEqual(378);
     fireEvent.click(screen.getByRole('button', { name: 'Nombre' }));
     expect(changed).toHaveBeenCalledExactlyOnceWith('Nombre');
-    expect(container.querySelector('.menu')).toBeNull();
+    expect(document.querySelector('.menu')).toBeNull();
   });
   it('repositions on resize and keeps Escape dismissal', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       return this.classList.contains('menu') ? new DOMRect(0, 0, 200, 160) : new DOMRect(350, 200, 100, 36);
     });
-    const { container } = render(<MenuButton label="Ordenar" options={['Recientes']} value="Recientes" onChange={vi.fn()} />);
+    render(<MenuButton label="Ordenar" options={['Recientes']} value="Recientes" onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: 'Ordenar' }));
-    expect(container.querySelector<HTMLElement>('.menu')!.style.left).toBe('-100px');
+    expect(document.querySelector<HTMLElement>('.menu')!.style.left).toBe('250px');
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     fireEvent(window, new Event('resize'));
-    expect(container.querySelector<HTMLElement>('.menu')!.style.left).toBe('-172px');
+    expect(document.querySelector<HTMLElement>('.menu')!.style.left).toBe('178px');
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(container.querySelector('.menu')).toBeNull();
+    expect(document.querySelector('.menu')).toBeNull();
+  });
+});
+
+describe('MenuButton flotante', () => {
+  it('renderiza el menú fuera del contenedor con overflow y elige una opción', () => {
+    const picked: string[] = [];
+    render(<div className="desk-app"><div style={{ overflow: 'hidden' }} data-testid="card"><MenuButton testId="m" label="Ordenar" options={['A', 'B']} value="A" onChange={(v) => picked.push(v)} /></div></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'Ordenar' }));
+    const menu = screen.getByTestId('m-menu');
+    expect(screen.getByTestId('card')).not.toContainElement(menu);
+    expect(menu).toHaveClass('menu-floating');
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'B' }));
+    fireEvent.click(screen.getByRole('button', { name: 'B' }));
+    expect(picked).toEqual(['B']);
   });
 });
