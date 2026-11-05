@@ -58,7 +58,7 @@ describe('sidebar unread counts', () => {
     window.matchMedia = originalMatchMedia;
     context.appSession.membership.role = 'OWNER';
     context.appSession.membership.sections = null;
-    window.location.hash = '#/dash';
+    history.replaceState(null, '', '#/dash');
     localStorage.clear();
   });
 
@@ -96,6 +96,23 @@ describe('sidebar unread counts', () => {
       window.dispatchEvent(new HashChangeEvent('hashchange'));
     });
   }
+
+  it.each([
+    [false, '#/dashboard'], [true, '#/dashboard'],
+    [false, '#/cuenta/configuracion'], [true, '#/cuenta/configuracion'],
+  ] as const)('abre Agregar tienda en Configuración y enfoca Multitienda (phone=%s, desde %s)', async (phone, hash) => {
+    if (phone) usePhone();
+    history.replaceState(null, '', hash);
+    render(<DeskApp />);
+    const selector = screen.getByTestId(phone ? 'mobile-store-name' : 'store-selector');
+    fireEvent.click(selector);
+    fireEvent.click(screen.getByRole('option', { name: 'Agregar tienda' }));
+    await waitFor(() => expect(window.location.hash).toBe('#/cuenta/configuracion'));
+    expect(await screen.findByRole('dialog', { name: phone ? 'Tienda' : 'Datos de la tienda' })).toBeVisible();
+    await waitFor(() => expect(screen.getByTestId('enable-store-group')).toHaveFocus());
+    expect(screen.getByRole('textbox', { name: 'Nombre de la otra tienda' })).toHaveValue('');
+    expect(screen.queryByRole('option', { name: 'Agregar tienda' })).not.toBeInTheDocument();
+  });
 
   it.each(['OWNER', 'STAFF', 'single'] as const)('protege el menú y la ruta Balance para %s', kind => {
     context.appSession.membership.role = kind === 'STAFF' ? 'STAFF' : 'OWNER';

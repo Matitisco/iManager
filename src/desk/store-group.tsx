@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { ChevronsUpDown, Store as ShopIcon, Warehouse } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronsUpDown, Plus, Store as ShopIcon, Warehouse } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { activateStore, enableStoreGroup } from '../services/store-group-api';
 import type { StoreKind } from '../types/app-session';
@@ -12,23 +12,21 @@ import './store-group.css';
 export const storeKindLabel = (kind?: StoreKind | null) => kind === 'WHOLESALE' ? 'Mayorista' : kind === 'RETAIL' ? 'Minorista' : '';
 
 const storeBlurb = (kind?: StoreKind | null) => kind === 'WHOLESALE' ? 'Venta por mayor' : kind === 'RETAIL' ? 'Venta al público' : '';
-const KindTile = ({ kind }: { kind?: StoreKind | null }) => <span className={`store-tile ${kind === 'RETAIL' ? 'retail' : 'wholesale'}`} aria-hidden="true">{kind === 'RETAIL' ? <ShopIcon size={16} /> : <Warehouse size={16} />}</span>;
+const KindTile = ({ kind }: { kind?: StoreKind | null }) => <span className={`store-tile ${kind === 'RETAIL' ? 'retail' : kind === 'WHOLESALE' ? 'wholesale' : 'generic'}`} aria-hidden="true">{kind === 'WHOLESALE' ? <Warehouse size={16} /> : <ShopIcon size={16} />}</span>;
 const KindStack = () => <span className="store-stack" aria-hidden="true"><KindTile kind="WHOLESALE" /><KindTile kind="RETAIL" /></span>;
 
 export function StoreSelector({ mobile = false, place }: { mobile?: boolean; place?: 'brand' | 'below' }) {
   const { user, appSession, applyStoreSession } = useAppContext();
-  const { go, tab, toast } = useDesk();
+  const { go, tab, toast, open } = useDesk();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const current = appSession?.stores?.find(store => store.id === appSession.store?.id);
   const name = appSession?.store?.name || 'Tienda';
   const kind = storeKindLabel(current?.kind);
-  const multi = (appSession?.stores?.length ?? 0) >= 2;
-  // Desktop multi-store lives in its own row under the brand; mobile keeps it in the header.
-  if (place === 'below' ? !multi || mobile : place === 'brand' && multi && !mobile) return null;
-  // Preserve the single-store header, including its mobile identifier.
-  if (!multi) return <><small data-testid={mobile ? 'mobile-store-name' : undefined} title={name}>{name}</small>{kind && <span className="store-kind">{kind}</span>}</>;
-  const stores = appSession?.stores ?? [];
+  // Desktop always uses the row below the brand; mobile uses the header card.
+  if (place === 'below' ? mobile : place === 'brand' && !mobile) return null;
+  const stores = appSession?.stores?.length ? appSession.stores : appSession?.store ? [{ ...appSession.store, kind: null, groupId: null }] : [];
+  const canAdd = appSession?.membership?.role === 'OWNER' && !current?.groupId;
   const grouped = ownedStoreGroup(appSession).length > 0;
   const all = grouped && tab === 'balance';
   const options = [
@@ -37,6 +35,7 @@ export function StoreSelector({ mobile = false, place }: { mobile?: boolean; pla
       content: <><KindTile kind={store.kind} /><span className="store-opt-copy"><b>{store.name}</b>{store.kind ? <small>{storeBlurb(store.kind)}</small> : null}</span>{store.kind ? <span className={`store-pill ${store.kind === 'RETAIL' ? 'retail' : 'wholesale'}`}>{storeKindLabel(store.kind)}</span> : null}</>,
     })),
     ...(grouped ? [{ value: '__all', label: 'Todas las tiendas', className: 'store-all', content: <><KindStack /><span className="store-opt-copy"><b>Todas las tiendas</b><small>Balance combinado</small></span></> }] : []),
+    ...(canAdd ? [{ value: '__add', label: 'Agregar tienda', className: 'store-add', content: <><span className="store-tile generic" aria-hidden="true"><Plus size={16} /></span><span className="store-opt-copy"><b>Agregar tienda</b></span></> }] : []),
   ];
   const title = busy ? 'Cambiando tienda…' : all ? (mobile ? 'Todas' : 'Todas las tiendas') : name;
   const sub = all ? (mobile ? `${stores.length} tiendas` : 'Balance combinado') : kind;
@@ -47,6 +46,7 @@ export function StoreSelector({ mobile = false, place }: { mobile?: boolean; pla
       displayValue={<span className="store-trigger-body">{all ? <KindStack /> : <KindTile kind={current?.kind} />}<span className="store-trigger-copy"><b title={title}>{title}</b><small>{sub}{mobile ? <ChevronsUpDown size={12} aria-hidden="true" className="store-sub-icon" /> : null}</small></span></span>}
       options={options}
       onChange={async id => {
+        if (id === '__add') { if (canAdd) open({ type: 'store', focus: 'store-group' }); return; }
         if (id === '__all') { go('balance'); return; }
         if (!user || pending.current) return;
         if (id === appSession?.store?.id) { if (tab === 'balance') go('dashboard'); return; }
@@ -62,7 +62,7 @@ export function StoreSelector({ mobile = false, place }: { mobile?: boolean; pla
   </div>;
 }
 
-export function EnableStoreGroupCard() {
+export function EnableStoreGroupCard({ autoFocus = false }: { autoFocus?: boolean }) {
   const { user, appSession, applyStoreSession } = useAppContext();
   const { toast } = useDesk();
   const [kind, setKind] = useState<StoreKind>('WHOLESALE');
@@ -71,9 +71,18 @@ export function EnableStoreGroupCard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const pending = useRef(false);
+  const card = useRef<HTMLElement>(null);
   const current = appSession?.stores?.find(store => store.id === appSession.store?.id);
+  useEffect(() => {
+    if (!autoFocus) return;
+    const frame = requestAnimationFrame(() => {
+      card.current?.focus({ preventScroll: true });
+      card.current?.scrollIntoView?.({ block: 'start' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [autoFocus]);
   if (appSession?.membership?.role !== 'OWNER' || current?.groupId) return null;
-  return <section className="multi-enable dcard" aria-labelledby="multi-title">
+  return <section ref={card} tabIndex={-1} className="multi-enable dcard" aria-labelledby="multi-title" data-testid="enable-store-group">
     <h3 id="multi-title">Multitienda</h3>
     <p>Administrá una mayorista y una minorista con stock separado.<br />Cambiá de tienda y consultá el balance de ambas.</p>
     <Field label="Esta tienda es"><DeskSelect label="Esta tienda es" value={kind} disabled={busy || confirming} options={[{ value: 'WHOLESALE', label: 'Mayorista' }, { value: 'RETAIL', label: 'Minorista' }]} onChange={value => setKind(value as StoreKind)} /></Field>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppSession } from '../types/app-session';
@@ -14,26 +14,57 @@ vi.mock('../context/AppContext', () => ({ useAppContext: () => ctx }));
 vi.mock('../services/store-group-api', () => ({ activateStore: vi.fn(), enableStoreGroup: vi.fn() }));
 const toast = vi.fn();
 const go = vi.fn();
+const open = vi.fn();
 function wrap(children: React.ReactNode) {
-  return render(<DeskProvider value={{ tab: 'dashboard', go, toast, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), isStaff: false }}>{children}</DeskProvider>);
+  return render(<DeskProvider value={{ tab: 'dashboard', go, toast, open, openRecord: vi.fn(), close: vi.fn(), isStaff: false }}>{children}</DeskProvider>);
 }
 beforeEach(() => { vi.clearAllMocks(); ctx.appSession = groupSession(); });
 
 describe('selector de tienda', () => {
-  it('con una tienda suelta conserva el nombre sin desplegable ni etiqueta', () => {
+  it.each([false, true])('con una tienda suelta muestra D1 con avatar neutro y sin pill (mobile=%s)', mobile => {
     ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], kind: null, groupId: null }];
-    wrap(<StoreSelector mobile />);
-    expect(screen.getByTestId('mobile-store-name').tagName).toBe('SMALL');
-    expect(screen.getByTestId('mobile-store-name')).toHaveTextContent('Central ficticia');
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
-    expect(screen.queryByText('Mayorista')).not.toBeInTheDocument();
+    wrap(<StoreSelector mobile={mobile} />);
+    const trigger = screen.getByTestId(mobile ? 'mobile-store-name' : 'store-selector');
+    expect(trigger).toHaveAttribute('role', 'combobox');
+    expect(trigger).toHaveTextContent('Central ficticia');
+    expect(trigger.closest('.store-selector')).toHaveClass('multi');
+    expect(trigger.querySelector('.store-tile')).toHaveClass('generic');
+    expect(trigger.querySelector('.store-tile')).not.toHaveClass('wholesale');
+    fireEvent.click(trigger);
+    const current = screen.getByRole('option', { name: 'Central ficticia' });
+    expect(current).toHaveAttribute('aria-selected', 'true');
+    expect(current.querySelector('.store-pill')).toBeNull();
+    expect(screen.getByRole('option', { name: 'Agregar tienda' })).toBeVisible();
   });
-  it('una membresía minorista muestra su etiqueta sin dar acceso a otra tienda', () => {
-    ctx.appSession!.stores = [ctx.appSession!.stores![0]];
-    ctx.appSession!.membership!.role = 'STAFF';
+  it.each(['STAFF', 'MANAGER'] as const)('una membresía %s muestra su tienda y tipo sin agregar ni balance', role => {
+    ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], groupId: null, role }];
+    ctx.appSession!.membership!.role = role;
     wrap(<StoreSelector />);
-    expect(screen.getByText('Mayorista')).toBeVisible();
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toHaveTextContent('Mayorista');
+    fireEvent.click(screen.getByRole('combobox'));
+    expect(screen.getAllByRole('option')).toHaveLength(1);
+    expect(screen.getByRole('option', { name: 'Central ficticia · Mayorista' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('option', { name: 'Agregar tienda' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Todas las tiendas' })).not.toBeInTheDocument();
+  });
+  it('Agregar tienda abre configuración enfocada sin activar ni cambiar tienda', async () => {
+    ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], groupId: null }];
+    const user = userEvent.setup();
+    wrap(<StoreSelector />);
+    screen.getByRole('combobox').focus();
+    await user.keyboard('{ArrowDown}{End}{Enter}');
+    expect(open).toHaveBeenCalledWith({ type: 'store', focus: 'store-group' });
+    expect(activateStore).not.toHaveBeenCalled();
+    expect(enableStoreGroup).not.toHaveBeenCalled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+  it('usa la tienda de sesión si la lista de membresías todavía no está disponible', () => {
+    ctx.appSession!.stores = undefined;
+    wrap(<StoreSelector />);
+    fireEvent.click(screen.getByRole('combobox'));
+    fireEvent.click(screen.getByRole('option', { name: 'Central ficticia' }));
+    expect(activateStore).not.toHaveBeenCalled();
+    expect(ctx.applyStoreSession).not.toHaveBeenCalled();
   });
   it('selecciona con teclado, marca la actual y reemplaza la sesión tras cambiar', async () => {
     const user = userEvent.setup();
@@ -63,7 +94,8 @@ describe('selector de tienda', () => {
     expect(screen.getByRole('combobox')).toHaveTextContent('Todas las tiendas');
     expect(screen.getByRole('combobox')).toHaveTextContent('Balance combinado');
   });
-  it('place decide dónde vive el selector multitienda', () => {
+  it.each([1, 2])('place muestra una sola tarjeta debajo de la marca con %s tiendas', count => {
+    ctx.appSession!.stores = ctx.appSession!.stores!.slice(0, count);
     const { container, rerender } = wrap(<StoreSelector place="brand" />);
     expect(container.querySelector('[role="combobox"]')).toBeNull();
     rerender(<DeskProvider value={{ tab: 'dashboard', go, toast, open: vi.fn(), openRecord: vi.fn(), close: vi.fn(), isStaff: false }}><StoreSelector place="below" /></DeskProvider>);
@@ -96,6 +128,19 @@ describe('selector de tienda', () => {
 
 describe('activar multitienda', () => {
   beforeEach(() => { ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], kind: null, groupId: null }]; });
+  it('desplaza y enfoca la tarjeta solicitada sin activar multitienda', async () => {
+    const scroll = vi.fn();
+    const previous = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scroll;
+    try {
+      wrap(<EnableStoreGroupCard autoFocus />);
+      const card = screen.getByRole('region', { name: 'Multitienda' });
+      await waitFor(() => expect(card).toHaveFocus());
+      expect(scroll).toHaveBeenCalledWith({ block: 'start' });
+      expect(within(card).getByRole('textbox')).toHaveValue('');
+      expect(enableStoreGroup).not.toHaveBeenCalled();
+    } finally { HTMLElement.prototype.scrollIntoView = previous; }
+  });
   it('valida nombre, confirma y aplica la sesión sin cambiar la activa', async () => {
     vi.mocked(enableStoreGroup).mockResolvedValue({ session: groupSession() });
     wrap(<EnableStoreGroupCard />);

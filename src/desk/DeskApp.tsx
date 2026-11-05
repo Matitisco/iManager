@@ -247,6 +247,11 @@ export function DeskApp({ installEnabled = true }: { installEnabled?: boolean })
         setMessage('La tienda está en modo solo lectura. Revisá Plan y facturación.');
         setToastOn(true); return;
       }
+      if (next.type === 'store' && next.focus === 'store-group') {
+        setPendingRecordOpen({ tab: 'settings', overlay: next });
+        go('settings');
+        return;
+      }
       setOverlay(next);
     },
     close: () => setOverlay(null),

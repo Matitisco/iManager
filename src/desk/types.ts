@@ -71,7 +71,7 @@ export type Overlay =
   | { type: 'new-return'; saleId?: string }
   | { type: 'return'; id: string }
   | { type: 'edit-return'; id: string }
-  | { type: 'store'; focus?: 'phone' }
+  | { type: 'store'; focus?: 'phone' | 'store-group' }
   | { type: 'warranty' }
   | { type: 'periodic-report' }
   | { type: 'contact' }
