@@ -4,6 +4,8 @@ export const enableSchema = z
   .object({
     currentKind: z.enum(['WHOLESALE', 'RETAIL']),
     otherStoreName: z.string().trim().min(1).max(120),
+    otherAddress: z.string().trim().max(255).optional(),
+    otherInstagram: z.string().trim().max(300).optional(),
   })
   .strict();
 export const balanceQuery = z

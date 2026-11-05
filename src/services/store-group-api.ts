@@ -24,7 +24,7 @@ export interface TransferInput { toStoreId: string; items: { inventoryItemId: st
 export function fetchStoreGroup(user: AuthUserLike) {
   return apiRequest<{ group: StoreGroup | null }>(user, '/api/store-group', { fallback: 'No se pudieron cargar las tiendas.' });
 }
-export function enableStoreGroup(user: AuthUserLike, input: { currentKind: StoreKind; otherStoreName: string }) {
+export function enableStoreGroup(user: AuthUserLike, input: { currentKind: StoreKind; otherStoreName: string; otherAddress?: string; otherInstagram?: string }) {
   return apiRequest<{ session: AppSession }>(user, '/api/store-group/enable', { method: 'POST', body: input, fallback: 'No se pudo activar multitienda.', errorFrom: 'friendly' });
 }
 export function activateStore(user: AuthUserLike, storeId: string) {

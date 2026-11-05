@@ -150,7 +150,7 @@ describe('sidebar unread counts', () => {
     [false, '#/cuenta/configuracion'],
     [true, '#/cuenta/configuracion'],
   ] as const)(
-    'abre Agregar tienda en Configuración y enfoca Multitienda (phone=%s, desde %s)',
+    'abre el sheet vacío Agregar tienda sin cambiar de página (phone=%s, desde %s)',
     async (phone, hash) => {
       if (phone) usePhone();
       history.replaceState(null, '', hash);
@@ -160,20 +160,25 @@ describe('sidebar unread counts', () => {
       );
       fireEvent.click(selector);
       fireEvent.click(screen.getByRole('option', { name: 'Agregar tienda' }));
-      await waitFor(() =>
-        expect(window.location.hash).toBe('#/cuenta/configuracion'),
+      expect(window.location.hash).toBe(hash);
+      const sheet = await screen.findByRole('dialog', { name: 'Agregar tienda' });
+      expect(sheet).toBeVisible();
+      expect(sheet.closest('.desk-app')).not.toBeNull();
+      expect(within(sheet).getByRole('textbox', { name: 'Nombre' })).toHaveValue(
+        '',
       );
       expect(
-        await screen.findByRole('dialog', {
+        within(sheet).getByRole('textbox', { name: 'Dirección' }),
+      ).toHaveValue('');
+      expect(
+        within(sheet).getByRole('textbox', { name: 'Instagram' }),
+      ).toHaveValue('');
+      expect(screen.queryByTestId('enable-store-group')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('dialog', {
           name: phone ? 'Tienda' : 'Datos de la tienda',
         }),
-      ).toBeVisible();
-      await waitFor(() =>
-        expect(screen.getByTestId('enable-store-group')).toHaveFocus(),
-      );
-      expect(
-        screen.getByRole('textbox', { name: 'Nombre de la otra tienda' }),
-      ).toHaveValue('');
+      ).not.toBeInTheDocument();
       expect(
         screen.queryByRole('option', { name: 'Agregar tienda' }),
       ).not.toBeInTheDocument();

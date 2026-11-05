@@ -1,0 +1,4 @@
+- [x] Extender enable con contacto opcional normalizado y pruebas backend.
+- [x] Implementar sheet vacío, selección de la nueva tienda y reintento seguro.
+- [x] Actualizar tests frontend y verificar TypeScript y suites afectadas con candados.
+- [x] Documentar el enfoque y contrato para revisión por PR contra test, sin merge.
