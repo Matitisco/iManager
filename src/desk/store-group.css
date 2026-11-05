@@ -628,3 +628,13 @@
   font-size: 11.5px;
   line-height: 1.2;
 }
+.store-selector.m .store-trigger-copy small { font-size: 11.5px; line-height: 1.2; }
+
+/* Móvil: pill compacta igual al chip del dólar (36px, radio 999, borde 1px), nombre centrado con elipsis. */
+.desk-app .store-selector.multi.m .ds-select .store-trigger { height: 36px; min-height: 36px; padding: 0 10px 0 4px; gap: 6px; border: 1px solid var(--border); border-radius: 999px; background: var(--theme-surface, #fff); box-shadow: none; align-items: center; }
+.store-selector.m .store-trigger > svg.store-trigger-icon { display: block; flex: none; width: 14px; height: 14px; }
+.store-selector.m .store-trigger-body { gap: 6px; align-items: center; }
+.store-selector.m .store-trigger .store-tile { --t: 26px; border-radius: 999px; }
+.store-selector.m .store-trigger-copy { justify-content: center; }
+.store-selector.m .store-trigger-copy b { font-size: 12px; line-height: 1.2; letter-spacing: -.02em; }
+.store-selector.m .store-trigger-copy small { display: none; }
