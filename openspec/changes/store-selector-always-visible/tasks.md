@@ -1,0 +1,4 @@
+- [x] Unificar selector D1 para una o varias tiendas y avatar neutro.
+- [x] Conectar Agregar tienda con Configuración y foco en activación.
+- [x] Actualizar unitarias y verificar typecheck/lint frontend.
+- [x] Ejecutar QA local mockeada y guardar capturas solicitadas.

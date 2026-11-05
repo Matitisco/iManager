@@ -25,6 +25,7 @@ export default defineConfig({
   testDir: './e2e',
   testIgnore: [
     '**/pwa/**',
+    '**/selector-siempre.spec.ts',
     '**/395b-shots.spec.ts',
     '**/post395-shots.spec.ts',
     '**/374-shots.spec.ts',

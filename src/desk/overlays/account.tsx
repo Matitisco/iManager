@@ -20,7 +20,7 @@ import { DEFAULT_REPAIR_WARRANTY_DAYS, DEFAULT_SEALED_WARRANTY_DAYS, DEFAULT_USE
 import { ROLE_LABEL } from '../../lib/roles';
 import { DeskSelect } from '../select';
 
-export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & { focusPhone?: boolean }) {
+export function StoreForm({ run, busy, error, focusPhone = false, focusStoreGroup = false }: FormProps & { focusPhone?: boolean; focusStoreGroup?: boolean }) {
   const { appSession, updateStore } = useAppContext();
   const { close } = useDesk();
   const isPhone = usePhoneLayout();
@@ -97,7 +97,7 @@ export function StoreForm({ run, busy, error, focusPhone = false }: FormProps & 
         if (store?.id) clearStoreContactOffer(store.id);
       }, 'Tienda actualizada');
       }} />
-      <EnableStoreGroupCard />
+      <EnableStoreGroupCard autoFocus={focusStoreGroup} />
     </Sheet>
   );
 }

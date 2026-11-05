@@ -276,7 +276,7 @@ function OverlayBody({ overlay, onSaved }: { overlay: Overlay; onSaved?: () => v
   if (overlay.type === 'repair-deposit') return <RepairDepositSheet repairId={overlay.id} />;
   if (overlay.type === 'cl') return <ClientDetail id={overlay.id} />;
   if (overlay.type === 'new-cl' || overlay.type === 'edit-cl') return <ClientForm id={overlay.type === 'edit-cl' ? overlay.id : undefined} run={run} busy={busy} error={error} />;
-  if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} focusPhone={overlay.focus === 'phone'} />;
+  if (overlay.type === 'store') return <StoreForm run={run} busy={busy} error={error} focusPhone={overlay.focus === 'phone'} focusStoreGroup={overlay.focus === 'store-group'} />;
   if (overlay.type === 'warranty') return <WarrantyForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'periodic-report') return <PeriodicReportForm run={run} busy={busy} error={error} />;
   if (overlay.type === 'contact') return <ContactForm run={run} busy={busy} error={error} />;

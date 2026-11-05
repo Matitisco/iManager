@@ -402,6 +402,11 @@ export function DeskApp({
         setToastOn(true);
         return;
       }
+      if (next.type === 'store' && next.focus === 'store-group') {
+        setPendingRecordOpen({ tab: 'settings', overlay: next });
+        go('settings');
+        return;
+      }
       setOverlay(next);
     },
     close: () => setOverlay(null),
