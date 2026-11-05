@@ -17,15 +17,25 @@ export default defineConfig({
     baseURL: app,
     serviceWorkers: 'block',
     timezoneId: 'America/Argentina/Buenos_Aires',
-    launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || '/opt/google/chrome/chrome', args: ['--no-sandbox'] },
+    launchOptions: {
+      executablePath:
+        process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ||
+        '/opt/google/chrome/chrome',
+      args: ['--no-sandbox'],
+    },
   },
   webServer: {
     cwd: fileURLToPath(new URL('..', import.meta.url)),
-    command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4819 --strictPort',
+    command:
+      'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4819 --strictPort',
     url: app,
     reuseExistingServer: false,
     timeout: 60_000,
     gracefulShutdown: { signal: 'SIGTERM', timeout: 5_000 },
-    env: { VITE_API_BASE_URL: app, VITE_TEST_AUTH_MODE: 'e2e', DISABLE_HMR: 'true' },
+    env: {
+      VITE_API_BASE_URL: app,
+      VITE_TEST_AUTH_MODE: 'e2e',
+      DISABLE_HMR: 'true',
+    },
   },
 });
