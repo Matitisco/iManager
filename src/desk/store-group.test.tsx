@@ -21,39 +21,67 @@ function wrap(children: React.ReactNode) {
 beforeEach(() => { vi.clearAllMocks(); ctx.appSession = groupSession(); });
 
 describe('selector de tienda', () => {
-  it.each([false, true])('con una tienda suelta muestra D1 con avatar neutro y sin pill (mobile=%s)', mobile => {
-    ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], kind: null, groupId: null }];
-    wrap(<StoreSelector mobile={mobile} />);
-    const trigger = screen.getByTestId(mobile ? 'mobile-store-name' : 'store-selector');
-    expect(trigger).toHaveAttribute('role', 'combobox');
-    expect(trigger).toHaveTextContent('Central ficticia');
-    expect(trigger.closest('.store-selector')).toHaveClass('multi');
-    expect(trigger.querySelector('.store-tile')).toHaveClass('generic');
-    expect(trigger.querySelector('.store-tile')).not.toHaveClass('wholesale');
-    fireEvent.click(trigger);
-    const current = screen.getByRole('option', { name: 'Central ficticia' });
-    expect(current).toHaveAttribute('aria-selected', 'true');
-    expect(current.querySelector('.store-pill')).toBeNull();
-    expect(screen.getByRole('option', { name: 'Agregar tienda' })).toBeVisible();
-  });
-  it.each(['STAFF', 'MANAGER'] as const)('una membresía %s muestra su tienda y tipo sin agregar ni balance', role => {
-    ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], groupId: null, role }];
-    ctx.appSession!.membership!.role = role;
-    wrap(<StoreSelector />);
-    expect(screen.getByRole('combobox')).toHaveTextContent('Mayorista');
-    fireEvent.click(screen.getByRole('combobox'));
-    expect(screen.getAllByRole('option')).toHaveLength(1);
-    expect(screen.getByRole('option', { name: 'Central ficticia · Mayorista' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByRole('option', { name: 'Agregar tienda' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('option', { name: 'Todas las tiendas' })).not.toBeInTheDocument();
-  });
-  it('Agregar tienda abre configuración enfocada sin activar ni cambiar tienda', async () => {
+  it.each([false, true])(
+    'con una tienda suelta muestra D1 con avatar neutro y sin pill (mobile=%s)',
+    (mobile) => {
+      ctx.appSession!.stores = [
+        { ...ctx.appSession!.stores![0], kind: null, groupId: null },
+      ];
+      wrap(<StoreSelector mobile={mobile} />);
+      const trigger = screen.getByTestId(
+        mobile ? 'mobile-store-name' : 'store-selector',
+      );
+      expect(trigger).toHaveAttribute('role', 'combobox');
+      expect(trigger).toHaveTextContent('Central ficticia');
+      expect(trigger.closest('.store-selector')).toHaveClass('multi');
+      expect(trigger.querySelector('.store-tile')).toHaveClass('generic');
+      expect(trigger.querySelector('.store-tile')).not.toHaveClass('wholesale');
+      fireEvent.click(trigger);
+      const current = screen.getByRole('option', { name: 'Central ficticia' });
+      expect(current).toHaveAttribute('aria-selected', 'true');
+      expect(current.querySelector('.store-pill')).toBeNull();
+      expect(
+        screen.getByRole('option', { name: 'Agregar tienda' }),
+      ).toBeVisible();
+    },
+  );
+  it.each(['STAFF', 'MANAGER'] as const)(
+    'una membresía %s muestra su tienda y tipo sin agregar ni balance',
+    (role) => {
+      ctx.appSession!.stores = [
+        { ...ctx.appSession!.stores![0], groupId: null, role },
+      ];
+      ctx.appSession!.membership!.role = role;
+      wrap(<StoreSelector />);
+      expect(screen.getByRole('combobox')).toHaveTextContent('Mayorista');
+      fireEvent.click(screen.getByRole('combobox'));
+      expect(screen.getAllByRole('option')).toHaveLength(1);
+      expect(
+        screen.getByRole('option', { name: 'Central ficticia · Mayorista' }),
+      ).toHaveAttribute('aria-selected', 'true');
+      expect(
+        screen.queryByRole('option', { name: 'Agregar tienda' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: 'Todas las tiendas' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it('Agregar tienda abre un sheet vacío sin abrir Configuración ni cambiar tienda', async () => {
     ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], groupId: null }];
     const user = userEvent.setup();
     wrap(<StoreSelector />);
     screen.getByRole('combobox').focus();
     await user.keyboard('{ArrowDown}{End}{Enter}');
-    expect(open).toHaveBeenCalledWith({ type: 'store', focus: 'store-group' });
+    const sheet = screen.getByRole('dialog', { name: 'Agregar tienda' });
+    expect(open).not.toHaveBeenCalled();
+    expect(within(sheet).getByRole('textbox', { name: 'Nombre' })).toHaveValue('');
+    expect(within(sheet).getByRole('textbox', { name: 'Nombre' })).toHaveAttribute('maxLength', '120');
+    expect(within(sheet).getByRole('textbox', { name: 'Dirección' })).toHaveValue('');
+    expect(within(sheet).getByRole('textbox', { name: 'Instagram' })).toHaveValue('');
+    expect(within(sheet).getByRole('combobox', { name: 'Tipo de la nueva tienda' })).toHaveTextContent('Seleccionar');
+    expect(within(sheet).getAllByRole('textbox')).toHaveLength(3);
+    expect(within(sheet).queryByText(/moneda|cotización|Activar multitienda/i)).not.toBeInTheDocument();
     expect(activateStore).not.toHaveBeenCalled();
     expect(enableStoreGroup).not.toHaveBeenCalled();
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
@@ -123,6 +151,247 @@ describe('selector de tienda', () => {
     reject(new Error('No tenés acceso a esta tienda.'));
     await waitFor(() => expect(toast).toHaveBeenCalledWith('No tenés acceso a esta tienda.'));
     expect(ctx.applyStoreSession).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('agregar tienda desde el selector', () => {
+  beforeEach(() => {
+    ctx.appSession!.stores = [{ ...ctx.appSession!.stores![0], kind: null, groupId: null }];
+  });
+  function showSheet(mobile = false) {
+    wrap(<StoreSelector mobile={mobile} />);
+    fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar tienda' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Agregar tienda' }));
+    return screen.getByRole('dialog', { name: 'Agregar tienda' });
+  }
+  function fill(kind: 'Mayorista' | 'Minorista' = 'Minorista') {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre' }), {
+      target: { value: ' Sucursal Norte ficticia ' },
+    });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Tipo de la nueva tienda' }));
+    fireEvent.click(screen.getByRole('option', { name: kind }));
+  }
+  function sessions(newKind: 'WHOLESALE' | 'RETAIL' = 'RETAIL') {
+    const enabled = groupSession();
+    enabled.stores![0].kind = newKind === 'WHOLESALE' ? 'RETAIL' : 'WHOLESALE';
+    enabled.stores![1] = {
+      ...enabled.stores![1],
+      kind: newKind,
+      name: 'Sucursal Norte ficticia',
+    };
+    const active = {
+      ...enabled,
+      store: { ...enabled.store!, id: 'retail', name: 'Sucursal Norte ficticia' },
+    };
+    vi.mocked(enableStoreGroup).mockResolvedValue({ session: enabled });
+    vi.mocked(activateStore).mockResolvedValue({ session: active });
+    return { enabled, active };
+  }
+  it.each([
+    {
+      kind: 'Minorista' as const,
+      value: 'RETAIL' as const,
+      opposite: 'WHOLESALE',
+      label: 'mayorista',
+    },
+    {
+      kind: 'Mayorista' as const,
+      value: 'WHOLESALE' as const,
+      opposite: 'RETAIL',
+      label: 'minorista',
+    },
+  ])(
+    'crea la nueva $kind y la selecciona con el tipo actual opuesto',
+    async ({ kind, value, opposite, label }) => {
+      const { active } = sessions(value);
+      showSheet();
+      fill(kind);
+      expect(
+        screen.getByText(
+          `Tu tienda actual «Central ficticia» quedará como ${label}.`,
+        ),
+      ).toBeVisible();
+      fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+      await waitFor(() =>
+        expect(ctx.applyStoreSession).toHaveBeenCalledWith(active),
+      );
+      expect(enableStoreGroup).toHaveBeenCalledExactlyOnceWith(ctx.user, {
+        currentKind: opposite,
+        otherStoreName: 'Sucursal Norte ficticia',
+      });
+      expect(activateStore).toHaveBeenCalledExactlyOnceWith(ctx.user, 'retail');
+      expect(enableStoreGroup).toHaveBeenCalledBefore(vi.mocked(activateStore));
+      expect(toast).toHaveBeenCalledWith(
+        'Listo, estás en Sucursal Norte ficticia',
+      );
+      expect(go).toHaveBeenCalledWith('dashboard');
+      expect(open).not.toHaveBeenCalled();
+      expect(
+        screen.queryByRole('dialog', { name: 'Agregar tienda' }),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it('envía dirección e Instagram de la nueva tienda en la misma alta', async () => {
+    sessions();
+    showSheet();
+    fill();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Dirección' }), {
+      target: { value: ' Calle Ficticia 123 ' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instagram' }), {
+      target: { value: ' @sucursal.ficticia ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    await waitFor(() => expect(activateStore).toHaveBeenCalled());
+    expect(enableStoreGroup).toHaveBeenCalledWith(ctx.user, {
+      currentKind: 'WHOLESALE',
+      otherStoreName: 'Sucursal Norte ficticia',
+      otherAddress: 'Calle Ficticia 123',
+      otherInstagram: '@sucursal.ficticia',
+    });
+  });
+  it('nombre vacío muestra un error y no llama a la API', () => {
+    showSheet();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre' }), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Ingresá el nombre de la nueva tienda.',
+    );
+    expect(enableStoreGroup).not.toHaveBeenCalled();
+    expect(activateStore).not.toHaveBeenCalled();
+  });
+  it('requiere elegir el tipo de la nueva tienda', () => {
+    showSheet();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Nombre' }), {
+      target: { value: 'Sucursal Norte ficticia' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Elegí si la nueva tienda es minorista o mayorista.',
+    );
+    expect(enableStoreGroup).not.toHaveBeenCalled();
+  });
+  it('conserva el formulario y muestra la validación amable del backend', async () => {
+    vi.mocked(enableStoreGroup).mockRejectedValueOnce(
+      new Error('Usá @usuario o el link del perfil'),
+    );
+    showSheet();
+    fill();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instagram' }), {
+      target: { value: 'mi tienda' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Usá @usuario o el link del perfil',
+    );
+    expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveValue(
+      ' Sucursal Norte ficticia ',
+    );
+    expect(screen.getByRole('textbox', { name: 'Instagram' })).toHaveValue(
+      'mi tienda',
+    );
+    expect(activateStore).not.toHaveBeenCalled();
+    expect(ctx.applyStoreSession).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+  });
+  it('reintenta solo la selección si la tienda ya se creó y no duplica el alta', async () => {
+    const { enabled, active } = sessions();
+    vi.mocked(activateStore).mockRejectedValueOnce(
+      new Error('No se pudo cambiar de tienda.'),
+    );
+    showSheet();
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'La tienda ya está creada.',
+    );
+    expect(ctx.applyStoreSession).toHaveBeenCalledWith(enabled);
+    ctx.appSession = enabled;
+    expect(toast).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Nombre' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Seleccionar tienda' }));
+    await waitFor(() =>
+      expect(ctx.applyStoreSession).toHaveBeenLastCalledWith(active),
+    );
+    expect(enableStoreGroup).toHaveBeenCalledTimes(1);
+    expect(activateStore).toHaveBeenCalledTimes(2);
+    expect(
+      screen.queryByRole('dialog', { name: 'Agregar tienda' }),
+    ).not.toBeInTheDocument();
+  });
+  it('bloquea doble envío y cierre durante la creación', async () => {
+    let resolve!: (value: { session: AppSession }) => void;
+    const { enabled } = sessions();
+    vi.mocked(enableStoreGroup).mockImplementationOnce(
+      () => new Promise((done) => {
+        resolve = done;
+      }),
+    );
+    showSheet();
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+    expect(screen.getByRole('button', { name: 'Procesando…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled();
+    fireEvent.submit(document.getElementById('add-store-form')!);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(
+      screen.getByRole('dialog', { name: 'Agregar tienda' }),
+    ).toBeInTheDocument();
+    expect(enableStoreGroup).toHaveBeenCalledTimes(1);
+    resolve({ session: enabled });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('dialog', { name: 'Agregar tienda' }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+  it('no permite crear con la cuenta en solo lectura', () => {
+    ctx.appSession!.billing = { readOnly: true } as NonNullable<
+      AppSession['billing']
+    >;
+    showSheet();
+    fill();
+    expect(screen.getByRole('button', { name: 'Crear tienda' })).toBeDisabled();
+    fireEvent.submit(document.getElementById('add-store-form')!);
+    expect(enableStoreGroup).not.toHaveBeenCalled();
+  });
+  it('Cancelar descarta el formulario y vuelve a abrir vacío', () => {
+    showSheet();
+    fill();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar tienda' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Agregar tienda' }));
+    expect(screen.getByRole('textbox', { name: 'Nombre' })).toHaveValue('');
+    expect(enableStoreGroup).not.toHaveBeenCalled();
+  });
+  it('en móvil abre el sheet dedicado desde Tus tiendas y permite crear y seleccionar', async () => {
+    const media = vi.mocked(window.matchMedia);
+    const matchMedia = media.getMockImplementation()!;
+    media.mockImplementation((query) => ({
+      ...matchMedia(query),
+      matches: query === '(max-width: 760px)',
+    }));
+    try {
+      const { active } = sessions();
+      const sheet = showSheet(true);
+      expect(sheet.querySelector('.sheet-grab')).not.toBeNull();
+      expect(
+        screen.queryByRole('dialog', { name: 'Tus tiendas' }),
+      ).not.toBeInTheDocument();
+      fill();
+      fireEvent.click(screen.getByRole('button', { name: 'Crear tienda' }));
+      await waitFor(() =>
+        expect(ctx.applyStoreSession).toHaveBeenCalledWith(active),
+      );
+      expect(
+        screen.queryByRole('dialog', { name: 'Agregar tienda' }),
+      ).not.toBeInTheDocument();
+    } finally {
+      media.mockImplementation(matchMedia);
+    }
   });
 });
 

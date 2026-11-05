@@ -1,12 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronsUpDown, Plus, Store as ShopIcon, Warehouse } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import {
+  ChevronsUpDown,
+  Plus,
+  Store as ShopIcon,
+  Warehouse,
+} from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { activateStore, enableStoreGroup } from '../services/store-group-api';
-import type { StoreKind } from '../types/app-session';
+import type { AppSession, StoreKind } from '../types/app-session';
 import { getFriendlyErrorMessage } from '../lib/utils';
 import { ownedStoreGroup } from './sections';
 import { DeskSelect } from './select';
-import { Field, useDesk } from './ui';
+import { Field, Sheet, useDesk } from './ui';
 import './store-group.css';
 
 export const storeKindLabel = (kind?: StoreKind | null) => kind === 'WHOLESALE' ? 'Mayorista' : kind === 'RETAIL' ? 'Minorista' : '';
@@ -17,7 +23,9 @@ const KindStack = () => <span className="store-stack" aria-hidden="true"><KindTi
 
 export function StoreSelector({ mobile = false, place }: { mobile?: boolean; place?: 'brand' | 'below' }) {
   const { user, appSession, applyStoreSession } = useAppContext();
-  const { go, tab, toast, open } = useDesk();
+  const { go, tab, toast } = useDesk();
+  const [adding, setAdding] = useState(false);
+  const selector = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const current = appSession?.stores?.find(store => store.id === appSession.store?.id);
@@ -37,32 +45,298 @@ export function StoreSelector({ mobile = false, place }: { mobile?: boolean; pla
     ...(grouped ? [{ value: '__all', label: 'Todas las tiendas', className: 'store-all', content: <><KindStack /><span className="store-opt-copy"><b>Todas las tiendas</b><small>Balance combinado</small></span></> }] : []),
     ...(canAdd ? [{ value: '__add', label: 'Agregar tienda', className: 'store-add', content: <><span className="store-tile generic" aria-hidden="true"><Plus size={16} /></span><span className="store-opt-copy"><b>Agregar tienda</b></span></> }] : []),
   ];
-  const title = busy ? 'Cambiando tienda…' : all ? (mobile ? 'Todas' : 'Todas las tiendas') : name;
-  const sub = all ? (mobile ? `${stores.length} tiendas` : 'Balance combinado') : kind;
-  return <div className={`store-selector multi${mobile ? ' m' : ' below'}`} aria-busy={busy}>
-    <DeskSelect label="Cambiar tienda" sheetTitle="Tus tiendas" triggerClassName="store-trigger" popupClassName="store-popup" popupMinWidth={344}
-      triggerIcon={<ChevronsUpDown size={14} aria-hidden="true" className="store-trigger-icon" />} data-testid={mobile ? 'mobile-store-name' : 'store-selector'}
-      value={all ? '__all' : appSession?.store?.id ?? ''} disabled={busy}
-      displayValue={<span className="store-trigger-body">{all ? <KindStack /> : <KindTile kind={current?.kind} />}<span className="store-trigger-copy"><b title={title}>{title}</b><small>{sub}{mobile ? <ChevronsUpDown size={12} aria-hidden="true" className="store-sub-icon" /> : null}</small></span></span>}
-      options={options}
-      onChange={async id => {
-        if (id === '__add') { if (canAdd) open({ type: 'store', focus: 'store-group' }); return; }
-        if (id === '__all') { go('balance'); return; }
-        if (!user || pending.current) return;
-        if (id === appSession?.store?.id) { if (tab === 'balance') go('dashboard'); return; }
-        pending.current = true; setBusy(true);
-        try {
-          const { session } = await activateStore(user, id);
-          applyStoreSession(session);
-          go('dashboard');
-          toast(`Cambiaste a ${session.store?.name || 'tu tienda'}`);
-        } catch (cause) { toast(getFriendlyErrorMessage(cause, 'No se pudo cambiar de tienda.')); }
-        finally { pending.current = false; setBusy(false); }
-      }} />
-  </div>;
+  const title = busy
+    ? 'Cambiando tienda…'
+    : all
+      ? mobile
+        ? 'Todas'
+        : 'Todas las tiendas'
+      : name;
+  const sub = all
+    ? mobile
+      ? `${stores.length} tiendas`
+      : 'Balance combinado'
+    : kind;
+  return (
+    <div
+      ref={selector}
+      className={`store-selector multi${mobile ? ' m' : ' below'}`}
+      aria-busy={busy}
+    >
+      <DeskSelect
+        label="Cambiar tienda"
+        sheetTitle="Tus tiendas"
+        triggerClassName="store-trigger"
+        popupClassName="store-popup"
+        popupMinWidth={344}
+        triggerIcon={
+          <ChevronsUpDown
+            size={14}
+            aria-hidden="true"
+            className="store-trigger-icon"
+          />
+        }
+        data-testid={mobile ? 'mobile-store-name' : 'store-selector'}
+        value={all ? '__all' : (appSession?.store?.id ?? '')}
+        disabled={busy}
+        displayValue={
+          <span className="store-trigger-body">
+            {all ? <KindStack /> : <KindTile kind={current?.kind} />}
+            <span className="store-trigger-copy">
+              <b title={title}>{title}</b>
+              <small>
+                {sub}
+                {mobile ? (
+                  <ChevronsUpDown
+                    size={12}
+                    aria-hidden="true"
+                    className="store-sub-icon"
+                  />
+                ) : null}
+              </small>
+            </span>
+          </span>
+        }
+        options={options}
+        onChange={async (id) => {
+          if (id === '__add') {
+            if (canAdd) setAdding(true);
+            return;
+          }
+          if (id === '__all') {
+            go('balance');
+            return;
+          }
+          if (!user || pending.current) return;
+          if (id === appSession?.store?.id) {
+            if (tab === 'balance') go('dashboard');
+            return;
+          }
+          pending.current = true;
+          setBusy(true);
+          try {
+            const { session } = await activateStore(user, id);
+            applyStoreSession(session);
+            go('dashboard');
+            toast(`Cambiaste a ${session.store?.name || 'tu tienda'}`);
+          } catch (cause) {
+            toast(
+              getFriendlyErrorMessage(cause, 'No se pudo cambiar de tienda.'),
+            );
+          } finally {
+            pending.current = false;
+            setBusy(false);
+          }
+        }}
+      />
+      {adding
+        ? createPortal(
+            <AddStoreSheet onClose={() => setAdding(false)} />,
+            selector.current?.closest('.desk-app') ?? document.body,
+          )
+        : null}
+    </div>
+  );
 }
 
-export function EnableStoreGroupCard({ autoFocus = false }: { autoFocus?: boolean }) {
+function AddStoreSheet({ onClose }: { onClose: () => void }) {
+  const { user, appSession, applyStoreSession } = useAppContext();
+  const { go, toast } = useDesk();
+  const [name, setName] = useState('');
+  const [kind, setKind] = useState<StoreKind | ''>('');
+  const [address, setAddress] = useState('');
+  const [instagram, setInstagram] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [created, setCreated] = useState<{
+    id: string;
+    name: string;
+    session: AppSession;
+  } | null>(null);
+  const pending = useRef(false);
+  const current = appSession?.stores?.find(
+    (store) => store.id === appSession.store?.id,
+  );
+  const authorized =
+    appSession?.membership?.role === 'OWNER' &&
+    (!current?.groupId || !!created);
+  const close = () => {
+    if (!pending.current) onClose();
+  };
+  const submit = async () => {
+    if (
+      !user ||
+      !appSession?.store ||
+      !authorized ||
+      pending.current ||
+      appSession.billing?.readOnly
+    )
+      return;
+    if (!name.trim()) {
+      setError('Ingresá el nombre de la nueva tienda.');
+      return;
+    }
+    if (!kind) {
+      setError('Elegí si la nueva tienda es minorista o mayorista.');
+      return;
+    }
+    pending.current = true;
+    setBusy(true);
+    setError('');
+    let saved = created;
+    try {
+      if (!saved) {
+        const currentId = appSession.store.id;
+        const previousIds = new Set(
+          (appSession.stores ?? []).map((store) => store.id),
+        );
+        const { session } = await enableStoreGroup(user, {
+          currentKind: kind === 'WHOLESALE' ? 'RETAIL' : 'WHOLESALE',
+          otherStoreName: name.trim(),
+          ...(address.trim() ? { otherAddress: address.trim() } : {}),
+          ...(instagram.trim() ? { otherInstagram: instagram.trim() } : {}),
+        });
+        const other = session.stores?.find(
+          (store) => store.id !== currentId && !previousIds.has(store.id),
+        );
+        if (!other) {
+          applyStoreSession(session);
+          throw new Error(
+            'La tienda se creó, pero no pudimos encontrarla. Actualizá la página para seleccionarla.',
+          );
+        }
+        saved = { id: other.id, name: other.name, session };
+        setCreated(saved);
+      }
+      const { session } = await activateStore(user, saved.id);
+      applyStoreSession(session);
+      toast(`Listo, estás en ${saved.name}`);
+      go('dashboard');
+      onClose();
+    } catch (cause) {
+      if (saved) applyStoreSession(saved.session);
+      const message = getFriendlyErrorMessage(
+        cause,
+        'No se pudo crear la tienda.',
+      );
+      setError(
+        saved
+          ? `La tienda ya está creada. ${message} Reintentá seleccionarla.`
+          : message,
+      );
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet
+      title="Agregar tienda"
+      subtitle="Completá los datos de tu nueva tienda."
+      busy={busy}
+      onClose={close}
+      footer={
+        <div className="sacts">
+          <button
+            type="button"
+            className="btn2 s"
+            disabled={busy}
+            onClick={close}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="add-store-form"
+            className="btn2 p"
+            disabled={busy || !authorized || appSession?.billing?.readOnly}
+          >
+            {busy ? 'Procesando…' : created ? 'Seleccionar tienda' : 'Crear tienda'}
+          </button>
+        </div>
+      }
+    >
+      <form
+        id="add-store-form"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <Field label="Nombre" mark="Requerido">
+          <input
+            autoFocus
+            required
+            maxLength={120}
+            value={name}
+            disabled={busy || !!created}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError('');
+            }}
+          />
+        </Field>
+        <Field label="Tipo de la nueva tienda" mark="Requerido">
+          <DeskSelect
+            label="Tipo de la nueva tienda"
+            required
+            value={kind}
+            disabled={busy || !!created}
+            options={[
+              { value: 'RETAIL', label: 'Minorista' },
+              { value: 'WHOLESALE', label: 'Mayorista' },
+            ]}
+            onChange={(value) => {
+              setKind(value as StoreKind);
+              setError('');
+            }}
+          />
+        </Field>
+        {kind ? (
+          <p className="sheet-note">
+            Tu tienda actual «{appSession?.store?.name}» quedará como{' '}
+            {kind === 'WHOLESALE' ? 'minorista' : 'mayorista'}.
+          </p>
+        ) : null}
+        <Field label="Dirección" mark="Opcional">
+          <input
+            maxLength={255}
+            value={address}
+            disabled={busy || !!created}
+            onChange={(event) => {
+              setAddress(event.target.value);
+              setError('');
+            }}
+          />
+        </Field>
+        <Field label="Instagram" mark="Opcional">
+          <input
+            maxLength={300}
+            placeholder="@usuario o link del perfil"
+            value={instagram}
+            disabled={busy || !!created}
+            onChange={(event) => {
+              setInstagram(event.target.value);
+              setError('');
+            }}
+          />
+        </Field>
+        {error ? (
+          <p className="ferr" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </form>
+    </Sheet>
+  );
+}
+
+export function EnableStoreGroupCard({
+  autoFocus = false,
+}: {
+  autoFocus?: boolean;
+}) {
   const { user, appSession, applyStoreSession } = useAppContext();
   const { toast } = useDesk();
   const [kind, setKind] = useState<StoreKind>('WHOLESALE');
