@@ -1,4 +1,5 @@
 import { createStoreWithOwner } from '../stores/store-creation.js';
+import { blankToNull, requireInstagram } from '../stores/store-contact.js';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../plugins/prisma.js';
 import { DomainError } from '../../lib/domain-error.js';
@@ -93,6 +94,10 @@ export async function enableStoreGroup(
   raw: EnableInput,
 ) {
   const input = enableSchema.parse(raw);
+  const address = blankToNull(input.otherAddress);
+  const instagram = blankToNull(input.otherInstagram)
+    ? requireInstagram(input.otherInstagram)
+    : null;
   return withMembershipTransaction(async (tx) => {
     await lockTransactionKey(tx, userMembershipLockKey(actor.userId));
     await lockStoreMembers(tx, storeId);
@@ -121,6 +126,8 @@ export async function enableStoreGroup(
       actor.userId,
       {
         name: input.otherStoreName,
+        address,
+        instagram,
         groupId: group.id,
         groupKind: input.currentKind === 'WHOLESALE' ? 'RETAIL' : 'WHOLESALE',
         currency: current.currency,

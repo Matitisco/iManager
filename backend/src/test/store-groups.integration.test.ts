@@ -114,6 +114,50 @@ async function otherMember(
 }
 
 describe('multitienda: alta, sesión y aislamiento', () => {
+  it('crea y activa la nueva tienda con contacto propio sin modificar el de la actual', async () => {
+    const { store } = await seedStoreContext();
+    await prisma.store.update({ where: { id: store!.id }, data: { instagram: 'central.ficticia' } });
+    const res = await getApp().inject({
+      method: 'POST', url: '/api/store-group/enable', headers,
+      payload: {
+        currentKind: 'RETAIL', otherStoreName: ' Sucursal Norte ficticia ',
+        otherAddress: ' Calle Ficticia 123 ',
+        otherInstagram: ' https://www.instagram.com/sucursal.ficticia/?hl=es ',
+      },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const other = res.json().session.stores.find((row: { id: string }) => row.id !== store!.id);
+    expect(other).toMatchObject({ name: 'Sucursal Norte ficticia', kind: 'WHOLESALE' });
+    await activate(other.id);
+    expect((await get('/api/me')).json().store).toMatchObject({
+      id: other.id, name: 'Sucursal Norte ficticia', address: 'Calle Ficticia 123', instagram: 'sucursal.ficticia',
+    });
+    expect(await prisma.store.findUniqueOrThrow({ where: { id: store!.id } })).toMatchObject({
+      address: store!.address, instagram: 'central.ficticia', groupKind: 'RETAIL',
+    });
+  });
+  it.each([{}, { otherAddress: '   ', otherInstagram: '   ' }])('permite contacto omitido o vacío: %j', async contact => {
+    const { store } = await seedStoreContext();
+    const res = await getApp().inject({
+      method: 'POST', url: '/api/store-group/enable', headers,
+      payload: { currentKind: 'WHOLESALE', otherStoreName: 'Sucursal Norte ficticia', ...contact },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await prisma.store.findFirstOrThrow({ where: { id: { not: store!.id } } })).toMatchObject({ address: null, instagram: null });
+  });
+  it.each(['mi tienda', '@', 'https://example.test/ficticia'])('Instagram inválido %s no crea grupo ni tienda', async otherInstagram => {
+    const { store } = await seedStoreContext();
+    const res = await getApp().inject({
+      method: 'POST', url: '/api/store-group/enable', headers,
+      payload: { currentKind: 'WHOLESALE', otherStoreName: 'Sucursal Norte ficticia', otherInstagram },
+    });
+    expect(res.statusCode, res.body).toBe(400);
+    expect(res.json().error).toMatch(/Instagram|perfil/);
+    expect(await prisma.storeGroup.count()).toBe(0);
+    expect(await prisma.store.count()).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { action: 'store-group.enabled' } })).toBe(0);
+    expect(await prisma.store.findUniqueOrThrow({ where: { id: store!.id } })).toMatchObject({ groupId: null, groupKind: null });
+  });
   it('crea otra tienda OWNER, copia configuración, conserva la activa y audita ambas', async () => {
     const { store, user } = await seedStoreContext();
     const settings = {
