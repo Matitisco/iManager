@@ -184,7 +184,8 @@ export function DeskApp({
   }).format(new Date());
   const isStaff = role === 'STAFF';
   const phone = usePhoneLayout();
-  const allowed = (id: DeskTab) => sectionAllowed(id, sections, role, appSession);
+  const allowed = (id: DeskTab) =>
+    sectionAllowed(id, sections, role, appSession);
   const [tab, setTab] = useState<DeskTab>(() =>
     tabFromHash(window.location.hash),
   );
@@ -400,6 +401,11 @@ export function DeskApp({
           'La tienda está en modo solo lectura. Revisá Plan y facturación.',
         );
         setToastOn(true);
+        return;
+      }
+      if (next.type === 'store' && next.focus === 'store-group') {
+        setPendingRecordOpen({ tab: 'settings', overlay: next });
+        go('settings');
         return;
       }
       setOverlay(next);
